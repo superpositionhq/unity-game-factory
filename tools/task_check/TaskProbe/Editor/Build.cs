@@ -9,10 +9,12 @@
 // engine that the game never calls, which the linker removes: measured at High). The play's command line makes the
 // window and names the log.
 // BuildPlayer saves the changed settings into ProjectSettings/ProjectSettings.asset before it builds; when the build
-// ends they are put back, and the file gets back its own bytes, read before the first change: the project's files are
-// as they were (a build that kept its settings, run in a game's own folder, had its company name committed into the
-// game). An editor killed in mid-build leaves the build's settings in that file: the checker deletes its copy, and
-// another project gets the file back from its version control.
+// ends they are put back and that file gets back its own bytes, read before the first change (a build that kept its
+// settings, run in a game's own folder, had its company name committed into the game). An editor killed in mid-build
+// leaves the build's settings in that file: the checker deletes its copy, and another project gets the file back from
+// its version control. Unity itself rewrites other assets in any player build, this one included: URP saves its
+// pipeline assets' prefiltering fields and adds entries to its global settings (measured), as a build of the game's own
+// would.
 // Scripts that don't compile stop Unity before this method runs: no result file, exit code 1.
 using System;
 using System.Collections.Generic;
@@ -93,7 +95,7 @@ namespace TaskProbe.EditorTools
             result["missing"] = Missing(project, played);
             if (scenes.Count == 0) return Failed(result, "no scene to build: the project lists no enabled build scene and the task plays none");
 
-            var kept = new Kept();
+            var kept = new Kept(project);
             try
             {
                 PlayerSettings.companyName = "TaskProbe." + Tag(project);
@@ -136,14 +138,21 @@ namespace TaskProbe.EditorTools
         /// putting them back.</summary>
         sealed class Kept
         {
-            const string Settings = "ProjectSettings/ProjectSettings.asset";  // the editor's working folder is the project's
-            readonly byte[] saved = File.ReadAllBytes(Settings);
+            readonly string settings;
+            readonly byte[] saved;
             readonly string company = PlayerSettings.companyName;
             readonly bool splash = PlayerSettings.SplashScreen.show;
             readonly bool single = PlayerSettings.forceSingleInstance;
             readonly ScriptingImplementation backend = PlayerSettings.GetScriptingBackend(Target);
             readonly bool batching = PlayerSettings.GetStaticBatchingForPlatform(Windows);
             readonly ManagedStrippingLevel stripping = PlayerSettings.GetManagedStrippingLevel(Target);
+
+            public Kept(string project)
+            {
+                // from the project's folder, not the working one: a game's own editor script may change that
+                settings = Path.Combine(project, "ProjectSettings", "ProjectSettings.asset");
+                saved = File.ReadAllBytes(settings);
+            }
 
             public void Restore()
             {
@@ -157,7 +166,7 @@ namespace TaskProbe.EditorTools
                 // nothing more when it exits (it would write the values put back with an entry for each default a new
                 // project leaves out: measured)
                 EditorUtility.ClearDirty(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
-                if (!File.ReadAllBytes(Settings).SequenceEqual(saved)) File.WriteAllBytes(Settings, saved);
+                if (!File.ReadAllBytes(settings).SequenceEqual(saved)) File.WriteAllBytes(settings, saved);
             }
         }
 
