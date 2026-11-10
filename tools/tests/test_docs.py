@@ -425,7 +425,7 @@ def link_problems(rel, text, files, anchor_of):
     return out
 
 
-def path_problems(text, files, skip=lambda line, name: False):
+def path_problems(text, files):
     """[(line, path, problem)] for the repo paths and script names a document names."""
     out, names = [], {}
     for f in files:
@@ -438,7 +438,7 @@ def path_problems(text, files, skip=lambda line, name: False):
                 out.append((line_of(text, m.start()), m.group(1), f'{p} is not in the repo'))
     for m in SCRIPT.finditer(body):
         name, line = m.group(1), line_of(body, m.start())
-        if text[max(0, m.start() - 1)] in '/\\' or skip(line, name):
+        if text[max(0, m.start() - 1)] in '/\\':
             continue
         if name not in names:               # several is fine: each probe test family has its tests.py
             out.append((line, name, f'no file of the repo is named {name}'))
@@ -979,11 +979,7 @@ class Paths(unittest.TestCase):
     def test_paths(self):
         for rel in DOCS:
             with self.subTest(doc=rel):
-                text = self.text(rel)
-                # CONTRACT.md's first table maps the original's names to Unity's: its left column is the original's
-                table = sections(text).get('1', ('', 0, ''))[2] if rel == CONTRACT else ''
-                left = {row.split('|')[1] for row in table.split('\n') if row.startswith('|')}
-                problems = path_problems(text, self.files, lambda line, name: any(name in cell for cell in left))
+                problems = path_problems(self.text(rel), self.files)
                 self.assertFalse(problems, show(rel, problems))
 
     def test_options(self):
@@ -1060,7 +1056,7 @@ class TheChecksCanFail(unittest.TestCase):
                 ' and a key `<Keyboard>/w` in `{"t": 1.0, "key": "<Keyboard>/w", "press": true}`, `"weight": 0`')
         self.assertEqual(self.bad(good), [])
         self.assertTrue(self.bad('`{"probe": "player", "field": "x|y|height"}`'))            # one alternative wrong
-        self.assertTrue(self.bad('`{"probe": "pawn", "field": "z"}`'))                       # no such kind
+        self.assertTrue(self.bad('`{"probe": "hero", "field": "x"}`'))                       # no such kind
         self.assertTrue(self.bad('`{"probe": "objects", "select": {"class": "X"}, "field": "count"}`'))   # select key
         self.assertTrue(self.bad('`{"probe": "ground", "xz": [0, 0], "field": "range"}`'))   # a validator rule
         self.assertTrue(self.bad('`{"op": ">=", "calibrate": 2}`'))
@@ -1080,7 +1076,7 @@ class TheChecksCanFail(unittest.TestCase):
         ok = ('`{"name": ..., "seconds": ..., "inputs": [{"t", "key", "press"}]}` `{"t": ..., "wait": seconds}` '
               '`{"point", "radius", "y_min", "y_max", "y_relative"}` `{"t", "key": "<Keyboard>/w", "press": true|false}`')
         self.assertEqual(self.bad(ok), [])
-        self.assertTrue(self.bad('`{"name": ..., "seconds": ..., "map": ...}`'))             # the original's key
+        self.assertTrue(self.bad('`{"name": ..., "seconds": ..., "stage": ...}`'))           # no such key
         self.assertTrue(self.bad('`{"name": ..., "seconds": ..., "inputs": [{"t", "button"}]}`'))
         self.assertTrue(self.bad('`{"point", "radius", "z_min"}`'))
         self.assertTrue(self.bad('`{"t", "wait": -1, "extra"}`'))
@@ -1138,7 +1134,7 @@ class TheChecksCanFail(unittest.TestCase):
                  'measures': {queries[0]['id']: [{'t': 0.5, 'rows': [{'name': 'Lamp', 'lit': 1, 'glow': 2.5}]}]}}
         sample = ('measures', queries[0]['id'], 0)
         self.assertEqual(probe_json_problems(probe, spec), [])
-        self.assertTrue(probe_json_problems({**probe, 'map': '/Game/A'}, spec))                        # the original's key
+        self.assertTrue(probe_json_problems({**probe, 'stage': 'Arena'}, spec))                        # no such key
         self.assertTrue(probe_json_problems(but(probe, 'player', to=but), spec))                       # always written
         self.assertTrue(probe_json_problems(but(probe, 'format', to='game-probe/1'), spec))
         self.assertTrue(probe_json_problems(but(probe, 'ended', to='quit'), spec))
@@ -1191,7 +1187,7 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertEqual(command_problems(player), ('player command line', []))
         self.assertEqual(command_problems(builds), ('build command line', []))
         self.assertEqual(command_problems(passes), ('editor-pass command line', []))
-        self.assertTrue(command_problems(player.replace('-taskProbe ', '-TaskProbeSpec '))[1])         # the original's
+        self.assertTrue(command_problems(player.replace('-taskProbe ', '-probeSpec '))[1])             # no such option
         self.assertTrue(command_problems(player.replace('960', '1280'))[1])
         self.assertTrue(command_problems(player.replace('play.log', 'game.log'))[1])
         self.assertTrue(command_problems(player + ' -popupwindow')[1])
@@ -1239,7 +1235,7 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertEqual(path_problems(ok, files | {'templates/unity-game/Scripts/unity.ps1'}), [])
         self.assertTrue(path_problems('see `tools/validate-games.py`', files))
         self.assertTrue(path_problems('see %UGF_ROOT%\\unity-game-factory\\docs\\nothing.md', files))
-        self.assertTrue(path_problems('run ue-heavy.ps1', files))
+        self.assertTrue(path_problems('run heavy-job.ps1', files))
 
     def test_options(self):
         src = 'p = argparse.ArgumentParser(prog="a.py")\np.add_argument("--all")\np.add_argument("--x", help=argparse.SUPPRESS)\n'
@@ -1265,13 +1261,13 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertIn(('screen field', 'luma', 'section 2.15'), missing)
         self.assertNotIn(('screen field', 'luminance', 'section 2.15'), missing)
         self.assertIn(('probe kind', 'audio', 'a section "### 2.N `audio`: ..."'), missing)
-        self.assertEqual(unknown_kinds('### 2.2 `pawn`: the player pawn\n'), ['pawn'])
+        self.assertEqual(unknown_kinds('### 2.2 `hero`: the hero\n'), ['hero'])
 
     def test_documented_names_exist(self):
         page = ('### 2.4 `objects`: GameObjects\n`count`, `prop:Health.current`, `inactive: true`, `glow_read` (for '
-                'the logs), `MeshRenderer`, `extent_`, `{"probe": "objects"}`, `bb:Speed`, `pawn_on_screen`, `visble`, '
+                'the logs), `MeshRenderer`, `extent_`, `{"probe": "objects"}`, `zz:Speed`, `hero_on_screen`, `visble`, '
                 '`shown: true`\n### 3. Gates\n`anything`\n')
-        self.assertEqual(unknown_names(page), [('2.4', 'bb:Speed'), ('2.4', 'pawn_on_screen'), ('2.4', 'visble'),
+        self.assertEqual(unknown_names(page), [('2.4', 'zz:Speed'), ('2.4', 'hero_on_screen'), ('2.4', 'visble'),
                                                ('2.4', 'shown: true')])
 
     def test_frontmatter(self):
