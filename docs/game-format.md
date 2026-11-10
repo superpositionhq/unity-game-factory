@@ -76,10 +76,11 @@ leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main'
 branch `starts/<task name>`.
 
 No tool, vendor or owner names anywhere in the repo's text: Superposition, game-factory and unity-game-factory (any
-spelling), Claude, Anthropic, OpenAI (the validator scans tracked text files; the packager scans binaries too). The
-build machine's account name (machine paths carry it) counts too: the validator reads it at run time and enforces it
-everywhere except in scripts that already ran (`Scripts/`, `Assets/Editor/Steps/`, and `.ps1`/`.psm1`/`.py`/`.sh`/
-`.bat`/`.cmd` files anywhere), which stay unchanged; the packager scrubs them in every delivery. That includes
+spelling), Claude, Anthropic, OpenAI (the validator scans tracked text files; the packager, not available yet, will
+scan binaries too, so keep the names out of binary files yourself). The build machine's account name (machine paths
+carry it) counts too: the validator reads it at run time and enforces it everywhere except in scripts that already ran
+(`Scripts/`, `Assets/Editor/Steps/`, and `.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay
+unchanged: the packager (not available yet) will scrub them in every delivery. That includes
 `workflow.jsonl`: it is append-only except that a row naming a banned term is edited in place to a neutral word or
 placeholder, nothing else changed, with one `log.correct` row appended (`params {rows, what}`) and the edited rows
 named in the commit message: `python tools/scrub-workflow-rows.py <repo>` (dry run), then `--apply`.
