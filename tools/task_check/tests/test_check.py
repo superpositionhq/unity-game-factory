@@ -828,3 +828,23 @@ class Cli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SavedData(unittest.TestCase):
+    def test_a_copys_saves_go_under_its_own_company_name(self):
+        # TaskProbe/Editor/Build.cs Tag: the same name from the same folder, whatever its case
+        name = seeds.saves_company("C:/Scratch/ABC123")
+        self.assertRegex(name, r"^TaskProbe\.[0-9a-f]{12}$")
+        self.assertEqual(name, seeds.saves_company("c:\scratch\abc123" if os.name == "nt" else "C:/Scratch/ABC123"))
+        self.assertNotEqual(name, seeds.saves_company("C:/Scratch/ABC124"))
+
+    def test_removing_a_folder_forgets_the_saves_of_the_projects_in_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "run" / "copy"
+            (project / "ProjectSettings").mkdir(parents=True)
+            (project / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.1f1\n")
+            forgotten = []
+            with mock.patch.object(seeds, "forget_saves", forgotten.append):
+                seeds.remove(Path(tmp) / "run")
+            self.assertEqual(forgotten, [project])
+            self.assertFalse((Path(tmp) / "run").exists())

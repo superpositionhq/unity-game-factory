@@ -13,6 +13,7 @@
 Assets a played scene names that the commit doesn't hold (e.g. a store pack committed only later) are found by the
 build (unity.py, its result's `missing`): a fault of the task's commit, which the checker reports and never fills in."""
 
+import hashlib
 import os
 import re
 import shutil
@@ -178,13 +179,66 @@ def check_length(folder):
     return Path(folder)
 
 
+def saves_company(project):
+    """The company name the probe's build gives a scratch copy's player (TaskProbe/Editor/Build.cs `Tag`): "TaskProbe."
+    and 12 hex digits of its folder's sha256. A play's saved data (PlayerPrefs in the registry, the persistent data
+    folder) goes under that name, never under the real game's, and the probe clears it when a play starts."""
+    folder = os.path.abspath(str(project)).lower()
+    return "TaskProbe." + hashlib.sha256(folder.encode("utf-8")).hexdigest()[:12]
+
+
+def _drop_key(root, name):
+    import winreg
+
+    try:
+        with winreg.OpenKey(root, name, 0, winreg.KEY_ALL_ACCESS) as key:
+            while True:
+                try:
+                    _drop_key(key, winreg.EnumKey(key, 0))
+                except OSError:
+                    break
+        winreg.DeleteKey(root, name)
+    except OSError:
+        pass  # not there, or not ours to delete
+
+
+def forget_saves(project):
+    """What the plays of the scratch copy `project` left outside it: its player's registry key and saved-data folder."""
+    company = saves_company(project)
+    if os.name == "nt":
+        import winreg
+
+        _drop_key(winreg.HKEY_CURRENT_USER, "Software\\" + company)
+    # Unity writes the folder's name with the company's dot as an underscore
+    shutil.rmtree(Path(os.path.expanduser("~")) / "AppData" / "LocalLow" / company.replace(".", "_"), ignore_errors=True)
+
+
+def _projects(path, depth=3):
+    """The Unity projects at or under `path`, down to `depth` folders."""
+    path = Path(path)
+    if (path / "ProjectSettings" / "ProjectVersion.txt").is_file():
+        return [path]
+    if depth <= 0 or not path.is_dir():
+        return []
+    found = []
+    try:
+        for child in path.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                found += _projects(child, depth - 1)
+    except OSError:
+        pass
+    return found
+
+
 def remove(path):
-    """`path` removed, read-only files included."""
+    """`path` removed, read-only files included, and with a scratch copy the saved data its plays left outside it."""
 
     def writable(func, target, _):
         os.chmod(target, stat.S_IWRITE)
         func(target)
 
     if Path(path).exists():
+        for project in _projects(path):
+            forget_saves(project)
         shutil.rmtree(path, onexc=writable)
 
