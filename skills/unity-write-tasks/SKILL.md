@@ -62,10 +62,12 @@ when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `gi
 Check every task after committing it on the tasks branch:
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` (it reads the committed `tasks`
 branch, else `origin/tasks`, through git: schema, the format's extra rules, name = file name, seed commits on main or
-the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). Commit
-tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then run the task check on
-all of them in one background run (section 5, `tools/task-check.py`): only VALID tasks ship, so fix or remove every
-INVALID one before the game is packaged.
+the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). Its
+lines that start `repo: Tasks` are about your tasks; its other `repo:` lines (the README, `.meta` files, LFS, the
+manifest) and its `dataset:` lines are about the game repo, not a task: they never change a task check's verdict, but
+a game is delivered only when the validator says VALID. Commit tasks as you go, like any work (unity-commit-always
+skill), but on the tasks branch only. Then run the task check on all of them in one background run (section 5,
+`tools/task-check.py`): only VALID tasks ship, so fix or remove every INVALID one before the game is packaged.
 
 ## 1. The bar: long threads of multiple edits, nothing else
 
@@ -210,18 +212,12 @@ The game's first build scene is usually a title menu that simulated keys cannot 
 `play_scene` and `play_args`: the scene that starts straight in the gameplay where the issue shows, and the player's
 command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args":
 ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the scene exists
-there and at `seed.reference`. The checker adds every scene the plays open to the build, after the project's own
-enabled build scenes, so the scene needn't be in `ProjectSettings/EditorBuildSettings.asset`. Every grader play opens
-it with `play_args` (boots, idle and drive, the route, the before and reference plays); a task play may open its own
-`scene` and `args` instead (`"scene": null`: the first build scene). The probe opens `play_scene` before the game's
-first build scene has started: that scene's objects get `Awake` and `OnEnable` and are then destroyed before `Start`,
-so a singleton it makes in `Awake` with `DontDestroyOnLoad` exists, but anything it sets up in `Start` doesn't. A game
-that needs its boot scene to run is started through its own `play_args` with `play_scene` null. Each argument matches
-`^-?[A-Za-z0-9_.:=,/-]{1,60}$` (at most 16): an element starting with `-` and a letter is a flag, anything else a
-value. Never Unity's or the checker's own flags (`-batchmode`, `-nographics`, `-quit`, `-logFile`, `-projectPath`,
-`-executeMethod`, `-popupwindow`, `-monitor`, `-parentHWND`, `-single-instance`, `-screen-*`, `-force-*`,
-`-taskProbe*`); the validator refuses them. Check in the task check's screenshots and `track` that the reference's
-plays really start where the issue shows.
+there and at `seed.reference`; it needn't be in the game's build settings (the checker adds every scene the plays open
+to its build). Every grader play opens it with `play_args` (boots, idle and drive, the route, the before and reference
+plays). The game's first build scene doesn't run when a play opens another scene: a game that sets itself up in its
+boot scene's `Start` is started through its own `play_args` with `play_scene` null. What a play does to the game, and
+the rules for the arguments (their form, the flags a task can't set), are in docs/task-probes.md, section 1.1. Check
+in the task check's screenshots and `track` that the reference's plays really start where the issue shows.
 
 ## 5. Milestones and checks: deterministic probes decide
 
@@ -236,9 +232,10 @@ contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 Each milestone is a reward group; a run that gets part of the way earns part of the reward. **A no-op scores zero
 (permanent):** the score is the weighted share of checks passed, so every check the start already passes takes
 `"weight": 0`: `builds`, `boots`, all of `still_works`, any `log_absent` or `file_exists` true of the start, and any
-probe the start already passes, required or not. They
-still gate: a run must pass the required ones to be solved. `validate-game.py` and the task check refuse a task a
-no-op would earn anything on. The usual order:
+probe the start already passes, required or not. They still gate: a run must pass the required ones to be solved.
+`validate-game.py` refuses a weighted `build`, `boot` or `still_works` check, and the task check a weighted probe the
+start passes; nothing checks a `log_absent` or `file_exists` outside `still_works`, so their `"weight": 0` is yours to
+set. The usual order:
 
 1. `builds`: `build` (`player_builds`: the scripts compile and a Windows player builds).
 2. `boots`: `boot` 60 s (`boots_clean`: the player runs 60 s without a crash), `needs` the build. A managed exception
@@ -296,8 +293,8 @@ are measured from the engine (`light`, `grading`), never from screenshots. `desc
 words; it is shown in the grade, never to the agent. Check names are unique and `needs` only names earlier checks;
 calibrated probes, `code_judge` and `"reference": true` judges need `seed.reference`.
 
-A task is valid only when it passes the task check: its start fails the task and its reference fix passes every
-required check, and every required `still_works` probe already passes at the start. Write the probes per
+A task is valid only when it passes the task check: its start fails the task and its reference fix builds, boots and
+passes every required probe, and every required `still_works` probe already passes at the start. Write the probes per
 [docs/task-probes.md](../../docs/task-probes.md), then check the game's tasks **together, in one background run** (one
 run builds a commit several tasks share once, and the person can leave it running and come back). Write and commit
 every task first, check that Unity Hub is signed in with an active licence (a batchmode run without one exits 198),
@@ -312,18 +309,18 @@ Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game
 ```
 
 Create `.task-checks` first if it doesn't exist. Unity fails on paths past 260 characters, so the checker refuses a
-scratch project folder longer than 90 characters; when it says so, add `'--scratch', 'C:\tc'` (a short folder on the
-repo's drive) to the arguments. Tell the person it is running, roughly how long (about 20-60 minutes a task, most of it
-importing each commit's assets, less where tasks share commits or a later commit starts from an earlier copy's
-import cache), and that they can leave it. Read
-`<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
-`finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
-fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
-committed yet ([docs/task-check.md](../../docs/task-check.md)). The check builds each start and reference as a Windows
-player with the probe package, plays them on a Windows desktop of their own (nothing on the person's screen, the game
-counting itself focused) and writes VALID or INVALID per task with the reasons and the
-measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common
-reasons and fixes"), never the threshold toward what the start happens to measure.
+scratch project folder longer than 90 characters: it then stops at once and `run.log` says so; add `'--scratch',
+'C:\tc'` (a short folder on the repo's drive) to the arguments. Tell the person it is running, roughly how long (7 to
+31 minutes a task for small projects on the machine it was measured on, longer for a game with many or large assets;
+most of it is the builds, and a commit several tasks share is built once: docs/task-check.md, "Requirements"), and
+that they can leave it. Read `<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten
+after every task; it says `finished` at the end); never start a second run of the same game while one is going. A
+recheck of the tasks you fixed takes `--task <name>` once per task instead of `--all`. `--task
+<path>/Tasks/<name>.json` checks a file not committed yet ([docs/task-check.md](../../docs/task-check.md)). The check
+builds each start and reference as a Windows player with the probe package, plays them on a Windows desktop of their
+own (nothing on the person's screen, the game counting itself focused) and writes VALID or INVALID per task with the
+reasons and the measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the
+docs' "Common reasons and fixes"), never the threshold toward what the start happens to measure.
 
 ## 6. Difficulty, limits and what the validator enforces
 
@@ -359,7 +356,7 @@ reaches it. So:
   comment or a `// TODO` saying how to fix it): if it does, pick another seed or another task;
 - never point the game's code, docs or README at `Tasks/` or the tasks branch.
 
-## 8. Pitfalls already hit (from the Unreal factory, in Unity terms)
+## 8. Pitfalls already hit
 
 | pitfall | rule |
 |---|---|
@@ -376,6 +373,7 @@ reaches it. So:
 | a sound judged by its AudioSource being enabled, not by what the player hears | `audio`: sources playing at their volume at the listener, and the mix's `level`; volumes and level calibrated or relative to the start |
 | relief judged by the height of one spot | `ground` over a box: `range`, calibrated or relative to the start |
 | a teleport to fixed coordinates missed what each build placed itself | `teleport_to` an object select (nearest match), facing it or a point |
+| a `teleport_to` by a `name` wildcard (`Coin*`) went to the `CoinSpawner` beside the player, not to a coin | a select takes every object that fits, and `teleport_to` the nearest: select the instances by their own component or whole name (`Coin(Clone)`), and read `probe.log` in the reference's play |
 | a select by component type or tag also matched the scene's own objects, or named the type the reference happened to use | select by what the object carries: `has` (a part that is `lit`, `visible`, of a `component`, `near` a point) |
 | cars that are parts of one object had no position or speed | `components` fields `x`, `y`, `z`, `speed` |
 | a broken crate kept its pieces drawn and tagged, so counts couldn't see it break | object `simulating` and `spread`, component `extent_*` and `simulating` |
@@ -395,16 +393,16 @@ reaches it. So:
 | the nearest object a player can push had to be named by type | `has` with `"simulating": true` (and `"movable": true`), in a select or `teleport_to` |
 | the game reset the player's position every frame, undoing a teleport | `teleport` or `teleport_to` with `hold` (seconds) |
 | a lamp above matched together with one below it | `near` with `y_min`/`y_max` (world, or `y_relative` to the point) |
+| a menu that pages on real time (`Time.realtimeSinceStartup`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script) |
 | `teleport_to` a hovering target left the player in the air | the spot is at the target's own y plus `offset` (no ground snap): a negative y `offset`, or `hold` |
-| a sound played with `PlayOneShot` matched no `sound` select | one-shots have no clip name: read `level` in an audio play, or select the source by `owner` |
+| a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `level` in an audio play, or select the source by `owner` |
 | a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input then `<Mouse>/leftButton` |
 | an editor `shader:` value compared with `==` 0.2 read 0.19999995827674866 | floats come back as stored: `>=`/`<=` a little either side |
 | a readout read through the frame touched its rect's edge and read nothing | give the `ui` rect a margin of background around the text |
-| a probe that isn't required but passes at the start carried weight | the no-op rule covers every deterministic check: `"weight": 0` |
-| a menu that pages on real time (`Time.unscaledTime`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
+| a probe that isn't required but passes at the start carried weight | every check the start passes takes `"weight": 0`, a `"required": false` probe too |
 | a probe that tests the reference's implementation ("spawnHeight = 0.92") | measure the outcome; another valid fix must pass |
 | the brief said "scenario 1" but not `-scenario 1` | `play_scene` and `play_args` always set and checked at the seed |
 | a UI element or component name guessed | read the names from the code and assets at `seed.commit` and `seed.reference` |
