@@ -179,6 +179,12 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   task with no fix: `{"op": ">=", "start_times": 1.3}` (threshold `s * 1.3`) or `{"op": ">=", "start_plus": 5}`
   (threshold `s + 5`), measured on the start.
 
+Where the number depends on what a build chose, the threshold is calibrated or relative to the start, never a literal
+value, and `tools/validate-game.py` refuses a literal: `objects` `spread`, `bounds_change`, `pose_change`, `glow` and
+`spin`; `components` `intensity`, `extent_*`, `bounds_change`, `pose_change`, `glow` and `spin`; `pieces` `triangles`
+and `visible_triangles`; every `screen` field; `audio` `volume`, `max_volume` and `level`; `ground` `range`; every
+`drawn` field but `drawn`. Each section says why.
+
 When the start can't be measured (its play ended before the window), a calibrated threshold anchors on the fix alone:
 `r - 0.25 * |r|` for `>`/`>=`, `r + 0.25 * |r|` for `<`/`<=`. When the fix can't be measured, or the start of a
 `start_times`/`start_plus` check can't, the task is invalid for that check if it is required. A probe left without a
