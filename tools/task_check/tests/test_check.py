@@ -517,6 +517,44 @@ class Whole(unittest.TestCase):
             self.assertIn("  reference: built (1 s, built earlier in this run)", said,
                           "the third task's reference build is the second's")
 
+    def test_a_failed_build_of_more_scenes_serves_no_task_with_fewer(self):
+        """A later task's scene that doesn't build fails that task, never the next one whose own scenes build: sharing
+        a copy changes no result."""
+        made = []
+
+        def build(timeout, scenes=()):
+            made.append(list(scenes))
+            return unity.Result(1 if "Assets/Scenes/Broken.unity" in scenes else 0, "", 1.0)
+
+        project = FakeProject()
+        project.build = build
+        built = check.Built(project, log=lambda *a: None)
+        town, broken = ["Assets/Scenes/Town.unity"], ["Assets/Scenes/Broken.unity"]
+        self.assertEqual([built.build(60, s).exit_code for s in (town, broken, town, town)], [0, 1, 0, 0],
+                         "the third as it would be alone")
+        self.assertEqual(made, [town, broken + town, town], "built for its own scenes after the failure, then shared")
+
+    @unittest.skipUnless(sys.platform == "win32", "make_game's repo")
+    def test_a_unity_that_isnt_installed_fails_every_task_on_its_commit_alike(self):
+        def not_installed(cls, project, direct=False):
+            raise RuntimeError("Unity 6000.3.26f1 is not installed: install it through Unity Hub")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, start, fix, _ = make_game(tmp)
+            runs = []
+            for name in ("a-one", "a-two"):
+                task = task_with(probe())
+                task["name"], task["seed"] = name, {**task["seed"], "commit": start, "reference": fix}
+                runs.append(task)
+            with mock.patch.object(unity.Machine, "for_project", classmethod(not_installed)), \
+                    mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0):
+                builds = check.Builds(repo, Path(tmp) / "scratch", log=lambda *a: None)
+                results = [check.check_task(repo, task, b"{}", Path(tmp) / "unused", Path(tmp) / "out",
+                                            log=lambda *a: None, builds=builds) for task in runs]
+                builds.close()
+        self.assertEqual([r["verdict"] for r in results], ["ERROR", "ERROR"])
+        self.assertTrue(all("is not installed" in r["reasons"][0] for r in results), [r["reasons"] for r in results])
+
     def test_an_unreadable_task_is_invalid(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = check.check_task(tmp, {"name": "x"}, b"{}", Path(tmp) / "s", Path(tmp) / "out",

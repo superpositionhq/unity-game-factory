@@ -99,15 +99,21 @@ class Built:
         self._scenes = set()  # the scenes the current build was given
 
     def has_built(self, scenes=()):
-        """Whether a build that holds `scenes` is already made."""
-        return self._build is not None and set(scenes) <= self._scenes
+        """Whether a build that holds `scenes` is already made. One that failed serves only the scenes it was given:
+        failing on a later task's scene, it says nothing of an earlier one's."""
+        if self._build is None:
+            return False
+        return set(scenes) <= self._scenes if self._build.exit_code == 0 else set(scenes) == self._scenes
 
     def build(self, timeout, scenes=()):
         if not self.has_built(scenes):
             if self._build is not None:
                 more = sorted(set(scenes) - self._scenes)
-                self.log(f"  {self.project.label}: building again, for scene(s) the earlier build lacks: "
-                         f"{', '.join(more)}")
+                self.log(f"  {self.project.label}: building again, " + (
+                    f"for scene(s) the earlier build lacks: {', '.join(more)}" if more else
+                    "without the scene(s) the earlier build failed with"))
+                if self._build.exit_code != 0:
+                    self._scenes = set()  # what failed is no task's but the one that asked for it
             self._scenes |= set(scenes)
             self._build = self.project.build(timeout, sorted(self._scenes))
         return self._build
@@ -125,9 +131,9 @@ class Builds:
         self.copies = {}  # sha -> (Built, info) or the seeds.WrongEngine its probe package refused
 
     def get(self, sha, needed=()):
-        """(Built, info) for commit `sha`; raises seeds.WrongEngine for a project that isn't Unity 6000.3 and
-        seeds.PathTooLong for a scratch folder Unity can't build in. When the disk is below the machine's floor, copies
-        other than `needed` (this task's commits) are deleted first."""
+        """(Built, info) for commit `sha`; raises seeds.WrongEngine for a project that isn't Unity 6000.3, RuntimeError
+        when the Unity it names isn't installed, and seeds.PathTooLong for a scratch folder Unity can't build in. When
+        the disk is below the machine's floor, copies other than `needed` (this task's commits) are deleted first."""
         if sha in self.copies:
             self.log(f"  {sha[:12]}: reusing the copy already made in this run")
         else:
@@ -137,10 +143,10 @@ class Builds:
             made = seeds.materialize(self.repo, sha, folder)
             try:
                 seeds.add_probe(folder)
-            except seeds.WrongEngine as exc:
+                machine = unity.Machine.for_project(folder, self.direct)
+            except (seeds.WrongEngine, RuntimeError) as exc:  # (a Unity that isn't installed) every task on it alike
                 self.copies[sha] = exc
             else:
-                machine = unity.Machine.for_project(folder, self.direct)
                 self.copies[sha] = (Built(unity.Project(folder, machine, sha[:12]), self.log),
                                     {"files": made["files"], "lfs_linked": made["linked"],
                                      "lfs_copied": made["copied"], "engine": str(machine.editor),
