@@ -175,8 +175,9 @@ depends on, or an unrelated later fix is needed for it to compile), give it a ma
 - **Read the code at `seed.commit`** and confirm the issue is there (the reference diff's removed lines, or a search).
 - **The thread's real ends are often not the commits that say so**: a descriptive commit may touch only
   `workflow.jsonl` while the code is in the WIP commit before it. Use `git show --stat` around that time and the
-  workflow rows that link the direction (`"direction"`). Start before the first attempt, so the agent faces every issue
-  the thread settled, and end at the commit after which no more work on it followed.
+  workflow rows that link the direction (`"direction"`). Start before the first attempt (the earliest, when the
+  thread settled several issues), so the agent faces every issue the thread settled, and end at the commit after
+  which no more work on it followed.
 - **The reference must compile and run**: the grader plays it beside the agent's result. If the last fix crashed until
   a later commit, extend the thread to the later one.
 - **Chains and splits merge**: a person complained again after a fix ("still too low"): one task from before the first
@@ -209,10 +210,11 @@ wording. The reader is a capable developer who has never seen the game.
 **Every brief is only an observation**: what a player or QA sees, in plain words, for every issue the thread settled.
 It names no cause, no place to look, no file, system, script, component, prefab or asset, and no mechanism ("the
 camera feels jammed against the ship", not "the deoccluder counts the water layer"). It never says how many changes
-are needed or that the issues are related. Leave out the play_scene line, which the harness adds. An issue that
-shows only once another is fixed (a first fix that didn't hold: the lamp that never lights hides how dim it is lit)
-can't be reported as seen at the start: say what is expected there in the item that hides it (how a lit lamp
-looks), and give it its own probe.
+are needed or that the issues are related. Leave out the play_scene line, which the harness adds after the brief
+("QA plays the game from the scene ..., with the arguments ..."; with `play_scene` null, the arguments alone). An
+issue that shows only once another is fixed (a first fix that didn't hold: the lamp that never lights hides how dim
+it is lit) can't be reported as seen at the start: say what is expected there in the item that hides it (how a lit
+lamp looks), and give it its own probe.
 
 - **bug_fix**: a QA bug report listing each symptom: what happens, how to reproduce it, what is expected. Code
   identifiers only inside a quoted compiler error or exception line from the player log, which is what a log shows.
@@ -230,13 +232,13 @@ The game's first build scene is usually a title menu that simulated keys cannot 
 command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args":
 ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the scene exists
 there and at `seed.reference`; it needn't be in the game's build settings (the checker adds every scene the plays open
-to its build). Every grader play opens it with `play_args` (boots, idle and drive, the route, the before and reference
-plays). The game's first build scene doesn't run when a play opens another scene: a game that sets itself up in its
-boot scene's `Start` is started through its own `play_args` with `play_scene` null. So is a game whose gameplay
-scene is its first build scene: named in `play_scene`, that scene would load a second time. What a play does to the
-game, and the rules for the arguments (their form, the flags a task can't set), are in docs/task-probes.md, section
-1.1. Check in the task check's screenshots and `track` that the reference's plays really start where the issue
-shows.
+to its build). Every grader play opens it with `play_args` (boots, idle and drive, and a judge's own plays: its
+route, its before and reference plays). The game's first build scene doesn't run when a play opens another scene: a
+game that sets itself up in its boot scene's `Start` is started through its own `play_args` with `play_scene` null.
+So is a game whose gameplay scene is its first build scene: named in `play_scene`, that scene would load a second
+time. What a play does to the game, and the rules for the arguments (their form, the flags a task can't set), are in
+docs/task-probes.md, section 1.1. Check in the task check's screenshots and `track` that the reference's plays
+really start where the issue shows.
 
 The plays also need to know which object is the player (for `player` measures, teleports, a `near` around the
 player). The probe takes an active object tagged `Player`, else one with a `PlayerInput`, else one with a
@@ -266,7 +268,9 @@ set. The usual order:
 
 1. `builds`: `build` (`player_builds`: the scripts compile and a Windows player builds).
 2. `boots`: `boot` 60 s (`boots_clean`: the player runs 60 s without a crash), `needs` the build. A managed exception
-   the game survives is not a crash; a `log_absent` check catches those.
+   the game survives is not a crash; a `log_absent` check catches those. It is required like any check that doesn't
+   say `"required": false`, and the task check only notes a `log_absent` the reference fails: read its notes, since
+   no solution like the reference could pass one (docs/task-check.md, "VALID and INVALID").
 3. `fixed` (bug_fix, correction) / `done` (feature, change): `probe` checks of the reported outcomes, `required`,
    `needs` `boots_clean`: at least 3, one per issue the thread settled (split them over several milestones, e.g.
    `fixed_hud`, `fixed_camera`, when the issues are separable). Each one fails at the start for the reported reason
@@ -432,7 +436,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a menu that pages on real time (`Time.unscaledTime`, `Time.realtimeSinceStartup`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
-| `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script) |
+| `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script, when the start has it too; in a task that adds the thing, a component every solution has once per thing) |
 | `teleport_to` a hovering target left the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
 | a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `level` in an audio play, or select the source by `owner` |
 | a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |

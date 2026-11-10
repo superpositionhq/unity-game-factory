@@ -86,11 +86,12 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
     `single-instance`, `window-mode`, any flag starting with `screen-` or `force-`, nor the probe's own (any flag
     starting with `taskprobe`); `tools/validate-game.py` lists what it refuses.
-  - `inputs` (at most 400), each at time `t` (seconds of play, 0-120). Keys, buttons and axes go through the **Input
-    System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game that reads the old Input Manager
-    (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued before the game's scripts run and
-    processed by the Input System at the next frame's start, so the game reads it one frame (1/30 s) after `t`. The
-    Gamepad is added only when an input names `<Gamepad>` (a gamepad switches many games' button prompts).
+  - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-120). Keys,
+    buttons and axes go through the **Input System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game
+    that reads the old Input Manager (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued
+    before the game's scripts run and processed by the Input System at the next frame's start, so the game reads it
+    one frame (1/30 s) after `t`. The Gamepad is added only when an input names `<Gamepad>` (a gamepad switches many
+    games' button prompts).
     - a key: `{"t": 1.0, "key": "<Keyboard>/w", "press": true}` and later `"press": false`. `key` is an Input System
       control path, `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`: any key of `<Keyboard>/` by its Input System
       name (`w`, `space`, `leftShift`, `f2`, `escape`); on `<Mouse>/`, `leftButton`, `rightButton`, `middleButton`,
@@ -111,16 +112,17 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit buttons, and the game through
       `Mouse.current`;
     - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` puts the player's own position (its pivot) at that
-      point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player): the way to reach a test
-      spot. The probe doesn't move it to the ground or out of a collider afterwards: take the point from where the
-      player stands in a play (the `track` of its `probe.json`);
+      point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player), at once: the game's
+      scripts of that frame already find the player there (a key reaches them a frame later). It is the way to reach
+      a test spot. The probe doesn't move it to the ground or out of a collider afterwards: take the point from where
+      the player stands in a play (the `track` of its `probe.json`);
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
       "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to the
-      player (the player and its own children left out; of two as near, the first in hierarchy order), on the
-      player's side (behind the object, on the side its back is to, when the player stands right above it) and level
-      with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else that object (with nothing
-      to face within a centimetre on the ground, it keeps its own yaw). The way to reach a spot each build chooses
-      itself (the ore a fix placed, a door it moved).
+      player, position to position (the player and its own children left out; of two as near, the first in hierarchy
+      order), on the player's side (behind the object, on the side its back is to, when the player stands right above
+      it) and level with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else that object
+      (with nothing to face within a centimetre on the ground, it keeps its own yaw). The way to reach a spot each
+      build chooses itself (the ore a fix placed, a door it moved).
       **Level is pivot to pivot**: the player's own position goes to the height of the object's position plus
       `offset`'s y, and nothing then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up,
       `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). **A select matches every
@@ -211,11 +213,12 @@ value, and `tools/validate-game.py` refuses a literal: `objects` `spread`, `boun
 and `visible_triangles`; every `screen` field; `audio` `volume`, `max_volume` and `level`; `ground` `range`; every
 `drawn` field but `drawn`. Each section says why.
 
-When the start can't be measured (its play ended before the window), a calibrated threshold anchors on the fix alone:
-`r - 0.25 * |r|` for `>`/`>=`, `r + 0.25 * |r|` for `<`/`<=` (a fix of 0 leaves no threshold, as a quarter of
-nothing is no margin). When the fix can't be measured, or the start of a `start_times`/`start_plus` check can't, the
-task is invalid for that check if it is required. A probe left without a threshold, this way or by a start and fix
-that measure the same, fails as `uncalibrated` on every side; one that isn't required is only a note (section 4).
+When the start can't be measured (its play ended before the window, or nothing the measure selects is there yet, as
+in a task that adds it), a calibrated threshold anchors on the fix alone: `r - 0.25 * |r|` for `>`/`>=`,
+`r + 0.25 * |r|` for `<`/`<=` (a fix of 0 leaves no threshold, as a quarter of nothing is no margin). When the fix
+can't be measured, or the start of a `start_times`/`start_plus` check can't, the task is invalid for that check if
+it is required. A probe left without a threshold, this way or by a start and fix that measure the same, fails as
+`uncalibrated` on every side; one that isn't required is only a note (section 4).
 
 ## 2. Measures
 
@@ -850,7 +853,8 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
 
 - `select` (optional; none: every source playing): `sound` a wildcard on the AudioClip's name, `sound_class` a
   wildcard on the name of the AudioMixerGroup the source outputs to (that group's own name: a parent group's doesn't
-  match), `owner` an object select the source's object is in.
+  match), `owner` an object select: the source is on a matching object or on one of its descendants (as a
+  components `owner`, section 2.5).
 - Each source reads its **volume at the listener** (the first enabled AudioListener on an active object, in hierarchy
   order): its volume (0 when muted) times its distance attenuation by its rolloff, for its 3D share by
   `spatialBlend`; mixer volumes and `AudioListener.volume` are left out (a mixer group's volume changes `level`, never

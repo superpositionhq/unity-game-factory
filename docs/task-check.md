@@ -151,8 +151,9 @@ it waited for a machine slot (`unity-heavy.ps1`).
 
 - `{"op": ">=", "value": 1}`: a literal.
 - `{"op": ">=", "calibrate": 0.5}`: `s + 0.5 * (r - s)` between the start's measure `s` and the reference's `r`.
-  If the start measured nothing (its play crashed: often the bug itself), the threshold is `r` moved a quarter of
-  `|r|` toward the start's side (an `r` of 0 gives no margin: uncalibrated). If the reference measured nothing, or
+  If the start measured nothing (its play crashed, often the bug itself; or nothing the measure selects is there yet,
+  the usual case in a task that adds it), the threshold is `r` moved a quarter of `|r|` toward the start's side (an
+  `r` of 0 gives no margin: uncalibrated). If the reference measured nothing, or
   both sides measure the same, the probe fails as **uncalibrated**.
 - `{"op": ">=", "start_times": 1.3}` / `{"op": ">=", "start_plus": 5}`: `s * 1.3` / `s + 5` from the start (for an
   outcome the reference is only one fair way of reaching, or a task with no reference: task-probes.md, section 1.2).
@@ -178,7 +179,10 @@ A task is **VALID** when all of this holds:
 
 Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
-`file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID.
+`file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
+all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and
+a run counts as solved only when every required check passes, so a required one the reference itself fails is one no
+solution like the reference can pass. Fix its pattern, or make it `"required": false`.
 
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
 `still_works` (thresholds relative to the start, or literals; a relative one the start measured nothing for has no
@@ -194,30 +198,33 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
   - `verdict`, `reasons` (why INVALID or ERROR), `notes` (the reference's failures that don't decide, written
     `reference fails X (<kind>): <detail>`, and scenes that name assets the commit lacks); a reason or note carries at
     most 160 characters of a check's detail, the whole of it is in that check's row;
-  - `start` and `reference`: the side's `commit`, whether it `built`, its `missing_assets` (per scene the task plays,
-    the asset GUIDs it names that the commit has no asset for, and how many assets it names), and how its copy was
-    made (`files`, `lfs_linked`, `lfs_copied`, `engine`: the Unity.exe used, `slots`: `unity-heavy` or `direct`);
+  - `start` and `reference`: the side's `commit`, whether it `built`, its `missing_assets` (`{}` when nothing is
+    missing; else, per scene the task plays, the asset GUIDs it names that the commit has no asset for, and how many
+    assets it names), and how its copy was made (`files`, `lfs_linked`, `lfs_copied`, `engine`: the Unity.exe used,
+    `slots`: `unity-heavy` or `direct`);
   - `probes`: an object keyed by each probe check's name: its milestone (`group`), `required`, `op`, `expect`, the
-    `start` and `reference` measures, the `threshold`, and whether each side passed (`start_passed`,
-    `reference_passed`);
+    `start` and `reference` measures (null where that side measured nothing, which is not a measured 0), the
+    `threshold` (null when uncalibrated), and whether each side passed (`start_passed`, `reference_passed`);
   - `start_checks`, `reference_checks`: a list with every check's row on each side, in the task's order (`name`,
     `kind`, `group`, `required`, `weight`, `passed` and a `detail`). A probe's detail is its `describe`, then
     `| measured V, threshold OP T`, with what the start and the reference measured when the threshold came from them,
     and why it has no value: `... | measured 0, threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing,
-    threshold >= 1: no value in the window (...)`. A detail starting `not asked` is a check that side doesn't run
-    (judges, trace probes and packaging on either side; on the start, everything but its probes and a
-    `fails_at_start` build check): it shows as passed and counts for nothing;
+    threshold >= 1: no value in the window (...)`; a probe left without a threshold reads `uncalibrated: X: ...`
+    instead. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
+    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
+    counts for nothing;
   - `task_sha256` (the SHA-256 of the task file as the run read it: the file as committed on the `tasks` branch, or
     the `.json` given by path; a checkout with other line endings hashes differently), `task`, `game`, `at` (when,
     UTC), `seconds` (how long the check took) and `evidence` (the task's folder of play files, below).
 - `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
   `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
-  Each holds `probe.json` (below), `probe.log` (the probe's own lines: where each teleport put the player, each
-  click, wait and error, each line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`,
-  ... (960x540 PNGs, UI included, evenly over the play), `play.log` (the game's own player log) and `output.txt`
-  (what the play's job printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and
-  `build\build.log` Unity's log of a build that failed. Read these when a value surprises you. Checking a task again
-  replaces its folder.
+  The result doesn't name a check's play: it is the check's `play` in the task file. Each holds `probe.json`
+  (below), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
+  line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI
+  included, evenly over the play), `play.log` (the game's own player log) and `output.txt` (what the play's job
+  printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and `build\build.log`
+  Unity's log of a build that failed. Read these when a value surprises you. Checking a task again replaces its
+  folder.
 - A play's `probe.json` holds, per sample time: in `track` a row `[t, x, y, z]`, the player's position (`[t]` alone
   while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
