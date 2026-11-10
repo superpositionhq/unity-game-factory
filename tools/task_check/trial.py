@@ -36,7 +36,10 @@ LIMITS = {"max_turns": 200, "max_minutes": 240}  # the schema's defaults (game-t
 # which a game's files never carry; the grade imports everything again, as the task check does for each copy.
 BUILT = ("Library", "Temp", "Obj", "Logs", "Build", "Builds")
 NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-action hooks record nothing when set
-NO_ROOT = ("UGF_ROOT", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")  # nothing points the agent at a machine root
+# Nothing points the agent at a machine root, its config (which names the root), its deliverables (every game's history)
+# or the organisation that holds the game repos.
+NO_ROOT = ("UGF_ROOT", "UGF_CONFIG", "UGF_OUT", "UGF_ORG", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")
+HOME = ("~", "$home", "${home}", "$env:userprofile", "%userprofile%")  # the home folder as the shells write it
 
 
 def brief(task, editor):
@@ -208,14 +211,23 @@ def usage(agent, transcript):
 
 
 def peeked(transcript, places):
-    """The `places` (the game repo, the tasks worktree) the transcript names: the agent could have read the answer."""
+    """The `places` (the game repo, the tasks worktree) the transcript names: the agent could have read the answer. A
+    place counts with either slash, as Git Bash writes it (/c/..., Claude Code's shell on Windows) and from the home
+    folder (~/..., $HOME/...)."""
     try:
         text = Path(transcript).read_text(encoding="utf-8", errors="replace").lower().replace("\\\\", "\\")
     except OSError:
         return []
+    home = os.path.expanduser("~").lower().rstrip("\\/")
     found = []
     for place in places:
-        forms = {str(place).lower(), str(place).lower().replace("\\", "/")}
+        path = str(place).lower()
+        forms = {path}
+        if path[1:3] in (":\\", ":/"):
+            forms.add("/" + path[0] + path[2:])
+        if path.startswith((home + "\\", home + "/")):
+            forms.update(name + path[len(home):] for name in HOME)
+        forms |= {f.replace("\\", "/") for f in forms}
         if any(f and f in text for f in forms):
             found.append(str(place))
     return found
@@ -477,7 +489,8 @@ def main(argv=None):
     cli.ignore_results(repo, out)
     unity.ugfroot.check_free(str(scratch_root), "task try")
     home = Path(os.path.expanduser("~"))
-    places = [repo, root, home / ".agents", home / ".claude", home / ".codex"] + ([tasks_dir] if tasks_dir else [])
+    places = [repo, root, out, home / ".agents", home / ".claude", home / ".codex"] + (
+        [tasks_dir] if tasks_dir else [])
 
     def log(text):
         print(text, file=sys.stderr, flush=True)

@@ -2,6 +2,7 @@
 readers and a run's score."""
 
 import contextlib
+import io
 import json
 import os
 
@@ -83,7 +84,8 @@ def faked(agent, projects=None, editor="C:/U/Unity.exe"):
         return projects[folder.name if folder.name in projects else folder.parent.name]
 
     with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
-            mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False: cls(Path(editor), None))):
+            mock.patch.object(unity.Machine, "for_project",
+                              classmethod(lambda cls, p, d=False: cls(Path(editor), None))):
         yield projects
 
 
@@ -144,18 +146,29 @@ class Harness(unittest.TestCase):
         with self.assertRaises(ValueError):
             trial.agent_argv("cursor", "x", {"max_turns": 1}, "s.json")
 
-    def test_the_agent_gets_the_prompt_on_stdin_recording_off_and_no_machine_root(self):
+    def test_the_agent_gets_the_prompt_on_stdin_and_recording_off(self):
         with tempfile.TemporaryDirectory() as tmp:
-            names = ("UGF_NO_RECORDING", "GF_NO_RECORDING", "UGF_ROOT", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")
-            script = ("import os,sys; print(sys.stdin.read().upper()); "
-                      f"print(' '.join(os.environ.get(n, '-') for n in {names!r}))")
+            script = ("import os,sys; print(sys.stdin.read().upper()); print(os.environ.get('GF_NO_RECORDING'))")
             out = Path(tmp) / "t.jsonl"
-            planted = {"UGF_ROOT": "C:/UnityWork", "GF_ROOT": "C:/Work", "UNITY_RUN_REASON": "x", "UE_RUN_REASON": "y"}
+            ran = trial.run_agent([sys.executable, "-c", script], tmp, "fix it", out, 1)
+            self.assertEqual(ran["exit_code"], 0)
+            self.assertFalse(ran["timed_out"])
+            self.assertEqual(out.read_text().split(), ["FIX", "IT", "1"])
+
+    def test_both_factories_record_nothing_and_nothing_points_the_agent_at_the_answer(self):
+        """The machine root, its config (which names the root), the deliverables (every game's history) and the
+        organisation of the game repos stay out of the agent's environment."""
+        with tempfile.TemporaryDirectory() as tmp:
+            names = ("UGF_NO_RECORDING", "GF_NO_RECORDING", "UGF_ROOT", "UGF_CONFIG", "UGF_OUT", "UGF_ORG", "GF_ROOT",
+                     "UNITY_RUN_REASON", "UE_RUN_REASON")
+            script = f"import os; print(' '.join(os.environ.get(n, '-') for n in {names!r}))"
+            out = Path(tmp) / "t.jsonl"
+            planted = {"UGF_ROOT": "C:/UnityWork", "UGF_CONFIG": "C:/ugf/config.json", "UGF_OUT": "D:/deliveries",
+                       "UGF_ORG": "studio", "GF_ROOT": "C:/Work", "UNITY_RUN_REASON": "x", "UE_RUN_REASON": "y"}
             with mock.patch.dict(os.environ, planted):
                 ran = trial.run_agent([sys.executable, "-c", script], tmp, "fix it", out, 1)
             self.assertEqual(ran["exit_code"], 0)
-            self.assertFalse(ran["timed_out"])
-            self.assertEqual(out.read_text().split(), ["FIX", "IT", "1", "1", "-", "-", "-", "-"])
+            self.assertEqual(out.read_text().split(), ["1", "1"] + ["-"] * 7)
 
     @unittest.skipUnless(os.name == "nt", "taskkill")
     def test_an_agent_past_its_time_limit_is_stopped_with_what_it_started(self):
@@ -233,6 +246,21 @@ class Transcript(unittest.TestCase):
             f.write_text(json.dumps({"cmd": "cat c:/unitywork/tasks/stealth/Tasks/x.json"}))
             self.assertEqual(trial.peeked(f, ["C:\\UnityWork\\games\\stealth", "C:\\UnityWork\\tasks\\stealth"]),
                              ["C:\\UnityWork\\tasks\\stealth"])
+
+    def test_a_place_is_found_however_a_shell_spells_it(self):
+        """Claude Code's shell on Windows is Git Bash (/c/Users/...); every shell writes the home folder its own way."""
+        repo = os.path.join(os.path.expanduser("~"), "UnityWork", "games", "stealth")
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "t.jsonl"
+            git_bash = "/" + repo[0].lower() + repo[2:].replace("\\", "/")
+            for said in (f"ls {git_bash}/Assets", "cat ~/UnityWork/games/stealth/README.md",
+                         "dir $HOME\\UnityWork\\games\\stealth", "ls ${HOME}/UnityWork/games/stealth",
+                         "Get-ChildItem $env:USERPROFILE\\UnityWork\\games\\stealth",
+                         "type %USERPROFILE%\\UnityWork\\games\\stealth\\README.md"):
+                f.write_text(json.dumps({"cmd": said}))
+                self.assertEqual(trial.peeked(f, [repo]), [repo], said)
+            f.write_text(json.dumps({"cmd": "ls ~/UnityWork/games/other"}))
+            self.assertEqual(trial.peeked(f, [repo]), [])
 
     def test_a_workspace_inside_the_root_or_the_repo_is_not_outside(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -314,7 +342,7 @@ class Whole(unittest.TestCase):
             self.assertEqual([r["solved"] for r in result["runs"]], [False, True])
             self.assertEqual(result["runs"][1]["turns"], 12)
             self.assertEqual(result["runs"][0]["milestones"], {"graded": False})
-            self.assertEqual(projects["run2"].scenes, [["Assets/Scenes/Town.unity"]], "the play scene reaches the build")
+            self.assertEqual(projects["run2"].scenes, [["Assets/Scenes/Town.unity"]], "the play scene is built")
             brief = (Path(tmp) / "out" / "probe-task" / "brief.md").read_text(encoding="utf-8")
             self.assertIn("`Assets/Scenes/Town.unity`", brief)
             self.assertIn(str(Path("C:/U/Unity.exe")), brief)
@@ -384,14 +412,15 @@ class Whole(unittest.TestCase):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                         "claude", log=lambda *a: None)
             self.assertEqual(result["status"], "DONE", result["reasons"])
-            self.assertEqual(at_grade, {"run1": [], "work": True}, "the agent's work is graded, never its editor's state")
+            self.assertEqual(at_grade, {"run1": [], "work": True}, "its work is graded, never its editor's state")
 
     def test_the_brief_names_the_editor_of_the_start(self):
         """The workspace is the start: when the thread moved the game to another 6000.3 release, the agent is still
         given the start's editor, not the reference's."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
-            editors = {"start": "C:/Unity/6000.3.26f1/Editor/Unity.exe", "reference": "C:/Unity/6000.3.28f1/Editor/Unity.exe"}
+            editors = {"start": "C:/Unity/6000.3.26f1/Editor/Unity.exe",
+                       "reference": "C:/Unity/6000.3.28f1/Editor/Unity.exe"}
             machine = classmethod(lambda cls, p, d=False: cls(Path(editors.get(Path(p).name, "C:/U/Unity.exe")), None))
             with faked(answered), mock.patch.object(unity.Machine, "for_project", machine):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
@@ -435,6 +464,37 @@ class LongEnough(unittest.TestCase):
         run = {"required_passed": 2, "required": 3, "peeked": [], "seconds": 10 * 60, "timed_out": True}
         result = {"status": "DONE", "task": "t", "solved": 0, "runs": [run]}
         self.assertNotIn("25-minute guide", trial.line(result))
+
+
+class Main(unittest.TestCase):
+    def test_the_transcript_is_read_for_every_place_that_holds_the_answer_or_its_measures(self):
+        """The game repo, the machine root, the harnesses' homes (the game sessions' transcripts), a task file's
+        worktree and the results folder (the start's and the reference's plays, earlier results) wherever it is."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            given = Path(tmp) / "tasks" / "metro-runner" / "Tasks" / "probe-task.json"
+            given.parent.mkdir(parents=True)
+            given.write_text(json.dumps(task), encoding="utf-8")
+            seen = {}
+
+            def try_task(repo, task, raw, scratch, out, agent, exe, **options):
+                seen.update(places=[str(p) for p in options["places"]], scratch=scratch)
+                return {"status": "DONE", "task": task["name"], "runs": [], "solved": 0}
+
+            root, out = Path(tmp) / "root", Path(tmp) / "results"
+            with mock.patch.object(trial, "try_task", try_task), \
+                    mock.patch.object(trial.shutil, "which", lambda a: a), \
+                    mock.patch.object(unity.ugfroot, "root", lambda: str(root)), \
+                    mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = trial.main([str(repo), "--task", str(given), "--agent", "claude", "--out", str(out),
+                                   "--scratch", str(Path(tmp) / "tries")])
+            self.assertEqual(code, 0)
+            home = Path(os.path.expanduser("~"))
+            self.assertEqual(seen["places"], [str(p) for p in (repo.resolve(), Path(os.path.realpath(root)),
+                                                               out.resolve(), home / ".agents", home / ".claude",
+                                                               home / ".codex", given.parent.parent.resolve())])
+            self.assertEqual(seen["scratch"].parent, Path(tmp, "tries").resolve(), "a folder of its own in --scratch")
 
 
 class CleanUp(unittest.TestCase):
@@ -508,7 +568,8 @@ class CleanUp(unittest.TestCase):
 
             def graded(name, folder, *rest):
                 if name.startswith("run"):
-                    at_grade.update(temp=os.path.lexists(Path(folder) / "Temp"), build=(Path(folder) / "Build").exists())
+                    at_grade.update(temp=os.path.lexists(Path(folder) / "Temp"),
+                                    build=(Path(folder) / "Build").exists())
                 return original(name, folder, *rest)
 
             original = trial.side
