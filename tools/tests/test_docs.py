@@ -11,7 +11,7 @@ What is not checked, so a green run does not claim it:
   without its time) is held to its keys only: each object in it must be a part of the task format with those keys.
   An example written out in full is held to the schema and the validator's rules.
 """
-import importlib.util, itertools, json, os, re, subprocess, unittest
+import copy, importlib.util, json, os, re, subprocess, unittest
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TOOLS)
@@ -119,14 +119,11 @@ EXPANDED = ('field', 'fact')     # keys whose "a|b|c" is a list of names; anywhe
 UNSTATED = '…'     # stands in for a value a sketch leaves out: {"name": ..., "seconds": ...}, {"t", "wait"}
 
 
-def expand(snippet):
-    """The concrete JSON texts a snippet stands for: itself, or a pattern with its elisions dropped, its placeholders
-    filled in and each alternative of a field's "a|b|c" written out. A value the snippet leaves out ("name": ..., or
-    a key alone) becomes UNSTATED: such a snippet is a sketch of keys, not an example of values."""
+def repaired(snippet):
+    """A pattern as JSON text: its bare placeholders filled in, its elisions dropped, and what it leaves out ("name":
+    ..., a key alone) made UNSTATED: such a snippet is a sketch of keys, not an example of values."""
     s = re.sub(r'\s+', ' ', snippet).strip()
     for k, v in BARE.items():
-        s = s.replace(k, v)
-    for k, v in QUOTED.items():
         s = s.replace(k, v)
     s = re.sub(r',\s*\.\.\.(?=\s*[}\]])', '', s)                    # {"a": 1, ...}: more members follow
     s = re.sub(r'(?<=[{\[])\s*\.\.\.\s*,', '', s)                   # {..., "a": 1}
@@ -134,23 +131,59 @@ def expand(snippet):
     s = re.sub(r'(?<=[{,])(\s*"[A-Za-z_]+")(?=\s*[,}])', r'\1: "%s"' % UNSTATED, s)   # a key alone: {"t", "key"}
     # a unit or coordinate letter where a number goes ("radius": m, [x, y, z]): a bare word is never JSON
     s = re.sub(r'(?<=[:\[,])\s*(?!(?:true|false|null)\b)[a-z]+\b(?=\s*[,}\]])', ' 1', s)
-    s = re.sub(r'\btrue\|false\b', 'true', s)                       # either: the schema says boolean
-    alts = [(m.start(2), m.end(2), m.group(2).split('|'))
-            for m in re.finditer(r'"(%s)":\s*"([^"]*\|[^"]*)"' % '|'.join(EXPANDED), s)]
-    out = [s] if not alts else []
-    for i, (a, b, names) in enumerate(alts):                        # one alternation varies, the others stay first
+    return re.sub(r'\btrue\|false\b', 'true', s)                    # either: the schema says boolean
+
+
+def filled(v):
+    """v with the placeholders inside its strings filled in."""
+    if isinstance(v, str):
+        for k, word in QUOTED.items():
+            v = v.replace(k, word)
+        return v
+    if isinstance(v, list):
+        return [filled(x) for x in v]
+    return {k: filled(x) for k, x in v.items()} if isinstance(v, dict) else v
+
+
+def alternatives(v):
+    """v once for each alternative of each "a|b|c" under a key of EXPANDED: one varies, the others stay at their
+    first, so every name is read once."""
+    spots = []
+
+    def walk(x, path):
+        for k, y in (x.items() if isinstance(x, dict) else enumerate(x) if isinstance(x, list) else ()):
+            if k in EXPANDED and isinstance(y, str) and '|' in y:
+                spots.append((path + (k,), y.split('|')))
+            else:
+                walk(y, path + (k,))
+
+    walk(v, ())
+    out = []
+    for i, (_, names) in enumerate(spots):
         for name in names:
-            t = s
-            for j, (c, d, others) in reversed(list(enumerate(alts))):
-                t = t[:c] + (name if j == i else others[0]) + t[d:]
-            out.append(t)
-    for t in out:
+            u = copy.deepcopy(v)
+            for j, (path, others) in enumerate(spots):
+                node = u
+                for step in path[:-1]:
+                    node = node[step]
+                node[path[-1]] = name if j == i else others[0]
+            out.append(u)
+    return out or [v]
+
+
+def expand(snippet):
+    """The values a snippet stands for. An example written out is read as it is; a pattern is repaired into JSON
+    first. Either way the placeholders in its strings are filled in and each alternative of a field's "a|b|c" is
+    written out."""
+    try:
+        v = json.loads(snippet)
+    except ValueError:
         try:
-            json.loads(t)
+            v = json.loads(repaired(snippet))
         except ValueError as e:
             raise Unreadable(f'not JSON and not a pattern this test can expand ({e}): write the example out, or use '
                              f'a placeholder of the table in tools/tests/test_docs.py') from None
-    return out
+    return alternatives(filled(v))
 
 
 CHECKS = {'probe': 'Probe', 'build': 'Build', 'boot': 'Boot', 'log_absent': 'LogAbsent', 'file_exists': 'FileExists',
@@ -282,7 +315,7 @@ def members(code):
     if not re.match(r'"[A-Za-z_]+"\s*:', code):
         return None
     try:
-        return [kv for t in expand('{' + code + '}') for kv in json.loads(t).items() if not unstated(kv[1])]
+        return [kv for v in expand('{' + code + '}') for kv in v.items() if not unstated(kv[1])]
     except Unreadable:
         return None
 
@@ -302,12 +335,12 @@ def example_problems(text, strict=True):
         if any(mark in snippet for mark in EXCHANGE_MARKS):     # no schema to hold these to: told apart, not checked
             return
         try:
-            texts = expand(snippet)
+            values = expand(snippet)
         except Unreadable as e:
             out.append((line, snippet, str(e)))
             return
-        for t in texts:
-            out.extend((line, t, p) for p in value_problems(json.loads(t)))
+        for v in values:
+            out.extend((line, snippet if len(values) == 1 else json.dumps(v), p) for p in value_problems(v))
 
     for lang, line, body in fences(text):
         if lang != 'json':
@@ -667,6 +700,9 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertTrue(self.bad('`{"probe": "player", "field": "x" "y"}`'))                 # can't be expanded
         self.assertTrue(self.bad('`{"mystery": 1}`'))                                        # not recognised
         self.assertTrue(self.bad('`"weight": "heavy"`'))
+        # an example written out is read as it is: a string between two commas is no key left alone
+        self.assertEqual(self.bad('`{"name": "aim", "seconds": 10, "args": ["-mode", "night", "fast"]}`'), [])
+        self.assertEqual(self.bad('`{"probe": "log", "pattern": "first, then: second, third", "field": "count"}`'), [])
         self.assertTrue(self.bad('```json\n{"probe": "player", "field": "height"}\n```'))
 
     def test_sketches(self):
