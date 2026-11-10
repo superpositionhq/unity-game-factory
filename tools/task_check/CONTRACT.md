@@ -701,8 +701,12 @@ the order the build writes):
  "missing": {}}
 ```
 
-- The request: `out` (default `<project>/Build/TaskProbe`, deleted first), `scenes` (the scenes the task's plays open:
-  `check.task_scenes`), `result` (default `<project>/Logs/TaskProbe/build.json`). An unreadable request: exit 2, no
+- The request: `out` (default `<project>/Build/TaskProbe`; a folder outside the project's `Build` folder is refused:
+  `ok` false, exit 1; the build deletes nothing, the checker empties `Build/TaskProbe` before each try:
+  `unity.Project.build`), `scenes` (the scenes the task's plays open: `check.task_scenes`; one that isn't a project
+  path, `Assets/...` or `Packages/...` with no `.` or `..` part, or that the project lacks, is left out with a warning
+  in the log), `result` (default `<project>/Logs/TaskProbe/build.json`). A request it can't read (no file after
+  `-taskProbeBuild`, not a JSON object): exit 2, a `TaskProbe: the request couldn't be read (...)` line in the log, no
   result.
 - The result, written by `Build.Player` (compact), always holds `ok`, `exe`, `scenes`, `errors`, `seconds`, `error`
   and `missing`, each null or empty until the build reaches it: before the build `scenes` (the project's enabled
@@ -724,12 +728,18 @@ the order the build writes):
   kept under `<out>/<task>/<side>/build/` (`check.Side.build`). The result's `exe` is never started, and a `missing` of
   any other shape is left out. A Unity without a licence (exit 198, or `No valid Unity Editor license` in its log) is
   the machine's error, never the game's: the task reads ERROR (`unity.Unlicensed`).
-- The build sets, for the copy only: the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's
-  folder, lower-cased>` (`seeds.saves_company` computes the same); no splash screen; no static batching (a batched
-  renderer's mesh would hide its own mesh name and triangle count; set through PlayerSettings' internal
-  `SetBatchingForPlatform`, a warning in the log when it can't); windowed 960x540, not resizable; run and visible in
-  the background; several instances allowed; the player log on; the Mono backend; Windows x64; `BuildOptions.None`,
-  not a development build (no watermark on the frame). The game's assets and code are untouched.
+- The build sets, for the copy only, each setting read first and put back after `BuildPlayer` in a finally, the player
+  settings then marked unchanged (`EditorUtility.ClearDirty`) so that Unity writes none of them into `ProjectSettings/`
+  when it exits (`Build.Kept`; a build that kept them, run in a game's own folder, had its company name committed into
+  the game): the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's folder with its ASCII
+  letters lower-cased>` (`Build.Tag`; `seeds.saves_company` computes the same: Mono and Python lower-case some other
+  letters differently, a dotted capital I, a final capital sigma); no splash screen; several instances allowed; the Mono
+  backend; no static batching (a batched renderer's mesh would hide its own mesh name and triangle count:
+  `PlayerSettings.SetStaticBatchingForPlatform`); no managed code stripping (the probe reads by reflection engine
+  members the game never calls, which the linker removes: measured at High). Then a Windows x64 player,
+  `BuildOptions.None`, not a development build (no watermark on the frame). The window (windowed, 960x540) and the
+  player log come from the play's command line alone (`-screen-fullscreen 0 -screen-width 960 -screen-height 540`,
+  `-logFile`), and the probe sets `Application.runInBackground`. The game's assets and code are untouched.
 
 **The editor pass** (`unity.Project.editor_assets`, `TaskProbe.EditorTools.AssetPass.Run`; one command, in the copy):
 
@@ -761,10 +771,12 @@ Its result, written to `result` (compact) and printed as one line of the log aft
   (`probes.editor_id`); each measure is the task's, every set field written, the checker's defaults included (`of`).
   The nonce is new for every pass (`secrets.token_hex(16)`), so a result another pass left in the copy is never read.
 - A result per id: `value` (an `asset`), `rows`, each with `name` and `value` (a scene's or prefab's objects), or
-  `error`; the keys sorted. The checker takes the file, else the last `TASK_PROBES` line of the output,
-  whichever carries its nonce (`probes.editor_results`); with neither, the side's asset probes fail "the editor pass
-  gave no result (exit <code>)". Unity exits 0 when the pass ran, 2 for an unreadable request, 1 when scripts don't
-  compile (no result); a missing licence is the machine's error, as for a build. The pass never saves.
+  `error`; the keys sorted. The checker takes the file, else the last `TASK_PROBES` line of the output, whichever
+  carries its nonce (`probes.editor_results`); with neither, the side's asset probes fail "the editor pass gave no
+  result (exit <code>)". Unity exits 0 when the pass ran, 2 for a request it can't read (no file after
+  `-taskProbeAssets`, a file that isn't a JSON object, or one without a `measures` object; a `TaskProbe:` line in the
+  log says which), 1 when scripts don't compile (no result); a missing licence is the machine's error, as for a build.
+  The pass never saves.
 
 **The scratch copy** (`seeds.py`): `<scratch>/<run tag>/<commit[:12]>`, where `--scratch` defaults to the machine
 root's `.task-check` when it is on the repo's drive, else a `.task-check` beside the repo's parent folder
