@@ -46,11 +46,11 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
 
 - Windows with the Unity editor the project names: each commit's `ProjectSettings/ProjectVersion.txt`
   (`m_EditorVersion: 6000.3.x`) picks the install through the machine config (`unity_editors` in
-  `%USERPROFILE%\.unity-game-factory\config.json`, else `<unity_hub_editors>\<version>\Editor\Unity.exe`;
-  [machine/README.md](../machine/README.md)). A version that isn't installed is an ERROR naming it: install it through
-  Unity Hub. Every start and reference must be a Unity 6.3 LTS (`6000.3.*`) project as committed: the checker never
-  upgrades, ports or patches a game, and refuses any other version. The build is a Mono player, so the IL2CPP module
-  and Visual Studio's C++ workload are not needed.
+  `%USERPROFILE%\.unity-game-factory\config.json`, or in the file the environment variable `UGF_CONFIG` names, else
+  `<unity_hub_editors>\<version>\Editor\Unity.exe`; [machine/README.md](../machine/README.md)). A version that isn't
+  installed is an ERROR naming it: install it through Unity Hub. Every start and reference must be a Unity 6.3 LTS
+  (`6000.3.*`) project as committed: the checker never upgrades, ports or patches a game, and refuses any other
+  version. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
 - **An active Unity licence** (Unity Hub, signed in). A batchmode Unity run without one exits with code 198 (its log
   says `No valid Unity Editor license`) and the check of that task stops with an ERROR: sign in to Unity Hub again and
   rerun. It is never a game bug.
@@ -207,16 +207,27 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
     threshold >= 1: no value in the window (...)`. A detail starting `not asked` is a check that side doesn't run
     (judges, trace probes and packaging on either side; on the start, everything but its probes and a
     `fails_at_start` build check): it shows as passed and counts for nothing;
-  - `task_sha256` (the task file's), `task`, `game`, `at` (when, UTC), `seconds` (how long the check took) and
-    `evidence` (the task's folder of play files, below).
+  - `task_sha256` (the SHA-256 of the task file as the run read it: the file as committed on the `tasks` branch, or
+    the `.json` given by path; a checkout with other line endings hashes differently), `task`, `game`, `at` (when,
+    UTC), `seconds` (how long the check took) and `evidence` (the task's folder of play files, below).
 - `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
   `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
-  Each holds `probe.json` (the track, the camera rows, every measure's samples, `query_errors`), `probe.log` (the
-  probe's own lines: where each teleport put the player, each click, wait and error, each line `<play time> [<real
-  time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play),
-  `play.log` (the game's own player log) and `output.txt` (what the play's job printed, the machine slot's waits
-  among it). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's log of a build that failed.
-  Read these when a value surprises you. Checking a task again replaces its folder.
+  Each holds `probe.json` (below), `probe.log` (the probe's own lines: where each teleport put the player, each
+  click, wait and error, each line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`,
+  ... (960x540 PNGs, UI included, evenly over the play), `play.log` (the game's own player log) and `output.txt`
+  (what the play's job printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and
+  `build\build.log` Unity's log of a build that failed. Read these when a value surprises you. Checking a task again
+  replaces its folder.
+- A play's `probe.json` holds, per sample time: in `track` a row `[t, x, y, z]`, the player's position (`[t]` alone
+  while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
+  every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
+  there are some). A key of `measures` is a query's id, `q` and ten hex digits made from what the query selects (its
+  kind with its select, point or rect), so a query has the same id in every play and on both sides, and probes that
+  read other fields of one selection share one query. The file doesn't name the checks: tell its queries apart by
+  what their samples hold, either `rows` (one per object, component, widget or element matched, with its `name` and
+  the fields asked for) or a `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
+  `spawns` sample holds running totals since the play started; the checker reads each sample's rise over the one
+  before.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
   finished task's console line with its minutes (`(18 min)`), and `checking <task>, then N more`. `progress.json`
   (format `task-check-progress/1`) holds the same: `started` and `updated` (seconds since 1970), `tasks` (in order),

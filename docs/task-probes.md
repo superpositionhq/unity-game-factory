@@ -649,6 +649,8 @@ the window).
   counts once for each of its objects that carries it. Name a component that sits once per thing (the coin's own
   script), not one its children also carry (`MeshRenderer`), or each child counts too.
 - A component type the build doesn't have (one a feature adds, at the start) gives no value, not 0.
+- In a play's `probe.json` a sample holds the running totals since the play started (`spawned` 1, 1, 2, ...); the
+  checker reads each sample's rise over the one before, so don't add the samples up yourself.
 
 ### 2.10 `log`: the play's player log
 
