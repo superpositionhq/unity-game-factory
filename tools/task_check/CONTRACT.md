@@ -38,9 +38,9 @@ probe's own `{"camera": true}` point uses the camera's `transform.forward`, the 
 ## 2. The task format (Unity flavour of game-task/1)
 
 `docs/schemas/game-task.schema.json` is the Unreal schema, definition by definition, except for what this section
-lists and the limits section 1 scales (a structural diff of the two files finds nothing else). The validator's rules beyond the schema
-(`tools/validate-game.py`: `probe_errors`, `task_semantic_errors`, the repo checks) and the task check's rules
-(`verdict.py`, `probes.py`) are the original's in Unity terms, except where this section says.
+lists and the limits section 1 scales (a structural diff of the two files finds nothing else). The validator's rules
+beyond the schema (`tools/validate-game.py`: `probe_errors`, `task_semantic_errors`, the repo checks) and the task
+check's rules (`verdict.py`, `probes.py`) are the original's in Unity terms, except where this section says.
 
 The task:
 
@@ -79,10 +79,10 @@ Selects and points:
   matches: section 1).
 - Object select (`Select`): `component`, `tag`, `layer` (new: a layer, by name, `^[A-Za-z0-9_. -]{1,80}$`), `name` (a
   wildcard on the GameObject's whole name), `near`, `has`, `player` (true), `inactive` (new: true lets inactive
-  objects match; by default only objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating` (at least one key;
-  `lit`, `visible`, `simulating` only `true`). The original's `movable` has no Unity counterpart: a non-kinematic
-  Rigidbody can always move, so `simulating` says what the pair said, and a built player keeps no Static flag
-  (`GameObject.isStatic` reads false there for an object saved static: measured).
+  objects match; by default only objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`,
+  `simulating` (at least one key; `lit`, `visible`, `simulating` only `true`). The original's `movable` has no Unity
+  counterpart: a non-kinematic Rigidbody can always move, so `simulating` says what the pair said, and a built player
+  keeps no Static flag (`GameObject.isStatic` reads false there for an object saved static: measured).
 - Component select: `component` or `effect` or both, `name` (a wildcard on its object's name), `owner` (an object
   select), `near`, `mesh`, `visible`, `inactive` (new).
 - Widget select: `component`, `name`, `text` (a regular expression on its text), `visible`. No `slate`.
@@ -114,9 +114,10 @@ Measures:
 - `spawns`: `{"probe": "spawns", "component": "<type>", "field": "spawned|destroyed"}`.
 - `asset`: one of `asset` (`^(Assets|Packages)/[A-Za-z0-9_][A-Za-z0-9_ /.()@-]{0,299}$`), `scene`
   (`^Assets/[A-Za-z0-9_ /.()-]+\.unity$`) and `prefab` (`^(Assets|Packages)/[A-Za-z0-9_ /.()-]+\.prefab$`; these two
-  at most 300 characters), in place of `asset` and `map`. Fields: the original's `count`, `material_default`, `mesh_collision`, `material:<property>` and
-  `prop:<path>`, plus a channel or `.name` after `material:<property>`, `material:keyword:<NAME>`, `import:<path>`,
-  `shader:<Property>` (with a channel `.r`-`.a` or `.x`-`.w`, or `.name`) and `keyword:<NAME>`.
+  at most 300 characters), in place of `asset` and `map`. Fields: the original's `count`, `material_default`,
+  `mesh_collision`, `material:<property>` and `prop:<path>`, plus a channel or `.name` after `material:<property>`,
+  `material:keyword:<NAME>`, `import:<path>`, `shader:<Property>` (with a channel `.r`-`.a` or `.x`-`.w`, or `.name`)
+  and `keyword:<NAME>`.
 
 The validator's rules beyond the original's (`probe_errors`, `task_semantic_errors`, `task_warnings`):
 
