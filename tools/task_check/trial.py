@@ -504,14 +504,18 @@ def main(argv=None):
         parser.error(f"no task {', '.join(unknown)} on {ref or 'a tasks branch'}")
     root = Path(os.path.realpath(unity.ugfroot.root()))
     scratch_root = Path(args.scratch).resolve() if args.scratch else default_scratch(repo)
-    if not outside(scratch_root, [root, repo] + ([tasks_dir] if tasks_dir else [])):
-        parser.error(f"{scratch_root} is inside the machine root, the game repo or the tasks folder: the agent would "
-                     "read their AGENTS.md / CLAUDE.md; pass --scratch outside them")
     out = Path(args.out).resolve() if args.out else repo / ".task-tries"
+    trees = worktrees(repo)
+    if not outside(scratch_root, [root, repo] + trees + ([tasks_dir] if tasks_dir else [])):
+        parser.error(f"{scratch_root} is inside the machine root, the game repo, another of its worktrees or the tasks "
+                     "folder: the agent would read their AGENTS.md / CLAUDE.md; pass --scratch outside them")
+    if not (outside(scratch_root, [out]) and outside(out, [scratch_root])):
+        parser.error(f"{scratch_root} and the results folder {out} lie one in the other: the agent could read the "
+                     "start's and the reference's plays there; pass --scratch outside the results")
     cli.ignore_results(repo, out)
     unity.ugfroot.check_free(str(scratch_root), "task try")
     home = Path(os.path.expanduser("~"))
-    places = [repo, root, out, home / ".agents", home / ".claude", home / ".codex"] + worktrees(repo)
+    places = [repo, root, out, home / ".agents", home / ".claude", home / ".codex"] + trees
     if tasks_dir and tasks_dir not in places:
         places.append(tasks_dir)
 

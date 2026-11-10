@@ -648,6 +648,31 @@ class Main(unittest.TestCase):
                                                                given.parent.parent.resolve())])
             self.assertEqual(seen["scratch"].parent, Path(tmp, "tries").resolve(), "a folder of its own in --scratch")
 
+    def test_the_agents_folder_is_never_in_a_watched_place_nor_the_results_in_it(self):
+        """The results hold the start's and the reference's plays and earlier results, and a tasks worktree the answers:
+        an agent working in either could read them (and every transcript would name a watched place), and results
+        inside the scratch folder lie a few folders above the agent's own."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            given = Path(tmp) / "given" / "Tasks" / "probe-task.json"
+            given.parent.mkdir(parents=True)
+            given.write_text(json.dumps(task), encoding="utf-8")
+            tries, elsewhere = Path(tmp) / "tries", Path(tmp) / "elsewhere" / "metro-runner-tasks"
+            git(repo, "worktree", "add", "--detach", str(elsewhere))
+            for out, scratch in ((tries, tries), (tries, tries / "s"), (tries / "results", tries),
+                                 (Path(tmp) / "results", elsewhere / "s")):
+                said = io.StringIO()
+                with mock.patch.object(trial, "try_task", lambda *a, **k: self.fail("no try")), \
+                        mock.patch.object(trial.shutil, "which", lambda a: a), \
+                        mock.patch.object(unity.ugfroot, "root", lambda: str(Path(tmp) / "root")), \
+                        mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0), \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(said), \
+                        self.assertRaises(SystemExit) as stopped:
+                    trial.main([str(repo), "--task", str(given), "--agent", "claude", "--out", str(out),
+                                "--scratch", str(scratch)])
+                self.assertEqual(stopped.exception.code, 2, (out, scratch))
+                self.assertIn("pass --scratch", said.getvalue())
+
 
 class CleanUp(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "taskkill, Win32_Process")
