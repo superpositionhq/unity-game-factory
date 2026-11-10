@@ -83,9 +83,10 @@ def tried(tmp, **seed):
 
 
 @contextlib.contextmanager
-def faked(agent, projects=None, editor="C:/U/Unity.exe"):
+def faked(agent, projects=None, editor="C:/U/Unity.exe", kill=False):
     """Unity and the harness faked: a side's project by its folder's name (a run's by its run folder), `agent` in place
-    of run_agent. Yields the projects."""
+    of run_agent. Nothing is looked for or stopped unless `kill` (kill_left_behind's process query takes a second or
+    two, twice a try). Yields the projects."""
     projects = projects or {"start": FakeProject(measuring(-500)), "reference": FakeProject(measuring(100)),
                             "run1": FakeProject(measuring(-500)), "run2": FakeProject(measuring(90))}
 
@@ -95,7 +96,8 @@ def faked(agent, projects=None, editor="C:/U/Unity.exe"):
 
     with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
             mock.patch.object(unity.Machine, "for_project",
-                              classmethod(lambda cls, p, d=False: cls(Path(editor), None))):
+                              classmethod(lambda cls, p, d=False: cls(Path(editor), None))), \
+            mock.patch.object(trial, "kill_left_behind", trial.kill_left_behind if kill else lambda folder: []):
         yield projects
 
 
@@ -734,7 +736,7 @@ class CleanUp(unittest.TestCase):
                 raise KeyboardInterrupt
 
             try:
-                with faked(agent), self.assertRaises(KeyboardInterrupt):
+                with faked(agent, kill=True), self.assertRaises(KeyboardInterrupt):
                     trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude", "claude",
                                    log=lambda *a: None)
                 self.assertTrue(gone(jobs[0].pid), "nothing of the try runs on")
@@ -755,7 +757,7 @@ class CleanUp(unittest.TestCase):
                 return answered(argv, cwd, prompt, transcript, minutes)
 
             try:
-                with faked(agent):
+                with faked(agent), mock.patch.object(seeds, "HELD", 0.5):  # (not 10 s for each folder it can't delete)
                     result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                             "claude", log=said.append)
                 self.assertEqual((result["status"], len(result["runs"])), ("DONE", 1), result["reasons"])
@@ -813,7 +815,7 @@ class CleanUp(unittest.TestCase):
             bystander = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", str(elsewhere / "x")],
                                          creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
             try:
-                with faked(agent):
+                with faked(agent, kill=True):
                     result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                             "claude", log=lambda *a: None)
                 self.assertTrue(alive(bystander.pid), "the try stops only what runs in its own folder")
@@ -888,7 +890,7 @@ class CleanUp(unittest.TestCase):
                 return original(name, folder, *rest)
 
             original = trial.side
-            with faked(trial.run_agent), mock.patch.object(trial, "side", graded), \
+            with faked(trial.run_agent, kill=True), mock.patch.object(trial, "side", graded), \
                     mock.patch.object(trial, "agent_argv", lambda *a: [sys.executable, "-c", script]):
                 result = trial.try_task(repo, task, b"{}", scratch, Path(tmp) / "out", "claude", "claude",
                                         log=lambda *a: None)
