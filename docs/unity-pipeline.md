@@ -190,8 +190,8 @@ fixed path per game means one prompt per game instead of one per build. Per run 
    under WDDM); after 120 min the run fails.
 1. Launch the player from `_run\` with the contract's flags (autoplay-contract.md section 1) plus `-goTimeout 300`,
    windowed 1920x1080, `-logFile <raw>\game.log`.
-2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (games re-center their
-   window), make it topmost (not activated), check the client area is exactly 1920x1080 and fully on screen (physical
+2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (the Unreal factory's games
+   re-centred theirs after launch; a Unity player's to be checked), make it topmost (not activated), check the client area is exactly 1920x1080 and fully on screen (physical
    pixels; the recorder is per-monitor DPI aware). If anything covers it (e.g. a first-run Firewall prompt), wait up to
    240 s for it to clear.
 3. Start ffmpeg on that screen rectangle, wait for 30 captured frames, write `go`. Each capture attempt has its own
@@ -347,8 +347,9 @@ on demand (the user's decision in the Unreal factory).
 
 Not available yet (they apply once the recorder runs):
 
-- Any display and scaling that holds a 1920x1080 window works; vsync off and a 60 fps cap in the game keep it at 60 fps
-  whatever the refresh.
+- Any display and scaling that holds a 1920x1080 window should work: a Unity player is expected to be DPI-aware, so
+  its 1920x1080 is physical pixels at any scaling (to check; in the Unreal factory a DPI-unaware game was stretched to
+  2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
 - The game window sits topmost with its 1920x1080 client area on the primary screen for the run. Runs start only after
   5 min without user input; if you come back mid-run, leave the window alone (moving or covering it stops the run
   safely). Its audio plays on the speakers during runs.
