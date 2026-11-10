@@ -107,9 +107,11 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
    log line matching `Crash!!!`, `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`), `log_absent`,
    `file_exists`, and every probe against its threshold.
 5. Checks the start on its probes.
-6. Writes the result and deletes the scratch copies (unless `--keep`), with the saved data their plays left outside
-   them: the registry key `HKEY_CURRENT_USER\Software\TaskProbe.<hash>` and the folder
-   `%USERPROFILE%\AppData\LocalLow\TaskProbe_<hash>` of each copy's own company name (step 3).
+6. Writes the result and deletes the scratch copies (unless `--keep`), with what their plays left outside them, all
+   under each copy's own company name (step 3) and nothing else: the registry key
+   `HKEY_CURRENT_USER\Software\TaskProbe.<hash>` (PlayerPrefs), the folders `TaskProbe_<hash>` in
+   `%USERPROFILE%\AppData\LocalLow` and in the temp folder (persistent data, cache) and `TaskProbe.<hash>` in the temp
+   folder (crash reports).
 
 ### The plays
 
