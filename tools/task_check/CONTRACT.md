@@ -742,9 +742,10 @@ the order the build writes):
   any other shape is left out. A Unity without a licence (exit 198, or `No valid Unity Editor license` in its log) is
   the machine's error, never the game's: the task reads ERROR (`unity.Unlicensed`).
 - The build sets, for the copy only, each setting read first and put back after `BuildPlayer` in a finally, the player
-  settings then marked unchanged (`EditorUtility.ClearDirty`) so that Unity writes none of them into `ProjectSettings/`
-  when it exits (`Build.Kept`; a build that kept them, run in a game's own folder, had its company name committed into
-  the game): the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's folder with its ASCII
+  settings then marked unchanged (`EditorUtility.ClearDirty`) and `ProjectSettings/ProjectSettings.asset` given back
+  the bytes it had before the first change, since `BuildPlayer` saves the changed settings into it before it builds
+  (`Build.Kept`; a build that kept them, run in a game's own folder, had its company name committed into the game;
+  an editor killed in mid-build leaves the build's values in the file): the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's folder with its ASCII
   letters lower-cased>` (`Build.Tag`; `seeds.saves_company` computes the same: Mono and Python lower-case some other
   letters differently, a dotted capital I, a final capital sigma); no splash screen; several instances allowed; the Mono
   backend; no static batching (a batched renderer's mesh would hide its own mesh name and triangle count:
