@@ -24,15 +24,18 @@ The creation replay (not available yet) will run these steps again to rebuild th
 
 What the editor does that a step must allow for:
 
-- opening a scene (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets loaded before it, and a reference
-  to one of them then saves as empty, with no warning (it cost one game three commits): open the scene first, then
-  load or create the assets you assign, and read the saved references back with an `Inspect*` step;
+- opening a scene in Single mode (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets loaded or created
+  before it: one of them assigned afterwards through `SerializedObject` (`objectReferenceValue`) reads back null at
+  once and saves as `{fileID: 0}`, with no warning (it cost one game three commits). Open the scene first, then load
+  the assets you assign (`AssetDatabase.LoadAssetAtPath` after the open), read each reference back before saving, and
+  prove what was saved with an `Inspect*` step;
 - `-nographics` draws nothing, without an error (a camera capture comes out one flat grey): a step that renders
   (screenshots, lightmap bakes, shader warm-up) runs with `-Render`;
-- a package import (`AssetDatabase.ImportPackage`) finishes on the editor's update loop, after the method has
-  returned, and with `-quit` the editor leaves before it: run that step with `-NoQuit`, wait for
-  `AssetDatabase.importPackageCompleted` / `importPackageFailed`, then call `EditorApplication.Exit`
-  (`ProjectSetup.ImportTextEssentials` in `Assets/Editor/Tools/` is the pattern).
+- a package import (`AssetDatabase.ImportPackage`) imports nothing inside the method that calls it, and with `-quit`
+  the editor leaves with nothing imported: run that step with `-NoQuit`, wait for
+  `AssetDatabase.importPackageCompleted` / `importPackageFailed`, and call `EditorApplication.Exit` from there and
+  after a time limit (a run without `-quit` ends only when the step exits; `ProjectSetup.ImportTextEssentials` in
+  `Assets/Editor/Tools/` is the pattern).
 
 A step looks like this, run with `Scripts/unity.ps1 step -Method __PROJECT__.EditorSteps.BuildHarbor.Run -Reason "..."`:
 
