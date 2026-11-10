@@ -85,51 +85,43 @@ namespace TaskProbe
         static int Clamp(double v, int lo, int hi) => !(v > lo) ? lo : v > hi ? hi : (int)v;  // NaN: lo
     }
 
-    /// <summary>The rows of one selection sample: at most 200 kept, every match counted, and each field's numeric values
-    /// summed up over every match, so a count, a sum, a min or a max reads them all (contract section 5: "total",
-    /// "full").</summary>
+    /// <summary>The rows of one selection sample: at most 200 kept, every match counted, and each field's numbers summed
+    /// up over every match, so a count, a sum, a min or a max reads them all ("total" and "full", written when more
+    /// matched than the rows hold, as the original's SetTotal: every field asked for, in the order asked).</summary>
     public sealed class RowSet
     {
         public const int MaxRows = 200;
 
+        /// <summary>Every match's number of one field (n: how many have one).</summary>
         sealed class Full
         {
             public int N, Nonzero;
-            public double Sum, Min = double.PositiveInfinity, Max = double.NegativeInfinity;
+            public double Sum, Min, Max;
         }
 
         readonly List<object> rows = new List<object>();
-        readonly Dictionary<string, Full> full = new Dictionary<string, Full>(StringComparer.Ordinal);
-        readonly List<string> fields;
+        readonly List<KeyValuePair<string, Full>> full = new List<KeyValuePair<string, Full>>();
         int total;
 
-        public RowSet(IEnumerable<string> fields) { this.fields = new List<string>(fields); }
+        public RowSet(IEnumerable<string> fields)
+        {
+            foreach (var field in fields) full.Add(new KeyValuePair<string, Full>(field, new Full()));
+        }
 
-        public int Total => total;
-        /// <summary>Whether another row would still be kept (a query may skip costly fields past the cap only if it
-        /// still adds the row's numbers: pass every match to Add).</summary>
-        public bool Keeps => rows.Count < MaxRows;
-
-        /// <summary>One match: counted, kept while under the cap, its fields' numbers (bools as 0/1) summed up.</summary>
+        /// <summary>One match: counted, kept while under the cap, its fields' numbers summed up (a field with no value,
+        /// or a string, counts in the rows only; numbers are doubles, booleans 1.0 and 0.0).</summary>
         public void Add(Dictionary<string, object> row)
         {
             total++;
-            foreach (var field in fields)
+            foreach (var kv in full)
             {
-                if (!row.TryGetValue(field, out var v)) continue;
-                double number;
-                if (v is double d) number = d;
-                else if (v is bool b) number = b ? 1.0 : 0.0;
-                else if (v is float f) number = f;
-                else if (v is int i) number = i;
-                else continue;
-                if (double.IsNaN(number) || double.IsInfinity(number)) continue;
-                if (!full.TryGetValue(field, out var sum)) full[field] = sum = new Full();
-                sum.N++;
-                if (number != 0.0) sum.Nonzero++;
-                sum.Sum += number;
-                if (number < sum.Min) sum.Min = number;
-                if (number > sum.Max) sum.Max = number;
+                if (!row.TryGetValue(kv.Key, out var v) || !(v is double x) || double.IsNaN(x) || double.IsInfinity(x)) continue;
+                var f = kv.Value;
+                f.Min = f.N > 0 ? Math.Min(f.Min, x) : x;
+                f.Max = f.N > 0 ? Math.Max(f.Max, x) : x;
+                f.Sum += x;
+                if (x != 0.0) f.Nonzero++;
+                f.N++;
             }
             if (rows.Count < MaxRows) rows.Add(row);
         }

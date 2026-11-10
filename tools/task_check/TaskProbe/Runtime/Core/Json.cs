@@ -14,11 +14,13 @@ namespace TaskProbe
     {
         // ---------------------------------------------------------------- reading
 
-        /// <summary>The value `text` holds; throws FormatException on bad JSON.</summary>
+        const int MaxDepth = 512;  // nested arrays and objects: a deeper text would overflow the stack, which no catch stops
+
+        /// <summary>The value `text` holds; throws FormatException on bad JSON (or nesting deeper than 512).</summary>
         public static object Parse(string text)
         {
             var at = 0;
-            var value = ReadValue(text, ref at);
+            var value = ReadValue(text, ref at, 0);
             SkipSpace(text, ref at);
             if (at != text.Length) throw new FormatException("JSON: text after the value at " + at);
             return value;
@@ -26,14 +28,15 @@ namespace TaskProbe
 
         static void SkipSpace(string s, ref int i)
         {
-            while (i < s.Length && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t' || s[i] == '﻿')) i++;
+            while (i < s.Length && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t' || s[i] == '\uFEFF')) i++;
         }
 
-        static object ReadValue(string s, ref int i)
+        static object ReadValue(string s, ref int i, int depth)
         {
             SkipSpace(s, ref i);
             if (i >= s.Length) throw new FormatException("JSON: ended early");
             var c = s[i];
+            if ((c == '{' || c == '[') && depth >= MaxDepth) throw new FormatException("JSON: nested deeper than " + MaxDepth + " at " + i);
             if (c == '{')
             {
                 var obj = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -47,7 +50,7 @@ namespace TaskProbe
                     SkipSpace(s, ref i);
                     if (i >= s.Length || s[i] != ':') throw new FormatException("JSON: ':' expected at " + i);
                     i++;
-                    obj[key] = ReadValue(s, ref i);
+                    obj[key] = ReadValue(s, ref i, depth + 1);
                     SkipSpace(s, ref i);
                     if (i < s.Length && s[i] == ',') { i++; continue; }
                     if (i < s.Length && s[i] == '}') { i++; return obj; }
@@ -62,7 +65,7 @@ namespace TaskProbe
                 if (i < s.Length && s[i] == ']') { i++; return list; }
                 while (true)
                 {
-                    list.Add(ReadValue(s, ref i));
+                    list.Add(ReadValue(s, ref i, depth + 1));
                     SkipSpace(s, ref i);
                     if (i < s.Length && s[i] == ',') { i++; continue; }
                     if (i < s.Length && s[i] == ']') { i++; return list; }
@@ -172,7 +175,11 @@ namespace TaskProbe
         {
             if (double.IsNaN(d) || double.IsInfinity(d)) { sb.Append("null"); return; }
             if (d == Math.Floor(d) && Math.Abs(d) < 1e15) { sb.Append(((long)d).ToString(CultureInfo.InvariantCulture)); return; }
-            sb.Append(d.ToString("R", CultureInfo.InvariantCulture));
+            // the shortest text that reads back as the same double: Mono's "R" writes 15 digits for a few that read back
+            // as another (0.84551240822557006 as 0.84551240822557); 17 always read back
+            var text = d.ToString("R", CultureInfo.InvariantCulture);
+            if (double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) != d) text = d.ToString("G17", CultureInfo.InvariantCulture);
+            sb.Append(text);
         }
 
         static void WriteString(StringBuilder sb, string s)
@@ -199,7 +206,6 @@ namespace TaskProbe
         // ---------------------------------------------------------------- reading values out of parsed JSON
 
         public static Dictionary<string, object> Obj(object o) => o as Dictionary<string, object>;
-        public static List<object> Arr(object o) => o as List<object>;
 
         /// <summary>o[key] as an object, or null.</summary>
         public static Dictionary<string, object> Obj(Dictionary<string, object> o, string key) =>
@@ -224,9 +230,6 @@ namespace TaskProbe
 
         public static bool Bool(Dictionary<string, object> o, string key, bool fallback = false) =>
             o != null && o.TryGetValue(key, out var v) && v is bool b ? b : fallback;
-
-        public static bool Has(Dictionary<string, object> o, string key) =>
-            o != null && o.TryGetValue(key, out var v) && v != null;
 
         /// <summary>[a, b, ...] of at least `count` numbers.</summary>
         public static bool TryNumbers(object value, int count, out double[] numbers)
