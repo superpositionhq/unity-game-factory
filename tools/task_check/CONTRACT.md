@@ -21,7 +21,7 @@ a field means is there; this file holds what an implementer needs beyond it.
 | pawn (the player pawn) | **player**: the first object the task's `player` select matches (when it matches nothing there is no player: no fallback), else an active object tagged `Player` (`GameObject.FindGameObjectWithTag`), else an object with a `PlayerInput`, else one with a `CharacterController` (`FindFirstObjectByType`), else the root of the player camera (next row); looked up again every frame |
 | player camera | `Camera.main` (an enabled camera tagged MainCamera), else the enabled camera of highest depth that renders to the screen (no target texture) |
 | map, `play_map` (`/Game/Maps/L_X?Scenario=2`) | scene: `play_scene` (`Assets/Scenes/X.unity`) and `play_args` (`["-scenario", "2"]`) |
-| component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component`, a `has`, a pieces or widgets select, a widget click and a Part match the type, its base types and its interfaces; a components select's and `spawns`' `component` must name a Component type, which its subtypes match (an interface gives "no component type <name>") |
+| component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component`, a `has`, a components, pieces or widgets select, a widget click and a Part match the type, its base types and its interfaces; `spawns`' `component` must name a Component type, which its subtypes match (an interface gives "spawns: no component type <name>") |
 | UMG / Slate widget | **widget**: a uGUI component's object or a UI Toolkit element |
 | cm, cm/s | **m, m/s** (Unity units). Every default and limit scales: 200 cm -> 2 m, 1 cm -> 0.01 m, 2 km -> 2000 m; a near's radius up to 100,000 m (its `y_min`/`y_max` within +-100,000), a teleport's `distance` and a camera point's `forward` up to 1000 m, a line's radius up to 100 m |
 | Z up; yaw about Z | **Y up**. `yaw`, `pitch`, `roll` are the euler Y, X and Z angles of the world rotation (`transform.eulerAngles`; the Inspector shows a child's local rotation), normalised to (-180, 180]; a positive `pitch` looks down (Unreal's looks up) |
@@ -231,14 +231,16 @@ original's, unchanged (`probes.py`).
     Animator with a controller in the object (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the heaviest
     clip on layer 0 (`GetCurrentAnimatorClipInfo(0)`);
   - measured: a whole-scene sample of 3000 objects takes about 20 ms.
-- **components** (`ComponentsQuery`; the original's registered components of a class): with `component`,
-  `FindObjectsByType` of that Component type (its subtypes too); with `effect` alone, of every effect type the build has
-  (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect, DecalProjector; the last two by reflection, so the
-  probe needs neither package), `effect: true` keeping the live ones (`Effects.Live`). A field reads the component as an
-  object's reads one part, with Unity's components in the original's places: `extent_*` a Renderer's, Collider's or
-  Collider2D's world bounds; `simulating` the Rigidbody or Rigidbody2D it is or is attached to (`Find.Simulates`);
-  `changed`, `bounds_change`, `pose_change` a Renderer; `intensity` and `on` a Light (`Glow.LightOn`, the `light`
-  probe's test); `active` adds a ParticleSystem's `isPlaying || particleCount > 0` and an AudioSource's `isPlaying`.
+- **components** (`ComponentsQuery`; the original's registered components of a class): with `component`, the
+  components whose type, a base type or an interface has that name (`Find.Components`: `FindObjectsByType` of that
+  Component type, or of every Component for an interface, then `Reflect.IsA`); with `effect` alone, of every effect type
+  the build has (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect, DecalProjector; the last two by
+  reflection, so the probe needs neither package), `effect: true` keeping the live ones (`Effects.Live`). A field reads
+  the component as an object's reads one part, with Unity's components in the original's places: `extent_*` a
+  Renderer's, Collider's or Collider2D's world bounds; `simulating` the Rigidbody or Rigidbody2D it is or is attached
+  to (`Find.Simulates`); `changed`, `bounds_change`, `pose_change` a Renderer; `intensity` and `on` a Light
+  (`Find.LightOn`, the `light` probe's test); `active` adds a ParticleSystem's playing or holding particles
+  (`Effects.Live`) and an AudioSource's `isPlaying`.
 - **lit, glow** (`Glow`, `DrawnRender.Glow`; the original reads light components, mesh components through their
   material graphs, and particle systems):
   - the sources: a Light that is on (`Glow.LightOn`); a drawn mesh part; a live particle system with a drawn renderer.
