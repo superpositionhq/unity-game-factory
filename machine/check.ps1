@@ -2,11 +2,11 @@
 .SYNOPSIS
   Check that this machine can run unity-game-factory sessions; prints a PASS / WARN / FAIL report. Read-only.
 .DESCRIPTION
-  Toolchain: Unity Hub, the Unity 6.3 LTS editor new games use (the config's unity_version) with Windows Build Support
-  (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN only: Mono builds need
-  none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what the recorder will need; it is
-  not available yet): NVIDIA driver (NVENC with the pinned ffmpeg), refresh rate, display sleep off, the pinned ffmpeg
-  (tools/sfx.py uses it today). Space: free disk on the root's drive. Content: the asset
+  Toolchain: Unity Hub and a Unity licence, the Unity 6.3 LTS editor new games use (the config's unity_version) with
+  Windows Build Support (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN
+  only: Mono builds need none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what the
+  recorder will need; it is not available yet): NVIDIA driver (NVENC with the pinned ffmpeg), refresh rate, display
+  sleep off, the pinned ffmpeg (tools/sfx.py uses it today). Space: free disk on the root's drive. Content: the asset
   library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
   installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
   recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
@@ -60,8 +60,16 @@ function Run([string]$Exe, [string[]]$ArgList) {
 # --- toolchain ------------------------------------------------------------------------------------------------------
 Try-Check 'Unity Hub' {
     $hub = Get-UGFUnityHub
-    if ($hub) { Add-Result PASS 'Unity Hub' "$hub; sign-in and licence are not detectable here: Hub > Preferences > Licenses must show an active licence" }
+    if ($hub) { Add-Result PASS 'Unity Hub' $hub }
     else { Add-Result FAIL 'Unity Hub' 'not installed' 'winget install -e --id Unity.UnityHub, then sign in with a Unity ID and activate a licence (Personal is fine)' }
+}
+# Every editor run needs an activated licence, batchmode too (without one it stops: "No valid Unity Editor license").
+# Unity Hub writes a signed-in account's licence to %LOCALAPPDATA%\Unity\licenses\, a serial licence goes to
+# %ProgramData%\Unity\Unity_lic.ulf; a licence server's floating seat leaves neither, so a WARN, never a FAIL.
+Try-Check 'Unity licence' {
+    $lic = @((Join-Path $env:LOCALAPPDATA 'Unity\licenses\UnityEntitlementLicense.xml'), (Join-Path $env:ProgramData 'Unity\Unity_lic.ulf')) | Where-Object { Test-Path -LiteralPath $_ }
+    if ($lic) { Add-Result PASS 'Unity licence' ($lic -join '; ') }
+    else { Add-Result WARN 'Unity licence' 'no activated licence on this Windows account' 'Unity Hub > sign in with a Unity ID > Preferences > Licenses > Add (Personal is fine); a licence server''s floating seat does not show here' }
 }
 Try-Check 'Unity 6.3 LTS editor' {
     $ver = Get-UGFUnityVersion $cfg   # the editor new games use: unity_version, a series (its newest patch) or exact

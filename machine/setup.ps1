@@ -311,7 +311,10 @@ $useVer = if ($wantVer -notmatch '^\d+\.\d+$') { @($have) -eq $wantVer | Select-
     @($have | Where-Object { $_ -match ('^' + [regex]::Escape($wantVer) + '\.\d+f\d+$') } | Sort-Object { [int]($_.Split('.')[2] -replace 'f.*') }, { [int]($_ -replace '^.*f') } -Descending) | Select-Object -First 1
 }
 if (Get-UnityHubExe) {
-    Item INFO 'Unity Hub sign-in' 'open Unity Hub, sign in with a Unity ID (create one if needed) and activate a licence (Preferences > Licenses; Personal is fine); not detectable here'
+    # the licence Unity Hub writes for a signed-in account, or a serial licence (as check.ps1 'Unity licence')
+    $lic = @((Join-Path $env:LOCALAPPDATA 'Unity\licenses\UnityEntitlementLicense.xml'), (Join-Path $env:ProgramData 'Unity\Unity_lic.ulf')) | Where-Object { Test-Path -LiteralPath $_ }
+    if ($lic) { Item PASS 'Unity licence' ($lic -join '; ') }
+    else { Item INFO 'Unity licence' 'open Unity Hub, sign in with a Unity ID (create one if needed) and activate a licence (Preferences > Licenses > Add; Personal is fine): every editor run needs one' }
 }
 if ($useVer) { Item PASS 'Unity 6.3 LTS editor' "$useVer (unity_version $wantVer)" }
 else {
@@ -345,7 +348,7 @@ if (Test-Path $check) {
     if (Test-Path $json) {
         $cr = [IO.File]::ReadAllText($json) | ConvertFrom-Json
         # check.ps1 rows that setup already reported above (same subject under setup's name)
-        $same = @{ 'Unity 6.3 LTS editor' = 'Unity 6.3 LTS editor'; 'Unity Hub' = 'Unity Hub'; 'Long paths' = 'Long paths'; 'System sleep off' = 'No sleep while plugged in'
+        $same = @{ 'Unity 6.3 LTS editor' = 'Unity 6.3 LTS editor'; 'Unity Hub' = 'Unity Hub'; 'Unity licence' = 'Unity licence'; 'Long paths' = 'Long paths'; 'System sleep off' = 'No sleep while plugged in'
                    'Display sleep off' = 'No sleep while plugged in'; 'GitHub CLI' = 'GitHub sign-in'; 'NVIDIA driver >= 610' = 'NVIDIA driver'; 'Memory' = 'Memory'
                    'Codex' = 'Codex sign-in' }
         $known = @($items | ForEach-Object { $_.what })
