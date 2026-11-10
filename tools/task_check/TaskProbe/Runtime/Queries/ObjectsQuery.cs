@@ -26,14 +26,8 @@ namespace TaskProbe
 
         public override void Load()
         {
-            // a field this kind doesn't have is said once and left out
-            Fields.RemoveAll(f =>
-            {
-                if (Plain.Contains(f) || Array.Exists(Prefixes, p => f.StartsWith(p, StringComparison.Ordinal) && f.Length > p.Length)) return false;
-                Probe.Error("objects: no field " + f);
-                return true;
-            });
-            sel = Sel.Parse(Json.Obj(Def, "select"));
+            KnownFields(Plain, Prefixes);
+            sel = Sel.Parse(Json.Obj(Def, "select"), Kind + " " + Id);
             change = Fields.Exists(Changes.IsField);
             glow = Reads("lit") || Reads("glow");
         }
@@ -105,7 +99,7 @@ namespace TaskProbe
                     return ObjectRead.Axis(box.extents, f.Substring(7));
                 case "active": return go.activeInHierarchy ? 1.0 : 0.0;
                 case "hidden": return ObjectRead.Hidden(go) ? 1.0 : 0.0;
-                case "collision": return ObjectRead.Collision(go) ? 1.0 : 0.0;
+                case "collision": return Find.Collides(go, true) ? 1.0 : 0.0;
                 case "simulating": return go.activeInHierarchy && Find.Simulates(go) ? 1.0 : 0.0;
                 case "spread": return ObjectRead.Spread(go);
                 case "spin": return Spin(go);

@@ -76,22 +76,6 @@ namespace TaskProbe
             return any;
         }
 
-        /// <summary>collision: an enabled collider that isn't a trigger, in it or its descendants (a CharacterController
-        /// is one).</summary>
-        public static bool Collision(GameObject go)
-        {
-            if (!go.activeInHierarchy) return false;
-#if TASKPROBE_PHYSICS
-            foreach (var c in go.GetComponentsInChildren<Collider>(false))
-                if (c.enabled && !c.isTrigger) return true;
-#endif
-#if TASKPROBE_PHYSICS2D
-            foreach (var c in go.GetComponentsInChildren<Collider2D>(false))
-                if (c.enabled && !c.isTrigger) return true;
-#endif
-            return false;
-        }
-
         /// <summary>The velocity an object reports of itself: a non-kinematic Rigidbody's or a Dynamic Rigidbody2D's,
         /// else an enabled CharacterController's or NavMeshAgent's. False when it has none of them (its speed is then
         /// how far it moved between samples).</summary>

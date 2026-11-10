@@ -1,9 +1,9 @@
 // components: components a component select matches, one row each (contract section 3, "components"), so effects and
 // parts that are not objects of their own count too.
-// select: component (type name), effect (true: live effects only), name (wildcard on its object's name), owner (an
-// object select its object or an ancestor matches), near (its transform's place), mesh (wildcard on a renderer's,
-// filter's or mesh collider's mesh asset name), visible (true: drawn only), inactive (true: components of inactive
-// objects too; default only active ones, as an object select).
+// select: component (a type name: the type, its base types and interfaces match), effect (true: live effects only),
+// name (wildcard on its object's name), owner (an object select its object or an ancestor matches), near (its
+// transform's place), mesh (wildcard on a renderer's, filter's or mesh collider's mesh asset name), visible (true:
+// drawn only), inactive (true: components of inactive objects too; default only active ones, as an object select).
 // rows: {"name" (its object's), "class" (its type), "owner" (its object's name), <fields>...}.
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace TaskProbe
     [ProbeQuery("components")]
     public sealed class ComponentsQuery : Query
     {
-        Type type;
+        string type;
         bool effect, visibleOnly, inactive, broken;
         string name, mesh;
         Sel owner;
@@ -22,7 +22,7 @@ namespace TaskProbe
         readonly Places places = new Places();
         readonly Spins spins = new Spins();
         readonly Changes changes = new Changes();
-        readonly HashSet<int> seen = new HashSet<int>();
+        readonly List<Component> found = new List<Component>();
         readonly List<Component> matched = new List<Component>();
 
         static readonly HashSet<string> Plain = new HashSet<string>(StringComparer.Ordinal)
@@ -33,34 +33,25 @@ namespace TaskProbe
 
         public override void Load()
         {
-            Fields.RemoveAll(f =>
-            {
-                if (Plain.Contains(f) || (f.StartsWith("prop:", StringComparison.Ordinal) && f.Length > 5)) return false;
-                Probe.Error("components: no field " + f);
-                return true;
-            });
+            KnownFields(Plain, "prop:");
             var s = Json.Obj(Def, "select") ?? new Dictionary<string, object>();
-            var typeName = Json.Str(s, "component");
+            type = Json.Str(s, "component");
             effect = Json.Bool(s, "effect");
             visibleOnly = Json.Bool(s, "visible");
             inactive = Json.Bool(s, "inactive");
             name = Json.Str(s, "name");
             mesh = Json.Str(s, "mesh");
             var o = Json.Obj(s, "owner");
-            if (o != null) owner = Sel.Parse(o);
+            if (o != null) owner = Sel.Parse(o, Kind + " " + Id);
             near = NearSel.Parse(Json.Obj(s, "near"));
-            if (typeName != null)
+            if (type != null && !Reflect.NamesComponent(type))
             {
-                type = Reflect.TypeNamed(typeName);
-                if (type == null || !typeof(Component).IsAssignableFrom(type))
-                {
-                    Probe.Error("components: no component type " + typeName);
-                    broken = true;
-                }
+                Probe.Error(Kind + " " + Id + ": no component type " + type);
+                broken = true;
             }
-            else if (!effect)
+            else if (type == null && !effect)
             {
-                Probe.Error("components: the select names no component and no effect");
+                Probe.Error(Kind + " " + Id + ": the select names no component and no effect");
                 broken = true;
             }
         }
@@ -83,42 +74,26 @@ namespace TaskProbe
         {
             var centre = Vector3.zero;
             if (near != null && !near.Resolve(out centre)) return;
-            Vector3 ownerCentre = Vector3.zero, ownerHas = Vector3.zero;
-            if (owner != null)
+            var owners = owner != null ? Find.Owners(owner) : null;
+            found.Clear();
+            if (type != null) Find.Components(type, inactive, found);
+            else
+                foreach (var t in Effects.Types())
+                    foreach (var o in UnityEngine.Object.FindObjectsByType(t, inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                        if (o is Component c && c != null && !Find.IsOwn(c)) found.Add(c);
+            foreach (var c in found)
             {
-                if (owner.Near != null && !Find.Point(owner.Near.Point, out ownerCentre, 1)) return;
-                if (owner.Has?.Near != null && !Find.Point(owner.Has.Near.Point, out ownerHas, 1)) return;
+                var go = c.gameObject;
+                if (name != null && !Find.Wild(name, go.name)) continue;
+                if (near != null && !near.Contains(centre, c.transform.position)) continue;
+                if (mesh != null && !Find.Wild(mesh, Find.MeshOf(c)?.name)) continue;
+                if (visibleOnly && !Visible(c)) continue;
+                if (effect && !Effects.Live(c)) continue;
+                if (owners != null && !Find.OwnedBy(c, owners)) continue;
+                matched.Add(c);
             }
-            seen.Clear();
-            var mode = inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude;
-            foreach (var t in type != null ? new[] { type } : new List<Type>(Effects.Types()).ToArray())
-                foreach (var o in UnityEngine.Object.FindObjectsByType(t, mode, FindObjectsSortMode.None))
-                {
-                    if (!(o is Component c) || c == null || !seen.Add(c.GetInstanceID())) continue;
-                    var go = c.gameObject;
-                    if (Probe.IsOwn(go)) continue;
-                    if (name != null && !Find.Wild(name, go.name)) continue;
-                    if (near != null && !near.Contains(centre, c.transform.position)) continue;
-                    if (mesh != null && !Find.Wild(mesh, MeshName(c))) continue;
-                    if (visibleOnly && !Visible(c)) continue;
-                    if (effect && !Effects.Live(c)) continue;
-                    if (owner != null && !Find.OwnedBy(c, owner, ownerCentre, ownerHas)) continue;
-                    matched.Add(c);
-                }
+            found.Clear();
             Find.SortByHierarchy(matched);
-        }
-
-        /// <summary>The name of the mesh asset a component draws or collides with; null when it has none.</summary>
-        public static string MeshName(Component c)
-        {
-            Mesh m = null;
-            if (c is SkinnedMeshRenderer smr) m = smr.sharedMesh;
-            else if (c is MeshRenderer && c.TryGetComponent<MeshFilter>(out var filter)) m = filter.sharedMesh;
-            else if (c is MeshFilter f) m = f.sharedMesh;
-#if TASKPROBE_PHYSICS
-            else if (c is MeshCollider mc) m = mc.sharedMesh;
-#endif
-            return m != null ? m.name : null;
         }
 
         /// <summary>visible: a Renderer drawn; any other component, its object active.</summary>
@@ -130,7 +105,7 @@ namespace TaskProbe
         {
             if (!c.gameObject.activeInHierarchy) return false;
 #if TASKPROBE_PARTICLES
-            if (c is ParticleSystem ps) return ps.isPlaying || ps.particleCount > 0;
+            if (c is ParticleSystem) return Effects.Live(c);
 #endif
 #if TASKPROBE_AUDIO
             if (c is AudioSource audio) return audio.enabled && audio.isPlaying;
@@ -165,9 +140,6 @@ namespace TaskProbe
                 object v = null;
                 switch (f)
                 {
-                    case "lit":
-                    case "glow":
-                        continue;
                     case "count": v = 1.0; break;
                     case "active": v = Active(c) ? 1.0 : 0.0; break;
                     case "visible": v = Visible(c) ? 1.0 : 0.0; break;
@@ -195,11 +167,14 @@ namespace TaskProbe
                     case "pose_change":
                         if (renderer != null) v = change.Field(f);
                         break;
+                    case "lit":
+                    case "glow":
+                        continue;
                     case "intensity":
                         if (light != null) v = (double)light.intensity;
                         break;
                     case "on":
-                        if (light != null) v = Glow.LightOn(light) ? 1.0 : 0.0;
+                        if (light != null) v = Find.LightOn(light) ? 1.0 : 0.0;
                         break;
                     default:
                         v = Reflect.Prop(c, f.Substring(5));

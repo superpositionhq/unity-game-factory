@@ -89,15 +89,9 @@ namespace TaskProbe
         static MaterialPropertyBlock blockAll, blockOne;
         static Texture2D readBack;
 
-        public static double Luminance(Color c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-
-        /// <summary>A colour property as the shader gets it: converted to linear in a linear-space project.</summary>
-        static Color Linear(Color c) => QualitySettings.activeColorSpace == ColorSpace.Linear ? c.linear : c;
+        static double Luminance(Color c) => Find.Luminance(c.r, c.g, c.b);
 
         // ---------------------------------------------------------------- what reads as a source
-
-        /// <summary>A Light that lights the scene: enabled, active in the hierarchy, of an intensity above 0.</summary>
-        public static bool LightOn(Light light) => light != null && light.enabled && light.gameObject.activeInHierarchy && light.intensity > 0f;
 
         /// <summary>One component as a source: a Light, a mesh renderer, a particle system (or its renderer); not read
         /// (Read false) for anything else.</summary>
@@ -136,8 +130,8 @@ namespace TaskProbe
         public static void AddLight(ref GlowReading r, Light light)
         {
             r.Read = true;
-            if (!LightOn(light)) return;
-            var colour = Linear(light.color);
+            if (!Find.LightOn(light)) return;
+            var colour = Find.Linear(light.color);
             if (GraphicsSettings.lightsUseColorTemperature && light.useColorTemperature)
                 colour *= Mathf.CorrelatedColorTemperatureToRGB(light.colorTemperature);
             var amount = light.intensity * Luminance(colour);
@@ -201,13 +195,13 @@ namespace TaskProbe
                 {
                     // emission off (no _EMISSION keyword) draws none, whatever its colour
                     if (!m.IsKeywordEnabled("_EMISSION")) continue;
-                    var c = Linear(ColourOf(m, one, all, EmissionColor, EmissionColor));
+                    var c = Find.Linear(ColourOf(m, one, all, EmissionColor, EmissionColor));
                     var tex = TextureOf(m, one, all, EmissionMap, EmissionMap);
                     l = Luminance(tex != null ? c * Mean(tex) : c);
                 }
                 else
                 {
-                    var c = Linear(ColourOf(m, one, all, BaseColor, ColorId));
+                    var c = Find.Linear(ColourOf(m, one, all, BaseColor, ColorId));
                     var tex = TextureOf(m, one, all, BaseMap, MainTex);
                     l = Luminance(tex != null ? c * Mean(tex) : c);
                 }
