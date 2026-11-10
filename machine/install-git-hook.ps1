@@ -38,7 +38,10 @@ if (-not (Test-Path -LiteralPath $hookPath) -and $usesLfs) {
 }
 
 $script = ($HooksDir -replace '\\', '/').TrimEnd('/') + '/record-unity-commit.ps1'
-$line = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" `"`$(pwd -W 2>/dev/null || pwd)`" >/dev/null 2>&1 || true"
+# The hook line is silent (a recorder that fails must never print into a commit's output), so a recorder that isn't
+# there is said here: otherwise the repo's commits go unrecorded without a word.
+if (-not (Test-Path -LiteralPath $script)) { Write-Warning "$script is not there (machine\bootstrap.ps1 installs it): this repo's commits are not recorded until it is" }
+$line ="powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" `"`$(pwd -W 2>/dev/null || pwd)`" >/dev/null 2>&1 || true"
 $marker = '# recording: append this commit to <root>/.recording/<repo>/commits.jsonl (machine/install-git-hook.ps1)'
 
 $text = if (Test-Path -LiteralPath $hookPath) { [IO.File]::ReadAllText($hookPath) } else { "#!/bin/sh`n" }
