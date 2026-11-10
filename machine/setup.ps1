@@ -309,10 +309,10 @@ $hubEditors = if ($cfgNew -and $cfgNew.unity_hub_editors) { [string]$cfgNew.unit
 $wantVer = if ($cfgNew -and $cfgNew.unity_version) { [string]$cfgNew.unity_version } else { $UnityLts }
 # the editors installed (as lib\ugf-root.ps1 Get-UGFInstalledUnity), and the one new games use: a series is its newest
 # final patch, an exact version itself (Get-UGFUnityVersion)
-$have = @(Get-ChildItem -LiteralPath $hubEditors -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'Editor\Unity.exe') } | ForEach-Object Name)
-if ($cfgNew -and $cfgNew.unity_editors) { $have += @($cfgNew.unity_editors.PSObject.Properties | Where-Object { Test-Path -LiteralPath ([string]$_.Value) } | ForEach-Object Name) }
+$have = @(Get-ChildItem -LiteralPath $hubEditors -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Editor\Unity.exe') -PathType Leaf } | ForEach-Object Name)
+if ($cfgNew -and $cfgNew.unity_editors) { $have += @($cfgNew.unity_editors.PSObject.Properties | Where-Object { Test-Path -LiteralPath ([string]$_.Value) -PathType Leaf } | ForEach-Object Name) }
 $useVer = if ($wantVer -notmatch '^\d+\.\d+$') { @($have) -eq $wantVer | Select-Object -First 1 } else {
-    @($have | Where-Object { $_ -match ('^' + [regex]::Escape($wantVer) + '\.\d+f\d+$') } | Sort-Object { [int]($_.Split('.')[2] -replace 'f.*') }, { [int]($_ -replace '^.*f') } -Descending) | Select-Object -First 1
+    @($have | Where-Object { $_ -cmatch ('^' + [regex]::Escape($wantVer) + '\.\d+f\d+$') } | Sort-Object { [int]($_.Split('.')[2] -replace 'f.*') }, { [int]($_ -replace '^.*f') } -Descending) | Select-Object -First 1
 }
 if (Get-UnityHubExe) {
     # the licence Unity Hub writes for a signed-in account, or a serial licence (as check.ps1 'Unity licence')

@@ -100,10 +100,10 @@ function Get-UGFUnityForVersion([string]$Version, $Cfg = (Get-UGFConfig)) {
     if (-not $Version) { return '' }
     if ($Cfg.PSObject.Properties['unity_editors'] -and $Cfg.unity_editors -and $Cfg.unity_editors.PSObject.Properties[$Version]) {
         $p = [IO.Path]::GetFullPath([string]$Cfg.unity_editors.$Version)
-        if (Test-Path -LiteralPath $p) { return $p }
+        if (Test-Path -LiteralPath $p -PathType Leaf) { return $p }   # a file: an entry naming the Editor folder does not count
     }
     $p = Join-Path $Cfg.unity_hub_editors "$Version\Editor\Unity.exe"
-    if (Test-Path -LiteralPath $p) { return $p }
+    if (Test-Path -LiteralPath $p -PathType Leaf) { return $p }
     return ''
 }
 
@@ -128,11 +128,11 @@ function Get-UGFInstalledUnity($Cfg = (Get-UGFConfig)) {
     if (Test-Path -LiteralPath $Cfg.unity_hub_editors) {
         foreach ($d in Get-ChildItem -LiteralPath $Cfg.unity_hub_editors -Directory -ErrorAction SilentlyContinue) {
             $exe = Join-Path $d.FullName 'Editor\Unity.exe'
-            if (Test-Path -LiteralPath $exe) { $found[$d.Name] = $exe }
+            if (Test-Path -LiteralPath $exe -PathType Leaf) { $found[$d.Name] = $exe }
         }
     }
     if ($Cfg.PSObject.Properties['unity_editors'] -and $Cfg.unity_editors) {
-        foreach ($p in $Cfg.unity_editors.PSObject.Properties) { if (Test-Path -LiteralPath ([string]$p.Value)) { $found[$p.Name] = [string]$p.Value } }
+        foreach ($p in $Cfg.unity_editors.PSObject.Properties) { if (Test-Path -LiteralPath ([string]$p.Value) -PathType Leaf) { $found[$p.Name] = [string]$p.Value } }
     }
     @($found.Keys | Sort-Object { ConvertTo-UGFVersionKey $_ } -Descending | ForEach-Object { [pscustomobject]@{ Version = $_; Path = $found[$_] } })
 }
@@ -163,7 +163,7 @@ function ConvertTo-UGFVersionKey([string]$Version) {
 # templates/new-game.ps1 writes its version into a new project's ProjectVersion.txt.
 function Get-UGFNewestUnity([string]$Series = '6000.3', $Cfg = (Get-UGFConfig)) {
     $pre = [regex]::Escape($Series) + '\.\d+f\d+$'
-    $hit = Get-UGFInstalledUnity $Cfg | Where-Object { $_.Version -match "^$pre" } | Select-Object -First 1
+    $hit = Get-UGFInstalledUnity $Cfg | Where-Object { $_.Version -cmatch "^$pre" } | Select-Object -First 1
     if ($hit) { return $hit }
     return $null
 }
