@@ -17,7 +17,8 @@
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Repo,
-    [string]$HooksDir,   # where bootstrap.ps1 installed record-unity-commit.ps1; default the config's hooks_dir (Get-UGFHooksDir)
+    # where bootstrap.ps1 installed record-unity-commit.ps1; default the config's hooks_dir (Get-UGFHooksDir)
+    [string]$HooksDir,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
