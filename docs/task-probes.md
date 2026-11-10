@@ -445,7 +445,8 @@ renderers, else its position.
     an AI's state with `anim:` or a `prop:` of the component that holds it.
 
 A row (in `probe.json`, for the logs) holds the object's `name` and a `class`: its first script's type, else its first
-Behaviour or Renderer, else its first other component (its Transform and MeshFilter aside), else `GameObject`.
+Behaviour or Renderer, else its first other component (a BoxCollider, a LODGroup; its Transform and MeshFilter aside),
+else `GameObject`.
 
 ### 2.5 `components`: components in the scene
 
