@@ -748,11 +748,13 @@ package holds no `.meta` files, which Unity makes in the copy.
   measure whose part the project lacks has no value. `Runtime/AssemblyInfo.cs`: `[assembly: AlwaysLinkAssembly]` and
   `[assembly: Preserve]` keep it through managed stripping, since nothing in the game references it. It does nothing
   unless the player's command line has `-taskProbe`.
-- `Runtime/Core/`: `Probe.cs` (the play loop: `Probe`, at execution order -32000, before the game's scripts, and its
-  late half `ProbeLate`, at 32000, after them), `Json.cs` (the files' JSON: `Dictionary<string, object>`,
-  `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (selects, points, hierarchy order), `Query.cs`
-  (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn after a sample), `Reflect.cs` (types and
-  members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop fallback), `AudioTap.cs`.
+- `Runtime/Core/`: `Probe.cs` (the play loop: `Probe`, at execution order -32000, before the game's scripts),
+  `ProbeLate.cs` (its late half `ProbeLate`, at 32000, after them: a file of its own, since Unity keeps a
+  MonoBehaviour's execution order with its script), `Json.cs` (the files' JSON: `Dictionary<string, object>`,
+  `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (selects, points, hierarchy order, and the readers
+  several kinds share: `Components`, `Drawn`, `LightOn`, `Luminance`, `Linear`, `Centre`, `Simulates`, `Angle`),
+  `Query.cs` (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn after a sample), `Reflect.cs`
+  (types and members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop fallback), `AudioTap.cs`.
 - `Runtime/Queries/`: one class per query kind, `[ProbeQuery("kind")] public sealed class XQuery : Query`, found by
   reflection when a play starts (a new kind touches no other file): `ObjectsQuery`, `ComponentsQuery`, `WidgetsQuery`,
   `UiQuery`, `CameraQuery`, `LightQuery`, `GradingQuery`, `SpawnsQuery`, `PiecesQuery`, `ScreenQuery`, `AudioQuery`,
