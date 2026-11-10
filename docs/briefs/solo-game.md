@@ -4,7 +4,10 @@ For one person building one game with one coding-agent session in a terminal, Cl
 CLI (`codex`): no desktop app, no coordinator, no other sessions. The rules are the same as for a coordinated game
 session (the `unity-game-session` and `unity-commit-always` skills, installed by `machine/setup.ps1`); what the
 coordinator would do (queue recordings, decide pushes, relay directions, hand out store packs) is done by you, the
-person at the keyboard. With the desktop app and several games at once, start each game session from
+person at the keyboard. You queue a recording from a terminal of your own, never through the session:
+`powershell -ExecutionPolicy Bypass -File <root>\unity-game-factory\tools\unity-pipeline\enqueue.ps1 <slug> -RequestedBy coordinator`
+([../unity-pipeline.md](../unity-pipeline.md), "Queue"; by default a run waits until the PC has had no input for 5
+minutes). With the desktop app and several games at once, start each game session from
 [game-session.md](game-session.md) instead.
 
 Start: open a terminal in the machine root (`cd <root>`, e.g. `C:\Users\<name>\UnityWork`; not another
@@ -33,8 +36,8 @@ each.
 ```text
 You are the only session on this machine: build "{{GAME_TITLE}}" in Unity 6.3 LTS (URP) and record how it is built.
 There is no coordinator and there are no other sessions: never start, spawn or message other sessions. Whatever the
-skills say to send to "the coordinator" (what is ready for a recording, push requests, Asset Store requests,
-blockers), tell me here and wait for my answer.
+skills say to send to "the coordinator" (recording requests, push requests, Asset Store requests, blockers), tell me
+here and wait for my answer.
 
 Read first: {{UGF_ROOT}}\unity-game-factory\AGENTS.md, README.md, docs/autoplay-contract.md, docs/unity-pipeline.md,
 and the unity-game-session, unity-commit-always and unity-sound skills
@@ -54,11 +57,10 @@ and the unity-game-session, unity-commit-always and unity-sound skills
 - my messages that change the game are directions: rewrite each as one or two neutral sentences and append it to
   workflow.jsonl as a user.direction row (via "direct") before acting on it (unity-commit-always skill);
 - AutoPlay's goal is NOT to win: the bot only drives the game with human-like input; fix game bugs, never tune the
-  bot; one AutoPlay run per scenario; the AutoPlay drop-in and the recorder are not available yet: until they are,
-  write no AutoPlay code and no bot, make every scenario start from the command line with -scenario <n>, and report
-  what is ready to me (unity-game-session skill);
-- push only when I say; never queue recordings yourself (recordings are queued by me, if at all; the recording queue
-  is not available yet).
+  bot; one AutoPlay run per scenario; the AutoPlay drop-in in Assets/AutoPlay/ stays unchanged;
+- your commits are replayed in the background after each one: fix what the hook's [replay] lines report in your next
+  commits (unity-game-session skill, "Replay-friendly work");
+- push only when I say; never run tools/unity-pipeline/enqueue.ps1 (recordings are queued by me, if at all).
 
 Game: {{GAME_TITLE}} ({{SLUG}} -> {{UGF_ROOT}}\games\{{SLUG}}, project {{PROJECT}}, private GitHub repo
 {{ORG}}/unity-game-{{SLUG}}). Design doc, story bible and status:
@@ -84,12 +86,12 @@ Art to start from (store packs in {{UGF_ROOT}}\asset-library\, or ask me for Ass
 
 Steps:
 1) Design doc + story bible; 2) create the project (new-game.ps1); 3) core loop first, compiling and testing through
-Scripts\unity.ps1, committing each working step; 4) once scenario 1 plays end to end, make it ready for AutoPlay (not
-available yet: no AutoPlay code, no bot): every scenario starts with -scenario <n>, input through the Input System, no
-pause or mute on focus loss, every action reachable by input; the framing check from one short rendered play per
-scenario, which shows each scenario as it starts: check what it shows, list the rest as open, never script the
-player's movement for it (unity-game-session skill), then tell me what is ready; 5) content, art, UI, sound
-(unity-sound skill), the Windows release player build; 6) playtest checklist, status section in the design doc, and
+Scripts\unity.ps1, committing each working step; 4) AutoPlay once scenario 1 plays end to end
+(docs/autoplay-contract.md, sections 6-7; a game made before the drop-in gets it with
+tools/unity-pipeline/autoplay/install.ps1 first): one hand test with Scripts\unity.ps1 autoplay +
+tools/unity-pipeline/validate-run.ps1, tag milestone/autoplay-<n>, framing screenshots from one short bot run
+(unity-game-session skill), then tell me; 5) content, art, UI, sound (unity-sound skill), the Windows release player
+build; 6) playtest checklist, status section in the design doc, and
 before calling it content-complete: 5-7 real gameplay stills in Docs/screenshots/ (JPG, LFS; until recordings exist,
 the framing frames there are, never invented ones) shown in the README as a hero image plus a captioned gallery,
 checked on github.com after I say push; Tasks/ with up to about 10 tasks on the game, every one a long thread of

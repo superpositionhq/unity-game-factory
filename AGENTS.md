@@ -10,7 +10,10 @@ directly (and through `<root>\AGENTS.md`).
 **Before every new game, update unity-game-factory:** `git -C <UGF_ROOT>\unity-game-factory pull`, then
 `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\machine\bootstrap.ps1` so the skills your
 agent reads are the new ones. The tools, task rules and validators change often; a game made with old ones can fail
-the Lab's checks.
+the Lab's checks. A game already in progress keeps its own copies of the template's files: bootstrap adds the live
+creation replay to its post-commit hook, and a game made before the AutoPlay drop-in gets it with one run of
+`powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\tools\unity-pipeline\autoplay\install.ps1 -Game <UGF_ROOT>\games\<slug>`
+(its own commit; [docs/autoplay-contract.md](docs/autoplay-contract.md), "Getting the drop-in").
 
 Skills (one source, [skills/](skills/); `machine/bootstrap.ps1` copies them to `~\.claude\skills\` for Claude Code and
 `~\.agents\skills\` for Codex; read the `SKILL.md` named here before the work it covers, whichever agent you are). They
@@ -42,7 +45,8 @@ here reviewed into the creation record, and another factory's skills give answer
 questions)_
 
 Session briefs: [docs/briefs/](docs/briefs/README.md). New machine: [docs/new-machine.md](docs/new-machine.md).
-Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md).
+Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md). AutoPlay:
+[docs/autoplay-contract.md](docs/autoplay-contract.md). Creation replay: [docs/unity-replay.md](docs/unity-replay.md).
 
 **Priorities (user decision).** What ships is what matters, in this order: the game plays; the game builds (editor and
 the Windows release player); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
@@ -55,17 +59,22 @@ when the user asks. Game-session work never blocks dataset packaging or sharing.
 **AutoPlay's goal is NOT to win (user rule).** The bot only drives the game with human-like input so a recording shows
 the game running. Never tune, fix or re-test the bot to win, score, finish, reach targets, resupply or avoid getting
 stuck; losing, timing out or wandering is fine (metadata). Fix only game bugs (crash, hang, broken scene, missing art,
-lighting, camera); then one AutoPlay run per scenario and the recording request. The AutoPlay drop-in and the recorder
-are not available yet: until they are, write no AutoPlay code and no bot, make every scenario start from the command
-line with `-scenario <n>`, and report what is ready to the coordinator (unity-game-session skill).
+lighting, camera); then one AutoPlay run per scenario and the recording request, which only the coordinator queues
+(`tools/unity-pipeline/enqueue.ps1`, [docs/unity-pipeline.md](docs/unity-pipeline.md#queue)). Every game has the
+AutoPlay drop-in in `Assets/AutoPlay/`, unchanged (new games from `templates/new-game.ps1`, older ones through
+`tools/unity-pipeline/autoplay/install.ps1`). Once scenario 1 plays, wire it and write the bot
+([docs/autoplay-contract.md](docs/autoplay-contract.md), sections 6-7), test once with `Scripts/unity.ps1 autoplay`
+and the run checker, tag `milestone/autoplay-<n>` and report to the coordinator (unity-game-session skill).
 
 **Dataset.** Each game's full dataset is `games\<slug>\Dataset.zip`: the same name everywhere, git-ignored
 (`/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/`), produced by the packager, never committed. The committed
 `Dataset\` is the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`. The packager is
 `python tools/package-dataset.py <slug>` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)). Today it
-writes `Dataset.pending.zip` and the repo's `Dataset\`: `Gameplay/` and `ReplayScripts/` wait for the recorder and the
-creation replay, which are not available yet. Before its first run a game's `Dataset\` stays as the template made it,
-and nobody assembles a dataset by hand.
+writes `Dataset.pending.zip` and the repo's `Dataset\`: the recorder makes the gameplay videos for `Gameplay/` (each
+validated run's `gameplay.mp4`) and the creation replay makes `ReplayScripts/`
+(`python tools/unity-replay/unity_replay.py release --game <slug>`, [docs/unity-replay.md](docs/unity-replay.md)), but
+the packager does not take them yet, so every dataset is still pending. Before its first run a game's `Dataset\` stays
+as the template made it, and nobody assembles a dataset by hand.
 
 This checkout is shared by several sessions at once: stage explicit paths only and never commit another session's
 changes.
@@ -80,8 +89,10 @@ changes.
 | sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | available |
 | game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | available: [docs/game-format.md](docs/game-format.md) |
 | task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | available: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
-| dataset packager (`tools/package-dataset.py`) | available, first version: it builds `Dataset.pending.zip`, everything but `Gameplay/` and `ReplayScripts/` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
-| AutoPlay drop-in, recording pipeline (recorder, queue, run checker), creation replay | not available yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
+| AutoPlay drop-in (`tools/unity-pipeline/autoplay/`, `install.ps1`, `Scripts/unity.ps1 autoplay`) | available: [docs/autoplay-contract.md](docs/autoplay-contract.md) |
+| recording pipeline: release build from a commit, recorder, queue, run checker, stills, gameplay videos (`tools/unity-pipeline/`) | available: [docs/unity-pipeline.md](docs/unity-pipeline.md) |
+| creation replay, live after every commit and at release (`tools/unity-replay/`) | available: [docs/unity-replay.md](docs/unity-replay.md) |
+| dataset packager (`tools/package-dataset.py`) | available, first version: it builds `Dataset.pending.zip`, everything but `Gameplay/` and `ReplayScripts/`, which the recorder and the creation replay make but it does not take yet ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
 
 Where a skill or doc names a part that is not available yet, it says what to do instead: do that, and report the rest
 as open. Never stand in for a missing tool by hand or with another factory's tool.

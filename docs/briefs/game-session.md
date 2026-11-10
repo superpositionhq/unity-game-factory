@@ -25,7 +25,7 @@ Dataset.zip git-ignored next to it). Other sessions are building Unity games rig
 {{UGF_ROOT}}\games\<slug> ({{SIBLINGS}}); read their docs in unity-game-factory/docs/games/ for conventions and solved
 problems. The asset-scout session ({{ASSET_SCOUT_ID}}) keeps the asset library in {{UGF_ROOT}}\asset-library\ and hands
 each game its packs. Everything shares one Windows PC ({{MACHINE}}). I am the coordinator ({{COORDINATOR_ID}}): I own
-the recording queue (not available yet) and the GPU slots, review your commits and tell you when to push.
+the recording queue and the GPU slots, review your commits and tell you when to push.
 
 Rules: follow the unity-game-session, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\ or
 ~\.agents\skills\, source unity-game-factory/skills/), and no other skill: never install, enable or invoke a personal,
@@ -38,21 +38,19 @@ game-factory or unity-game-factory anywhere in the game; one workflow.jsonl row 
 (rows never edited, except to remove a banned name with tools/scrub-workflow-rows.py --apply); commit after every
 meaningful step, every asset with its .meta, and never end a turn with uncommitted work; LFS for every binary; commit
 the store packs you use (any folder under Assets/, binaries through LFS, never git-ignored; the repo stays private,
-never public or shared outside the org); never queue recordings yourself (the recording queue is not available yet:
-report what is ready to me); push only when I say. Your game's full dataset is
+never public or shared outside the org); never run tools/unity-pipeline/enqueue.ps1 yourself (send me the commit and
+the framing screenshots); push only when I say. Your game's full dataset is
 {{UGF_ROOT}}\games\{{SLUG}}\Dataset.zip, made by the packager (python tools/package-dataset.py {{SLUG}} in
-unity-game-factory, run once the game has its tasks and a player build; today it writes Dataset.pending.zip, because
-Gameplay/ and ReplayScripts/ wait for the recorder and the creation replay; until its first run Dataset/ stays as the
-template made it): keep /Dataset.zip, /Dataset.pending.zip and /.dataset/ in your .gitignore and never commit them;
-Dataset/ you commit. Your commits will be replayed by the creation replay (not available yet: nothing replays them
-today); work so they can be (unity-game-session skill, "Replay-friendly work"). Blockers: write them in your design
-doc, message me once, carry on.
+unity-game-factory, run once the game has its tasks and a player build; today it writes Dataset.pending.zip: the
+recorder and the creation replay make Gameplay/ and ReplayScripts/, but the packager does not take them yet; until its
+first run Dataset/ stays as the template made it): keep /Dataset.zip, /Dataset.pending.zip and /.dataset/ in your
+.gitignore and never commit them; Dataset/ you commit. Your commits are replayed in the background after each one
+(unity-game-session skill, "Replay-friendly work"): fix what the hook's [replay] lines report in your next commits.
+Blockers: write them in your design doc, message me once, carry on.
 AUTOPLAY'S GOAL IS NOT TO WIN. The bot only drives the game with human-like input so a recording shows the game
 running. Never tune, fix or re-test the bot to win, score, finish, reach targets, resupply or avoid getting stuck;
 losing, timing out or wandering is fine (metadata). Fix only game bugs (crash, hang, broken scene, missing art,
-lighting, camera); then one AutoPlay run per scenario and the recording request. The AutoPlay drop-in and the recorder
-are not available yet: until they are, write no AutoPlay code and no bot, make every scenario start from the command
-line with -scenario <n>, and report what is ready to me (unity-game-session skill).
+lighting, camera); then one AutoPlay run per scenario and the recording request.
 Human directions (from the user, or relayed by me) are recorded before you act on them: rewrite a user message to you
 as a direction (what and why, one or two neutral sentences, no names or chat wording; never the raw message), or take
 my relayed text as it is, and append it at once to your repo-root workflow.jsonl as a user.direction row; then
@@ -104,13 +102,14 @@ Steps:
 2) Create the project and repo (new-game.ps1), workflow.jsonl from the very first operation.
 3) Build the core loop first, compiling through Scripts\unity.ps1 and testing as you go (-nographics for logic); commit
    each working step.
-4) Once scenario 1 is playable end to end, make the game ready for AutoPlay (the drop-in is not available yet: no
-   AutoPlay code, no bot): every scenario starts with -scenario <n>, all input through the Input System, no pause or
-   mute on focus loss, every action reachable by input; the design doc's status says AutoPlay is open. Framing check
-   from one short rendered play per scenario, which shows each scenario as it starts: check what it shows, list the
-   rest as open, never script the player's movement for it (unity-game-session skill, "AutoPlay and recordings");
-   report to me what is ready (commit sha, the scenarios that start with -scenario <n>, the release build's result,
-   screenshot paths).
+4) AutoPlay once scenario 1 is playable end to end (docs/autoplay-contract.md, Unity contract v1: the drop-in in
+   Assets/AutoPlay/ stays unchanged, and a game made before it gets it with
+   tools/unity-pipeline/autoplay/install.ps1 first; every scenario starts with -scenario <n> and from AutoPlay's
+   StartScenario (Assets/Scripts/Scenarios.cs); the bot acts only through the drop-in's Input System injection,
+   Skill-scaled, human-like camera); one hand test with Scripts\unity.ps1 autoplay + validate-run.ps1 (well-formed
+   files; the bot plays like a human, but its score never holds up a release); tag milestone/autoplay-<n>; framing
+   screenshots from one short bot run (unity-game-session skill, "AutoPlay and recordings"); message me for a
+   recording (commit sha, tag, scenarios ready, the validate-run result, screenshot paths).
    The bot does NOT need to win, finish, resupply or avoid getting stuck: never tune or re-test it for results; fix
    only game bugs, then one run per scenario.
 5) Expand content, art, UI and story to the quality bar (menus, settings, pause, save/load where it fits, HUD, sound
