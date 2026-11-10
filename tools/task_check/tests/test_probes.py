@@ -373,6 +373,24 @@ class Reducers(unittest.TestCase):
         self.assertEqual(probes.measured(height, found)[1], "no value in the window (nothing it selects was measured)",
                          "a measure no render feeds says nothing of the renderer")
 
+    def test_lit_and_glow_say_why_a_light_sources_own_render_gave_nothing(self):
+        """The render of one light source (Glow) is shared by every query that reads lit or glow, so its line names
+        none; it comes after the renderer's, and a drawn measure, which no such render feeds, doesn't take it."""
+        threw = "lit/glow: NullReferenceException in a render (the exception is in probe.log)"
+        glow = m(probe="objects", select={"name": "Lamp"}, field="glow", of="max")
+        drawn = m(probe="drawn", near={"point": {"xyz": [0, 1, 0]}, "radius": 1}, field="motion")
+        found = {"format": "unity-probe/1", "ended": "time", "seconds": 20.0, "track": [[0.5, 0, 0, 0]], "camera": [],
+                 "measures": {probes.query_id(probes.needs(glow)[0]): [{"t": 0.5, "rows": [{"name": "Lamp"}]}],
+                              probes.query_id(probes.needs(drawn)[0]): [{"t": 0.5, "value": None}]},
+                 "query_errors": [threw]}
+        nothing = "no value in the window (nothing it selects was measured)"
+        self.assertEqual(probes.measured(glow, found), (None, f"{nothing}; the probe said: {threw}"))
+        self.assertEqual(probes.measured(drawn, found), (None, nothing))
+        found["query_errors"] = [threw, "rendering: the render pipeline isn't URP: drawn and glow as rendered have no "
+                                        "value"]
+        self.assertEqual(probes.measured(glow, found)[1], f"{nothing}; the probe said: rendering: the render pipeline "
+                                                          "isn't URP: drawn and glow as rendered have no value")
+
 
 class FairReadings(unittest.TestCase):
     def test_a_count_reads_every_match_past_the_rows_cap(self):

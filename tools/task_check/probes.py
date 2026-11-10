@@ -511,16 +511,18 @@ def _own_errors(measure, probe):
     q1a2b3c4d5e: no component type X"), then those naming its kind alone ("ui: the uGUI canvases couldn't be read:
     ...": a reader every query of that kind shares); another query's or the play's are left out. A measure read off a
     render (drawn; an object's or a component's lit and glow) also takes the lines of the renderer they share, which
-    name no query ("rendering: the render pipeline isn't URP: drawn and glow as rendered have no value")."""
+    name no query ("rendering: the render pipeline isn't URP: drawn and glow as rendered have no value"), and lit and
+    glow those of a light source's own render after them ("lit/glow: NullReferenceException in a render ...")."""
     query = next(iter(needs(measure)), None)
     if query is None:
         return []
     kind, qid = query["kind"], query_id(query)
     lines = [str(e) for e in (probe.get("query_errors") or []) if isinstance(e, str)]
-    rendered = kind == "drawn" or measure.get("field") in ("lit", "glow")
+    glows = measure.get("field") in ("lit", "glow")
     return [e for e in lines if e.startswith((f"{kind} {qid}:", f"{kind} {qid} ("))] + \
         [e for e in lines if e.startswith(f"{kind}: ")] + \
-        [e for e in lines if rendered and e.startswith("rendering: ")]
+        [e for e in lines if (glows or kind == "drawn") and e.startswith("rendering: ")] + \
+        [e for e in lines if glows and e.startswith("lit/glow: ")]
 
 
 # -- (c) the editor pass --------------------------------------------------------------------------------------------------
