@@ -128,7 +128,7 @@ The validator's rules beyond the original's (`probe_errors`, `task_semantic_erro
 - a screen rect has x0 < x1 and y0 < y1; a player measure's `dist` has its `to`; a measure sets `to_angle` or
   `to_axis`, not both, and `window` or `at`, not both;
 - every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`; the original compiles
-  a ui select's only), so none can stop the task check;
+  a ui measure's only), so none can stop the task check;
 - the task's `player` select names no `player` and no point on the player (it says which object the player is);
 - a warning, never an error, when a `teleport_to`, an object point or an `"of": "first"` measure takes its one object
   by a wildcard name and nothing else: a spawner, a pool or a parent named like the things fits too (the sample game's
