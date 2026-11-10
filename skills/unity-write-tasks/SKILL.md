@@ -7,7 +7,7 @@ description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo
 
 A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an LLM agent can be given on this game,
 fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.json` (`kind`: `fix`, `corr`, `feat`,
-`change`; lower-case letters, digits and `-`, at most 63 characters), in the task format `GameTask`
+`change`; the whole name in lower-case letters, digits and `-`, at most 63 characters), in the task format `GameTask`
 ([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`, Unity flavour:
 `"engine": "unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
 shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat

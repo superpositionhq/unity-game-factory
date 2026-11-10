@@ -258,7 +258,11 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
   opposite are one axis (a straight road piece turned 90 or -90). One or the other, not both.
 - `match` (string values: text, names, enum-like strings, sprite and clip names): a regular expression, searched for
   anywhere in the string (`^...$` to match all of it); the value is 1 when it matches, 0 when not. A string without
-  `match` has no value.
+  `match` has no value. Two engines read a task's regular expressions: the checker's Python reads `match` and a `log`
+  or `log_absent` `pattern`, the probe's .NET a select's `text`; the validator checks each as Python reads it. Write
+  what both read alike (literals, character classes, `^` and `$`, `|`, groups, quantifiers): a form only Python
+  knows in a select's `text`, such as a named group `(?P<name>...)`, passes the validator and matches nothing in the
+  play (`query_errors`: "the text regex ... doesn't compile").
 
 Rows with no value are skipped by `of`: `count`, `any`, `sum` and `all` of none are 0, the others have no value.
 Samples with no value are skipped by `agg`, and a window where no sample has a value has no value, whatever the `agg`.
@@ -987,7 +991,8 @@ returns: the game's own frames are the same with and without the measure.
   field had nothing to read), it fails with
   "no value in the window (nothing it selects was measured)", followed by "; the probe said: " and the probe's first
   error about that measure's own query, when it logged one (the play's `probe.json` holds them all in
-  `query_errors`).
+  `query_errors`). The usual reasons a select matched nothing, and where to look: [task-check.md](task-check.md),
+  "Common reasons and fixes", under "no value in the window".
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`
