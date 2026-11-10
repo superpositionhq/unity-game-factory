@@ -23,7 +23,7 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
   on the second alone; the built-in Standard shader; two cubes with one emission map, one showing its white half and
   one its black half (as meshes show their parts of an atlas); a material whose `_EMISSION` keyword the game switches
   on; a renderer forced off; two emissions either side of the floor of 0.01; a colour and a vector set on a property
-  block at 2 s, each on a cube read from its properties and on one rendered through a white emission map; `ObjFacts`,
+  block at 2 s, each on a plain emissive cube and on one with a white emission map; `ObjFacts`,
   what the engine does with a colour on its way to a shader (whether URP Lit and Standard mark `_EmissionColor`
   `[HDR]`, what a property block gives back); a Shader Graph whose path isn't `Shader Graphs/` (copied from the Shader
   Graph package's unlit template); sprites and a line; two skinned meshes whose root bone is scaled 2 (one emissive,
@@ -47,7 +47,8 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
 - `world` (ObjLab, the `drive` keys): the camera, spawns, pieces and ground kinds on the same scene.
 - `more` (ObjMore): lit and glow of every kind of source (and how each was read); that what a colour's properties
   read is what its render shows: an `[HDR]` colour (URP Lit's emission) as the material holds it, a plain one made
-  linear, a property block's colour made linear and a vector on it as it is; sprites and lines as parts, the skinned
+  linear; that a property block's value is rendered (Unity makes a colour set on a block linear and hands a vector on
+  as it is, and the block can't say which it holds: `ObjFacts`); sprites and lines as parts, the skinned
   meshes' boxes in their root bone's frame, 2D bodies, the NavMeshAgent's speed, human bones by name only, the
   ragdoll's spread, and that the queries changed nothing. The VisualEffect's glow (`m_vfx_glow`) is left out of the
   comparison of two plays: it differed between two plays before its seed was fixed, and a GPU isn't promised to

@@ -51,7 +51,8 @@
    "fields": [
     "prop:ObjFacts.litHdr",
     "prop:ObjFacts.standardHdr",
-    "prop:ObjFacts.blockColour"
+    "prop:ObjFacts.blockColour",
+    "prop:ObjFacts.vectorAsColour"
    ]
   },
   {
