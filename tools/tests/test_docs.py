@@ -7,16 +7,23 @@ Plain text checks: no Unity, no network, no git history.
 What is not checked, so a green run does not claim it:
 - a field named in the section of the wrong kind (a field of `objects` under `components`) passes the check of names,
   which holds each name to the schema as a whole; an example that uses it there is caught;
-- the files the probe and the checker exchange (CONTRACT.md section 5: the play spec, probe.json, the build and
-  editor-pass requests and results) have no schema, so their examples are only told apart from task JSON;
+- the files the probe and the checker exchange have no schema. CONTRACT.md section 5's examples of them are held to
+  what the checker's own functions write and read and to the keys, flags and log lines the probe's sources name
+  (part E); anywhere else a snippet of one is only told apart from task JSON. Of the build's result only what the
+  checker reads is held (`ok`, `error`, `missing`), and of a row in probe.json only that the checker reads a value
+  from it: what the engine writes is the probe tests' to show (tools/task_check/probe_tests);
 - a sketch (a snippet that leaves values out: {"name": ..., "seconds": ...}, {"t", "key", "press"}, an input shown
   without its time) is held to its keys only: each object in it must be a part of the task format with those keys.
   An example written out in full is held to the schema and the validator's rules.
 """
-import copy, importlib.util, json, os, re, subprocess, unittest
+import ast, copy, importlib.util, json, os, re, subprocess, sys, unittest
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TOOLS)
+if TOOLS not in sys.path:
+    sys.path.insert(0, TOOLS)
+
+from task_check import probes, tasks, unity  # noqa: E402  the checker's writers and readers of the files of part E
 
 
 def load(name, file):
@@ -662,6 +669,269 @@ def frontmatter_problems(folder, text):
     return out
 
 
+# ---- E. the files the probe and the checker exchange (CONTRACT.md section 5) -----------------------------------------
+UNITY_PY = 'tools/task_check/unity.py'
+PROBE_CORE = 'tools/task_check/TaskProbe/Runtime/Core/'
+PROBE_CS = PROBE_CORE + 'Probe.cs'
+READS_FLAG = {'-taskProbe': PROBE_CS, '-taskProbeBuild': 'tools/task_check/TaskProbe/Editor/Build.cs',
+              '-taskProbeAssets': 'tools/task_check/TaskProbe/Editor/AssetPass.cs'}
+LOG_LINE = re.compile(r'\d+\.\d\d \[\d+\.\d s\] (.*)')      # Probe.Log: the play time, the real time, the message
+EXCHANGED_FILES = ('play spec', 'probe.json', 'probe.log', 'player command line', 'build command line',
+                   'build request', 'build result', 'editor-pass command line', 'editor-pass request',
+                   'editor-pass result')
+
+
+def written(function):
+    """What a function of tools/task_check/unity.py spells out: ([the keys of each dict], its flags, its files)."""
+    node = next(n for n in ast.walk(ast.parse(read(UNITY_PY))) if isinstance(n, ast.FunctionDef) and n.name == function)
+    words = [n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    dicts = [[k.value for k in d.keys if isinstance(k, ast.Constant)] for d in ast.walk(node) if isinstance(d, ast.Dict)]
+    return dicts, {w for w in words if w.startswith('-')}, {w for w in words if w.endswith(('.json', '.log'))}
+
+
+def measures_of(query):
+    """Measures that read a query of a play spec: what the checker's plan turns back into that query. One that reads
+    rows takes the first match's own value, a text as 1, so a row without the field reads as no value."""
+    kind, fields = query.get('kind'), query.get('fields')
+    if kind == 'ui' and fields == sorted(probes.UI_SIGNED):
+        fields = probes.UI_WHOLE[:1]        # a field read over everything the select picks asks for all of these
+    rest = {k: v for k, v in query.items() if k not in ('id', 'kind', 'fields')}
+    if kind in ('objects', 'components', 'widgets', 'ui'):
+        rest.update(of='first', match='')
+    return [{'probe': kind, **rest, 'field': f} for f in fields or ['count']]
+
+
+def task_of(measures, play):
+    """A task whose probes read `measures` in `play`: as much of one as probes.plan and probes.editor_items read."""
+    return {'milestones': [{'name': 'm', 'checks': [{'name': f'c{i}', 'kind': 'probe', 'play': play, 'measure': m}
+                                                  for i, m in enumerate(measures)]}]}
+
+
+def spec_problems(spec):
+    """Why a play spec is not what unity.Project.play writes for queries probes.plan makes."""
+    out = []
+    keys = next(d for d in written('play')[0] if 'out' in d)
+    if list(spec) != keys:
+        out.append(f'its keys are {list(spec)}; unity.Project.play writes {keys}')
+    if spec.get('format') != unity.SPEC_FORMAT:
+        out.append(f'its format is not {unity.SPEC_FORMAT}')
+    asked = spec.get('queries') if isinstance(spec.get('queries'), dict) else {}
+    queries = asked.get('queries') if isinstance(asked.get('queries'), list) else []
+    whole = probes.query_file(queries, spec.get('every')) or {**probes.query_file([None], spec.get('every')), 'queries': []}
+    if json.dumps(asked) != json.dumps(whole):
+        out.append(f'its `queries` are not as probes.query_file writes them: {json.dumps({**whole, "queries": "..."})}')
+    if spec.get('sound') is not probes.hears(queries):
+        out.append(f'`sound` is {json.dumps(spec.get("sound"))}; probes.hears says {json.dumps(probes.hears(queries))}')
+    try:
+        plan = probes.plan(task_of([m for q in queries for m in measures_of(q)], {'name': 'p', 'seconds': 1})).get('p', [])
+        rows = tasks.inputs(spec.get('inputs'))
+    except (KeyError, TypeError, AttributeError, ValueError) as e:
+        return out + [f'the checker cannot make its queries or inputs ({type(e).__name__}: {e})']
+    if json.dumps(queries) != json.dumps(plan):
+        out.append(f'its queries are not as probes.plan makes them (ids, keys, sorted fields, order): {json.dumps(plan)}')
+    if json.dumps(spec.get('inputs')) != json.dumps(rows):
+        out.append(f'its inputs are not as tasks.inputs writes them: {json.dumps(rows)}')
+    return out
+
+
+def finish_writes():
+    """(the keys Probe.Finish always writes, in order; those it writes when there is something; its format; the
+    endings it is called with)."""
+    source = read(PROBE_CS)
+    body = source[source.index('void Finish('):]
+    body = body[:body.index('WriteAllText')]
+    fmt = re.search(r'\["format"\]\s*=\s*"([^"]+)"', body)
+    return (re.findall(r'(?<!result)\["(\w+)"\]\s*=', body), re.findall(r'result\["(\w+)"\]\s*=', body),
+            fmt and fmt.group(1), set(re.findall(r'\bFinish\("(\w+)"', source)))
+
+
+def probe_json_problems(found, spec=None):
+    """Why a probe.json is not what the probe writes and the checker reads; with the play's spec, also why it does
+    not answer that spec's queries."""
+    always, sometimes, fmt, endings = finish_writes()
+    out = [f'Probe.Finish writes no key "{k}"' for k in found if k not in always + sometimes]
+    if [k for k in found if k in always] != always:
+        out.append(f'its keys are {list(found)}; Probe.Finish always writes {always}, in that order')
+    if found.get('format') != fmt:
+        out.append(f'its format is not {fmt}')
+    if found.get('ended') not in endings:
+        out.append(f'`ended` is {json.dumps(found.get("ended"))}, not one of {sorted(endings)}')
+
+    def number(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    for name, widths in (('track', (1, 4)), ('camera', (7,))):
+        rows = found.get(name)
+        if not isinstance(rows, list) or not all(isinstance(r, list) and len(r) in widths and all(map(number, r))
+                                                 for r in rows):
+            out.append(f'`{name}` is not rows of {" or ".join(map(str, widths))} numbers')
+    measures = found.get('measures') if isinstance(found.get('measures'), dict) else {}
+    for qid, samples in measures.items():
+        if not isinstance(samples, list) or not all(isinstance(s, dict) and number(s.get('t')) and
+                                                    not ('rows' in s and 'value' in s) for s in samples):
+            out.append(f'{qid}: not a list of samples, each with its `t` and `rows` or `value`')
+    if spec is not None:
+        queries = (spec.get('queries') or {}).get('queries') or []
+        ids = sorted(q.get('id') for q in queries)
+        if sorted(measures) != ids:
+            out.append(f'its measures are of {sorted(measures)}; the play spec asks for {ids}')
+        for m in [m for q in queries for m in measures_of(q)]:
+            try:
+                value, why = probes.measured(tasks.measure(m), found)
+            except (KeyError, TypeError, AttributeError, ValueError) as e:
+                value, why = None, f'{type(e).__name__}: {e}'
+            if value is None:
+                out.append(f'the checker reads no value for {json.dumps(m)} from it: {why}')
+    return out
+
+
+def build_request_problems(found):
+    keys = next(d for d in written('build')[0] if 'out' in d)
+    return [] if list(found) == keys else [f'its keys are {list(found)}; unity.Project.build writes {keys}']
+
+
+def build_result_problems(found):
+    """What the checker reads of a build's result (unity.Project.build, check.py): `ok`, `error`, `missing`."""
+    out = [] if isinstance(found.get('ok'), bool) else ['`ok` is not true or false']
+    if found.get('ok') is True and found.get('error') is not None:
+        out.append('`ok` is true and it has an `error`')
+    if not isinstance(found.get('missing'), dict):
+        out.append('`missing` is not an object')
+    return out
+
+
+def editor_request_problems(found):
+    """Why an editor-pass request is not what probes.editor_request and unity.Project.editor_assets write."""
+    keys = list(probes.editor_request([], '')) + next(d for d in written('editor_assets')[0] if d)
+    out = [] if list(found) == keys else [f'its keys are {list(found)}; the checker writes {keys}']
+    if not re.fullmatch(r'[0-9a-f]{32}', str(found.get('nonce'))):
+        out.append('its nonce is not 32 hex digits (secrets.token_hex(16))')
+    measures = found.get('measures') if isinstance(found.get('measures'), dict) else {}
+    for mid, m in measures.items():
+        out += [f'{mid}: {p}' for p in measure_problems(m)]
+    try:
+        items = dict(probes.editor_items(task_of(list(measures.values()), 'editor')))
+    except (KeyError, TypeError, AttributeError, ValueError) as e:
+        return out + [f'the checker cannot make its measures ({type(e).__name__}: {e})']
+    if json.dumps(measures) != json.dumps(items):
+        out.append(f'its measures are not as probes.editor_items makes them (ids, set fields, order): {json.dumps(items)}')
+    return out
+
+
+def editor_result_problems(text, request):
+    """Why the checker's reader (probes.editor_results, probes.reduce_asset) gets no number for each measure of
+    `request` from an editor pass's result."""
+    measures = request.get('measures') if isinstance(request.get('measures'), dict) else {}
+    found = probes.editor_results(text, request.get('nonce'))
+    if found is None:
+        return ["probes.editor_results reads nothing from it with the request's nonce"]
+    out = [] if sorted(found) == sorted(measures) else [f'it answers {sorted(found)}; the request asks {sorted(measures)}']
+    for mid in sorted(set(found) & set(measures)):
+        try:
+            value, why = probes.reduce_asset(tasks.measure(measures[mid]), found[mid])
+        except (KeyError, TypeError, AttributeError, ValueError) as e:
+            value, why = None, f'{type(e).__name__}: {e}'
+        if value is None:
+            out.append(f'{mid}: the checker reads no number from it: {why}')
+    return out
+
+
+def log_problems(block, core):
+    """Why a block is not probe.log: each line in Probe.Log's form, its message one a file of `core` (the text of the
+    probe's Runtime/Core sources) writes, known by its words up to the first colon, number, name or bracket."""
+    out = []
+    for row in block.strip('\n').split('\n'):
+        m = LOG_LINE.fullmatch(row)
+        if not m:
+            out.append(f'"{row[:70]}" is not a probe.log line: <play time> [<real time> s] <message>')
+            continue
+        lead = re.match(r'[^0-9(A-Z:]*:? ?', m.group(1)).group(0)
+        if len(lead) < 5 or f'"{lead}' not in core:
+            out.append(f'no source under {PROBE_CORE} writes a line that starts "{lead}"')
+    return out
+
+
+def command_problems(block):
+    """(which job a command line starts, why it is not the one unity.py starts): its flags, its method, its window
+    and the files it names against unity.py, and its own flag against the C# that reads it."""
+    text = ' '.join(block.split())
+    if unity.PLAYER in text:
+        job, parts = 'player command line', ('play',)
+    elif unity.BUILD_METHOD in text:
+        job, parts = 'build command line', ('_batch', 'build')
+    elif unity.ASSETS_METHOD in text:
+        job, parts = 'editor-pass command line', ('_batch', 'editor_assets')
+    else:
+        return 'command line', [f'it starts neither the player ({unity.PLAYER}), the build ({unity.BUILD_METHOD}) nor '
+                                f'the editor pass ({unity.ASSETS_METHOD})']
+    flags, files = set(), set()
+    for part in parts:
+        flags |= written(part)[1]
+        files |= written(part)[2]
+    shown = set(re.findall(r'(?<!\S)-[A-Za-z][\w-]*', text))
+    out = [] if shown == flags else [f'its flags are {sorted(shown)}; unity.py passes {sorted(flags)}']
+    out += [f'unity.py names no file {f} for it' for f in sorted(set(re.findall(r'\b[\w.]+\.(?:json|log)\b', text)) - files)]
+    if job == 'player command line' and not all(f'-screen-{side} {n}' in text
+                                                for side, n in zip(('width', 'height'), unity.SHOT_SIZE)):
+        out.append(f'its window is not unity.SHOT_SIZE, {unity.SHOT_SIZE}')
+    for flag in sorted(f for f in shown if f.lower().startswith('-taskprobe')):
+        if f'"{flag}"' not in read(READS_FLAG.get(flag, PROBE_CS)):
+            out.append(f'{READS_FLAG.get(flag, PROBE_CS)} looks for no {flag}')
+    return job, out
+
+
+def exchange_problems(text):
+    """[(line, what, problem)] for section 5 of CONTRACT.md: every block one of the files the probe and the checker
+    exchange or one of the three command lines, each of them shown once, as the code writes and reads it."""
+    _, start, body = sections(text).get('5', ('', 1, ''))
+    out, seen = [], {}
+
+    def note(what, line, value):
+        if what in seen:
+            out.append((line, what, f'shown a second time (first at line {seen[what][0]})'))
+        seen.setdefault(what, (line, value))
+
+    for lang, line, block in fences(body):
+        line += start - 1
+        if lang == 'json':
+            try:
+                v = json.loads(block)
+            except ValueError as e:
+                out.append((line, block.strip()[:60], f'not JSON ({e}): section 5 shows these files as they are written'))
+                continue
+            what = None if not isinstance(v, dict) else \
+                'play spec' if 'queries' in v else 'probe.json' if 'track' in v else 'build result' if 'ok' in v else \
+                'editor-pass request' if 'nonce' in v and 'result' in v else 'editor-pass result' if 'nonce' in v else \
+                'build request' if 'scenes' in v else None
+            if what is None:
+                out.append((line, block.strip()[:60], 'none of the files of section 5: ' + ', '.join(EXCHANGED_FILES)))
+            else:
+                note(what, line, (v, block))
+        elif LOG_LINE.match(block.lstrip('\n')):
+            note('probe.log', line, block)
+        else:
+            job, problems = command_problems(block)
+            note(job, line, block)
+            out += [(line, job, p) for p in problems]
+    lacking = [w for w in EXCHANGED_FILES if w not in seen]
+    if lacking:
+        out.append((start, 'section 5', 'no example of ' + ', '.join(lacking)))
+
+    def held(what, problems, *needs):
+        if what in seen and all(n in seen for n in needs):
+            out.extend((seen[what][0], what, p) for p in problems(*[seen[n][1] for n in (what,) + needs]))
+
+    held('play spec', lambda spec: spec_problems(spec[0]))
+    held('probe.json', lambda probe, spec: probe_json_problems(probe[0], spec[0]), 'play spec')
+    held('probe.log', lambda log: log_problems(log, ''.join(read(f) for f in tracked()
+                                                             if f.startswith(PROBE_CORE) and f.endswith('.cs'))))
+    held('build request', lambda asked: build_request_problems(asked[0]))
+    held('build result', lambda result: build_result_problems(result[0]))
+    held('editor-pass request', lambda asked: editor_request_problems(asked[0]))
+    held('editor-pass result', lambda result, asked: editor_result_problems(result[1], asked[0]), 'editor-pass request')
+    return sorted(out, key=lambda p: p[0])
+
+
 # ---- the documents ------------------------------------------------------------------------------------------------------
 def show(rel, problems):
     return '\n' + '\n'.join(f'  {rel}:{line}: {str(what)[:160]}\n      {problem}' for line, what, problem in problems)
@@ -761,8 +1031,17 @@ class Frontmatter(unittest.TestCase):
                 self.assertEqual(frontmatter_problems(rel.split('/')[1], read(rel)), [])
 
 
+class ExchangedFiles(unittest.TestCase):
+    """E. CONTRACT.md section 5 shows the probe's and the checker's files and command lines as the code writes and
+    reads them."""
+
+    def test_exchanged_files(self):
+        problems = exchange_problems(read(CONTRACT))
+        self.assertFalse(problems, show(CONTRACT, problems))
+
+
 class TheChecksCanFail(unittest.TestCase):
-    """E. Each check, on a small document with one thing wrong."""
+    """F. Each check, on a small document with one thing wrong."""
 
     def bad(self, text):
         return [p for _, _, p in example_problems(text)]
@@ -807,6 +1086,118 @@ class TheChecksCanFail(unittest.TestCase):
         """The probe's and the checker's own files are told apart from task JSON, not held to its schema."""
         self.assertEqual(self.bad('`{"format": "unity-probe/1", "track": [[t, x, y, z]], "anything": [ ... rows ... ]}`'), [])
         self.assertEqual(self.bad('`{"nonce": "...", "measures": {"a<id>": {"value": v} | {"error": "..."}}}`'), [])
+
+    def test_section_5(self):
+        """Part E: a play, a build and an editor pass as the checker's own functions write them pass; each with one
+        thing changed does not."""
+        play = {'name': 'p', 'seconds': 8, 'inputs': [{'t': 2, 'wait': 2}, {'t': 4, 'key': '<Keyboard>/e', 'press': 1}]}
+        lamp = {'probe': 'objects', 'select': {'name': 'Lamp'}, 'field': 'lit'}
+        queries = probes.plan(task_of([lamp, {**lamp, 'field': 'glow'}], play))['p']
+        spec = {'format': unity.SPEC_FORMAT, 'out': 'C:/c/Logs/TaskProbe/play', 'seconds': 8, 'shots': 2, 'every': 0.5,
+                'scene': None, 'sound': False, 'player': None, 'inputs': tasks.inputs(play['inputs']),
+                'queries': probes.query_file(queries)}
+
+        def but(value, *path, to):
+            """`value` with what is at `path` changed to `to` (dropped when `to` is this function itself)."""
+            out = copy.deepcopy(value)
+            node = out
+            for step in path[:-1]:
+                node = node[step]
+            if to is but:
+                del node[path[-1]]
+            else:
+                node[path[-1]] = to
+            return out
+
+        first = ('queries', 'queries', 0)
+        self.assertEqual(spec_problems(spec), [])
+        self.assertTrue(spec_problems({('map' if k == 'scene' else k): v for k, v in spec.items()}))    # another key
+        self.assertTrue(spec_problems(but(spec, 'format', to='unity-probe-play/2')))
+        self.assertTrue(spec_problems(but(spec, 'queries', 'format', to='game-probe-queries/2')))
+        self.assertTrue(spec_problems(but(spec, *first, 'id', to='q0000000000')))                      # not its hash
+        self.assertTrue(spec_problems(but(spec, *first, 'fields', to=['lit', 'glow'])))                # not sorted
+        self.assertTrue(spec_problems(but(spec, *first, 'select', to=but)))                            # a key missing
+        self.assertTrue(spec_problems(but(spec, 'inputs', to=play['inputs'])))                         # the task's own
+        self.assertTrue(spec_problems(but(spec, 'sound', to=True)))                                    # no audio query
+
+        probe = {'format': 'unity-probe/1', 'ended': 'time', 'seconds': 8.5, 'scene': 'Assets/A.unity', 'player': 'Hero',
+                 'inputs_sent': 2, 'screenshots': [], 'track': [[0.5, 0, 1, 0], [1.0]],
+                 'camera': [[0.5, 0, 1, 0, 10, -90, 55]],
+                 'measures': {queries[0]['id']: [{'t': 0.5, 'rows': [{'name': 'Lamp', 'lit': 1, 'glow': 2.5}]}]}}
+        sample = ('measures', queries[0]['id'], 0)
+        self.assertEqual(probe_json_problems(probe, spec), [])
+        self.assertTrue(probe_json_problems({**probe, 'map': '/Game/A'}, spec))                        # the original's key
+        self.assertTrue(probe_json_problems(but(probe, 'player', to=but), spec))                       # always written
+        self.assertTrue(probe_json_problems(but(probe, 'format', to='game-probe/1'), spec))
+        self.assertTrue(probe_json_problems(but(probe, 'ended', to='quit'), spec))
+        self.assertTrue(probe_json_problems(but(probe, 'track', 0, to=[0.5, 0, 1]), spec))
+        self.assertTrue(probe_json_problems(but(probe, 'camera', 0, to=[0.5, 0, 1, 0]), spec))
+        self.assertTrue(probe_json_problems(but(probe, 'measures', to={'q0000000000': []}), spec))     # another play's
+        self.assertTrue(probe_json_problems(but(probe, *sample, 'rows', 0, to={'name': 'Lamp', 'lit': 1, 'glw': 2}), spec))
+        self.assertTrue(probe_json_problems(but(probe, *sample, 'value', to=None), spec))              # rows and value
+        self.assertTrue(probe_json_problems(but(probe, *sample, 't', to=but), spec))
+
+        bulb = {'probe': 'asset', 'asset': 'Assets/M.mat', 'field': 'keyword:_EMISSION'}
+        asked = {**probes.editor_request(probes.editor_items(task_of([bulb], 'editor')), 'ab' * 16),
+                 'result': 'C:/c/Logs/TaskProbe/probes_editor.json'}
+        aid = next(iter(asked['measures']))
+        self.assertEqual(editor_request_problems(asked), [])
+        self.assertTrue(editor_request_problems(but(asked, 'nonce', to='a nonce')))
+        self.assertTrue(editor_request_problems(but(asked, 'result', to=but)))
+        self.assertTrue(editor_request_problems(but(asked, 'measures', to={'a0000000000': asked['measures'][aid]})))
+        self.assertTrue(editor_request_problems(but(asked, 'measures', aid, to=bulb)))                 # the task's own
+        self.assertTrue(editor_request_problems(but(asked, 'measures', aid, 'field', to='keyword')))   # no such field
+        result = {'measures': {aid: {'value': 1}}, 'nonce': 'ab' * 16}
+        self.assertEqual(editor_result_problems(json.dumps(result), asked), [])
+        self.assertTrue(editor_result_problems(json.dumps(but(result, 'nonce', to='cd' * 16)), asked))
+        self.assertTrue(editor_result_problems(json.dumps(but(result, 'measures', to={})), asked))
+        self.assertTrue(editor_result_problems(json.dumps(but(result, 'measures', aid, to={'error': 'no asset'})), asked))
+        self.assertTrue(editor_result_problems(json.dumps(but(result, 'measures', aid, to={'value': 'on'})), asked))
+
+        build = {'out': 'C:/c/Build/TaskProbe', 'scenes': [], 'result': 'C:/c/Logs/TaskProbe/build.json'}
+        built = {'ok': True, 'scenes': ['Assets/A.unity'], 'missing': {}}
+        self.assertEqual(build_request_problems(build) + build_result_problems(built), [])
+        self.assertTrue(build_request_problems({'out': 'C:/c/Build/TaskProbe', 'maps': [], 'result': 'C:/c/b.json'}))
+        self.assertTrue(build_result_problems(but(built, 'ok', to='yes')))
+        self.assertTrue(build_result_problems({**built, 'error': 'the player build failed'}))
+        self.assertTrue(build_result_problems(but(built, 'missing', to=[])))
+
+        core = 'Log("the play ended: " + reason); Probe.Log("teleported next to " + name);'
+        log = '0.00 [0.2 s] teleported next to Lamp_1: asked (1.00, 0.00, 2.00)\n10.53 [12.9 s] the play ended: time'
+        self.assertEqual(log_problems(log, core), [])
+        self.assertTrue(log_problems('10.53 the play ended: time', core))                              # no real time
+        self.assertTrue(log_problems('10.53 [12.9 s] the game ended: time', core))                     # no such line
+        self.assertTrue(log_problems('1.00 [3.3 s] teleported beside Lamp_1', core))
+
+        logs = '<copy>\\Logs\\TaskProbe\\'
+        player = ('python desk.py <copy>\\Build\\TaskProbe\\Game.exe -screen-fullscreen 0 -screen-width 960\n'
+                  f'    -screen-height 540 -logFile {logs}play.log -taskProbe {logs}play_spec.json <play args...>')
+        batch = f'<Unity.exe> -batchmode -nographics -quit -projectPath <copy> -logFile {logs}'
+        builds = f'{batch}build.log\n    -executeMethod {unity.BUILD_METHOD} -taskProbeBuild {logs}build_request.json'
+        passes = f'{batch}editor.log -executeMethod {unity.ASSETS_METHOD} -taskProbeAssets {logs}probes_editor_request.json'
+        self.assertEqual(command_problems(player), ('player command line', []))
+        self.assertEqual(command_problems(builds), ('build command line', []))
+        self.assertEqual(command_problems(passes), ('editor-pass command line', []))
+        self.assertTrue(command_problems(player.replace('-taskProbe ', '-TaskProbeSpec '))[1])         # the original's
+        self.assertTrue(command_problems(player.replace('960', '1280'))[1])
+        self.assertTrue(command_problems(player.replace('play.log', 'game.log'))[1])
+        self.assertTrue(command_problems(player + ' -popupwindow')[1])
+        self.assertTrue(command_problems(builds.replace(' -quit', ''))[1])
+        self.assertTrue(command_problems(builds.replace('-taskProbeBuild', '-taskProbeAssets'))[1])
+        self.assertTrue(command_problems(passes.replace('AssetPass.Run', 'AssetPass.Start'))[1])       # no such job
+
+        def page(*blocks):
+            return '## 5. Files\n' + ''.join('```%s\n%s\n```\n' % (('', b) if isinstance(b, str) else ('json', json.dumps(b)))
+                                             for b in blocks)
+
+        whole = (spec, probe, '0.00 [0.2 s] the play ended: time', player, builds, build, built, passes, asked, result)
+        self.assertEqual(exchange_problems(page(*whole)), [])
+        self.assertTrue(exchange_problems(page(*whole[:2], *whole[3:])))                               # one not shown
+        self.assertTrue(exchange_problems(page(*whole, build)))                                        # one shown twice
+        self.assertTrue(exchange_problems(page(*whole, {'weather': 'fine'})))                          # none of them
+        self.assertTrue(exchange_problems(page(*whole) + '```json\n{"nonce": ...}\n```\n'))            # not JSON
+        self.assertTrue(exchange_problems(page(but(spec, 'shots', to=but), *whole[1:])))               # one of them wrong
+        self.assertTrue(exchange_problems(page(*whole[:9], but(result, 'nonce', to='cd' * 16))))
 
     def test_whole_task(self):
         t = {'name': 'kiln-run-fix-x', 'title': 'x', 'instruction': 'x', 'difficulty': 'medium', 'tags': ['long-thread'],
