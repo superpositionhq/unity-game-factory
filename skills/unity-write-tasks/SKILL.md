@@ -318,12 +318,13 @@ Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game
 Create `.task-checks` first if it doesn't exist. Unity fails on paths past 260 characters, so the checker refuses a
 scratch project folder longer than 90 characters: it then stops at once and `run.log` says so; add `'--scratch',
 'C:\tc'` (a short folder on the repo's drive) to the arguments. Tell the person it is running, roughly how long (7 to
-31 minutes a task for small projects on the machine it was measured on, longer for a game with many or large assets;
-most of it is the builds, and a commit several tasks share is built once: docs/task-check.md, "Requirements"), and
-that they can leave it. Read `<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten
-after every task; it says `finished` at the end); never start a second run of the same game while one is going. A
-recheck of the tasks you fixed takes `--task <name>` once per task instead of `--all`. `--task
-<path>/Tasks/<name>.json` checks a file not committed yet ([docs/task-check.md](../../docs/task-check.md)). The check
+31 minutes a task for small projects on the machine it was measured on, longer for a game with many or large assets
+and several times longer while the machine runs other Unity jobs; most of it is the builds, and a commit several
+tasks share is built once: docs/task-check.md, "Requirements"), and that they can leave it. Read
+`<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
+`finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
+fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
+committed yet ([docs/task-check.md](../../docs/task-check.md)). The check
 builds each start and reference as a Windows player with the probe package, plays them on a Windows desktop of their
 own (nothing on the person's screen, the game counting itself focused) and writes VALID or INVALID per task with the
 reasons and the measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the

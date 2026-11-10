@@ -68,10 +68,12 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
 - **One Unity process per project.** Unity locks a project folder while it has it open (`Temp/UnityLockfile`). The
   checker opens only its own scratch copies, one job at a time, never your checkout, so an editor open on the game
   doesn't stop it.
-- Time: two builds and a few plays per task: 7 minutes for a near-empty URP project, 18 and 31 for the two tasks of a
+- Time: two builds and a few plays per task: 7 minutes for a near-empty URP project, 12 to 31 for the two tasks of a
   small game (the factory's sample) on the machine this was measured on, longer for a real game with many or large
-  assets. Half of it or more is the builds (2 to 13 minutes each in those runs): a scratch copy's first build imports
-  every asset into the copy's own `Library/`. A commit shared by several tasks of one run is built once.
+  assets, and several times longer while the machine runs other Unity jobs (the same two tasks then took 45 and 74
+  minutes). Half of it or more is the builds (2 to 5 minutes each in the short runs, 24 and 28 in the longest): a
+  scratch copy's first build imports every asset into the copy's own `Library/`. A commit shared by several tasks of
+  one run is built once.
   A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
   build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
   `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
@@ -244,7 +246,8 @@ start leaves uncalibrated reads **`X has no threshold: uncalibrated: ...`**: no 
 
 **`no samples in the window (the play ended at N s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
-never got to play (a crash at load: see the play's `play.log` and `output.txt`). A scene the commit doesn't have
+never got to play (a crash at load: see the play's `play.log` and `output.txt`), or the play was stopped at
+`--timeout` before its end (its progress line then shows it took that long). A scene the commit doesn't have
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
