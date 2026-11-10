@@ -116,12 +116,18 @@ def clean_codex_home(folder, user_home=None):
 
 
 def put_login_back(folder, user_home=None):
-    """After a try: a login Codex refreshed goes back to the real home, and the copy goes."""
+    """After a try: a login Codex refreshed goes back to the real home, and the copy goes. Never a copy Codex was
+    still writing when it was stopped (its time limit, Ctrl+C): that would leave the user logged out."""
     home = Path(user_home or os.path.expanduser("~"))
     real = Path(os.environ.get("CODEX_HOME") or home / ".codex") / "auth.json"
     copy = Path(folder) / "auth.json"
     if copy.exists():
-        if copy.read_bytes() != real.read_bytes():
+        data = copy.read_bytes()
+        try:
+            whole = isinstance(json.loads(data), dict)
+        except ValueError:
+            whole = False
+        if whole and data != real.read_bytes():
             shutil.copy2(copy, real)
         copy.unlink()
 

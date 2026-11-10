@@ -466,6 +466,40 @@ class LongEnough(unittest.TestCase):
         self.assertNotIn("25-minute guide", trial.line(result))
 
 
+class CodexHome(unittest.TestCase):
+    def setUp(self):
+        patched = mock.patch.dict(os.environ)
+        patched.start()
+        self.addCleanup(patched.stop)
+        os.environ.pop("CODEX_HOME", None)
+
+    def test_codex_runs_on_a_copy_of_the_login_without_the_users_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home, folder, kept = Path(tmp) / "user", Path(tmp) / "run1" / "game.codex-home", Path(tmp) / "evidence"
+            write(home, ".codex/auth.json", text='{"token": "a"}')
+            write(home, ".codex/skills/one/SKILL.md", ".agents/skills/two/SKILL.md")
+            trial.clean_codex_home(folder, home)
+            self.assertEqual((folder / "auth.json").read_text(), '{"token": "a"}')
+            self.assertEqual((folder / "config.toml").read_text().count("enabled = false"), 2)
+            (folder / "auth.json").write_text('{"token": "b"}')  # Codex refreshed it during the run
+            write(folder, "sessions/2026/11/rollout.jsonl")
+            trial.put_login_back(folder, home)
+            trial.keep_codex_sessions(folder, kept)
+            self.assertEqual((home / ".codex" / "auth.json").read_text(), '{"token": "b"}', "the refreshed login")
+            self.assertFalse((folder / "auth.json").exists(), "no copy of the login stays behind")
+            self.assertTrue((kept / "2026" / "11" / "rollout.jsonl").is_file())
+
+    def test_a_login_codex_was_writing_when_it_was_stopped_never_replaces_the_users(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home, folder = Path(tmp) / "user", Path(tmp) / "run1" / "game.codex-home"
+            write(home, ".codex/auth.json", text='{"token": "a"}')
+            trial.clean_codex_home(folder, home)
+            (folder / "auth.json").write_text('{"tok')  # killed at its time limit mid-write
+            trial.put_login_back(folder, home)
+            self.assertEqual((home / ".codex" / "auth.json").read_text(), '{"token": "a"}')
+            self.assertFalse((folder / "auth.json").exists())
+
+
 class Main(unittest.TestCase):
     def test_the_transcript_is_read_for_every_place_that_holds_the_answer_or_its_measures(self):
         """The game repo, the machine root, the harnesses' homes (the game sessions' transcripts), a task file's
