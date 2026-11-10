@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -130,17 +131,20 @@ def keep_codex_sessions(folder, dest):
 
 def run_agent(argv, cwd, prompt, transcript, minutes, clock=time.monotonic, env_extra=None):
     """Run the harness in `cwd` with `prompt` on stdin, its output to `transcript`; killed with its children after
-    `minutes`. {"exit_code", "seconds", "timed_out"}."""
+    `minutes`, and when the try is stopped (Ctrl+C reaches only the try: the harness has a process group of its own).
+    {"exit_code", "seconds", "timed_out"}."""
     env = dict(os.environ, **{name: "1" for name in NO_RECORDING})
     for name in NO_ROOT:
         env.pop(name, None)
     env.update(env_extra or {})
     started = clock()
-    with open(transcript, "wb") as out:
-        proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.PIPE, stdout=out, stderr=subprocess.STDOUT,
+    # The prompt comes from a file, not a pipe: writing a long one to a harness that doesn't read it would block past
+    # the time limit, or fail when the harness stops first (an option it doesn't know); its transcript says why.
+    with open(transcript, "wb") as out, tempfile.TemporaryFile() as stdin:
+        stdin.write(prompt.encode("utf-8"))
+        stdin.seek(0)
+        proc = subprocess.Popen(argv, cwd=str(cwd), stdin=stdin, stdout=out, stderr=subprocess.STDOUT,
                                 env=env, creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-        proc.stdin.write(prompt.encode("utf-8"))
-        proc.stdin.close()
         try:
             proc.wait(timeout=minutes * 60)
             timed_out = False
@@ -148,6 +152,10 @@ def run_agent(argv, cwd, prompt, transcript, minutes, clock=time.monotonic, env_
             unity._kill_tree(proc.pid)
             proc.wait()
             timed_out = True
+        except BaseException:  # the try stopped: a harness left running would work on unattended
+            unity._kill_tree(proc.pid)
+            proc.wait()
+            raise
     return {"exit_code": None if timed_out else proc.returncode, "seconds": round(clock() - started, 1),
             "timed_out": timed_out}
 

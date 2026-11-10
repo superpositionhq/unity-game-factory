@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -35,6 +36,25 @@ def tearDownModule():
 
 def git(repo, *args):
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def alive(pid):
+    """Whether process `pid` still runs (Windows: os.kill would end it)."""
+    import ctypes
+
+    kernel = ctypes.windll.kernel32
+    handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return False
+    code = ctypes.c_ulong()
+    kernel.GetExitCodeProcess(handle, ctypes.byref(code))
+    kernel.CloseHandle(handle)
+    return code.value == 259  # STILL_ACTIVE
+
+
+# An agent that starts a job of its own (a Unity editor, say), writes the job's pid to argv[1] and works on.
+STARTS_A_JOB = ("import subprocess, sys, time; job = subprocess.Popen([sys.executable, '-c', 'import time; "
+                "time.sleep(60)']); open(sys.argv[1], 'w').write(str(job.pid)); time.sleep(60)")
 
 
 class Brief(unittest.TestCase):
@@ -94,6 +114,61 @@ class Harness(unittest.TestCase):
             self.assertEqual(ran["exit_code"], 0)
             self.assertFalse(ran["timed_out"])
             self.assertEqual(out.read_text().split(), ["FIX", "IT", "1", "1", "-", "-", "-", "-"])
+
+    @unittest.skipUnless(os.name == "nt", "taskkill")
+    def test_an_agent_past_its_time_limit_is_stopped_with_what_it_started(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = Path(tmp) / "job.pid"
+            ran = trial.run_agent([sys.executable, "-c", STARTS_A_JOB, str(job)], tmp, "fix it", Path(tmp) / "t.jsonl",
+                                  0.1)
+            self.assertEqual((ran["exit_code"], ran["timed_out"]), (None, True))
+            self.assertFalse(alive(int(job.read_text())), "the agent's own job goes with it")
+
+    @unittest.skipUnless(os.name == "nt", "taskkill")
+    def test_an_interrupted_try_stops_the_agent_and_what_it_started(self):
+        """Ctrl+C reaches the try only: the agent runs in a process group of its own, which Windows gives no Ctrl+C."""
+        with tempfile.TemporaryDirectory() as tmp:
+            job = Path(tmp) / "job.pid"
+            started = {}
+            real_wait = subprocess.Popen.wait
+
+            def interrupted(proc, timeout=None):
+                if timeout is None:
+                    return real_wait(proc)
+                started["agent"] = proc.pid
+                for _ in range(600):  # the agent has started its job
+                    if job.is_file() and job.read_text():
+                        break
+                    time.sleep(0.05)
+                raise KeyboardInterrupt
+
+            try:
+                with mock.patch.object(subprocess.Popen, "wait", interrupted), self.assertRaises(KeyboardInterrupt):
+                    trial.run_agent([sys.executable, "-c", STARTS_A_JOB, str(job)], tmp, "fix it",
+                                    Path(tmp) / "t.jsonl", 60)
+                time.sleep(0.5)
+                self.assertFalse(alive(started["agent"]), "no agent works on unattended")
+                self.assertFalse(alive(int(job.read_text())), "nor anything it started")
+            finally:
+                for pid in [started.get("agent")] + ([int(job.read_text())] if job.is_file() else []):
+                    if pid:
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+
+    def test_an_agent_that_never_reads_its_prompt_is_stopped_on_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            began = time.monotonic()
+            ran = trial.run_agent([sys.executable, "-c", "import time; time.sleep(20)"], tmp, "x" * 20000,
+                                  Path(tmp) / "t.jsonl", 0.05)
+            self.assertTrue(ran["timed_out"])
+            self.assertLess(time.monotonic() - began, 15, "a long prompt never holds the try past the time limit")
+
+    def test_an_agent_that_stops_before_reading_its_prompt_is_a_run_that_says_why(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "t.jsonl"
+            ran = trial.run_agent([sys.executable, "-c", "import sys; print('error: unknown option'); sys.exit(1)"],
+                                  tmp, "x" * 20000, out, 1)
+            self.assertEqual(ran["exit_code"], 1)
+            self.assertIn("unknown option", out.read_text())
 
 
 class Transcript(unittest.TestCase):
