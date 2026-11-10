@@ -115,6 +115,11 @@ class Brief(unittest.TestCase):
         self.assertIn(f"`{self.EDITOR}`", text)
         self.assertNotIn("hero_on_ground", text, "nothing of the grader's half")
 
+    def test_the_task_limits_override_the_schemas_defaults(self):
+        self.assertEqual(trial.limits_of(task_with(probe())), {"max_turns": 200, "max_minutes": 240})
+        task = dict(task_with(probe()), limits={"max_turns": 400, "max_minutes": 480})
+        self.assertEqual(trial.limits_of(task)["max_minutes"], 480)
+
     def test_a_brief_names_only_what_the_task_sets(self):
         plain = trial.brief(task_with(probe()), self.EDITOR)
         self.assertNotIn("QA plays", plain, "no scene: the project's first build scene, as a player starts it")
@@ -122,11 +127,6 @@ class Brief(unittest.TestCase):
         self.assertIn("from the scene `Assets/Scenes/Town.unity`.", scene)
         args = trial.brief(task_with(probe(), play_args=["-autoPlay"]), self.EDITOR)
         self.assertIn("QA plays the game with the arguments `-autoPlay`.", args)
-
-    def test_the_task_limits_override_the_schemas_defaults(self):
-        self.assertEqual(trial.limits_of(task_with(probe())), {"max_turns": 200, "max_minutes": 240})
-        task = dict(task_with(probe()), limits={"max_turns": 400, "max_minutes": 480})
-        self.assertEqual(trial.limits_of(task)["max_minutes"], 480)
 
 
 class Harness(unittest.TestCase):
@@ -248,6 +248,11 @@ class Transcript(unittest.TestCase):
             self.assertEqual(trial.peeked(f, ["C:\\UnityWork\\games\\stealth", "C:\\UnityWork\\tasks\\stealth"]),
                              ["C:\\UnityWork\\tasks\\stealth"])
 
+    def test_a_workspace_inside_the_root_or_the_repo_is_not_outside(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(trial.outside(os.path.join(tmp, "a", "b"), [tmp]))
+            self.assertTrue(trial.outside(tmp + "-other", [tmp]))
+
     def test_a_place_is_found_however_a_shell_spells_it(self):
         """Claude Code's shell on Windows is Git Bash (/c/Users/...); every shell writes the home folder its own way."""
         repo = os.path.join(os.path.expanduser("~"), "UnityWork", "games", "stealth")
@@ -262,11 +267,6 @@ class Transcript(unittest.TestCase):
                 self.assertEqual(trial.peeked(f, [repo]), [repo], said)
             f.write_text(json.dumps({"cmd": "ls ~/UnityWork/games/other"}))
             self.assertEqual(trial.peeked(f, [repo]), [])
-
-    def test_a_workspace_inside_the_root_or_the_repo_is_not_outside(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            self.assertFalse(trial.outside(os.path.join(tmp, "a", "b"), [tmp]))
-            self.assertTrue(trial.outside(tmp + "-other", [tmp]))
 
 
 class Score(unittest.TestCase):
