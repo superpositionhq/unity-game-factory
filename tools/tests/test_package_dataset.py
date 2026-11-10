@@ -1,0 +1,237 @@
+"""tools/package-dataset.py on a throwaway Unity game (the fixture of test_validate_game.py, with a person's commit, a
+start branch, a recording and a player build): the zip it writes, what the scrub leaves, the sessions' record, and what
+refuses a package. Plain git and git-lfs; no Unity and no PowerShell.
+
+    python -m unittest discover -s tools/tests -p "test_package_dataset.py" -v
+"""
+import io, json, os, re, shutil, subprocess, sys, tempfile, unittest, zipfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_validate_game as base  # noqa: E402  the fixture: make_game, task, set_tasks, git, write
+
+TOOLS, SLUG, vg = base.TOOLS, base.SLUG, base.vg
+ACCOUNT = 'jtester'
+S1, S2, S3 = ('11111111-2222-4333-8444-555555555555', '66666666-7777-4888-9999-aaaaaaaaaaaa', 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff')
+BANNED = re.compile(r'(?i)superposition|game[-_ ]?factory|\banthropic\b|\bclaude\b|\bopenai\b|jtester|jane|tester@|corp\.example')
+
+
+def row(**kv):
+    return json.dumps(kv)
+
+
+def make_inputs(tmp):
+    """A game with tasks, one commit by a named person with an agent trailer, a start branch, and next to it the
+    recording, the build and the brief files. Returns the paths."""
+    root = os.path.join(tmp, 'root')
+    repo = os.path.join(root, 'games', SLUG)
+    os.makedirs(os.path.dirname(repo))
+    start, ref = base.make_game(repo)
+    base.write(repo, 'Docs/Notes.md', f'Built on C:\\Users\\{ACCOUNT}\\UnityWork with unity-game-factory and Claude Code.\n'
+                                      'Mail jane.tester@corp.example. The Opus run went well; libopus stays.\n')
+    env = dict(base.ENV, GIT_AUTHOR_NAME='Jane Tester', GIT_AUTHOR_EMAIL='jane.tester@corp.example',
+               GIT_COMMITTER_NAME='Jane Tester', GIT_COMMITTER_EMAIL='jane.tester@corp.example')
+    subprocess.run(['git', '-C', repo, 'add', '-A'], check=True, env=env)
+    subprocess.run(['git', '-C', repo, 'commit', '-q', '-m', 'Add the notes\n\nBy Jane.\n\nCo-Authored-By: Claude <noreply@anthropic.com>'],
+                   check=True, env=env)
+    head = base.git(repo, 'rev-parse', 'HEAD')
+    when = base.git(repo, 'log', '-1', '--format=%cI', head)
+    # a task's own start branch, and a stray branch the delivery must not carry
+    base.git(repo, 'branch', f'starts/{SLUG}-fix-hero-hud', start)
+    base.git(repo, 'branch', 'experiment', start)
+    base.git(repo, 'update-ref', 'refs/remotes/origin/starts/made-elsewhere', start)   # a start branch only origin has
+    base.set_tasks(repo, {f'{SLUG}-fix-hero-hud': base.task(start, ref)})
+    rec = os.path.join(root, '.recording', SLUG)
+    cwd = f'C:\\Users\\{ACCOUNT}\\UnityWork\\games\\{SLUG}'
+    before, after = when[:11] + '00:00:01' + when[19:], '2099-01-01T00:00:00+00:00'
+    base.write(rec, 'actions.jsonl', '\n'.join([
+        row(schema='agent-action/v0', time=before, project=SLUG, session_id=S1, agent='claude', event='PostToolUse', cwd=cwd,
+            tool='Bash', tool_use_id='t1', input={'command': f'git -C {cwd} log --format=%H -1', 'session_id': S1},
+            response=f'{ref}\nsee C:\\Users\\{ACCOUNT}\\UnityWork\\unity-game-factory\\tools ' + 'QUJD' * 100),
+        row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
+            tool='apply_patch', tool_use_id='t2', input={'command': '*** Begin Patch'}, response='ok'),
+        row(schema='agent-action/v0', time=before, project=SLUG, session_id=S3, agent='claude', event='PostToolUse', cwd=cwd,
+            tool='Bash', tool_use_id='t3', input={'command': 'python tools/package-dataset.py kiln-run'}, response='ok'),
+        row(schema='agent-action/v0', time=after, project=SLUG, session_id=S1, agent='claude', event='Stop', cwd=cwd)]) + '\n')
+    base.write(rec, 'messages.jsonl', '\n'.join([
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S1, agent='claude', role='user', message_id='m1',
+            text='Keep the hero on the ground. Ask jane.tester@corp.example if Superposition agrees.'),
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S1, agent='claude', role='assistant', message_id='m2',
+            model='claude-opus-5-5', text='Done by Claude; OpenAI was not used.'),
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S2, agent='codex', role='user', message_id='m3', text='Add the HUD.'),
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S3, agent='claude', role='user', message_id='m4', text='Package it.'),
+        row(schema='agent-message/v0', time=after, project=SLUG, session_id=S1, agent='claude', role='user', message_id='m5', text='Later.')]) + '\n')
+    build = os.path.join(tmp, 'build')
+    for rel, data in (('KilnRun.exe', b'MZ' + b'\0' * 30), ('KilnRun_Data/app.info', b'Kiln Run\n'), ('UnityPlayer.dll', b'MZ\0\0'),
+                      ('KilnRun.pdb', b'pdb'), ('KilnRun_BurstDebugInformation_DoNotShip/x.txt', b'x')):
+        base.write(build, rel, data)
+    base.write(tmp, 'brief.md', '# Brief\n\n' + 'Build a small kiln game. ' * 20)
+    base.write(tmp, 'design.md', '# Design\n\n' + 'Systems, scenes and scenarios. ' * 20)
+    return dict(root=root, repo=repo, build=build, head=head, start=start, ref=ref,
+                brief=os.path.join(tmp, 'brief.md'), design=os.path.join(tmp, 'design.md'))
+
+
+def run(inp, *extra):
+    env = dict(base.ENV, UGF_ROOT=inp['root'], UGF_MIN_FREE_GB='0', USERNAME=ACCOUNT, COMPUTERNAME='JT-DESKTOP')
+    return subprocess.run([sys.executable, os.path.join(TOOLS, 'package-dataset.py'), SLUG, '--build', inp['build'], '--brief', inp['brief'],
+                           '--design', inp['design'], '--version', '1.0', *extra], capture_output=True, text=True, env=env)
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Package(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='ugfp')
+        cls.inp = make_inputs(cls.tmp)
+        cls.res = run(cls.inp)
+        cls.zip = os.path.join(cls.inp['repo'], 'Dataset.pending.zip')
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, onerror=base.onerror)
+
+    def members(self):
+        with zipfile.ZipFile(self.zip) as z:
+            return {n[len(SLUG) + 1:]: z.read(n) for n in z.namelist()}
+
+    def test_writes_a_valid_pending_zip(self):
+        self.assertEqual(self.res.returncode, 0, self.res.stdout + self.res.stderr)
+        self.assertTrue(os.path.isfile(self.zip))
+        rep = vg.Report()
+        vg.check_dataset(rep, self.zip, 'dataset')
+        self.assertEqual(base.errors(rep), [])
+        m = json.loads(self.members()['manifest.json'])
+        self.assertEqual((m['status'], m['pending'], m['variant'], m['version']), ('pending', ['ReplayScripts', 'Gameplay'], 'full', '1.0'))
+        self.assertEqual(m['build']['exe'], 'Build/KilnRun.exe')
+        self.assertEqual(m['tasks']['names'], [f'{SLUG}-fix-hero-hud'])
+
+    def test_entries(self):
+        names = set(self.members())
+        for want in ('README.md', 'git.log', 'workflow.jsonl', 'Brief/brief.md', 'Brief/design.md', f'History/{SLUG}.bundle',
+                     'History/sessions/messages.jsonl', 'History/sessions/actions.jsonl', f'Tasks/{SLUG}-fix-hero-hud/task.json',
+                     f'Tasks/{SLUG}-fix-hero-hud/grader.json', 'Tasks/README.md', 'UnityProject/ProjectSettings/ProjectVersion.txt',
+                     'UnityProject/Assets/Scripts/Kiln.cs', 'Screenshots/hero.jpg', 'Build/KilnRun.exe', 'Build/KilnRun_Data/app.info'):
+            self.assertIn(want, names)
+        self.assertFalse([n for n in names if n.endswith('.pdb') or 'DoNotShip' in n or n.startswith(('Gameplay/', 'ReplayScripts/'))])
+        # an LFS file of the project arrives as its content, and as its object in the history
+        self.assertTrue(self.members()['UnityProject/Docs/screenshots/hero.jpg'].startswith(b'\xff\xd8\xff'))
+        self.assertTrue([n for n in names if n.startswith('History/lfs/objects/')])
+
+    def test_no_name_is_left_in_text(self):
+        for name, data in self.members().items():
+            if name.endswith('.bundle') or name.startswith('History/lfs/objects/') or b'\0' in data[:8000]:
+                continue
+            hit = BANNED.search(data.decode('utf-8', 'replace'))
+            self.assertIsNone(hit, f'{name}: {hit and hit.group(0)}')
+        notes = self.members()['UnityProject/Docs/Notes.md'].decode()
+        self.assertIn('C:\\Users\\dev\\UnityWork with studio-tools and agent-tool', notes)
+        self.assertIn('The Model run went well; libopus stays.', notes)
+
+    def test_history_is_rewritten(self):
+        m = json.loads(self.members()['manifest.json'])
+        h = m['history']
+        self.assertEqual(sorted(h['refs']), ['refs/heads/main', f'refs/heads/starts/{SLUG}-fix-hero-hud', 'refs/heads/starts/made-elsewhere'])
+        self.assertNotEqual(m['commit'], self.inp['head'])
+        work = os.path.join(self.tmp, 'restored.git')
+        with open(os.path.join(self.tmp, 'h.bundle'), 'wb') as f:
+            f.write(self.members()[h['bundle']])
+        subprocess.run(['git', 'clone', '-q', '--bare', '--mirror', os.path.join(self.tmp, 'h.bundle'), work], check=True, capture_output=True)
+        log = base.git(work, 'log', '--all', '--format=%an|%ae|%cn|%ce|%B')
+        self.assertNotRegex(log, r'(?i)jane|tester|claude|anthropic')
+        self.assertRegex(log, r'dev_\d+\|dev_\d+@example\.invalid')
+        self.assertEqual(base.git(work, 'rev-parse', 'refs/heads/main'), m['commit'])
+        self.assertEqual(int(base.git(work, 'rev-list', '--all', '--count')), h['commits'])
+        # the task's seeds name commits of the delivered history
+        t = json.loads(self.members()[f'Tasks/{SLUG}-fix-hero-hud/task.json'])
+        g = json.loads(self.members()[f'Tasks/{SLUG}-fix-hero-hud/grader.json'])
+        for c in (t['seed']['commit'], g['seed']['reference']):
+            self.assertEqual(base.git(work, 'cat-file', '-t', c), 'commit')
+        self.assertNotIn('reference', t['seed'])
+        self.assertNotIn('milestones', t)
+        self.assertTrue(self.members()['git.log'].decode().startswith('GIT-LOG 1\n'))
+        self.assertIn(f'commit {m["commit"]}\n', self.members()['git.log'].decode())
+
+    def test_sessions(self):
+        mem = self.members()
+        msgs = [json.loads(l) for l in mem['History/sessions/messages.jsonl'].decode().splitlines()]
+        acts = [json.loads(l) for l in mem['History/sessions/actions.jsonl'].decode().splitlines()]
+        # rows after the release commit and the packaging session are left out; ids are numbered the same in both files
+        self.assertEqual([(r['session_id'], r['role']) for r in msgs],
+                         [('session_01', 'user'), ('session_01', 'assistant'), ('session_02', 'user')])
+        self.assertEqual([(r['session_id'], r['tool']) for r in acts], [('session_01', 'Bash'), ('session_02', 'apply_patch')])
+        self.assertEqual(msgs[0]['text'], 'Keep the hero on the ground. Ask <redacted-email> if Studio agrees.')
+        self.assertEqual(msgs[1]['text'], 'Done by Agent; Provider was not used.')
+        self.assertEqual(msgs[1]['model'], 'agent-model')
+        self.assertEqual(acts[0]['input']['session_id'], 'session')            # a session id inside a tool's input
+        self.assertIn('<base64 omitted, 300 bytes', acts[0]['response'])
+        m = json.loads(mem['manifest.json'])
+        delivered = json.loads(mem[f'Tasks/{SLUG}-fix-hero-hud/grader.json'])['seed']['reference']
+        self.assertTrue(acts[0]['response'].startswith(delivered + '\n'))   # a commit id is the delivered history's
+        self.assertNotEqual(delivered, self.inp['ref'])
+        self.assertEqual(m['history']['sessions'], {'messages': {'file': 'History/sessions/messages.jsonl', 'rows': 3},
+                                                    'actions': {'file': 'History/sessions/actions.jsonl', 'rows': 2}})
+        readme = mem['README.md'].decode()
+        self.assertIn('History/sessions/', readme)
+        self.assertIn('pending', readme.lower())
+
+    def test_repo_dataset_folder(self):
+        ds = os.path.join(self.inp['repo'], 'Dataset')
+        rep = vg.Report()
+        vg.check_dataset(rep, ds, 'dataset')
+        self.assertEqual(base.errors(rep), [])
+        self.assertEqual(sorted(os.listdir(ds)), ['Brief', 'README.md', 'Screenshots', 'git.log', 'manifest.json', 'workflow.jsonl'])
+        self.assertIsNone(json.loads(base.read(os.path.join(ds, 'manifest.json')))['history'])
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.history.git')))
+        self.assertEqual(base.git(self.inp['repo'], 'rev-parse', 'HEAD'), self.inp['head'])   # the game's history is not changed
+        self.assertIn('original\tdelivered', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.commit-map.tsv')))
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Refusals(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfr')
+        self.inp = make_inputs(self.tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def test_no_build(self):
+        shutil.rmtree(self.inp['build'])
+        r = run(self.inp)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('no player build', r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+
+    def test_no_tasks(self):
+        base.git(self.inp['repo'], 'update-ref', '-d', 'refs/heads/tasks')
+        r = run(self.inp)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('no tasks', r.stdout)
+
+    def test_dry_run_writes_nothing(self):
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset')))
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+
+    def test_a_name_in_a_binary_is_reported_and_refused_only_when_strict(self):
+        base.write(self.inp['build'], 'KilnRun_Data/level0', b'\0\1\2' + b'built by unity-game-factory tools' + b'\0\1')
+        r = run(self.inp)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('binary file(s)', r.stdout)
+        hits = base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.binary-hits.tsv'))
+        self.assertIn('Build/KilnRun_Data/level0', hits)
+        r = run(self.inp, '--strict-binaries')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('name(s) left', r.stderr)
+
+    def test_excluded_session(self):
+        r = run(self.inp, '--exclude-sessions', S2, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with zipfile.ZipFile(os.path.join(self.inp['repo'], 'Dataset.pending.zip')) as z:
+            msgs = [json.loads(l) for l in io.TextIOWrapper(z.open(f'{SLUG}/History/sessions/messages.jsonl'), encoding='utf-8')]
+        self.assertEqual({m['session_id'] for m in msgs}, {'session_01'})
+        self.assertFalse(os.path.isfile(os.path.join(self.inp['repo'], 'Dataset', 'manifest.json')))
+
+
+if __name__ == '__main__':
+    unittest.main()

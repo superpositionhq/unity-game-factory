@@ -35,4 +35,4 @@ __DESCRIPTION__
 | `Scripts/unity.ps1` | headless editor runs: setup, compile, editor steps, tests, player build, player runs |
 | `workflow.jsonl` | one row per editor/code operation, written as it happened |
 | `assets.manifest.json`, `Docs/ThirdPartyNotices.md` | third-party assets: source, licence, files used, changes |
-| `Dataset/` | the built dataset (gameplay videos, screenshots, replay scripts), from the dataset packager (not available yet) |
+| `Dataset/` | the built dataset (git log, creation record, brief, screenshots; gameplay videos and replay scripts once they are made), written by the dataset packager |

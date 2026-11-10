@@ -61,8 +61,11 @@ line with `-scenario <n>`, and report what is ready to the coordinator (unity-ga
 
 **Dataset.** Each game's full dataset is `games\<slug>\Dataset.zip`: the same name everywhere, git-ignored
 (`/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/`), produced by the packager, never committed. The committed
-`Dataset\` is the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`. The packager is not available yet:
-until it is, a game's `Dataset\` stays as the template made it and nobody assembles a dataset by hand.
+`Dataset\` is the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`. The packager is
+`python tools/package-dataset.py <slug>` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)). Today it
+writes `Dataset.pending.zip` and the repo's `Dataset\`: `Gameplay/` and `ReplayScripts/` wait for the recorder and the
+creation replay, which are not available yet. Before its first run a game's `Dataset\` stays as the template made it,
+and nobody assembles a dataset by hand.
 
 This checkout is shared by several sessions at once: stage explicit paths only and never commit another session's
 changes.
@@ -77,7 +80,8 @@ changes.
 | sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | available |
 | game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | available: [docs/game-format.md](docs/game-format.md) |
 | task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | available: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
-| AutoPlay drop-in, recording pipeline (recorder, queue, run checker), creation replay, dataset packager | not available yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
+| dataset packager (`tools/package-dataset.py`) | available, first version: it builds `Dataset.pending.zip`, everything but `Gameplay/` and `ReplayScripts/` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
+| AutoPlay drop-in, recording pipeline (recorder, queue, run checker), creation replay | not available yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
 
 Where a skill or doc names a part that is not available yet, it says what to do instead: do that, and report the rest
 as open. Never stand in for a missing tool by hand or with another factory's tool.
@@ -90,15 +94,16 @@ Both agents run the same skills, the same recording hooks and the same workflow;
 |---|---|---|
 | start | `claude` in `<root>` (reads `<root>\CLAUDE.md`) | `codex -s danger-full-access` in `<root>` (reads `<root>\AGENTS.md`) |
 | skills | `~\.claude\skills\unity-*` (also offered by name) | `~\.agents\skills\unity-*` (`$<name>` or `/skills`; also offered by description) |
-| recording hooks | `~\.claude\settings.json`: PostToolUse, PostToolUseFailure, Stop | `~\.codex\hooks.json`: PostToolUse, Stop (trusted in `config.toml`; `/hooks` shows them) |
+| recording hooks | `~\.claude\settings.json`: PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit, SessionEnd | `~\.codex\hooks.json`: PostToolUse, Stop, UserPromptSubmit, SessionEnd (trusted in `config.toml`; `/hooks` shows them) |
 | file edits in `actions.jsonl` | `Write` / `Edit` rows | `apply_patch` rows (the patch text) |
 | permissions | as set in Claude Code (asks before commands by default) | `codex -s danger-full-access`: the default workspace sandbox blocks what game sessions need (Unity's `%LOCALAPPDATA%` and `%APPDATA%` caches and licence, the machine-wide job-slot mutexes, `git push` / `gh`) |
 | transcript (backfill) | `~\.claude\projects\…\<session>.jsonl` | `~\.codex\sessions\YYYY\MM\DD\rollout-…-<session>.jsonl` |
 
 Under Codex, the shell tool is recorded as `Bash` whatever shell ran the command. Read a skill by opening its
-`SKILL.md` when the task matches, even if the agent did not offer it. The person's directions reach the dataset only as
-`user.direction` rows that the session writes itself (unity-commit-always skill): neither agent's hooks store the
-messages.
+`SKILL.md` when the task matches, even if the agent did not offer it. Both agents' hooks also store every prompt the
+person typed and every reply the model wrote (`messages.jsonl`, read from the session's transcript), and a dataset
+carries them in `History/sessions/`. The person's directions are still `user.direction` rows that the session writes
+itself (unity-commit-always skill).
 
 Commands with Windows paths in these docs are written as PowerShell reads them. Typed in Git Bash (the shell of Claude
 Code's Bash tool on Windows), put each Windows path in single quotes: bash drops unquoted backslashes, so
@@ -118,6 +123,6 @@ these were learned). Background is in `docs/`; keep this section to rules.
   model. _(failure: reasons written after the fact make a package a reconstruction rather
   than a record)_
 - Anonymize authors as `dev_NN` and run the leak scan (real names, e-mails, `C:\Users\…`, `/Users/…`, `/home/…`)
-  over every text file of a package before calling it done (the leak scan comes with the packager, which is not
-  available yet: until it is, no package is made). _(failure: commit metadata and asset files can
-  carry real names and machine paths)_
+  over every text file of a package before calling it done (`tools/package-dataset.py` does both, and refuses a
+  package with a name left in a text file or a path: never make a package another way). _(failure: commit metadata
+  and asset files can carry real names and machine paths)_

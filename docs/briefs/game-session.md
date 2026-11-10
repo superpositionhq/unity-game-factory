@@ -19,8 +19,9 @@ then start the session with a fresh context and title `{{GAME_TITLE}}`. The rule
 Background (from the session that started this one):
 unity-game-factory ({{UGF_ROOT}}\unity-game-factory, private repo {{ORG}}/unity-game-factory: read CLAUDE.md,
 README.md, AGENTS.md, docs/autoplay-contract.md, docs/unity-pipeline.md) produces game-CREATION data: how a game is
-built step by step, recorded as it happens, packaged as a dataset (layout unity-dataset-layout/v1: Dataset/ committed
-in the game repo, the full Dataset.zip git-ignored next to it). Other sessions are building Unity games right now in
+built step by step, recorded as it happens (every tool call, every prompt a person types to you and every reply you
+write), packaged as a dataset (layout unity-dataset-layout/v1: Dataset/ committed in the game repo, the full
+Dataset.zip git-ignored next to it). Other sessions are building Unity games right now in
 {{UGF_ROOT}}\games\<slug> ({{SIBLINGS}}); read their docs in unity-game-factory/docs/games/ for conventions and solved
 problems. The asset-scout session ({{ASSET_SCOUT_ID}}) keeps the asset library in {{UGF_ROOT}}\asset-library\ and hands
 each game its packs. Everything shares one Windows PC ({{MACHINE}}). I am the coordinator ({{COORDINATOR_ID}}): I own
@@ -39,7 +40,9 @@ meaningful step, every asset with its .meta, and never end a turn with uncommitt
 the store packs you use (any folder under Assets/, binaries through LFS, never git-ignored; the repo stays private,
 never public or shared outside the org); never queue recordings yourself (the recording queue is not available yet:
 report what is ready to me); push only when I say. Your game's full dataset is
-{{UGF_ROOT}}\games\{{SLUG}}\Dataset.zip, made by the packager (not available yet: until it is, Dataset/ stays as the
+{{UGF_ROOT}}\games\{{SLUG}}\Dataset.zip, made by the packager (python tools/package-dataset.py {{SLUG}} in
+unity-game-factory, run once the game has its tasks and a player build; today it writes Dataset.pending.zip, because
+Gameplay/ and ReplayScripts/ wait for the recorder and the creation replay; until its first run Dataset/ stays as the
 template made it): keep /Dataset.zip, /Dataset.pending.zip and /.dataset/ in your .gitignore and never commit them;
 Dataset/ you commit. Your commits will be replayed by the creation replay (not available yet: nothing replays them
 today); work so they can be (unity-game-session skill, "Replay-friendly work"). Blockers: write them in your design

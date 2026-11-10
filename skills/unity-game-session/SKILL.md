@@ -6,11 +6,11 @@ description: 'Rules for a session that builds one Unity 6.3 LTS game for unity-g
 # Game session (Unity)
 
 You build one small but premium-looking Unity 6.3 LTS game, and the way you build it is the product: every real
-operation is recorded as it happens (`workflow.jsonl`, git history, the machine's action hooks) and becomes a
-game-creation dataset. Your brief (from `docs/briefs/game-session.md`, or `docs/briefs/solo-game.md` in a solo
-session) gives the game; these rules apply to every game. `%UGF_ROOT%` = the machine root (`machine/README.md`); the
-coordinator is the session that started you. Use the **unity-commit-always** skill for every commit and the
-**unity-sound** skill for every sound.
+operation is recorded as it happens (`workflow.jsonl`, git history, the machine's hooks, which keep every tool call,
+every prompt the person types and every reply you write) and becomes a game-creation dataset. Your brief (from
+`docs/briefs/game-session.md`, or `docs/briefs/solo-game.md` in a solo session) gives the game; these rules apply to
+every game. `%UGF_ROOT%` = the machine root (`machine/README.md`); the coordinator is the session that started you.
+Use the **unity-commit-always** skill for every commit and the **unity-sound** skill for every sound.
 
 **Only the unity-game-factory skills (owner's rule).** Use unity-commit-always, unity-game-session, unity-sound and
 unity-write-tasks and no other skill: never install, enable or invoke a personal, project, plugin, marketplace or agent
@@ -169,14 +169,15 @@ row ids in commit messages are fine.
   edit, reorder or backfill rows (`log.gap` row for anything missed), except to remove a banned name
   (unity-commit-always skill: `tools/scrub-workflow-rows.py --apply`, which appends the `log.correct` row). Banned
   names include the machine's account name (in paths): enforced in every non-script file; scripts and editor steps
-  that already ran keep it (packaging, not available yet, will scrub them).
+  that already ran keep it (the packager scrubs them in every delivery).
 - Editor steps write their own rows with the template's `WorkflowLog.Row(op, target, parameters)`
   (`Assets/Editor/Tools/WorkflowLog.cs`): the op and target are the step's (`scene.build`,
   `Assets/Scenes/Harbor.unity`); it fills in the id, `seq` and time, the step's own file and its sha256 as `source`,
   and the `-Reason` given to `unity.ps1 step` as `reason` (`direction:` names the `user.direction` row it acts on).
 - The machine hooks (the same scripts under Claude Code and Codex) record every tool call to
-  `<UGF_ROOT>\.recording\<slug>\actions.jsonl` and every commit to `commits.jsonl`; leftover changes are
-  auto-committed as `WIP` at the end of a turn (commit properly instead).
+  `<UGF_ROOT>\.recording\<slug>\actions.jsonl`, every prompt the person types and every reply you write to
+  `messages.jsonl` beside it, and every commit to `commits.jsonl`; a dataset delivers the first two in
+  `History/sessions/`. Leftover changes are auto-committed as `WIP` at the end of a turn (commit properly instead).
 
 ## Replay-friendly work
 
@@ -260,9 +261,18 @@ A finished game ships as: `README.md, git.log, workflow.jsonl, Brief/, History/,
 ReplayScripts/, Gameplay/<slug>_S<n>.mp4, Screenshots/, Build/, manifest.json` (docs/game-format.md). The repo's
 `Dataset/` folder holds the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`; the packager produces it and
 you commit it. The full dataset zip is `Dataset.zip` in the game folder, next to `Dataset/`: git-ignored (with
-`.dataset/`, the packager's scratch), never committed. The packager is not available yet: until it is, `Dataset/`
-stays as the template made it, nobody assembles a dataset or `Dataset.zip` by hand, and `validate-game.py`'s "not
-packaged yet" warning is expected.
+`.dataset/`, the packager's scratch), never committed.
+
+The packager is `python <UGF_ROOT>/unity-game-factory/tools/package-dataset.py <slug>`. Run it once the game has its
+tasks (on the tasks branch) and a player build (`Scripts\unity.ps1 build`, in `Build\Windows`), at the release commit,
+with everything committed: it packs the commit, not the working tree, and `--dry-run` first says what is missing. It
+writes `Dataset/`, which you then commit, and `Dataset.pending.zip`, which is never committed. Pending, because
+`Gameplay/` and `ReplayScripts/` are not packed yet (the recorder and the creation replay are not available yet): a
+complete `Dataset.zip` comes with them. It scrubs every text file, then refuses the package when a banned name is left
+in a text file or a path, or when the dataset checks find an error: fix what it names in the repo and run it again. It
+never commits and never changes your history. Nobody assembles a dataset or `Dataset.zip` by hand; before the
+packager's first run `Dataset/` stays as the template made it and `validate-game.py`'s "not packaged yet" warning is
+expected.
 
 **README screenshots (user rule; required before the game is called content-complete).** `Docs/screenshots/` holds
 5-7 real gameplay stills (JPG, in Git LFS; from validated recordings' stills or the framing-gate screenshots, not from

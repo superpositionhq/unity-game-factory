@@ -192,7 +192,7 @@
         "why": "user decision (b), 2026-10-15: enforced in workflow.jsonl and every other non-script file; scripts and editor steps that already ran (Scripts/, Assets/Editor/Steps/, and .ps1/.psm1/.py/.sh/.bat/.cmd files anywhere) stay unchanged and are scrubbed at packaging"
       }
     },
-    "dataset_folder": "Dataset/ (variant repo-dataset): checked as a dataset when manifest.json is there; a game that is not packaged yet has none",
+    "dataset_folder": "Dataset/ (variant repo-dataset): checked as a dataset when manifest.json is there; a game that is not packaged yet has none (python tools/package-dataset.py <slug> writes the folder)",
     "tasks": [
       "Tasks/<game>-<kind>-<slug>.json, one GameTask each (game-task/1: docs/schemas/game-task.schema.json), on the repo's orphan branch `tasks` (no shared history with main; a short README.md, optionally tasks-workflow.jsonl), never on main; the name field equals the file stem",
       "the tasks branch is checked out as a git worktree outside the game folder (e.g. <root>/tasks/<slug>) and committed and pushed there; task work never enters the game's history: main tracks nothing under Tasks/ and never references the tasks branch, the recording hooks ignore commits on it, and the delivered history (History/) leaves it out",
@@ -226,7 +226,7 @@
       "ids unique; seq strictly increasing",
       "a row's direction names an earlier op user.direction row",
       "user.direction rows: actor user, reason_source user_direction, params.direction a non-empty string",
-      "the person's directions are user.direction rows (they replace conversation transcripts); a game with none is reported as a warning",
+      "the person's directions are user.direction rows, written by the session (the sessions' prompts and replies themselves are in History/sessions/messages.jsonl); a game with none is reported as a warning",
       "banned names in rows: workflow.jsonl is append-only except that a row naming a banned term is edited in place to a neutral word or placeholder, nothing else changed, followed by one appended row op \"log.correct\", params {rows: [ids], what}; the commit names the edited rows (tools/scrub-workflow-rows.py). A banned name left in a row is an error, in the repo and in the dataset."
     ],
     "git_log": {
@@ -249,6 +249,7 @@
       "the bundle holds every commit (history.commits); git.log lists the same commits",
       "every Git LFS pointer in every commit has its object under History/lfs/objects/<aa>/<bb>/<sha256>, and each object's sha256 equals its name (history.lfs_objects / lfs_bytes count them)",
       "author and committer of every commit are dev_NN; commit messages carry no banned names (the repo's patterns; the packager's rescan also covers every text blob)",
+      "History/sessions/ (optional): messages.jsonl (every prompt the person typed and every reply the model wrote: time, session_id, role user | assistant, text) and actions.jsonl (every tool call: time, session_id, event), one JSON object per line, rows up to the release commit, each session named session_NN in both files; manifest.history.sessions counts their rows ({messages, actions}, each {file, rows}); a missing file is a note, anything wrong here a warning, never an error",
       "repo-dataset: no History/, manifest.history null"
     ],
     "brief": [

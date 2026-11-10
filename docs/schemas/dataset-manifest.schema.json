@@ -304,6 +304,18 @@
         },
         "authors_anonymised": {
           "const": true
+        },
+        "sessions": {
+          "type": "object",
+          "description": "the creation sessions in History/sessions/ (optional; one key per file that is there): messages = every prompt the person typed and every reply the model wrote, actions = every tool call",
+          "properties": {
+            "messages": {
+              "$ref": "#/$defs/session_file"
+            },
+            "actions": {
+              "$ref": "#/$defs/session_file"
+            }
+          }
         }
       }
     },
@@ -356,6 +368,23 @@
     "sha1": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
+    },
+    "session_file": {
+      "type": "object",
+      "required": [
+        "file",
+        "rows"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "pattern": "^History/sessions/(messages|actions)\\.jsonl$"
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   }
 }

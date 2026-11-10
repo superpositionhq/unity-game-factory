@@ -6,8 +6,8 @@ description: 'Commit discipline for every unity-game-factory session (game build
 # Commit always (Unity)
 
 The git history is the product: a game's `git.log` and `workflow.jsonl` are the creation record the dataset is built
-from, and uncommitted work is invisible to the coordinator, the pipeline and the packager (not available yet; both
-will build from commits).
+from, and uncommitted work is invisible to the coordinator, the packager and the pipeline (the packager builds from
+commits; the pipeline, not available yet, will too).
 The user's standing rule: **every session commits its work continuously.**
 
 ## When
@@ -58,8 +58,8 @@ The user's standing rule: **every session commits its work continuously.**
   edited rows. `python <UGF_ROOT>/unity-game-factory/tools/scrub-workflow-rows.py <repo>` does exactly this (dry run
   first, then `--apply`; it prints the commit message line). Write new rows without such names in the first place
   (relative paths, neutral words). The account name is enforced in every non-script file (workflow.jsonl, configs,
-  docs, data); scripts and editor steps that already ran keep it (never edited; the packager, not available yet, will
-  scrub them), new ones use relative paths.
+  docs, data); scripts and editor steps that already ran keep it (never edited; the packager scrubs them in every
+  delivery), new ones use relative paths.
 - Every editor step that ran stays in `Assets/Editor/Steps/` unchanged (a new step in a new file instead of
   overwriting), so `source.script` + `source.sha256` point at the real code.
 - **Human directions (user rule: "not direct user messages, more like user directions"; "you should rewrite that and
@@ -67,10 +67,10 @@ The user's standing rule: **every session commits its work continuously.**
   one or two neutral sentences, without tone, profanity, names or chat wording (a game session for a message to it;
   the coordinator before relaying, sending the rewritten text ready to log). The rewritten direction is SAVED at once,
   before any action, by appending it to the game repo's own `workflow.jsonl` (the file at the repo root: the live
-  source the packager, not available yet, will copy, scrubbed, into `Dataset/workflow.jsonl`; never edit
-  `Dataset/workflow.jsonl` by hand).
+  source the packager copies, scrubbed, into `Dataset/workflow.jsonl`; never edit `Dataset/workflow.jsonl` by hand).
   A relayed direction is appended as the coordinator worded it, with `via: "coordinator"`. The raw message is never
-  stored anywhere in the repo. The row:
+  stored anywhere in the repo (the machine's hooks keep every prompt as typed, and every reply, in the recording's
+  `messages.jsonl`, and the dataset delivers them in `History/sessions/`). The row:
   `actor:"user"`, `op:"user.direction"`, `target` the area (`camera`, `lighting`, `art`, `ui`, `audio`, `story`,
   `design`, `bot`, `build`, `process`...), `params: {direction: "<one or two sentences: what the human directed and
   why, in neutral wording, no names, not a quote of the message>", via: "direct" | "coordinator"}`,

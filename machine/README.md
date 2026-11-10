@@ -7,8 +7,9 @@ setup, including the manual sign-ins: [../docs/new-machine.md](../docs/new-machi
 
 All machine paths hang off one root, the "UnityWork" folder that holds `unity-game-factory\`, `games\`, `tasks\`,
 `builds\`, `recordings\`, `.recording\`, `deliverables\`, `asset-library\` and `tools\`. Docs write it as `%UGF_ROOT%`.
-`builds\`, `recordings\` and `deliverables\` are for the recording queue, its recorder and the packagers, which are not
-available yet: bootstrap.ps1 creates them empty, and nothing writes there today.
+`builds\`, `recordings\` and `deliverables\` are for the recording queue and its recorder, which are not available
+yet: bootstrap.ps1 creates them empty, and nothing writes there today (the dataset packager, `tools/package-dataset.py`,
+writes into the game repo's own folder).
 `lib/ugf-root.ps1` (PowerShell, dot-source it) and `lib/ugfroot.py` (Python: `sys.path.insert(0, <repo>/machine/lib)`,
 `ugfroot.root()`) resolve it in this order:
 
@@ -23,10 +24,10 @@ such as `6000.3.28f1` pins them to it), optional `unity_editors`
 installed), `github_org` (the GitHub organisation or user that owns unity-game-factory and the private
 `unity-game-<slug>` repos: `bootstrap.ps1 -Org` writes it, env `UGF_ORG` overrides it; new-game.ps1, `-CloneGames` and
 check.ps1 read it), and `record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as
-projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where packages,
-dataset zips and replay packages will go, GBs per game, so point it at a roomy drive; the packagers are not available
-yet) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task check and the task try refuse to start on a drive
-with less free, and so will the packagers).
+projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where the recording
+pipeline's packages and replay packages will go, GBs per game, so point it at a roomy drive; nothing reads it yet: the
+dataset packager writes next to the game repo, or where its `--out` says) and `min_free_gb` (env `UGF_MIN_FREE_GB`,
+default 50: the task check, the task try and the dataset packager refuse to start on a drive with less free).
 
 Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),
 and the tools use exactly that install (`lib/ugf-root.ps1` `Get-UGFUnity`, `lib/ugfroot.py` `unity_editor`):
@@ -90,21 +91,24 @@ is recorded there (see Recording below). What they share on purpose:
 | `lib/ugfroot.py` | | the same for Python tools (`root`, `org`, `unity_editor`, `unity_version`, `computed_slots`, `slot_plan`, `out`, `check_free`) |
 | `lib/codex-hooks.ps1` | | Codex hook trust: the `[hooks.state]` entries Codex needs in `config.toml` before it runs a hook (bootstrap writes ours, check compares) |
 | `tools/unity-heavy.ps1` | `<root>\tools\unity-heavy.ps1` | machine-wide job limiter: `heavy_slots` general slots + `gpu_slots` GPU slots, one named mutex per slot (shared with another factory, see above: a killed job leaks none; VRAM guard; a recording takes all GPU slots), counts from the config or the hardware formula above, `-Low` for background work, GPU auto-detected (`Unity.exe` without `-nographics`, a packaged player; `-Gpu` forces it, `-nographics` always rules it out), yields to `builds\_queue\_recording-wants-gpu`, log `.recording\_heavy-jobs.jsonl`. Installed next to a copy of `lib\ugf-root.ps1` |
-| `hooks/record-unity-action.ps1` | the hooks dir | the agent hook (Claude Code: PostToolUse / PostToolUseFailure / Stop; Codex: PostToolUse / Stop with `-Agent codex`): every tool call of a game session to `.recording\<project>\actions.jsonl` (earlier calls backfilled from the transcript, see Recording); Stop auto-commits leftovers as `WIP` (none while conflicts are unresolved or HEAD is detached) |
+| `hooks/record-unity-action.ps1` | the hooks dir | the agent hook (Claude Code: PostToolUse / PostToolUseFailure / Stop, and UserPromptSubmit / SessionEnd with `-Messages`; Codex: PostToolUse / Stop, and UserPromptSubmit / SessionEnd with `-Messages`, all with `-Agent codex`): every tool call of a game session to `.recording\<project>\actions.jsonl` (earlier calls backfilled from the transcript, see Recording), every prompt the person typed and every reply the model wrote to `.recording\<project>\messages.jsonl` (read from the transcript); Stop auto-commits leftovers as `WIP` (none while conflicts are unresolved or HEAD is detached) |
 | `hooks/record-unity-commit.ps1` | the hooks dir | called by each game repo's post-commit hook: `.recording\<repo>\commits.jsonl` |
-| `hooks/settings-hooks.json` | merged into `~\.claude\settings.json` | Claude Code: the three hook entries (`{{HOOKS_DIR}}` filled in) |
-| `hooks/codex-hooks.json` | merged into `~\.codex\hooks.json` | Codex: the two hook entries (`{{HOOKS_DIR}}` filled in), trusted in `~\.codex\config.toml` |
+| `hooks/settings-hooks.json` | merged into `~\.claude\settings.json` | Claude Code: the five hook entries (PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit, SessionEnd; `{{HOOKS_DIR}}` filled in) |
+| `hooks/codex-hooks.json` | merged into `~\.codex\hooks.json` | Codex: the four hook entries (PostToolUse, Stop, UserPromptSubmit, SessionEnd; `{{HOOKS_DIR}}` filled in), trusted in `~\.codex\config.toml` |
 | `hooks/recording-exclude.txt` | the hooks dir (once) | session ids never recorded (the coordinator) |
 | `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder after Git LFS's own lines (before another tool's final `exit` or `exec`); warns when the recorder isn't in the hooks dir or another tool's hook can end before it |
 
 The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks\`. One copy serves both agents.
 `recording-sessions.json` (session id -> project map) is runtime state: bootstrap creates it empty next to the hooks
-and never overwrites it.
+and never overwrites it. The hook keeps two more state files there: `recording-backfill.json` (the sessions whose
+earlier tool calls were imported) and `recording-messages.json` (transcript file -> bytes read, for `messages.jsonl`).
 
 Not available yet (they come with the recording pipeline; docs/unity-pipeline.md holds the plan): the per-commit live
-creation replay (its post-commit line), the recording queue and its recorder, and packaging. The task checker is here
+creation replay (its post-commit line) and the recording queue with its recorder. The task checker is here
 (`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its builds and plays go through
-`unity-heavy.ps1` like every other heavy job.
+`unity-heavy.ps1` like every other heavy job. So is the dataset packager (`tools/package-dataset.py`,
+[../docs/unity-pipeline.md](../docs/unity-pipeline.md#dataset-packager)), which reads a game's `actions.jsonl` and
+`messages.jsonl` into the dataset's `History/sessions/`.
 
 ### Recording
 
@@ -125,9 +129,24 @@ creation replay (its post-commit line), the recording queue and its recorder, an
 - **Sessions mapped before the backfill existed:** `powershell -ExecutionPolicy Bypass -File
   <hooks dir>\record-unity-action.ps1 -Backfill <session id> [-TranscriptPath <file>] [-Agent codex]` inserts the rows
   before that session's first row in `actions.jsonl` (finds the transcript under `~\.claude\projects\`, or
-  `~\.codex\sessions\` with `-Agent codex`, when not given); a second run does nothing.
+  `~\.codex\sessions\` with `-Agent codex`, when not given); a second run does nothing. The same call also imports
+  that session's messages.
 - Live rows carry no `status`; every row of a backfill carries `from_transcript`, so the two are never confused.
-- Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
+- **Messages.** Every prompt the person typed and every reply the model wrote goes to
+  `<root>\.recording\<project>\messages.jsonl`, one row each: `time`, `project`, `session_id`, `agent`, `role`
+  (`user` or `assistant`), `message_id`, `text`, and where they apply `model`, `images` (pictures attached to a
+  prompt), `mid_turn` (a prompt typed while the model was working), `phase` (Codex) and `subagent` (a Claude Code
+  subagent's transcript, where `user` is the prompt the session gave it). They are read from the session's transcript,
+  never from the hook input, so each is written once, with the transcript's own id and time. Every `Stop`, and the
+  `UserPromptSubmit` and `SessionEnd` hooks (which call the script with `-Messages` and write no `actions.jsonl` row),
+  read what the transcript gained since the last read (`recording-messages.json` next to the hooks: transcript file ->
+  bytes read), so a session mapped late gets its earlier messages too. Not recorded: tool calls and results
+  (`actions.jsonl` has them), the model's reasoning, text the agent tool puts into a turn itself (meta rows,
+  compaction summaries, background-task notices, API error notices) and a fork's copied context.
+- **Sessions recorded before messages were:** `record-unity-action.ps1 -Backfill all` imports the messages of every
+  mapped session whose transcript is still on this machine (either agent), and nothing else.
+- Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `messages.jsonl` rows
+  `"schema": "agent-message/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows
   (`input.command` = the patch), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose response
   shows the exit code).

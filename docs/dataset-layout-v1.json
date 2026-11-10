@@ -49,7 +49,7 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": false,
-      "what": "the full git history: <game>.bundle (every commit of every ref except the tasks branch, which never enters the delivered history; scrubbed: anonymised authors, no tool or vendor names) and lfs/objects/<aa>/<bb>/<sha256> (every Git LFS object of every commit, in git's own layout). Restore: git clone <game>.bundle <dir>, copy lfs/ into <dir>/.git/lfs/, git lfs checkout",
+      "what": "the full git history: <game>.bundle (the release commit's history as refs/heads/main and each task's start branch as refs/heads/starts/<task>, nothing else: the tasks branch never enters the delivered history; scrubbed: anonymised authors, no tool or vendor names), lfs/objects/<aa>/<bb>/<sha256> (every Git LFS object of every commit of the bundle, in git's own layout) and sessions/ (the creation sessions as recorded, two optional files: messages.jsonl, every prompt the person typed and every reply the model wrote, and actions.jsonl, every tool call; see sessions). Restore: git clone <game>.bundle <dir>, copy lfs/ into <dir>/.git/lfs/, git lfs checkout",
       "must_contain": [
         "*.bundle"
       ]
@@ -218,7 +218,18 @@
     "why": "content-addressed: each file is named by its own sha256 (checked by tools/validate-game.py); manifest.history counts them"
   },
   "workflow": {
-    "directions": "every direction a person gave (what to change and why) is a user.direction row, written before the work it caused; rows acting on it carry \"direction\": <id>. These rows replace conversation transcripts."
+    "directions": "every direction a person gave (what to change and why) is a user.direction row, written before the work it caused; rows acting on it carry \"direction\": <id>. The sessions' prompts and replies themselves are in History/sessions/messages.jsonl (see sessions)."
+  },
+  "sessions": {
+    "what": "History/sessions/: the creation sessions as the build machine's hooks recorded them, one JSON object per line. No new top-level entry: both files live inside History/ (full variant only)",
+    "optional": "both files are optional: a game recorded before prompts and replies were kept has no messages.jsonl; tools/validate-game.py reports what it finds here as warnings and notes, never as errors",
+    "files": {
+      "messages.jsonl": "every prompt the person typed and every reply the model wrote, one row each: time, project, session_id, agent, role (user | assistant), message_id, text; where they apply model, images, mid_turn, phase, subagent. Not in it: tool calls and results (actions.jsonl), the model's reasoning, text the agent tool put into a turn itself",
+      "actions.jsonl": "every tool call, one row each, with time, session_id, event, the tool, its input and the start of its result"
+    },
+    "session_id": "session_NN, the same session under the same name in both files (the build machine's session ids are not delivered)",
+    "rows": "rows up to the release commit; the sessions that packaged the dataset and those the packager was told to exclude are left out; the text is scrubbed like every other text file of the delivery",
+    "manifest": "manifest.json history.sessions: {\"messages\": {\"file\": \"History/sessions/messages.jsonl\", \"rows\": n}, \"actions\": {\"file\": \"History/sessions/actions.jsonl\", \"rows\": n}}, one key per file that is there"
   },
   "tasks": {
     "count": "at least 1; about 10 recommended (fewer or more is fine)",

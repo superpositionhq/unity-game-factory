@@ -16,8 +16,9 @@ factory's root, whose `CLAUDE.md` and `AGENTS.md` load its own rules) and run on
   mutexes, and git / gh need the network; `codex` asks once to trust the folder),
 
 then paste the `text` block below with the placeholders filled. Stay in this one session for the whole game where you
-can (resume it with `claude --continue` or `codex resume --last`): the recording follows the session, and a new session
-is filed under the game only from its first tool call that names the game folder. For a game that has a fill-in in
+can (resume it with `claude --continue` or `codex resume --last`): the recording (every tool call, every prompt you
+type and every reply the model writes) follows the session, and a new session is filed under the game only from its
+first tool call that names the game folder. For a game that has a fill-in in
 `games/` next to this file, take the pitch, scenarios and story from it; for a new game, write them in a few lines
 each.
 

@@ -286,7 +286,7 @@ function Read-JsonOrEmpty([string]$Path) {
 }
 $hooksSlash = ($hooksDir -replace '\\', '/')
 
-# Claude Code: ~\.claude\settings.json gets PostToolUse, PostToolUseFailure and Stop.
+# Claude Code: ~\.claude\settings.json gets PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit and SessionEnd.
 $claudeChanged = $false
 if ($Agents -contains 'claude') {
     $settingsPath = Join-Path $ClaudeDir 'settings.json'
@@ -294,7 +294,8 @@ if ($Agents -contains 'claude') {
     $frag = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\settings-hooks.json')).Replace('{{HOOKS_DIR}}', $hooksSlash) | ConvertFrom-Json
     $claudeChanged = Merge-RecordingHooks $settings $frag $settingsPath
 }
-# Codex: ~\.codex\hooks.json gets PostToolUse and Stop (Codex has no PostToolUseFailure), and config.toml the trust
+# Codex: ~\.codex\hooks.json gets PostToolUse, Stop, UserPromptSubmit and SessionEnd (Codex has no PostToolUseFailure),
+# and config.toml the trust
 # entries for exactly those handlers (machine/lib/codex-hooks.ps1: Codex skips an untrusted hook silently).
 $codexChanged = $false; $codexTrustChanged = $false; $codexTrust = @()
 if ($Agents -contains 'codex') {
@@ -317,12 +318,15 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged) -and -not $Yes) {
     # Say plainly what the hooks do before wiring them into every session of the chosen agents on this Windows account.
     Write-Host ""
     Write-Host "  About to add the unity-game-factory recording hooks (a backup .bak-$stamp of each file is kept):" -ForegroundColor Yellow
-    if ($claudeChanged) { Write-Host "    - Claude Code: PostToolUse, PostToolUseFailure and Stop in $ClaudeDir\settings.json" }
-    if ($codexChanged -or $codexTrustChanged) { Write-Host "    - Codex: PostToolUse and Stop in $CodexDir\hooks.json, marked trusted in $CodexDir\config.toml" }
-    Write-Host "    They run $hooksDir\record-unity-action.ps1 after every tool call of every session of that agent on this account."
+    if ($claudeChanged) { Write-Host "    - Claude Code: PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit and SessionEnd in $ClaudeDir\settings.json" }
+    if ($codexChanged -or $codexTrustChanged) { Write-Host "    - Codex: PostToolUse, Stop, UserPromptSubmit and SessionEnd in $CodexDir\hooks.json, marked trusted in $CodexDir\config.toml" }
+    Write-Host "    They run $hooksDir\record-unity-action.ps1 after every tool call, at every prompt and at the end of every turn and"
+    Write-Host "    session, for every session of that agent on this account."
     Write-Host "    - A session that works on a game (a tool call naming $Root\games\<slug>) has every tool call recorded"
     Write-Host "      (command, file paths, inputs, results, times) to $Root\.recording\<slug>\actions.jsonl, including its"
     Write-Host "      earlier calls, imported from its transcript; at the end of each turn its uncommitted work is committed as WIP."
+    Write-Host "    - The same session has every prompt you type and every reply the model writes recorded, read from its"
+    Write-Host "      transcript, to $Root\.recording\<slug>\messages.jsonl (not the model's reasoning)."
     Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl (every run adds"
     Write-Host "      it to each game repo whatever the answer; removing its line from .git\hooks\post-commit stops it until bootstrap runs again)."
     Write-Host "    - Sessions that never touch a game folder under $Root are not recorded; session ids in"
@@ -340,12 +344,12 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged) -and -not $Yes) {
 if ($claudeChanged) {
     if (Test-Path -LiteralPath $settingsPath) { Copy-Item -LiteralPath $settingsPath "$settingsPath.bak-$stamp" }
     Write-JsonFile $settingsPath $settings
-    Note changed 'Claude Code hooks' "settings.json PostToolUse/PostToolUseFailure/Stop -> $hooksDir\record-unity-action.ps1 (backup .bak-$stamp)"
+    Note changed 'Claude Code hooks' "settings.json PostToolUse/PostToolUseFailure/Stop/UserPromptSubmit/SessionEnd -> $hooksDir\record-unity-action.ps1 (backup .bak-$stamp)"
 } elseif ($Agents -contains 'claude' -and -not $hooksDeclined) { Note ok 'Claude Code hooks' }
 if ($codexChanged) {
     if (Test-Path -LiteralPath $codexHooksPath) { Copy-Item -LiteralPath $codexHooksPath "$codexHooksPath.bak-$stamp" }
     Write-JsonFile $codexHooksPath $codexHooks
-    Note changed 'Codex hooks' "hooks.json PostToolUse/Stop -> $hooksDir\record-unity-action.ps1 -Agent codex (backup .bak-$stamp)"
+    Note changed 'Codex hooks' "hooks.json PostToolUse/Stop/UserPromptSubmit/SessionEnd -> $hooksDir\record-unity-action.ps1 -Agent codex (backup .bak-$stamp)"
 } elseif ($Agents -contains 'codex' -and -not $hooksDeclined) { Note ok 'Codex hooks' }
 if ($codexTrustChanged) {
     if (Test-Path -LiteralPath $codexToml) { Copy-Item -LiteralPath $codexToml "$codexToml.bak-$stamp" }

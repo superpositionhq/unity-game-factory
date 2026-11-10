@@ -12,8 +12,8 @@ fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.j
 `"unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
 shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat
 filling the count with short ones. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
-repos' tasks branches, and the packager (not available yet) will ship them in the dataset split into the agent's and
-the grader's halves (docs/game-format.md). Write tasks with this skill and the unity-game-factory tools only, never
+repos' tasks branches, and the packager ships them in the dataset split into the agent's and the grader's halves
+(docs/game-format.md). Write tasks with this skill and the unity-game-factory tools only, never
 with another skill (AGENTS.md, "Only these skills"). `<root>` and `<UGF_ROOT>` below are the machine root
 (`%UGF_ROOT%`); every `docs/...` and `tools/...` path named here is in the unity-game-factory folder under it,
 `<UGF_ROOT>/unity-game-factory` (the links lead there too: they work in that folder, not in an installed copy of this

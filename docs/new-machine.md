@@ -117,8 +117,7 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
   same formula another factory on the machine uses), with their basis in `slots_auto` (values edited by hand are
   kept, `-Force` recomputes);
 - the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`
-  (`builds\`, `recordings\` and `deliverables\` wait for the recording pipeline and the packagers, which are not
-  available yet);
+  (`builds\`, `recordings\` and `deliverables\` wait for the recording pipeline, which is not available yet);
 - `tools\unity-heavy.ps1` (the machine-wide job limiter) with `tools\ugf-root.ps1`, the pinned ffmpeg 8.1.2 (SHA-256
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into

@@ -6,14 +6,15 @@ player, records AutoPlay runs (an in-game bot playing through the Input System, 
 the dataset.
 
 > **Not available yet: the recording pipeline (the release build from a commit, the recorder, the queue, the run
-> checker, stills and gameplay videos), the creation replay and the dataset packager.** The sections that say so are the
+> checker, stills and gameplay videos) and the creation replay.** The sections that say so are the
 > plan, with the rules earlier failures taught; nothing in them can be run
 > today. Until they are here, a session never queues, requests or waits for a recording and reports to the coordinator
-> what is ready (the commit sha, the scenarios that start with `-scenario <n>`, the release build's result); a game's
-> `Dataset/` stays as the template made it and nobody assembles a dataset by hand; the replay-friendly rules of the
-> unity-game-session skill keep a game's history ready for the replay. What runs today: a game's `Scripts/unity.ps1`
-> and the machine-wide job limiter. The task checker's own builds and plays (a scratch copy's player, started on a
-> Windows desktop of its own) are in [task-check.md](task-check.md).
+> what is ready (the commit sha, the scenarios that start with `-scenario <n>`, the release build's result); every
+> dataset is pending, without `Gameplay/` and `ReplayScripts/`, and nobody assembles a dataset by hand; the
+> replay-friendly rules of the unity-game-session skill keep a game's history ready for the replay. What runs today: a
+> game's `Scripts/unity.ps1`, the machine-wide job limiter and the dataset packager
+> ([Dataset packager](#dataset-packager)). The task checker's own builds and plays (a scratch copy's player, started
+> on a Windows desktop of its own) are in [task-check.md](task-check.md).
 
 ## Paths
 
@@ -32,6 +33,7 @@ same file gives each project's editor: exactly the version its `ProjectSettings/
   tools\unity-heavy.ps1             the job limiter (+ ugf-root.ps1 beside it); its log .recording\_heavy-jobs.jsonl
   tools\ffmpeg-8.1.2\               the pinned ffmpeg (machine/get-ffmpeg.ps1)
   .recording\<slug>\actions.jsonl   the recording hooks' rows (machine/README.md); the pipeline never touches them
+  .recording\<slug>\messages.jsonl  the same hooks' rows for every prompt and every reply of a session
   .recording\<slug>\commits.jsonl   one row per commit (the post-commit hook)
 ```
 
@@ -390,21 +392,50 @@ the editor its `ProjectSettings/ProjectVersion.txt` names.
 
 ## Dataset packager
 
-Not available yet: until it is here, a game's `Dataset/` stays as the template made it, nobody assembles a dataset or
-`Dataset.zip` by hand, and `tools/validate-game.py`'s "not packaged yet" warning is expected.
+`python tools/package-dataset.py <slug>` builds a game's dataset in layout `unity-dataset-layout/v1`
+([game-format.md](game-format.md), [dataset-layout-v1.json](dataset-layout-v1.json), manifest
+[schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)). It is the first version: it packs
+everything except `Gameplay/` and `ReplayScripts/`, which wait for the recorder and the creation replay above. Every
+dataset it makes therefore has status `pending`, lists both in `pending`, and is written as
+`<repo>\Dataset.pending.zip`; a complete `Dataset.zip` still needs the recording pipeline and the creation replay.
+Nobody assembles a dataset or `Dataset.zip` by hand, and before the packager's first run on a game its `Dataset/` stays
+as the template made it and `tools/validate-game.py`'s "not packaged yet" warning is expected.
 
-The plan for the packager: from the game repo at the release commit, its validated gameplay
-bundles, the release build and the creation replay's `ReplayScripts/`, it writes `<repo>\Dataset.zip` in layout
-`unity-dataset-layout/v1` ([game-format.md](game-format.md), [dataset-layout-v1.json](dataset-layout-v1.json), manifest
-[schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)), `Dataset.pending.zip` while
-`ReplayScripts/` or `Gameplay/` is missing, its scratch in `<repo>\.dataset\`, and the repo's `Dataset/` (the same
-minus `UnityProject/`, `Build/`, `History/` and `Tasks/`), which the game session then commits. It rewrites the history
-for delivery (`dev_NN` authors, no agent trailers), splits the tasks (`tools/split-tasks.py`) and scrubs every text file
-of the delivery: the studio and tool names, agent, model and provider names, the account and machine name, e-mail
-addresses and git identities; binaries are scanned too, and any hit left refuses the package. The checks it ends with
-are here today: `tools/validate-dataset.ps1` and `python tools/validate-game.py --dataset <zip>`. Packages take GBs per
-game: `out` in the config (env `UGF_OUT`, default `<root>\deliverables`) and `min_free_gb` (env `UGF_MIN_FREE_GB`,
-default 50: packaging refuses a drive with less free) are read by `machine/lib/ugf-root.ps1` and `ugfroot.py` already.
+It reads three things: the game repo `<root>\games\<slug>` at the release commit (`--repo` names a repo elsewhere,
+`--commit` another commit than `HEAD`), the game's recording `<root>\.recording\<slug>\` (`--recording`) and its player
+build `<repo>\Build\Windows`, made with `Scripts\unity.ps1 build` (`--build` names another folder). Run it once the game
+has its tasks and a player build: without a build, a brief, a design doc or a task it refuses before it writes
+anything, and `--dry-run` prints what would go in and what is missing. What it packs:
+
+| Entry | What goes in |
+|---|---|
+| `History/<slug>.bundle` | the history rewritten for delivery: authors and committers `dev_NN`, agent trailer lines dropped, the scrub rules on every message and text blob. It holds the release commit as `refs/heads/main` and each task's start branch as `refs/heads/starts/<task>`, nothing else |
+| `History/lfs/objects/` | every Git LFS object of every commit of the bundle, from the repo's own store |
+| `History/sessions/` | the creation sessions as recorded: `messages.jsonl` (every prompt the person typed and every reply the model wrote) and `actions.jsonl` (every tool call), rows up to the release commit, without the sessions that packaged and those named with `--exclude-sessions`, each session named `session_NN` in both files. `manifest.json` counts the rows in `history.sessions` |
+| `git.log` | every commit of the delivered history up to the release, oldest first, with full diffs |
+| `workflow.jsonl` | the creation record at the release commit |
+| `UnityProject/` | the delivered tree at the release commit, LFS files as their real content, without `Dataset/` |
+| `Tasks/` | the tasks of the repo's tasks branch (`--tasks-ref` names another ref), seeds mapped to the delivered history, each split into `task.json` and `grader.json` by the rule of `tools/split-tasks.py`, plus `README.md` |
+| `Brief/` | `brief.md` and `design.md`: the files given with `--brief` and `--design`, else the game repo's `Brief/<kind>.md` or `Docs/<Kind>.md`, else this repo's `docs/briefs/original/game-<slug>.md`, then `docs/briefs/games/<slug>.md`, for the brief and `docs/games/<slug>.md` for the design doc |
+| `Screenshots/` | the images the game's `README.md` shows |
+| `Build/` | the Windows player, without `.pdb` files and Unity's "DoNotShip" and "BackUpThisFolder" folders |
+| `README.md`, `manifest.json` | written by the packager (`--version` gives the release version) |
+
+Every text file of the delivery is scrubbed (the studio and tool names, agent, model and provider names, the account
+and machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a
+name left in a text file or a path refuses the package (exit 2, nothing zipped; the hits are in
+`<repo>\.dataset\<slug>.refused-hits.tsv`). Binary files are never changed: names found in them are listed in
+`<repo>\.dataset\<slug>.binary-hits.tsv` and refuse the package only with `--strict-binaries`. Commit ids change with
+the rewrite: the delivery uses the new ids everywhere, and `<repo>\.dataset\<slug>.commit-map.tsv` keeps original ->
+delivered.
+
+It ends with the checks a consumer runs: the dataset checks of `tools/validate-game.py` and, where PowerShell is
+installed, `tools/validate-dataset.ps1`. An error refuses the package. Then it writes the zip (`--no-zip` stops after
+the checks) and, unless `--no-repo-dataset`, the repo's `Dataset/` folder (`README.md`, `git.log`, `workflow.jsonl`,
+`Brief/`, `Screenshots/`, `manifest.json`), which the game session then commits. It never commits and never changes the
+game repo's history. Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts them and the zip in
+another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50). Standard
+library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
 
 ## Names that must not reach the games
 

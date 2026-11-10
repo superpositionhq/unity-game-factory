@@ -288,7 +288,7 @@ if ($Agents -contains 'claude') {
     }
     Try-Check 'Claude Code hooks' {
         $sp = Join-Path $ClaudeDir 'settings.json'
-        $events = @('PostToolUse', 'PostToolUseFailure', 'Stop')
+        $events = @('PostToolUse', 'PostToolUseFailure', 'Stop', 'UserPromptSubmit', 'SessionEnd')
         $wired = if (Test-Path $sp) { @(Get-WiredEvents ([IO.File]::ReadAllText($sp) | ConvertFrom-Json) $events 'settings-hooks.json') } else { @() }
         if ($wired.Count -eq $events.Count) { Add-Result PASS 'Claude Code hooks' "$sp wires $($events -join ', ')" }
         else { Add-Result FAIL 'Claude Code hooks' "$sp runs $HooksDir\record-unity-action.ps1 with bootstrap.ps1's command line on: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent claude (asks before installing them)' }
@@ -305,7 +305,7 @@ if ($Agents -contains 'codex') {
     }
     Try-Check 'Codex hooks' {
         $hp = Join-Path $CodexDir 'hooks.json'
-        $events = @('PostToolUse', 'Stop')
+        $events = @('PostToolUse', 'Stop', 'UserPromptSubmit', 'SessionEnd')
         $h = if (Test-Path $hp) { [IO.File]::ReadAllText($hp) | ConvertFrom-Json } else { $null }
         $wired = if ($h) { @(Get-WiredEvents $h $events 'codex-hooks.json') } else { @() }
         if ($wired.Count -ne $events.Count) { Add-Result FAIL 'Codex hooks' "$hp runs $HooksDir\record-unity-action.ps1 with bootstrap.ps1's command line on: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent codex (asks before installing them)'; return }

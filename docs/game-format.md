@@ -31,6 +31,29 @@ per finding: `x` an error, `!` a warning, `-` a note, then what it is about (`re
 `dataset`, ...). Options: `--quick` (do not unpack the history), `--no-hash`, `--no-layout`, `--no-zip` (skip the
 repo's `Dataset.zip`), `--json <file>`, `--quiet` (print only errors and warnings). Standard library Python 3.10+.
 
+## Package
+
+```bash
+python tools/package-dataset.py <slug>
+```
+
+Builds the dataset of the game at `<root>\games\<slug>` from its repo at the release commit (`--commit <rev>`, default
+`HEAD`), its recording `<root>\.recording\<slug>\` and its player build `<repo>\Build\Windows` (made with
+`Scripts\unity.ps1 build`), and writes `<repo>\Dataset.pending.zip` and the repo's `Dataset/` folder, which the game
+session commits. It is the first version: `Gameplay/` and `ReplayScripts/` are not packed yet (the recorder and the
+creation replay are not available yet), so every dataset it makes is `pending`; a complete `Dataset.zip` needs both.
+
+It scrubs every text file of the delivery, then scans: a name left in a text file or a path refuses the package (exit
+2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv` and
+refuse the package only with `--strict-binaries`. It ends with the dataset checks of [Validate](#validate), and an
+error there refuses the package too. It never commits and never changes the game repo's history; its scratch and
+reports are in `<repo>\.dataset\`. Options: `--repo <folder>` (a game repo elsewhere), `--commit <rev>`,
+`--version <n>`, `--build <folder>`, `--brief <file>` and `--design <file>` (else the repo's `Brief/brief.md` and
+`Brief/design.md`), `--tasks-ref <ref>`, `--exclude-sessions <ids>`, `--recording <folder>`, `--out <folder>`,
+`--strict-binaries`, `--no-repo-dataset`, `--no-zip`, `--dry-run` (print what would go in, write nothing). Standard
+library Python 3.10+, `git` and `git-lfs`. What it does, entry by entry:
+[unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager).
+
 ## The repo
 
 Everything needed to rebuild the game from the repo alone, tracked in git (binaries in Git LFS):
@@ -51,7 +74,7 @@ Everything needed to rebuild the game from the repo alone, tracked in git (binar
 | `Docs/ThirdPartyNotices.md` | credits and licences |
 | `.gitattributes` | the template's: every binary type in Git LFS (and `LightingData`, `NavMesh*`, `TerrainData*` `.asset` files under `Assets/` by path: `ProjectSettings/NavMeshAreas.asset` is YAML); Unity's YAML (`.unity`, `.prefab`, `.mat`, `.meta`, `.controller`, `.anim`, ...) and C# stay plain git text. A binary type in plain git, or YAML in LFS (an `.asset` Unity wrote as YAML included), is an error; binary content under any other name in plain git is a warning |
 | `.gitignore` | the template's: Unity's generated folders (`Library/`, `Temp/`, `Obj/`, `Logs/`, `UserSettings/`, `Build/`, `Builds/`) and `/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/` ignored; nothing the game is made of (`Assets/` at any depth, a pack's own `Build/` or `Library/` folder included, `Packages/`, `ProjectSettings/`, `RawAssets/`, `Docs/`, `Scripts/`) |
-| `Dataset/` | the dataset minus `UnityProject/`, `Build/`, `History/` and `Tasks/` (written by the packager, which is not available yet: until it is, the folder stays as the template made it) |
+| `Dataset/` | the dataset minus `UnityProject/`, `Build/`, `History/` and `Tasks/`, written by the packager ([Package](#package)) and committed by the game session; before the packager's first run the folder stays as the template made it |
 
 Never tracked: Unity's generated folders and build output at the root, the generated `*.csproj` / `*.sln`, Unity
 licence files (`*.ulf`), secrets; `Tasks/` on main (below).
@@ -77,11 +100,12 @@ branch `starts/<task name>`.
 
 No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
 any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;
-the packager, not available yet, will scan binaries too, so keep the names out of binary files yourself). The build
+the packager scans binaries too, but it never changes a binary, it only lists the names it finds there, so keep the
+names out of binary files yourself). The build
 machine's account name (machine paths carry it) counts too: the validator reads it at run time and enforces it
 everywhere except in scripts that already ran (`Scripts/`, `Assets/Editor/Steps/`, and
-`.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay unchanged: the packager (not available yet) will
-scrub them in every delivery. That includes
+`.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay unchanged: the packager scrubs them in every
+delivery. That includes
 `workflow.jsonl`: it is append-only except that a row naming a banned term is edited in place to a neutral word or
 placeholder, nothing else changed, with one `log.correct` row appended (`params {rows, what}`) and the edited rows
 named in the commit message: `python tools/scrub-workflow-rows.py <repo>` (dry run), then `--apply`.
@@ -107,17 +131,17 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 
 ## The dataset (`unity-dataset-layout/v1`)
 
-`<repo>\Dataset.zip`, one top folder `<game>/`, made by the packager (not available yet:
-[unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager) holds the plan; until it is here a repo's
-`Dataset/` stays as the template made it):
+`<repo>\Dataset.zip`, one top folder `<game>/`, made by the packager ([Package](#package);
+[unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager) says what it does; today it makes
+`Dataset.pending.zip`, see "Complete vs pending" below):
 
 | Entry | In the repo's `Dataset/` | What |
 |---|---|---|
 | `README.md` | yes | the game, how to play, open, replay and restore it; sections in the order of the layout file |
 | `git.log` | yes | every commit up to the release, oldest first: message, `dev_NN` authors, dates, full text diff; binaries as path + sha256 |
-| `workflow.jsonl` | yes | the creation record; **the person's directions are `user.direction` rows** (they replace conversation transcripts) |
+| `workflow.jsonl` | yes | the creation record; **the person's directions are `user.direction` rows**, written by the session (the prompts and replies themselves are in `History/sessions/`) |
 | `Brief/` | yes | `brief.md`, the brief as given; `design.md`, the design doc with story bible and status |
-| `History/` | no | `<game>.bundle` (every commit of every ref except the tasks branch) and `lfs/objects/<aa>/<bb>/<sha256>` (every Git LFS object of every commit) |
+| `History/` | no | `<game>.bundle` (the release commit's history as `refs/heads/main` and each task's start branch as `refs/heads/starts/<task>`, nothing else: the tasks branch is never in it), `lfs/objects/<aa>/<bb>/<sha256>` (every Git LFS object of every commit of the bundle) and `sessions/` (the creation sessions as recorded: `messages.jsonl`, `actions.jsonl`; below) |
 | `Tasks/` | no | the game's tasks, each split: `Tasks/<name>/task.json` (the agent's part) and `Tasks/<name>/grader.json` (milestones, `seed.reference`), plus a generated `README.md` (`tools/split-tasks.py`) |
 | `UnityProject/` | no | the project at the release commit (`Assets/` with every `.meta`, `Packages/`, `ProjectSettings/` on 6000.3; no `Library/`), store content included |
 | `ReplayScripts/` | yes | the creation replayed headless, with `Verification/report.json` (required for complete; its verdict PASS or FAIL is metadata) |
@@ -129,13 +153,27 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 **The history is rewritten for delivery** (the game repos are not changed): authors and committers become `dev_NN`,
 agent trailer lines go, the scrub rules apply to every message and text blob. Commit ids therefore differ from the
 private repo; the dataset uses the delivered ids everywhere (`manifest.json` `commit`, `git.log`, `ReplayScripts/`,
-the tasks' seeds), and the packager keeps the old -> new map next to the package. Restore a commit:
+the tasks' seeds), and the packager keeps the old -> new map in its scratch folder
+(`<repo>\.dataset\<slug>.commit-map.tsv`), never in the package. Restore a commit:
 
 ```bash
 git clone History/<game>.bundle <game>
 ```
 
 then copy `History/lfs` into `<game>/.git/lfs`, `git lfs install --local`, `git checkout <commit>`, `git lfs checkout`.
+
+**The sessions.** `History/sessions/` holds the creation sessions as the build machine's hooks recorded them, one JSON
+row per line, in two files. `messages.jsonl` has every prompt the person typed and every reply the model wrote: `time`,
+`project`, `session_id`, `agent`, `role` (`user` or `assistant`), `message_id`, `text`, and where they apply `model`,
+`images` (pictures attached to a prompt), `mid_turn` (a prompt typed while the model was working), `phase`, `subagent`.
+`actions.jsonl` has every tool call with its input and the start of its result. Not in either: the model's reasoning,
+and text the agent tool put into a turn itself. The rows go up to the release commit; the sessions that packaged the
+dataset and those named with `--exclude-sessions` are left out; each session is named `session_NN`, the same in both
+files, so `session_id` and `time` tie a reply to its tool calls; the text is scrubbed like every other text file of
+the delivery. `manifest.json` counts the rows (`history.sessions`: `messages` and `actions`, each with `file` and
+`rows`). Both files are optional: a game recorded before the hooks kept prompts and replies has no `messages.jsonl`,
+and the validator reports what it finds here as warnings and notes, never errors. The `user.direction` rows of
+`workflow.jsonl` stay as they are.
 
 **Tasks.** A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an agent can be given on
 this game (a bug fix from its history, a correction from a person's direction, a feature, a look or content change),
@@ -169,12 +207,13 @@ history); it sees only the brief and that snapshot. The grader's half never reac
 `Verification/report.json` included; `pending` while `ReplayScripts/` or `Gameplay/` is missing (listed in `pending`;
 the zip is then `Dataset.pending.zip`). The replay is required but need not pass (user rule): a FAIL verdict is
 metadata, like a gameplay run's result: manifest `replay_verification.pass` false (equal to the report's
-`verdict.pass`) and the README says FAIL.
+`verdict.pass`) and the README says FAIL. Every dataset the packager makes today is pending: it packs neither
+`Gameplay/` nor `ReplayScripts/` yet ([Package](#package)).
 
 ## For a contractor
 
-Deliver the repo (private, with Git LFS) with the content below. The packager is not available yet: it will build the
-dataset from the repo, so don't assemble a `Dataset.zip` by hand.
+Deliver the repo (private, with Git LFS) with the content below, then package it ([Package](#package)): the packager
+builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
 
 1. The repo rules above, every asset with its `.meta`; `assets.manifest.json` in `assets-manifest/v1`.
 2. `workflow.jsonl` from the first operation, with every direction you were given as a `user.direction` row
@@ -183,9 +222,15 @@ dataset from the repo, so don't assemble a `Dataset.zip` by hand.
 4. Your game's tasks in `Tasks/` on an orphan `tasks` branch of the repo, never on main (about 10; the
    `unity-write-tasks` skill), each seeded on commits of main's history (or its own `starts/<task>` branch).
 5. `python tools/validate-game.py <repo>` VALID. Its warning "Dataset/ has no manifest.json: not packaged yet" is
-   expected until the packager is here; once a `Dataset.zip` exists, the same for the `Dataset.zip`.
+   expected only before the packager's first run.
+6. A player build in `Build/Windows` (`Scripts/unity.ps1 build`), then `python tools/package-dataset.py <slug>`
+   (`--repo <repo>` when the repo is not `<root>/games/<slug>`). It runs the dataset checks itself and refuses on an
+   error. Commit the `Dataset/` folder it writes; `Dataset.pending.zip`, written next to it, is never committed:
+   deliver it beside the repo.
 
 Your agent sessions use only the unity-game-factory skills (`unity-commit-always`, `unity-game-session`,
 `unity-sound`, `unity-write-tasks`, installed by `machine/setup.ps1`): never install, enable or invoke any other
 skill, whether your own personal or project skills, a plugin's or marketplace's, or one bundled with the agent
-(AGENTS.md, "Only these skills"). The recorded sessions are the dataset, so the game is made under these rules alone.
+(AGENTS.md, "Only these skills"). The recorded sessions are the dataset (every tool call, every prompt you type and
+every reply the model writes is recorded and delivered in `History/sessions/`), so the game is made under these rules
+alone.
