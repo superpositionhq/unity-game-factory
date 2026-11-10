@@ -1,0 +1,262 @@
+{
+ "seconds": 17,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/LightLab.unity",
+ "queries": [
+  {
+   "id": "A",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "B1",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     20,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "B2",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     20.8,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "B3",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     23,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "C1",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     40,
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "id": "C2",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     40,
+     1,
+     -1
+    ]
+   }
+  },
+  {
+   "id": "D",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     120,
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "id": "E",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     140,
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "id": "F1",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     60,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     73,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     64,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "lantern",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     55,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "crate",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     60,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "trigger",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     65,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "ignore",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     70,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "flat2d",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     75,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "hero",
+   "kind": "light",
+   "point": {
+    "player": true,
+    "offset": [
+     0,
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "id": "slab",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     85,
+     0.5,
+     10
+    ]
+   }
+  },
+  {
+   "id": "obj",
+   "kind": "light",
+   "point": {
+    "object": {
+     "name": "PointA"
+    },
+    "offset": [
+     0,
+     -2,
+     0
+    ]
+   }
+  },
+  {
+   "id": "none",
+   "kind": "light",
+   "point": {
+    "object": {
+     "name": "NoSuchThing"
+    }
+   }
+  },
+  {
+   "id": "nopoint",
+   "kind": "light"
+  },
+  {
+   "id": "frame",
+   "kind": "screen",
+   "rect": [
+    0.49,
+    0.49,
+    0.51,
+    0.51
+   ]
+  },
+  {
+   "id": "grade",
+   "kind": "grading",
+   "fields": []
+  },
+  {
+   "id": "ears",
+   "kind": "objects",
+   "select": {
+    "name": "LabEars"
+   },
+   "fields": [
+    "prop:LightEar.peak",
+    "prop:LightEarAfter.peak",
+    "prop:LightEarAfter.buffers",
+    "prop:AudioTap"
+   ]
+  }
+ ]
+}

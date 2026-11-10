@@ -1,0 +1,26 @@
+{
+ "seconds": 32,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/AudioRolloff.unity",
+ "queries": [
+  {
+   "id": "all",
+   "kind": "audio"
+  },
+  {
+   "id": "ears",
+   "kind": "objects",
+   "select": {
+    "name": "*Camera"
+   },
+   "fields": [
+    "prop:LightEar.peak",
+    "prop:LightEar.buffers",
+    "prop:LightEarAfter.peak",
+    "prop:LightEarAfter.buffers",
+    "prop:AudioTap"
+   ]
+  }
+ ]
+}

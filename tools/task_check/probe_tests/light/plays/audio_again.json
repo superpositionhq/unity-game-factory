@@ -1,0 +1,126 @@
+{
+ "seconds": 21,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/AudioLab.unity",
+ "queries": [
+  {
+   "id": "all",
+   "kind": "audio"
+  },
+  {
+   "id": "tone",
+   "kind": "audio",
+   "select": {
+    "sound": "Tone*"
+   }
+  },
+  {
+   "id": "sfx",
+   "kind": "audio",
+   "select": {
+    "sound_class": "SFX"
+   }
+  },
+  {
+   "id": "master",
+   "kind": "audio",
+   "select": {
+    "sound_class": "Master"
+   }
+  },
+  {
+   "id": "owner",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "Loop3D"
+    }
+   }
+  },
+  {
+   "id": "shooter",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "Shooter"
+    }
+   }
+  },
+  {
+   "id": "shooter_clip",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "ShooterClip"
+    }
+   }
+  },
+  {
+   "id": "shot",
+   "kind": "audio",
+   "select": {
+    "sound": "Shot*"
+   }
+  },
+  {
+   "id": "main",
+   "kind": "audio",
+   "select": {
+    "sound": "Main*"
+   }
+  },
+  {
+   "id": "point",
+   "kind": "audio",
+   "select": {
+    "sound": "Point*"
+   }
+  },
+  {
+   "id": "late",
+   "kind": "audio",
+   "select": {
+    "sound": "Late*"
+   }
+  },
+  {
+   "id": "stream",
+   "kind": "audio",
+   "select": {
+    "sound": "Stream*"
+   }
+  },
+  {
+   "id": "menu",
+   "kind": "audio",
+   "select": {
+    "sound": "Menu*"
+   }
+  },
+  {
+   "id": "ears",
+   "kind": "objects",
+   "select": {
+    "name": "*Camera"
+   },
+   "fields": [
+    "prop:LightEar.peak",
+    "prop:LightEar.buffers",
+    "prop:LightEarAfter.peak",
+    "prop:LightEarAfter.buffers",
+    "prop:AudioTap"
+   ]
+  },
+  {
+   "id": "keeper",
+   "kind": "objects",
+   "select": {
+    "name": "EarKeeper"
+   },
+   "fields": [
+    "prop:LightEarKeeper.seen"
+   ]
+  }
+ ]
+}

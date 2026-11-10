@@ -1,165 +1,83 @@
-# light family tests: `light`, `grading`, `audio`
+# The light family: `light`, `grading`, `audio` and the probe's audio tap
 
-Unity 6000.3.28f1, URP 17.3.0, LDR colour grading, linear colour space. Query files:
-`TaskProbe/Runtime/Queries/LightKit.cs` (shared), `LightQuery.cs`, `GradingQuery.cs`, `AudioQuery.cs`.
+What the package's `LightQuery`, `GradingQuery`, `AudioQuery`, `LightKit` and the core's `AudioTap` promise
+(`docs/task-probes.md` 2.7, 2.8, 2.16), checked against what Unity itself draws and mixes: a white diffuse card in the
+frame where the light is measured, the checker's own `tools/task_check/colour.py` against a graded frame, the mix the
+listener hears against the volumes the measure reads. `tests.py` holds every number; this file says what each scene
+holds and what each play proves. The scenes and their assets are made by `Editor/LightScenes.cs` (namespace
+`ProbeTests.Lighting`: a namespace `ProbeTests.Light` would hide `UnityEngine.Light` from every other family's code).
 
-## Reproduce
+## Scenes
 
-1. Copy `editor/LightTestScenes.cs` to `<proj>/Assets/Editor/` and `scripts/*.cs` to `<proj>/Assets/Scripts/LightTests/`.
-2. `python probe.py exec <proj> LightTests.EditorSteps.LightTestScenes.Run`. This writes the sine WAVs, the
-   `TestMix.mixer` with a -20 dB `SFX` group, the volume profiles, the grey material and five scenes under
-   `Assets/Scenes/LightTests/`.
-3. `python probe.py build <proj> Assets/Scenes/LightTests/{LightLab,GradeLab,AudioLab,AudioLab2,AudioRolloff}.unity`
-4. `python probe.py play <proj> specs/<light|grade|audio|rolloff>.json`, then run the matching checker in `specs/`
-   (`expect_light.py probe.json play.log`, `check_grade.py <play dir> <tools/task_check>`, `check_audio.py`,
-   `check_rolloff.py`).
+- **LightLab**: closed rooms (10 x 4 x 10 m) with a point lamp, a second one switched on at 3.5 s (a warm colour at
+  2700 K), a spot lamp, and lamps behind a wall across the room: without shadows, with shadows, with shadows at half
+  strength; an open field under a sun (4000 K, shadows on) with a roof on nothing; a row of lamps whose shadows are
+  on, each with something between it and its point (a housing around the bulb, a crate the point is inside, a trigger,
+  the Ignore Raycast layer, a 2D collider, the player's capsule, a plain slab). A white Simple Lit card (no specular)
+  lies at each measured point; the camera (no post-processing) looks down at one card a second (`LightTour`), and
+  `LightEvents` changes the lighting between visits: at 7.5 s point and spot shadows switched on in the URP asset (for
+  the measure only: the project's asset has none, so the build strips their shader variants and the frame can't show
+  them) and the sun's shadow strength at 0.5 for 2 s; the ambient through gradient, skybox (before and after
+  `DynamicGI.UpdateEnvironment`) and flat at intensity 2; then additional lights off, then the main light off.
+  `LightCull` logs what the engine itself holds: each Light's `VisibleLight.finalColor` and `bakingOutput`.
+- **BakeLab**: three lamps over static floors, baked with light probes around them and the ambient black: one
+  Baked, one Mixed (baked indirect), one set to Baked after the bake (never baked). A moving white card under each.
+- **SkyLab**: saved with skybox ambient and never baked; a white sun, a card; the camera renders post-processing with
+  no volume in the scene (an untouched stack: the project's default profile). The environment is made at 2 s.
+- **GradeLab**: a camera carrying an unlit card of linear 0.18 grey that fills its view, under a global grade (white
+  balance, contrast, saturation, colour filter, lift/gamma/gain, tonemapping None, bloom); the player walks into a
+  local volume (a 10 m box, blend distance 10 m, post exposure 1, bloom, vignette) from 6 s. Also a volume of weight
+  0.5, a disabled one, one on a layer the camera's volume mask leaves out, and two directional lights of one
+  intensity.
+- **AudioLab** / **AudioLab2**: sine-tone sources of every kind around the listener (3D logarithmic, 2D, muted,
+  through a -20 dB mixer group, a custom curve, a streaming clip, one that ignores the listener's pause, one just
+  under the audible floor of 0.001), and
+  `LightAudioDirector`'s events: a clip that ends, a source started and one paused, `PlayOneShot` on a source without
+  a clip and on one with its own, `PlayClipAtPoint`, `AudioListener.pause`, `timeScale` 0, a second listener on, the
+  second alone, no listener, a scene load to AudioLab2. Each listener carries a `LightEar` ahead of the probe's tap
+  (the mix as it reaches the tap) and gets a `LightEarAfter` behind it (`LightEarKeeper`: what the machine would
+  play).
+- **AudioRolloff**: one tone moved through logarithmic, linear and custom rolloff, a half-2D blend, 2D, the -20 dB
+  group, and `AudioListener.volume` at 0.5, 2 s a step.
+- **Stray**: a listener and a quiet tone, played by the probe and started without one (`LightStrayBoot`,
+  `-lightstray`).
 
-`results/<play>/` holds each play's probe.json, probe.log and the test scripts' lines from the player log.
+## Plays
 
-## LightLab (`specs/light.json`, 14 s): `light`
-
-There are three closed rooms (10 x 4 x 10 m, 0.2 m walls) and an open field. The test computes the expected values
-by hand in `expect_light.py`, which writes out URP's formulas separately from the C# code.
-
-| query | set-up | expected (hand) | probe |
-|---|---|---|---|
-| qA | point light I=2, range 10, 2 m above the point | 0.498401 | 0.498401 |
-| qA after 3 s | second point light switched on: (1, .5, .25) at 2700 K, I=1.5, 4.69 m away | +0.014532 | +0.014532 |
-| qB1 | spot straight down, 60/30 degrees, I=3, 2 m: inside the inner cone | 0.747602 | 0.747602 |
-| qB2 | 0.8 m off-axis (21.8 degrees, in the falloff) | 0.251582 | 0.251584 |
-| qB3 | 3 m off-axis (56 degrees, outside the cone) | 0 | 0 |
-| qC1 | point light behind a wall | 0 | 0 |
-| qC2 | same light, same side | 0.248459 | 0.248459 |
-| qD1 | open field, sun I=1.2 at 4000 K | engine `finalColor` luminance 0.83179 | directional 0.831791 |
-| qD2 | under a 6 x 6 m roof slab | 0 (sun and sky blocked) | directional 0, sky 0 |
-| qObj | `{"object": {"name": "PointA"}, "offset": [0, -2, 0]}` | same as qA | 0.498401, point [0, 1, 0] |
-| qNone | an object that doesn't exist | null | null |
-
-The LightDirector culls the scene in `beginCameraRendering` and logs each visible light's `VisibleLight.finalColor`.
-In every case that value equals what the probe computes: `color.linear * intensity * Mathf.CorrelatedColorTemperatureToRGB(T)`.
-For example, the sun is (1.2, 0.76183, 0.44006) and SwitchedA is (1.5, 0.12807, 0.00735).
-
-Ambient (qD1 `sky`, open sky so all 9 rays are clear) compared with the ambient probe's upward value:
-
-- Flat (0.2, 0.3, 0.4): probe up = the colour, linear. Luminance 0.06901. Probe: 0.06901.
-- Trilight with sky (0.5, 0.4, 0.3): probe up = (0.1208, 0.0767, 0.0444), luminance 0.08377. This is not the sky colour
-  (0.214, 0.133, 0.073), because the gradient's SH mixes in the equator and ground colours. Probe: 0.08377.
-- Skybox, intensity 1.5: probe up luminance 0.51935. Probe: 0.51935.
-- Flat with `ambientIntensity` 2 (from 12 s): the engine's probe doesn't change (0.06901), so the intensity doesn't
-  apply to Flat. Probe: 0.06901.
-
-## GradeLab (`specs/grade.json`, 22 s): `grading`, `screen`, the `light` exposure
-
-A global Volume sets white balance (30, -20), contrast 25, saturation -30, colour filter (1, .9, .8), lift/gamma/gain
-(1, 1, .9, .02) / (.95, 1, 1.05, 0) / (1.05, 1, .95, .1), tonemapping None and bloom 0.5. An unlit quad of linear 0.18
-grey, parented to the camera, fills the view. The player stands still until 6 s, then walks +z at 2 m/s into a local
-box volume (10 m box, blend distance 10 m, priority 1) that overrides only post exposure 1, bloom 2 and vignette 0.4.
-
-Frame against `colour.py`, with the probe's grading value at 1.5 s and a white key light (`check_grade.py`):
-
-| step | rgb (linear) |
-|---|---|
-| start | 0.18, 0.18, 0.18 |
-| white balance | 0.18260, 0.18644, 0.12681 |
-| contrast | 0.17331, 0.17788, 0.10958 |
-| colour filter | 0.17331, 0.14007, 0.06617 |
-| gain, lift | 0.22641, 0.17456, 0.05652 |
-| gamma | 0.20043, 0.17827, 0.07388 |
-| saturation | 0.19293, 0.17742, 0.10435, which is sRGB 121.5, 116.9, 90.9 |
-| **frame** (shot_00 centre) | sRGB **121, 117, 91**, which is linear 0.1912, 0.1779, 0.1046 |
-
-`colour()` gives `grey` = 0.175445. The frame's `screen` luminance is 0.17543. They agree to 8-bit quantisation, and
-no step differs.
-
-One mismatch: `colour.py` doesn't apply `post_exposure`. URP's UberPost multiplies the colour by 2^postExposure
-before the LUT. Inside the local volume (post exposure 1), the frame reads 0.38889. `colour()` still says 0.17545.
-With 0.36 (0.18 x 2^1) fed in, it says 0.39275, which is 1 % off the frame. The remaining 1 % is the vignette and
-bloom, which are active there.
-
-The local volume's blend over the walk follows VolumeManager's weight `1 - d^2/blend^2` with a one-frame lag of the
-test clock. For example, at 16 s the expected weight is 0.75: postExposure read 0.7433, bloom 1.6149 (0.5 + 1.5w) and
-vignette 0.2973. At 20 s inside the box, all three read 1, 2 and 0.4. The `light` exposure at the camera goes
-1 -> 1.4148 -> 1.9843 -> 2.
-
-Other `post:` fields:
-
-| field | value |
-|---|---|
-| `post:Vignette.color.r` | 0.2 |
-| `post:Tonemapping.mode` | 0 (None) |
-| `post:Bloom.highQualityFiltering` | 0 |
-| `post:MotionBlur.intensity` | 0 (its default; no volume sets it) |
-
-These come back null with a `query_errors` line:
-
-| field | error |
-|---|---|
-| `post:Vignette.color` | "name a part" |
-| `post:Nope.x` | "no volume component Nope" |
-| `post:Bloom.nope` | "Bloom has no parameter nope" |
-
-## AudioLab (`specs/audio.json`, 21 s, `"sound": true`): `audio`
-
-The listener is on the player's camera. All clips are 0.5-amplitude sine WAVs. Expected volumes and what the probe
-read:
-
-| source | set-up | expected | probe |
-|---|---|---|---|
-| Loop3D | 3D log, min 1, max 50, volume 0.8, 5 m | 0.16 | 0.16 |
-| Music2D | 2D, volume 0.5 | 0.5 | 0.5 |
-| Muted | muted | 0, counted but not audible | 0, counted but not audible |
-| Mixed | 2D, volume 1, on the -20 dB SFX group | 1 (mixer left out) | 1 |
-| Custom | linear-tangent curve (0,1)-(.5,.25)-(1,0), max 20, 8 m | 0.4 | 0.4 |
-
-The sum is 2.06, from 5 sources with 4 audible; the probe read 2.06.
-
-The select queries read:
-
-| query | select | result |
-|---|---|---|
-| qTone | `sound: "Tone*"` | 0.16 |
-| qSfx | `sound_class: "SFX"` | 1, loudest Mixed550 |
-| qOwner | `owner: {name: Loop3D}` | 0.16 |
-
-Events over the play:
-
-| time | event | count / volume / level | what Unity reports |
-|---|---|---|---|
-| 0-1 s | start | level null | the tap isn't attached until the core's 16-frame Follow |
-| 1 s | steady | level 0.168, peak 0.35 | |
-| 4 s | Late starts (linear, min 1, max 20, blend 0.5, 10.5 m) | qLate 0.75 (expected 0.75); total 2.81, level 0.242 | |
-| 6 s | `PlayOneShot(Shot880)` on a source with no clip | count 7, volume +1, `loudest` "" | `isPlaying` true, `clip` null. `sound: "Shot*"` can't match, but `level` rises to 0.35 |
-| 7.5 s | `PlayClipAtPoint(Point990, 3 m)` | qPoint 0.3333 = 1/3 | Unity makes "One shot audio": a playing source with the clip, 3D log, min 1, max 500 |
-| 9-10.5 s | `AudioListener.pause = true` | count 0, level 0 | `isPlaying` false on every source |
-| 11-12.5 s | `Time.timeScale = 0` | unchanged: 2.81, level 0.242 | sources keep playing |
-| 13-14.5 s | every source stopped | level 0 | |
-| 14.5 s | listener moved to a second camera | listener "SecondCamera", 0.25, level 0.063 (0.252 per unit volume) | works only after the core change below |
-| 17 s | scene load (AudioLab2) | 0.3, level 0.0756 (0.252 per unit volume) | tap attached within a second |
-
-`TapLog` and AudioDirector log which listener carries the tap.
-
-## AudioRolloff (`specs/rolloff.json`, 31 s, `"sound": true`): the rolloff against the real mix
-
-One tone is placed straight ahead of the listener and moved every 2 s. The table compares the probe's volume with the
-measured level, normalised to the first step:
-
-| step | probe volume | level ratio |
-|---|---|---|
-| log 1 / 2 / 4 / 8 m | 1 / .5 / .25 / .125 | 1 / .5 / .25 / .125 |
-| **log 80 m (max 50)** | .0125 | .0125 |
-| linear 0.5 / 5.75 / 10.5 / 15.25 m | 1 / .75 / .5 / .25 | the same |
-| custom 0 / 8 / 14 m | .9992 / .4 / .15 | .9993 / .4 / .15 |
-| log 4 m, blend 0.5 | .625 | .625 |
-| 2D | 1 | .9999 |
-| 2D on the -20 dB group | 1 (mixer left out) | .1005 (the mixer, in `level`) |
-
-The first build clamped the logarithmic distance at max distance, as Unity's documentation says. That gave 0.02 at
-80 m, but Unity measured 0.0125 (1/80). Logarithmic rolloff keeps falling past max distance, and the query now
-follows the measurement.
-
-## Core change (needed): `Runtime/Core/AudioTap.cs`, `Follow()`
-
-See `AudioTap.core-change.diff`. `FindFirstObjectByType<AudioListener>()` also returns a *disabled* listener
-component. When the game disabled the first camera's listener and enabled a second, the tap stayed on the disabled
-one. `level` then went null (no buffers), and the game's audio was **audible on the machine** until the next scene
-load. The fix picks the first enabled listener on an active object.
+- **lamps**: every term of `light` against URP's own maths, written out in `tests.py` (`RealtimeLights.hlsl`
+  `DistanceAttenuation` and `AngleAttenuation` with the constants `UniversalRenderPipelineCore` prepares; the colour
+  as the engine's own `finalColor`, its colour temperature applied); and against the frame: at each card the frame's
+  luminance is each Light's contribution times the cosine of its angle to the card, plus the ambient, within the
+  HDR target's and the 8-bit screenshot's rounding. A wall stops a Light only where URP draws its shadows: a lamp
+  without them, or with them where the URP asset draws none, lights through it, in the frame as in the measure; the
+  sun's shadow stops it, and at strength 0.5 lets half through. With point light shadows switched on in the asset a
+  housing around the bulb, a trigger, the Ignore Raycast layer, a 2D collider and the player never stop a lamp; a
+  crate the point is inside and a slab do. The ambient is the ambient probe straight up in every
+  mode, walls or not (URP doesn't shade it at run time): flat ambient ignores its intensity, gradient ambient mixes
+  sky, equator and ground. Also: a point at an object, a point that doesn't resolve, a query without a point, and
+  grading's neutral constants for a camera without post-processing and its sun.
+- **lamps_builtin**: the render pipeline switched off before the first frame: `light` still computes URP's terms,
+  `grading` is neutral without `post:` values, and each query says so once in `query_errors`.
+- **baked**: what URP draws at run time for a baked lamp (nothing: the engine leaves it out, its light is in the
+  lightmaps and the light probes), a Mixed one (real time, its bounce baked) and one set to Baked but never baked
+  (real time); the measure reads the light probes there as a moving card is lit, and the frame agrees.
+- **sky**: a never-baked skybox scene's ambient probe is what the measure reads, before and after it is made; an
+  untouched volume stack gives exactly grey 0.18 and cast 0 through `colour.py`.
+- **grade**: the grade's constants are URP's (`ColorBalanceToLMSCoeffs`, `PrepareLiftGammaGain`); every kind of `post:`
+  value (a float, an int, a bool, an enum, an unset texture, a colour's and a vector's channel by either spelling,
+  a default, a volume of weight 0.5, a disabled volume and one off the camera's mask) and every kind of `post:` error;
+  the local volume's blend as the camera walks in (VolumeManager's `1 - d^2 / blend^2`); through `colour.py` the
+  frame's centre pixel and its luminance. `colour.py` applies the post exposure as URP's uber pass does (2^EV before
+  the grading lookup): inside the local volume the frame's centre pixel is `colour.py`'s grade with post exposure 1.
+- **grade_script**: the camera's volumes updated by script only: URP renders with the stack it made once, and the
+  measure reads that stack (`source` `camera_stack`): inside the local volume the frame still shows the global grade.
+- **audio**, **audio_again**: every source kind at its volume at the listener through the director's events (a mixer
+  group selects by its own name, not its parent's; 0.001 is the audible floor); the mix's level of a single source;
+  which listener Unity mixes through with two on; the tap on every enabled listener, hidden from the game's
+  `FindObjectsByType` (its `GetComponents` sees it), and nothing leaving it. `audio_again` plays the same and must read the
+  same in every field but the mix's (which runs in real time).
+- **rolloff**: each rolloff step's volume against the formula, and the mix's RMS against the volume (a 0.5 sine at
+  volume 1 is 0.25 in the mix, panned -3 dB into each channel; the mixer group's -20 dB and `AudioListener.volume`
+  only in the mix).
+- **stray**: in a probe play the tap silences the tone; the player started without `-taskProbe`, with a tap the game
+  added itself, lets it through (the test's own `LightMute`, last in the chain, keeps the machine quiet).

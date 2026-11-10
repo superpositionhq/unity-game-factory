@@ -1,0 +1,37 @@
+{
+ "seconds": 2,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/LightLab.unity",
+ "queries": [
+  {
+   "id": "A",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     73,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "grade",
+   "kind": "grading",
+   "fields": [
+    "post:Bloom.intensity"
+   ]
+  }
+ ]
+}

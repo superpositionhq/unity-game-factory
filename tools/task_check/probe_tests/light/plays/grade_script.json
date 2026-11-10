@@ -1,0 +1,55 @@
+{
+ "seconds": 22,
+ "shots": 4,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/GradeLab.unity",
+ "queries": [
+  {
+   "id": "grade",
+   "kind": "grading",
+   "fields": [
+    "post:ColorAdjustments.postExposure",
+    "post:Bloom.intensity",
+    "post:Vignette.intensity",
+    "post:Vignette.color.r",
+    "post:Vignette.color.x",
+    "post:Vignette.center.x",
+    "post:Vignette.center.r",
+    "post:LiftGammaGain.lift.w",
+    "post:Tonemapping.mode",
+    "post:Bloom.highQualityFiltering",
+    "post:Bloom.maxIterations",
+    "post:Bloom.dirtTexture",
+    "post:MotionBlur.intensity",
+    "post:PaniniProjection.distance",
+    "post:ChromaticAberration.intensity",
+    "post:Vignette.color",
+    "post:Vignette.center.z",
+    "post:Bloom.intensity.x",
+    "post:ColorCurves.master",
+    "post:Nope.x",
+    "post:Bloom.nope",
+    "post:bloom.intensity",
+    "post:Bloom.Intensity"
+   ]
+  },
+  {
+   "id": "frame",
+   "kind": "screen",
+   "rect": [
+    0.4,
+    0.4,
+    0.6,
+    0.6
+   ]
+  },
+  {
+   "id": "exposure",
+   "kind": "light",
+   "point": {
+    "camera": true,
+    "forward": 1.0
+   }
+  }
+ ]
+}

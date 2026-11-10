@@ -1,17 +1,17 @@
-// AudioRolloff: one tone straight ahead of the listener, held 2 s at each step: logarithmic, linear and custom rolloff
-// at several distances, a half-2D blend, then 2D direct and through the -20 dB mixer group. The level per step against
-// the probe's volume shows whether the probe's rolloff is Unity's.
 using UnityEngine;
 using UnityEngine.Audio;
 
-namespace LightTests
+namespace ProbeTests.Lighting
 {
-    public sealed class RolloffDirector : MonoBehaviour
+    /// <summary>AudioRolloff: one tone straight ahead of the listener, 2 s (60 frames) at each step: logarithmic, linear
+    /// and custom rolloff at several distances, a half-2D blend, then 2D, direct, through the -20 dB mixer group, and
+    /// with AudioListener.volume at 0.5.</summary>
+    public sealed class LightRolloff : MonoBehaviour
     {
         public AudioSource source;
         public AudioMixerGroup quiet;
         public AnimationCurve custom;
-        int step = -1;
+        int frames, step = -1;
 
         static readonly (AudioRolloffMode mode, float z, float blend, bool mixer)[] Steps =
         {
@@ -23,18 +23,13 @@ namespace LightTests
             (AudioRolloffMode.Custom, 0.01f, 1f, false), (AudioRolloffMode.Custom, 8f, 1f, false), (AudioRolloffMode.Custom, 14f, 1f, false),
             (AudioRolloffMode.Logarithmic, 4f, 0.5f, false),
             (AudioRolloffMode.Logarithmic, 4f, 0f, false), (AudioRolloffMode.Logarithmic, 4f, 0f, true),
+            (AudioRolloffMode.Logarithmic, 4f, 0f, false),
         };
-
-        void Start()
-        {
-            PlayClock.Reset();
-            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, custom);
-        }
 
         void Update()
         {
-            var want = Mathf.FloorToInt(PlayClock.T / 2f);
-            if (want == step || want >= Steps.Length) return;
+            var want = Mathf.Min(frames++ / 60, Steps.Length - 1);
+            if (want == step) return;
             step = want;
             var s = Steps[step];
             source.rolloffMode = s.mode;
@@ -44,7 +39,7 @@ namespace LightTests
             source.spatialBlend = s.blend;
             source.outputAudioMixerGroup = s.mixer ? quiet : null;
             source.transform.position = new Vector3(0f, 0f, s.z);
-            Debug.Log($"RT: t={PlayClock.T:F2} step {step}: {s.mode} d={s.z} blend={s.blend} mixer={s.mixer}");
+            AudioListener.volume = step == Steps.Length - 1 ? 0.5f : 1f;
         }
     }
 }

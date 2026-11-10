@@ -1,0 +1,46 @@
+{
+ "seconds": 3,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/SkyLab.unity",
+ "queries": [
+  {
+   "id": "card",
+   "kind": "light",
+   "point": {
+    "xyz": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "frame",
+   "kind": "screen",
+   "rect": [
+    0.49,
+    0.49,
+    0.51,
+    0.51
+   ]
+  },
+  {
+   "id": "grade",
+   "kind": "grading",
+   "fields": [
+    "post:Tonemapping.mode"
+   ]
+  },
+  {
+   "id": "ears",
+   "kind": "objects",
+   "select": {
+    "name": "Ears"
+   },
+   "fields": [
+    "prop:AudioTap"
+   ]
+  }
+ ]
+}

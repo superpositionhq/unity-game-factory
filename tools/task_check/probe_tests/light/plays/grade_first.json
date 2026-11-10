@@ -1,0 +1,23 @@
+{
+ "seconds": 1,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/light/Made/GradeLab.unity",
+ "queries": [
+  {
+   "id": "grade",
+   "kind": "grading",
+   "fields": [
+    "post:ColorAdjustments.postExposure"
+   ]
+  },
+  {
+   "id": "exposure",
+   "kind": "light",
+   "point": {
+    "camera": true,
+    "forward": 1.0
+   }
+  }
+ ]
+}
