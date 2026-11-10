@@ -366,7 +366,8 @@ renderers, else its position.
     too. World-aligned, so a rotated object's extent mixes its own axes (an object turned 90 degrees reports its width
     as `extent_z`);
   - `active` (active in the hierarchy); `hidden` (1 when it is inactive, or it has renderers and none is drawn);
-    `collision` (it or a descendant has an enabled collider that isn't a trigger); `speed` (m/s): its own velocity
+    `collision` (it or a descendant active in the hierarchy has an enabled collider, 3D or 2D, that isn't a trigger;
+    0 when the object is inactive: it is out of the physics scene); `speed` (m/s): its own velocity
     when it reports one that isn't zero (the first of these it has: a non-kinematic Rigidbody, a Dynamic Rigidbody2D,
     an enabled CharacterController, a NavMeshAgent on its NavMesh), else how far it moved since the previous sample
     over the time of the frames since (1/30 s each, a wait's and a scene load's among them: the play's clock holds
