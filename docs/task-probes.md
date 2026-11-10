@@ -914,7 +914,8 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   can fall between them: sample oftener (a task play's `every`), or read `level`, which covers the whole time since
   the previous sample. The probe puts its tap on every enabled listener from its first frame, and on a new one in
   the frame it comes on; a sample before which no audio reached the tap at all (a play's first sample can be one)
-  has no `level`, while silence reads 0. No listener: no value at all.
+  has no `level`, while silence reads 0. No listener: no value at all; nor in a project without Unity's Audio
+  module, where the play's `query_errors` says "audio <id>: the project has no Audio module: no sound is read".
 - While `AudioListener.pause` is on, every source reads as not playing (`count` and `level` 0); with `timeScale` 0
   sounds keep playing.
 - The sample's value also holds `loudest` (the loudest source's clip name), `peak` and `listener` (its object's name),
