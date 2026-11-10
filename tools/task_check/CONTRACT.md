@@ -207,13 +207,14 @@ original's, unchanged (`probes.py`).
   position (`Find.Centre`; the original's: its colliding components' bounds centre).
 - **objects** (the original's `actors`; `ObjectsQuery`, `ObjectRead`):
   - the parts (`ObjectRead.Parts`; the original's mesh components with a mesh, its sprites and cables among them): the
-    renderers of the object and its descendants, inactive ones included, that draw a shape and have something to draw
-    (a MeshRenderer whose mesh has vertices, a SkinnedMeshRenderer with a mesh, a SpriteRenderer with a sprite, a
-    LineRenderer); effects (particle systems, trails, visual effects) and sprite masks are no parts. `spin`,
-    `changed`, `bounds_change`, `pose_change`, `lit` and `glow` read every part; `extent_*` and `spread` the drawn ones
-    (`Find.Drawn`: enabled, active in the hierarchy, not `forceRenderingOff`) with non-empty bounds (lower LODs count:
-    task-probes.md 2.4). `spread` counts each part by its bounds centre, and a skinned mesh whose bones carry two
-    Rigidbodies or more (a ragdoll) by each body's place, as the original counts a skeletal mesh's physics bodies;
+    renderers of the object and its descendants, inactive ones included, that draw a shape and have something to draw (a
+    MeshRenderer whose mesh has vertices, a SkinnedMeshRenderer with a mesh, a SpriteRenderer with a sprite, and any
+    other renderer but an effect's: a LineRenderer, a TilemapRenderer, a SpriteShapeRenderer); effects (particle
+    systems, trails, visual effects) and sprite masks are no parts. `spin`, `changed`, `bounds_change`, `pose_change`,
+    `lit` and `glow` read every part; `extent_*` and `spread` the drawn ones (`Find.Drawn`: enabled, active in the
+    hierarchy, not `forceRenderingOff`) with non-empty bounds (lower LODs count: task-probes.md 2.4). `spread` counts
+    each part by its bounds centre, and a skinned mesh whose bones carry two Rigidbodies or more (a ragdoll) by each
+    body's place, as the original counts a skeletal mesh's physics bodies;
   - `speed`: the first velocity source the object has (`ObjectRead.OwnVelocity`: a non-kinematic Rigidbody's
     `linearVelocity`, a Dynamic, simulated Rigidbody2D's, an enabled CharacterController's `velocity`, an enabled
     NavMeshAgent's on its NavMesh), else its displacement since the query's previous sample over the game time between
@@ -244,15 +245,15 @@ original's, unchanged (`probes.py`).
     (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the heaviest clip on layer 0
     (`GetCurrentAnimatorClipInfo(0)`);
   - measured: a whole-scene sample of 3000 objects takes about 20 ms.
-- **components** (`ComponentsQuery`; the original's registered components of a class): with `component`, the
-  components whose type, a base type or an interface has that name (`Find.Components`: `FindObjectsByType` of that
-  Component type, or of every Component for an interface, then `Reflect.IsA`); with `effect` alone, of every effect type
-  the build has (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect, DecalProjector; the last two by
-  reflection, so the probe needs neither package), `effect: true` keeping the live ones (`Effects.Live`). A field reads
-  the component as an object's reads one part, with Unity's components in the original's places: `extent_*` a
-  Renderer's, Collider's or Collider2D's world bounds; `simulating` the Rigidbody or Rigidbody2D it is or is attached
-  to (`Find.Simulates`); `changed`, `bounds_change`, `pose_change` a Renderer; `intensity` and `on` a Light
-  (`Find.LightOn`, the `light` probe's test); `active` adds a ParticleSystem's playing or holding particles
+- **components** (`ComponentsQuery`; the original's registered components of a class): with `component`, the components
+  whose type, a base type or an interface has that name (`Find.Components`: `FindObjectsByType` of each type of that
+  name, of each component type that implements an interface, `Reflect.ComponentsImplementing`, then `Reflect.IsA`); with
+  `effect` alone, of every effect type the build has (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect,
+  DecalProjector; the last two by reflection, so the probe needs neither package), `effect: true` keeping the live ones
+  (`Effects.Live`). A field reads the component as an object's reads one part, with Unity's components in the original's
+  places: `extent_*` a Renderer's, Collider's or Collider2D's world bounds; `simulating` the Rigidbody or Rigidbody2D it
+  is or is attached to (`Find.Simulates`); `changed`, `bounds_change`, `pose_change` a Renderer; `intensity` and `on` a
+  Light (`Find.LightOn`, the `light` probe's test); `active` adds a ParticleSystem's playing or holding particles
   (`Effects.Live`) and an AudioSource's `isPlaying`.
 - **lit, glow** (`Glow`, `DrawnRender.Glow`; the original reads light components, mesh components through their
   material graphs, and particle systems):
@@ -260,16 +261,19 @@ original's, unchanged (`probes.py`).
     drawn renderer (`Effects.Live`: a particle system playing or holding particles, a TrailRenderer drawing points, a
     VisualEffect holding particles; a decal is no source). A Light's glow is its intensity in Unity's own units (the
     original's: candelas) times its colour's luminance (Rec. 709, linear), times its temperature's colour when the
-    project (`GraphicsSettings.lightsUseColorTemperature`) and the Light use it;
-  - a mesh (MeshRenderer, SkinnedMeshRenderer) is read from its material properties when every material's shader has
-    an interface the probe knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original
-    evaluates its material graphs), and no texture is on the property read: unlit (a name containing `unlit` in any
-    case, with `_BaseColor` or `_Color`, its texture `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a
-    declared `_EMISSION` keyword: the emission colour when the keyword is enabled, its texture `_EmissionMap`). A Shader
-    Graph (a shader named `Shader Graphs/...`, or tagged `ShaderGraphShader`) has neither, whatever its properties.
-    MaterialPropertyBlocks count (the slot's, then the renderer's); colours are linear in a linear project. The
-    brightest material counts over the renderer's whole local bounds: lit above a luminance of 0.01 (`Glow.Floor`, the
-    original's), glow that luminance times a quarter of the surface of its local bounds, scaled (m2);
+    project (`GraphicsSettings.lightsUseColorTemperature`) and the Light use it (`Find.LightColour`);
+  - a mesh (MeshRenderer, SkinnedMeshRenderer) is read from its material properties when every material's shader has an
+    interface the probe knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original evaluates
+    its material graphs), and no texture is on the property read: unlit (a name containing `unlit` in any case, with
+    `_BaseColor` or `_Color`, its texture `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a declared
+    `_EMISSION` keyword: the emission colour when the keyword is enabled, its texture `_EmissionMap`). A Shader Graph (a
+    shader named `Shader Graphs/...`, or tagged `ShaderGraphShader`) has neither, whatever its properties.
+    MaterialPropertyBlocks count (the slot's, then the renderer's); in a linear project a material's colour is made
+    linear unless its shader marks the property `[HDR]` (`Shader.GetPropertyFlags`), which Unity hands to the shader as
+    the material holds it, and a block's colour is made linear (a block knows no shader). The brightest material counts
+    over the renderer's whole box: lit above a luminance of 0.01 (`Glow.Floor`, the original's), glow that luminance
+    times a quarter of the surface of the box a glow render frames (`DrawnRender.LocalBox`: its local bounds turned and
+    scaled with it, a skinned mesh's in its root bone's frame; m2);
   - a mesh with a texture on the property read (unless its colours alone are at or under the floor: dark) or with
     another shader, any other part (a sprite, a line: what it draws is its own, not its material's), and every live
     effect: as rendered (`DrawnRender.Glow`, the `drawn` render below; the original's scene capture): the renderer alone
