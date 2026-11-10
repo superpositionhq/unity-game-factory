@@ -125,7 +125,7 @@ The validator's rules beyond the original's (`probe_errors`, `task_semantic_erro
   or prefab's objects); its select takes no `player` and no `near` around the player or the camera, since a scene as
   saved has neither, as it takes no `has` (the original's rule);
 - a screen rect has x0 < x1 and y0 < y1; a player measure's `dist` has its `to`; a measure sets `to_angle` or
-  `to_axis`, not both;
+  `to_axis`, not both, and `window` or `at`, not both;
 - every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`; the original compiles
   a ui select's only), so none can stop the task check;
 - the task's `player` select names no `player` and no point on the player (it says which object the player is);
@@ -295,17 +295,19 @@ original's, unchanged (`probes.py`).
 - **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings
   of the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and
   layer mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when
-  it updates by script (`camera_stack`); read as the constants URP's ColorGradingLutPass prepares: `color_balance`
-  (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral), `color_filter` (linear
-  rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`, `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb),
-  `tonemapping` (its mode's name). A camera with post-processing off gives neutral constants. The value also holds
-  `sun` (`{name, color, intensity, temperature, use_temperature, lit_color}` of the strongest directional light that
-  is on, or null), `sky` (`{mode, color, intensity}`), `fog` (`{enabled, density, color, mode}`), `source`,
-  `pipeline`, `post_processing`, `grading_mode` (`ldr`, `hdr`); colours are linear. A `post:<Component>.<parameter>`
-  asked for is the parameter's value after blending (one no volume overrides reads the component's default): the
-  component by its type's name among `VolumeManager.baseComponentTypeArray` (any case as a fallback), the parameter a
-  field of that name, a third part a member of its value (`.r`-`.a` of a colour, `.x`-`.w` of a vector); a name that
-  doesn't resolve, or a colour or vector without its part, is null and a `query_errors` line. The checker computes
+  it updates by script (`camera_stack`); `source` is `none` when there is no stack to read (no URP, no camera, or
+  URP's volume framework not set up yet, as at a play's first sample). The stack is read as the constants URP's
+  ColorGradingLutPass prepares: `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation`
+  (multipliers, 1 neutral), `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`,
+  `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off
+  gives neutral constants. The value also holds `sun` (`{name, color, intensity, temperature, use_temperature,
+  lit_color}` of the strongest directional light that is on, or null), `sky` (`{mode, color, intensity}`), `fog`
+  (`{enabled, density, color, mode}`), `source`, `pipeline`, `post_processing`, `grading_mode` (`ldr`, `hdr`); colours
+  are linear. A `post:<Component>.<parameter>` asked for is the parameter's value after blending (one no volume
+  overrides reads the component's default): the component by its type's name among
+  `VolumeManager.baseComponentTypeArray` (any case as a fallback), the parameter a field of that name, a third part a
+  member of its value (`.r`-`.a` of a colour, `.x`-`.w` of a vector); a name that doesn't resolve, or a colour or
+  vector without its part, is null and a `query_errors` line. The checker computes
   `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast` (`colour.colour`) from a neutral grey 0.18 lit by the key
   light's hue (the sun's `lit_color`, else its colour, else the sky's), run through URP's ColorGrade order: post
   exposure (2^EV, which URP applies before the grading lookup) and LDR grading's saturate, LMS balance, contrast in
