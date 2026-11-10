@@ -200,11 +200,6 @@ EXCHANGED = ('unity-probe-play/1', 'unity-probe/1', 'game-probe-queries/1')   # 
 EXCHANGE_MARKS = ('"format": "unity-probe', '"format": "game-probe-queries', '"nonce":')
 
 
-def measure_def(probe):
-    return next((n for n, d in DEFS.items() if n.endswith('Measure') and d['properties']['probe'].get('const') == probe),
-                None)
-
-
 def classify(v):
     """What an example is: a definition of the task schema, 'task', 'assets-manifest', 'exchange' (a file the probe
     and the checker exchange), 'select' (any select), or None."""
@@ -219,7 +214,7 @@ def classify(v):
     if v.get('kind') in CHECKS and 'name' in v:
         return CHECKS[v['kind']]
     if 'probe' in v:
-        return measure_def(v['probe'])
+        return kinds().get(v['probe'])
     if 'name' in v and 'seconds' in v:
         return 'TaskPlay'
     if 't' in v:
@@ -313,7 +308,7 @@ def value_problems(v):
 
 
 def members(code):
-    """(key, json text) when a span is one or more members of an object ("weight": 0), else None."""
+    """[(key, value)] when a span is one or more members of an object ("weight": 0), else None."""
     if not re.match(r'"[A-Za-z_]+"\s*:', code):
         return None
     try:
@@ -343,9 +338,9 @@ def member_schemas(key):
     return found
 
 
-def example_problems(text, strict=True):
+def example_problems(text):
     """[(line, snippet, problem)] for every JSON example of a document: its `json` blocks and its inline spans that
-    are an object or members of one."""
+    are an object or members of one. A brace span without a quoted key ({root}, {name, color}) is no JSON example."""
     out = []
 
     def check(line, snippet):
@@ -383,7 +378,7 @@ def example_problems(text, strict=True):
             check(at, part)
     for line, code in spans(text):
         if code.startswith('{'):
-            if strict or '"' in code:               # {root} and the like are not JSON examples
+            if '"' in code:
                 check(line, code)
         else:
             for key, v in members(code) or []:
@@ -427,11 +422,9 @@ def path_problems(text, files, skip=lambda line, name: False):
     for f in files:
         names.setdefault(f.rsplit('/', 1)[-1], []).append(f)
     body = prose(text)
-    seen = set()
     for rx in (PATH, UNDER_ROOT):
         for m in rx.finditer(text):
             p = m.group(1).replace('\\', '/').rstrip('.')
-            seen.add(m.start(1))
             if p not in files and not any(f.startswith(p.rstrip('/') + '/') for f in files):
                 out.append((line_of(text, m.start()), m.group(1), f'{p} is not in the repo'))
     for m in SCRIPT.finditer(body):
@@ -541,10 +534,6 @@ def words(text):
     return out | {w[:-1] for w in out if w.endswith(':')}
 
 
-def documented(word, names):
-    return word in names
-
-
 def undocumented(text):
     """[(what, word, where it should be)] for everything of the task schema docs/task-probes.md doesn't name where a
     reader looks for it."""
@@ -552,7 +541,7 @@ def undocumented(text):
 
     def need(what, names, num):
         have = words(secs[num][2]) if num in secs else set()
-        out.extend((what, n, f'section {num}') for n in sorted(names) if not documented(n, have))
+        out.extend((what, n, f'section {num}') for n in sorted(names) if n not in have)
 
     for kind, name in sorted(kinds().items()):
         if kind not in ks:
@@ -685,7 +674,7 @@ class Examples(unittest.TestCase):
     def test_examples(self):
         for rel in DOCS:
             with self.subTest(doc=rel):
-                problems = example_problems(read(rel), strict=rel != CONTRACT)
+                problems = example_problems(read(rel))
                 self.assertFalse(problems, show(rel, problems))
 
 
@@ -775,8 +764,8 @@ class Frontmatter(unittest.TestCase):
 class TheChecksCanFail(unittest.TestCase):
     """E. Each check, on a small document with one thing wrong."""
 
-    def bad(self, text, **kw):
-        return [p for _, _, p in example_problems(text, **kw)]
+    def bad(self, text):
+        return [p for _, _, p in example_problems(text)]
 
     def test_examples(self):
         good = ('```json\n{"probe": "player", "field": "y", "window": [3, 18], "agg": "min"}\n```\n'
