@@ -663,9 +663,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   - "`has` needs a running game: the editor pass can't match it";
   - "a `near` point on the player or the camera needs a running game: use {"xyz": [x, y, z]}".
   Any other failure in the pass reads as its exception's type and message (`<type>: <message>`). A value that reads no
-  number fails too: "the property has no number" (an `asset` field without a value, or a
-  string read without `match`), "no selected object has a value" (rows without a value, or none, under `of` `min`,
-  `max`, `mean` or `first`).
+  number fails too: "the property has no number" (an `asset` field without a value, or a string read without
+  `match`), "no selected object has a value" (rows without a value, or none, under `of` `min`, `max`, `mean` or
+  `first`).
 - Floats come back as stored (`_BaseColor.r` set to 0.2 reads 0.19999995827674866): compare with a tolerance
   (`>=`/`<=` a little either side), never `==` on a fraction.
 - URP rewrites some material values on import: a material created with `_EMISSION` but default global illumination
