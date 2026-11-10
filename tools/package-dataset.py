@@ -604,6 +604,30 @@ def write_git_log(bare, head, out_file, header):
     return commits
 
 
+def history_texts(bare, refs):
+    """(where, text) of every commit message and every text blob reachable from refs but not from main (Git LFS
+    pointers and blobs of 256 MB or more left out): what git.log, which the scan reads, does not show. git.log holds
+    every message and every added line of main's history; a start branch's own commits are in the bundle alone."""
+    for chunk in git(bare, 'log', '--format=%H%x00%B%x00', *refs, '--not', 'refs/heads/main').decode('utf-8', 'replace').split('\0\n'):
+        sha, _, msg = chunk.partition('\0')
+        if sha.strip():
+            yield f'message {sha.strip()[:12]}', msg
+    first = {}
+    for line in git(bare, 'rev-list', '--objects', *refs, '--not', 'refs/heads/main').decode('utf-8', 'replace').splitlines():
+        if len(line) > 41 and line[40] == ' ':
+            first.setdefault(line[:40], line[41:])
+    cat = CatFile(bare)
+    try:
+        for oid, path in first.items():
+            kind, data = cat.read(oid)
+            if kind != 'blob' or not data or len(data) >= (256 << 20) or (len(data) < 300 and data.startswith(LFS_MAGIC)):
+                continue
+            if is_text(path, data[:8000]):
+                yield f'{path} {oid[:12]}', decode(data)[0]
+    finally:
+        cat.close()
+
+
 def lfs_pointers(bare, refs):
     """{oid: size} of every Git LFS pointer in every commit reachable from refs."""
     objs = git(bare, 'rev-list', '--objects', *refs).decode('utf-8', 'replace').splitlines()
@@ -1129,6 +1153,10 @@ def package(args):
         else:
             for off, needle, run in scan_binary(full, needles):
                 bin_hits.append((rel, off, needle, run))
+    # the bundle's commits that git.log does not show: the start branches' own messages and text blobs
+    for where, text in history_texts(bare, refs):
+        for mm in list(enforced.finditer(text))[:20]:
+            hits.append((f'History/{game}.bundle', 'history', where, text[max(0, mm.start() - 60):mm.end() + 60].replace('\n', ' ')))
     tsv = lambda rows: ''.join('\t'.join(str(x) for x in r) + '\n' for r in rows)   # noqa: E731
     write_text(os.path.join(scratch, f'{game}.binary-hits.tsv'), 'path\toffset\tname\tprintable_run\n' + tsv(bin_hits))
     strings = [h for h in bin_hits if h[3] >= 8]
