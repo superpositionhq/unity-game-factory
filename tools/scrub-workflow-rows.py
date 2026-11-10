@@ -56,11 +56,13 @@ def rules():
         ('agent', re.compile(r'(?i)\b(?:openai[ -])?codex[ -](?:cli|exec)\b|\bopenai codex\b'), 'agent'),
         ('agent', re.compile(r'(?i)\bgpt-\d+(?:\.\d+)?(?:-[a-z0-9]+)*\b'), 'agent-model'),
         ('provider', re.compile(r'(?i)\bopenai\b'), 'provider'),
-        # file names are not addresses: Unity names a model's animation files <model>@<clip>.fbx (with their .meta)
+        # file names are not addresses: Unity names a model's animation files <model>@<clip>.fbx (with their .meta), the
+        # clips and controllers made from them keep the @, and so do packs' other files; a name with another .ext after
+        # the "domain" (Hero@Run.Fast.fbx) is a file too
         ('email', re.compile(r'(?<![A-Za-z0-9._%+-])(?!git@|noreply@github\.com)[A-Za-z0-9._%+-]+@'
                              r'(?!(?:[A-Za-z0-9-]+\.)*(?:example\.(?:com|org|net)|invalid|test|localhost)\b)'
-                             r'(?:[A-Za-z0-9-]+\.)+(?!(?:png|jpe?g|fbx|meta|unity|prefab|asset|mat|json|py|ps1|md|txt)\b)'
-                             r'[A-Za-z]{2,}\b'), '<email>'),
+                             r'(?:[A-Za-z0-9-]+\.)+(?!(?:png|jpe?g|tga|psd|fbx|obj|blend|meta|unity|prefab|asset|mat|anim'
+                             r'|controller|wav|ogg|json|py|ps1|md|txt)\b)[A-Za-z]{2,}\b(?!\.[A-Za-z0-9])'), '<email>'),
     ]
     if user and len(user) >= 3:
         out.append(('user', re.compile(r'(?i)' + word % re.escape(user)), '<user>'))
