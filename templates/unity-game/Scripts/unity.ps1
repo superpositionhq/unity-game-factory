@@ -55,8 +55,12 @@ function Invoke-Unity([string]$Label, [string]$Log, [string[]]$More, [switch]$Gr
 }
 function Show-Errors([string]$Log) {
   if (-not (Test-Path $Log)) { Write-Host "no log: $Log"; return }
-  Select-String -Path $Log -Pattern 'error CS\d+|Exception|Aborting batchmode|Scripts have compiler errors|executeMethod .* could not be found|another Unity instance|[Ll]icens(e|ing) .*(error|fail)|\[workflow\]' |
+  Select-String -Path $Log -Pattern 'error CS\d+|\w+Exception: |Aborting batchmode|Scripts have compiler errors|executeMethod .* could not be found|another Unity instance|No valid Unity Editor license|\[workflow\]' |
     Select-Object -Last 40 | ForEach-Object { $_.Line.Trim() }
+  # Unity exits 198 without a licence: say so plainly, it is the person's to fix, not the game's
+  if (Select-String -Path $Log -Pattern 'No valid Unity Editor license' -Quiet) {
+    Write-Host 'LICENCE: no activated Unity licence. Unity Hub > sign in > Settings > Licenses > Add (a free Personal licence is fine), then run this again.'
+  }
 }
 function Done([int]$Code) { Write-Host "exit code $Code ($([int]((Get-Date) - $t0).TotalSeconds) s)"; exit $Code }
 
@@ -138,7 +142,7 @@ exit `$p.ExitCode
     else { & $Heavy -Label "__SLUG__ play $Tag" -- powershell -NoProfile -ExecutionPolicy Bypass -File $wrap *> $null }
     $code = $LASTEXITCODE
     if (Test-Path $log) { Select-String -Path $log -Pattern 'Exception|Error' | Select-Object -Last 20 | ForEach-Object { $_.Line.Trim() } }
-    if ($code -eq 124) { Write-Host "stopped after $Seconds s (the game did not quit by itself)" }
+    if ($code -eq 124) { Write-Host "stopped after $Seconds s (the game did not quit by itself; expected unless the run ends itself, e.g. AutoPlay)" }
     Done $code
   }
 }

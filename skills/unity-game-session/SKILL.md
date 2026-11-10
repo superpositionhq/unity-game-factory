@@ -63,6 +63,14 @@ by hand under these rules, or ask.
   Visual Studio 2022's C++ workload; Mono builds need neither. `-runTests` must not be combined with `-quit` (the test
   run quits by itself). A batchmode run with compile errors aborts before your method runs: read `error CS` lines in its
   log first. `-nographics` cannot render: no screenshots, no lightmap bake, no shader warm-up from it.
+- The first player build changes tracked files, and that is expected: URP writes its shader-stripping choices into
+  the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
+  Unity writes the platform's batching entry into `ProjectSettings.asset`. Commit them with the build's row; later
+  builds change them only when the rendering settings change. `unity.ps1 play` exits 124 when it stops a player after
+  `-Seconds`: that is the timeout doing its job, not a crash (read the player log for exceptions).
+- Unity's paths under `Library/PackageCache/` are long, and the editor fails past 260 characters even with Windows
+  long paths enabled (a package then fails to import with `DirectoryNotFoundException`): keep the machine root short
+  (the default `C:\Users\<you>\UnityWork` is fine) and never build a game from a deep folder.
 - Never edit anything under `<UGF_ROOT>\.recording\`.
 
 ## Engine and content

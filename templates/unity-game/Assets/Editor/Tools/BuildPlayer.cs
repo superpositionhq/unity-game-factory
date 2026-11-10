@@ -34,6 +34,13 @@ namespace __PROJECT__.EditorTools
                 return;
             }
 
+            // A fresh folder every time: Unity refuses to build IL2CPP over a Mono build (and the reverse) in one folder.
+            // Only a folder under the project's Build/ is ever cleared.
+            var fullOut = Path.GetFullPath(outDir);
+            var buildRoot = Path.GetFullPath(Path.Combine(WorkflowLog.ProjectRoot, "Build")) + Path.DirectorySeparatorChar;
+            if (Directory.Exists(fullOut) && fullOut.StartsWith(buildRoot, StringComparison.OrdinalIgnoreCase))
+                Directory.Delete(fullOut, true);
+
             var target = NamedBuildTarget.Standalone;
             var before = PlayerSettings.GetScriptingBackend(target);
             PlayerSettings.SetScriptingBackend(target, backend == "il2cpp" ? ScriptingImplementation.IL2CPP : ScriptingImplementation.Mono2x);

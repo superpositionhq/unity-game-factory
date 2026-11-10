@@ -80,6 +80,9 @@ namespace __PROJECT__.EditorTools
             PlayerSettings.defaultScreenWidth = 1920;
             PlayerSettings.defaultScreenHeight = 1080;
             PlayerSettings.usePlayerLog = true;
+            // The project's own backend stays Mono (fast iteration); BuildPlayer switches to IL2CPP for a release build
+            // and puts this back. Set explicitly so that put-back writes nothing new into ProjectSettings.asset.
+            PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
 
             // Input System package only (the old Input Manager off): 1 = new, 2 = both. No public API sets it.
             var playerSettings = Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings");

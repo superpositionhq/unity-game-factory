@@ -31,6 +31,8 @@
 /sysinfo.txt
 /crashlytics-build.properties
 /Assets/AssetStoreTools*
+# left behind by every test run (the performance-testing package the test framework pulls in)
+/Assets/Resources/PerformanceTestRun*
 __pycache__/
 *.pyc
 # generated export for review (recreate with git log); the dataset's git.log is built by the packager
