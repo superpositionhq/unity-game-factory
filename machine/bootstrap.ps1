@@ -310,10 +310,11 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged) -and -not $Yes) {
     Write-Host "    - A session that works on a game (a tool call naming $Root\games\<slug>) has every tool call recorded"
     Write-Host "      (command, file paths, inputs, results, times) to $Root\.recording\<slug>\actions.jsonl, including its"
     Write-Host "      earlier calls, imported from its transcript; at the end of each turn its uncommitted work is committed as WIP."
-    Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl."
+    Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl (this run adds"
+    Write-Host "      it to every game repo whatever the answer; removing its line from .git\hooks\post-commit stops it)."
     Write-Host "    - Sessions that never touch a game folder under $Root are not recorded; session ids in"
     Write-Host "      hooks\recording-exclude.txt never are. Other hooks in those files (e.g. the Unreal game-factory's) stay as they are."
-    Write-Host "    These records become the game-creation dataset. Remove the entries from those files to stop recording."
+    Write-Host "    These records become the game-creation dataset. Remove the entries from those files to stop recording tool calls."
     $ok = $false
     if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) { $ok = (Read-Host '  Install the recording hooks? [y/N]') -match '^(y|yes)$' }
     if (-not $ok) {
