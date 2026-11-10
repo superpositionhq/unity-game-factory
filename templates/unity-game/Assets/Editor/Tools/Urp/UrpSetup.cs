@@ -38,11 +38,16 @@ namespace __PROJECT__.EditorTools.Urp
             }
 
             GraphicsSettings.defaultRenderPipeline = pipeline;
+            // What URP itself writes the first time it renders (light units for Linear colour, the pipeline's MSAA in
+            // the quality level): set here, so the first step that renders or builds does not change these files.
+            GraphicsSettings.lightsUseLinearIntensity = true;
+            GraphicsSettings.lightsUseColorTemperature = true;
             var current = QualitySettings.GetQualityLevel();
             for (var i = 0; i < QualitySettings.names.Length; i++)
             {
                 QualitySettings.SetQualityLevel(i, false);
                 QualitySettings.renderPipeline = pipeline;
+                QualitySettings.antiAliasing = pipeline.msaaSampleCount > 1 ? pipeline.msaaSampleCount : 0;
             }
             QualitySettings.SetQualityLevel(current, false);
             AssetDatabase.SaveAssets();
