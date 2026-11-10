@@ -9,9 +9,9 @@ What is not checked, so a green run does not claim it:
   which holds each name to the schema as a whole; an example that uses it there is caught;
 - the files the probe and the checker exchange have no schema. CONTRACT.md section 5's examples of them are held to
   what the checker's own functions write and read and to the keys, flags and log lines the probe's sources name
-  (part E); anywhere else a snippet of one is only told apart from task JSON. Of the build's result only what the
-  checker reads is held (`ok`, `error`, `missing`), and of a row in probe.json only that the checker reads a value
-  from it: what the engine writes is the probe tests' to show (tools/task_check/probe_tests);
+  (part E); anywhere else a snippet of one is only told apart from task JSON. Of a row in probe.json only that the
+  checker reads a value from it is held: what the engine writes is the probe tests' to show
+  (tools/task_check/probe_tests);
 - a sketch (a snippet that leaves values out: {"name": ..., "seconds": ...}, {"t", "key", "press"}, an input shown
   without its time) is held to its keys only: each object in it must be a part of the task format with those keys.
   An example written out in full is held to the schema and the validator's rules.
@@ -796,8 +796,12 @@ def build_request_problems(found):
 
 
 def build_result_problems(found):
-    """What the checker reads of a build's result (unity.Project.build, check.py): `ok`, `error`, `missing`."""
-    out = [] if isinstance(found.get('ok'), bool) else ['`ok` is not true or false']
+    """Why a build's result is not what Build.cs writes (its keys) and the checker reads (unity.Project.build,
+    check.py: `ok`, `error`, `missing`)."""
+    wrote = set(re.findall(r'\["(\w+)"\]\s*=', read(READS_FLAG['-taskProbeBuild'])))
+    out = [f'Build.cs writes no key "{k}"' for k in found if k not in wrote]
+    if not isinstance(found.get('ok'), bool):
+        out.append('`ok` is not true or false')
     if found.get('ok') is True and found.get('error') is not None:
         out.append('`ok` is true and it has an `error`')
     if not isinstance(found.get('missing'), dict):
@@ -1169,6 +1173,7 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertTrue(build_result_problems(but(built, 'ok', to='yes')))
         self.assertTrue(build_result_problems({**built, 'error': 'the player build failed'}))
         self.assertTrue(build_result_problems(but(built, 'missing', to=[])))
+        self.assertTrue(build_result_problems({**built, 'warnings': 0}))                               # a key it lacks
 
         core = 'Log("the play ended: " + reason); Probe.Log("teleported next to " + name);'
         log = '0.00 [0.2 s] teleported next to Lamp_1: asked (1.00, 0.00, 2.00)\n10.53 [12.9 s] the play ended: time'

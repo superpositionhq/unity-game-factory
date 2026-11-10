@@ -660,23 +660,27 @@ and a build that failed serves only the scenes it was given: `check.Built`):
  "result": "C:/tc/38e8bcd7/ff49e5194fe4/Logs/TaskProbe/build.json"}
 ```
 
-A real result (of a small two-scene project, its folder written as a copy's):
+The result of a small two-scene project (its folder written as a copy's; a real build's values, in the keys and
+the order the build writes):
 
 ```json
-{"ok": true, "scenes": ["Assets/Scenes/Menu.unity", "Assets/Scenes/Smoke.unity"], "missing": {},
- "exe": "C:/tc/9d1f2a3b/5c1e0a7f2b44/Build/TaskProbe/Game.exe", "errors": 0, "warnings": 0, "seconds": 20}
+{"ok": true, "exe": "C:/tc/9d1f2a3b/5c1e0a7f2b44/Build/TaskProbe/Game.exe",
+ "scenes": ["Assets/Scenes/Menu.unity", "Assets/Scenes/Smoke.unity"], "errors": 0, "seconds": 20, "error": null,
+ "missing": {}}
 ```
 
 - The request: `out` (default `<project>/Build/TaskProbe`, deleted first), `scenes` (the scenes the task's plays open:
   `check.task_scenes`), `result` (default `<project>/Logs/TaskProbe/build.json`). An unreadable request: exit 2, no
   result.
-- The result, written by `Build.Player` (compact): `ok` always; before the build `scenes` (the project's enabled build
-  scenes that exist, then the requested ones they lack that exist; a missing one only warns in the log) and `missing`
-  (each requested scene that names assets the project lacks, with its own `missing`, the GUIDs its file names, built-in
-  ones aside, with no file behind them in the AssetDatabase, and `names`, how many it names); after it `exe`,
-  `errors`, `warnings`, `seconds`; `error` only on a failure (`no scene to build: ...`, an exception, or `the player
-  build failed: <its first error>`). Unity exits 0 when `ok`, else 1; scripts that don't compile stop it before the
-  method runs (exit 1, no result).
+- The result, written by `Build.Player` (compact), always holds `ok`, `exe`, `scenes`, `errors`, `seconds`, `error`
+  and `missing`, each null or empty until the build reaches it: before the build `scenes` (the project's enabled
+  build scenes that exist, then the requested ones they lack that exist; a missing one only warns in the log) and
+  `missing` (each requested scene that names assets the project lacks, with its own `missing`, the GUIDs its file
+  names, built-in ones aside, with no file behind them in the AssetDatabase, and `names`, how many it names); after
+  it `exe`, `errors`, `seconds`; `error` stays null unless it failed (`the build folder <out> isn't in the project's
+  Build folder`, `no scene to build: ...`, an exception, or `the player build failed: <its first error>` or `was
+  cancelled`). Unity exits 0 when `ok`, else 1; scripts that don't compile stop it before the method runs (exit 1,
+  no result).
 - The checker counts a build passed when Unity exited 0 and the result says `ok`; a result that says it failed fails the
   build whatever the exit code, its `error` at the head of the kept `build.log`. A failed build's reason names its first
   cause in one line (`unity._cause`): the result's `error`, else the log's first compiler error
