@@ -265,9 +265,12 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
   widgets or UI elements combine within one sample: `count` (how many match and have a non-zero value), `any`, `all`,
   `min`, `max`, `mean`, `sum`, `first`. **Default `count`.** A measure that reads a value (a position, an extent, a
   `prop:`, a text match, a percent) needs `"of": "first"` or another value reducer, or it counts instead of reading.
-  With `"field": "count"`, `of` is ignored. Objects and components match in hierarchy order: by scene, then the root's
-  place in its scene, then sibling order. That order is the same in every play of one build, but the fix may change
-  the scene: select the one you mean (by name, tag or `near`) rather than take the first of a broad select.
+  With `"field": "count"`, `of` is ignored. Objects and components match in hierarchy order: the scenes in the order
+  they were loaded, the DontDestroyOnLoad scene last; in a scene, its roots in the order the built player lists them
+  (`Scene.GetRootGameObjects`), which is neither the Hierarchy window's order in the editor nor the order the objects
+  were made in; below a root, sibling order; several components of one object in the Inspector's order. That order is
+  the same in every play of one build, but the fix may change the scene: select the one you mean (by name, tag or
+  `near`) rather than take the first of a broad select.
 - **Every match counts, past 200.** The probe keeps at most 200 rows a sample in `probe.json` but reads every match:
   `"field": "count"` is the whole selection's size, and `of` (`count`, `any`, `all`, `min`, `max`, `mean`, `sum`) reads
   every match's value from the probe's summary of them (the sample's `total` and `full`). Only `"of": "first"` and
