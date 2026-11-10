@@ -140,7 +140,7 @@ NavMesh data) gets its own LFS pattern before its first commit.
 
 ## The WIP auto-commit
 
-The Stop hook (`record-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a game
+The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a game
 repo as `WIP` at the end of every turn.
 It is a safety net so nothing is lost, not a way of working: a `WIP` commit carries no reason and no row ids, and it
 reads as sloppy in the dataset's `git.log`. If one of yours appears, say in your next commit's body what the WIP
