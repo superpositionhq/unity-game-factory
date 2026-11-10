@@ -69,12 +69,12 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
 - **One Unity process per project.** Unity locks a project folder while it has it open (`Temp/UnityLockfile`). The
   checker opens only its own scratch copies, one job at a time, never your checkout, so an editor open on the game
   doesn't stop it.
-- Time: two builds and a few plays per task: 7 minutes for a near-empty URP project and 18 for a small game (the
-  factory's sample, nine plays) on the machine this was measured on, much longer for a real game with many or large
-  assets. Most of a build is a scratch copy's first build importing every asset into the copy's own `Library/` (2 to 5
-  minutes in those two). Within one run, a later copy starts from the import cache of a copy that was already built
-  (Unity's cache is keyed by each asset's content and import settings, and is never part of the game: both copies stay
-  exactly as committed), so it imports only what differs. A commit shared by several tasks of one run is built once.
+- Time: two builds and a few plays per task: 7 minutes for a near-empty URP project, 18 and 31 for the two tasks of a
+  small game (the factory's sample) on the machine this was measured on, longer for a real game with many or large
+  assets. Half of it or more is the builds (2 to 13 minutes each in those runs): a scratch copy's first build imports
+  every asset into the copy's own `Library/`. Within one run, a later copy starts from the import cache (`Library/`) of
+  a copy already built; Unity's cache is keyed by each asset's content and import settings and is never part of the
+  game, so both copies stay exactly as committed. A commit shared by several tasks of one run is built once.
   A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
   build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
   `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
