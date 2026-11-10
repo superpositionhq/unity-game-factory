@@ -131,8 +131,8 @@ by hand under these rules, or ask.
   recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep.
 - **UI (user rule):** matches the game's art style: kit frames, icons, display fonts, styled numbers. UI Toolkit or
   uGUI with TextMeshPro, either is fine. No plain or default-font text on screen: never the default
-  `LiberationSans SDF` or the legacy Arial font; make a TextMeshPro font asset (or a UI Toolkit font asset) from the
-  game's own display font.
+  `LiberationSans SDF` or the built-in `LegacyRuntime` font; make a TextMeshPro font asset (or a UI Toolkit font asset)
+  from the game's own display font.
 - **Story (user rule):** a strong background story told in play, never a wall of text: environmental storytelling, at
   most one short line (under ~15 words) per area, optional discoverable details, a late payoff that recolours earlier
   play.
