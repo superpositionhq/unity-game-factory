@@ -4,8 +4,10 @@
 .DESCRIPTION
   Appends one line to <repo>\.git\hooks\post-commit that runs <hooks dir>\record-unity-commit.ps1, which writes every
   new commit to <root>\.recording\<repo name>\commits.jsonl. Git LFS's own post-commit lines stay first: when the hook
-  does not exist yet, `git lfs update` creates it before the line is appended. A repo whose hook already calls
-  record-unity-commit.ps1 is left alone (pass -Force to rewrite the line, e.g. after moving the hooks dir).
+  does not exist yet, `git lfs update` creates it before the line is appended. A repo whose hook already runs this
+  hooks dir's record-unity-commit.ps1 is left alone; a recorder line that names another hooks dir (moved since) is
+  replaced, and when another tool's hook ends in `exit` the line goes before it (after it, it never ran). -Force
+  rewrites the line in any case.
   record-unity-commit.ps1 exits at once when the committing checkout is on the orphan `tasks` branch (the game's
   tasks, docs/game-format.md): a commit there, e.g. from a tasks worktree, is not recorded.
   Not available yet: the per-commit live creation replay line (the Unreal factory has one). This script will add it
@@ -46,13 +48,13 @@ $marker = '# recording: append this commit to <root>/.recording/<repo>/commits.j
 
 $text = if (Test-Path -LiteralPath $hookPath) { [IO.File]::ReadAllText($hookPath) } else { "#!/bin/sh`n" }
 $text = $text -replace "`r`n", "`n"
-$hasRec = $text -match 'record-unity-commit\.ps1'
-if ($hasRec -and -not $Force) { Write-Host "post-commit already records commits: $hookPath"; return }
-if ($Force) {
-    # drop the old recorder line (and its comment), keep everything else
-    $text = (($text -split "`n") | Where-Object { $_ -notmatch 'record-unity-commit\.ps1' -and $_ -notmatch '^# .*recording' }) -join "`n"
-}
+if ($text.Contains($line) -and -not $Force) { Write-Host "post-commit already records commits: $hookPath"; return }
+# drop an older recorder line (one naming a hooks dir moved since: its commits went unrecorded) and its comment, keep
+# everything else
+$text = (($text -split "`n") | Where-Object { $_ -notmatch 'record-unity-commit\.ps1' -and $_ -ne $marker }) -join "`n"
 if (-not $text.EndsWith("`n")) { $text += "`n" }
-$text += "$marker`n$line`n"
+# another tool's hook that ends in `exit`: the line goes before it, or it never runs
+$end = [regex]::Match($text, '(?m)^[ \t]*exit([ \t]+0)?[ \t]*\n\z')
+if ($end.Success) { $text = $text.Substring(0, $end.Index) + "$marker`n$line`n" + $end.Value } else { $text += "$marker`n$line`n" }
 [IO.File]::WriteAllText($hookPath, $text, (New-Object Text.UTF8Encoding($false)))
 Write-Host "post-commit records commits via $script : $hookPath"
