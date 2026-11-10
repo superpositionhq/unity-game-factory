@@ -76,13 +76,18 @@ namespace __PROJECT__.EditorTools
         {
             Match id = null, seq = null;
             if (File.Exists(FilePath))
-                foreach (var line in File.ReadLines(FilePath))
+            {
+                // read beside another writer: File.ReadLines refuses a file that one has open, and the step then
+                // failed without its row (measured: a row appended by hand at that moment)
+                using var r = new StreamReader(new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
+                for (string line; (line = r.ReadLine()) != null;)
                 {
                     var m = Regex.Match(line, "\"id\"\\s*:\\s*\"([A-Za-z0-9]+)-(\\d+)\"");
                     if (!m.Success) continue;
                     id = m;
                     seq = Regex.Match(line, "\"seq\"\\s*:\\s*(\\d+)");
                 }
+            }
             if (id == null) throw new InvalidOperationException("workflow.jsonl has no rows: the project was not created by new-game.ps1");
             var n = int.Parse(id.Groups[2].Value, CultureInfo.InvariantCulture);
             return (id.Groups[1].Value, n, seq.Success ? int.Parse(seq.Groups[1].Value, CultureInfo.InvariantCulture) : n);
