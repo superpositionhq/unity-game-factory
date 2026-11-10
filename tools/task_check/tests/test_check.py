@@ -856,6 +856,32 @@ class Plays(unittest.TestCase):
             self.assertEqual(specs[1]["queries"], {"format": "game-probe-queries/1", "every": 0.5, "queries": []})
 
     @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
+    def test_a_plays_evidence_holds_its_spec_so_a_query_id_names_its_select(self):
+        task = task_with(probe("tower", measure={"probe": "objects", "select": {"name": "Tower_1"}, "field": "y",
+                                                 "at": "end"}),
+                         probe("sparks", measure={"probe": "components", "select": {"effect": True}, "field": "count",
+                                                  "agg": "max"}))
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "copy" / "Build" / "TaskProbe" / "Game.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+
+            def answer(argv, cwd):
+                spec = json.loads(Path(after(argv, "-taskProbe")).read_text(encoding="utf-8"))
+                (Path(spec["out"]) / "probe.json").write_text('{"format": "unity-probe/1", "ended": "time"}',
+                                                              encoding="utf-8")
+                return ""
+
+            evidence = Path(tmp) / "out" / "probe-task"
+            start = check.Side("start", unity.Project(Path(tmp) / "copy", FakeMachine(answer=answer), "t"), task, 60,
+                               60, evidence, lambda *a: None)
+            start._play("look", 20, 6, queries=probes.query_file(start.plan["look"]))
+            kept = json.loads((evidence / "start" / "look" / "play_spec.json").read_text(encoding="utf-8"))
+            self.assertEqual({q["id"]: (q["kind"], q["select"]) for q in kept["queries"]["queries"]},
+                             {q["id"]: (q["kind"], q["select"]) for q in start.plan["look"]})
+            self.assertEqual(sorted(q["kind"] for q in kept["queries"]["queries"]), ["components", "objects"])
+            self.assertTrue((evidence / "start" / "look" / "probe.json").is_file())
+
     def test_a_player_desk_py_couldnt_start_is_the_machines_error_never_a_play_with_no_samples(self):
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Build" / "TaskProbe" / "Game.exe"

@@ -47,6 +47,7 @@ DESK = HERE / "desk.py"  # runs the player on its own desktop
 BUILD_METHOD = "TaskProbe.EditorTools.Build.Player"
 ASSETS_METHOD = "TaskProbe.EditorTools.AssetPass.Run"
 SPEC_FORMAT = "unity-probe-play/1"
+SPEC = "play_spec.json"  # in LOGS: the last play's spec
 # A crash in a player log. A managed exception the game survives isn't one: log_absent checks for those.
 FATAL = r"Crash!!!|OUTPUTTING STACK TRACE|Fatal error|Out of memory"
 # Unity without an active licence logs this and exits 198 (templates/unity-game/Scripts/unity.ps1). Not "Licensing ...
@@ -374,7 +375,7 @@ class Project:
         spec = {"format": SPEC_FORMAT, "out": out.as_posix(), "seconds": seconds, "shots": shots, "every": every,
                 "scene": scene, "sound": probes.hears(queries), "player": player, "inputs": list(inputs or []),
                 "queries": queries or {"format": probes.QUERIES_FORMAT, "every": every, "queries": []}}
-        asked = _fresh(logs / "play_spec.json")  # beside the play's folder, so it isn't one of the files the play wrote
+        asked = _fresh(logs / SPEC)  # beside the play's folder, so it isn't one of the files the play wrote
         asked.write_text(json.dumps(spec, indent=2), encoding="utf-8")
         exe = self.player()
         if not exe.is_file():

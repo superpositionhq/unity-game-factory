@@ -279,8 +279,12 @@ class Side:
             self.log(f"  {self.name}: played {name} in {found.seconds:.0f} s"
                      + (f" ({waited:.0f} s of it waiting for a machine slot)" if waited >= 1 else ""))
             if self.evidence is not None:
+                # the play's spec too: probe.json keys its measures by query id, and only the spec says which id is
+                # which select (two components queries of one play, both empty, couldn't be told apart)
+                spec = self.project.read(f"{unity.LOGS}/{unity.SPEC}")
                 self._keep(name, {**found.files, "play.log": found.log.encode("utf-8"),
-                                  "output.txt": found.output.encode("utf-8")})
+                                  "output.txt": found.output.encode("utf-8"),
+                                  **({unity.SPEC: spec} if spec is not None else {})})
         return self.played[name]
 
     def idle(self, seconds):
