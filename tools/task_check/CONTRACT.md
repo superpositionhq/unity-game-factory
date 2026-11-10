@@ -569,7 +569,8 @@ python tools\task_check\desk.py <copy>\Build\TaskProbe\Game.exe -screen-fullscre
     <play args...>
 ```
 
-It runs with the checker's own Python, the player being the one the build's result names (else that path), through
+It runs with the checker's own Python and the player `Build/TaskProbe/Game.exe`, where the build was asked to put it
+(never a path the build's result names: the game's own editor code runs during the build and could write any), through
 `unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
 timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player
 on a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
@@ -586,7 +587,7 @@ read back, then the folder deleted.
 `<Unity.exe>` is the one the copy's `ProjectVersion.txt` names (`ugfroot.unity_editor`), through
 `unity-heavy.ps1 -Label "task-check build <commit[:12]>"` when the machine has it, with a timeout of `--build-timeout`
 (3600 s). The request (the reference's; a copy built for several tasks of a run lists every scene asked of it so far,
-`check.Built`):
+and a build that failed serves only the scenes it was given: `check.Built`):
 
 ```json
 {"out": "C:/tc/38e8bcd7/ff49e5194fe4/Build/TaskProbe", "scenes": ["Assets/Scenes/Yard.unity"],
@@ -611,8 +612,11 @@ A real result (of a small two-scene project, its folder written as a copy's):
   build failed: <its first error>`). Unity exits 0 when `ok`, else 1; scripts that don't compile stop it before the
   method runs (exit 1, no result).
 - The checker counts a build passed when Unity exited 0 and the result says `ok`; a result that says it failed fails
-  the build whatever the exit code, its `error` at the head of the kept `build.log`. A Unity without a licence (exit
-  198, or `No valid Unity Editor license` in its log) is the machine's error, never the game's: the task reads ERROR
+  the build whatever the exit code, its `error` at the head of the kept `build.log`. A failed build's reason names its
+  first cause in one line (`unity._cause`): the result's `error`, else the log's first compiler error
+  (`<file>(<line>,<column>): error CS<n>: ...`), else its first `## Script Compilation Error for:` line. The result's
+  `exe` is never started, and a `missing` of any other shape is left out. A Unity without a licence (exit 198, or `No
+  valid Unity Editor license` in its log) is the machine's error, never the game's: the task reads ERROR
   (`unity.Unlicensed`).
 - The build sets, for the copy only: the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's
   folder, lower-cased>` (`seeds.saves_company` computes the same); no splash screen; no static batching (a batched
@@ -726,7 +730,7 @@ package holds no `.meta` files, which Unity makes in the copy.
   in one editor start (`Setup.cs`), builds the player once as the checker does, runs each family's plays (each twice:
   two plays of one build must write the same probe.json) and editor pass through the checker's own `unity.py` and
   `desk.py`, checks every value and prints a pass/fail table (`probe_tests/README.md`). One folder per family of
-  measures; README.md gives a family's layout: `tests.py` (the manifest and the checks), `Editor/` (scene builders),
-  `Scripts/` (game scripts), `plays/` (play specs: section 5's without `format` and `out`, each query with an id of its
-  own) and a README saying what each play proves. In a test project each MonoBehaviour must be in its own file named
-  after it (several in one file made the player fail to load the scene).
+  measures; README.md gives a family's layout: `<family>/tests.py` (the manifest and the checks), `Editor/` (scene
+  builders), `Scripts/` (game scripts), `plays/` (play specs: section 5's without `format` and `out`, each query with
+  an id of its own) and a README saying what each play proves. In a test project each MonoBehaviour must be in its own
+  file named after it (several in one file made the player fail to load the scene).
