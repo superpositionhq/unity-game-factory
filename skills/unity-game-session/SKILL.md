@@ -226,7 +226,9 @@ bind the day it arrives; until then, do what each bullet says to do today.
   `Scripts/unity.ps1 play -Render -Scenario <n> -Seconds <s> -Extra "<flag>"`, where `<flag>` is a command-line
   argument of the game's own choosing that makes it save its own frames as JPG
   (`ScreenCapture.CaptureScreenshotAsTexture` after `WaitForEndOfFrame`, then `EncodeToJPG`;
-  `ScreenCapture.CaptureScreenshot` writes PNG); no retakes for looks. They are the README's screenshots too.
+  `ScreenCapture.CaptureScreenshot` writes PNG) under its working folder, `Build/Windows/`, which the next build
+  deletes: copy the ones you keep to `Docs/screenshots/` first. No retakes for looks; they are the README's screenshots
+  too.
 - **Never queue a recording yourself.** Only the coordinator queues recordings (one GPU recording at a time); the
   queue is not available yet, so never request or wait for one. Message the coordinator what is ready: commit sha,
   the scenarios that start with `-scenario <n>`, the release build's result, screenshot paths.
