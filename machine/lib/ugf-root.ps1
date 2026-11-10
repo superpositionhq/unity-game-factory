@@ -208,12 +208,14 @@ function Assert-UGFFreeSpace([string]$Path, [string]$What = 'this job') {
 }
 
 # Regex matching a path under the root in the spellings tool calls use: C:\a\b, C:/a/b, /c/a/b (Git Bash), /mnt/c/a/b.
+# The drive must start a path (not follow a letter, digit, dot or hyphen): D:/backup/c/a/b is not under C:\a\b, and
+# a path glued to an option (git -C/c/a/b) does not count either.
 # Append the part after the root yourself, e.g. (Get-UGFRootPattern) + '[\\/]+games[\\/]+([A-Za-z0-9_-]+)'.
 function Get-UGFRootPattern([string]$Root = (Get-UGFRoot)) {
     $full = [IO.Path]::GetFullPath($Root).TrimEnd('\')
     $drive = $full.Substring(0, 1)
     $rest = @($full.Substring(2).Split('\') | Where-Object { $_ } | ForEach-Object { [regex]::Escape($_) })
-    $head = "(?:$drive`:|/$drive|/mnt/$drive)"
+    $head = "(?<![\w.-])(?:$drive`:|/$drive|/mnt/$drive)"
     if ($rest.Count -eq 0) { return "(?i)$head" }
     return "(?i)$head[\\/]+" + ($rest -join '[\\/]+')
 }

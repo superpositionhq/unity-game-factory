@@ -108,7 +108,8 @@ creation replay (its post-commit line), the recording queue and its recorder, an
 ### Recording
 
 - **Mapping.** A session is filed under a project the first time a tool call's input (command, file path, cwd) names
-  `<root>\games\<slug>` (or an extra project) as an absolute path, in any spelling (`C:\...`, `C:/...`, `/c/...`).
+  `<root>\games\<slug>` (or an extra project) as an absolute path, in any spelling (`C:\...`, `C:/...`, `/c/...`),
+  starting a word: `D:/backup/c/...` or a path glued to an option (`git -C/c/...`) does not count.
   Variables such as `%UGF_ROOT%` are seen unexpanded and do not count. `templates/new-game.ps1` therefore requires the
   written-out `-Path <root>\games\<slug>`, and that call maps a new game's session.
 - **Backfill.** At that first mapping the hook imports the session's earlier tool calls (reading docs, drafting the
