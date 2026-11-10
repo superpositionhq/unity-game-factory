@@ -126,6 +126,9 @@ def make_game(repo):
     write(repo, 'ProjectSettings/ProjectVersion.txt', 'm_EditorVersion: 6000.3.26f1\nm_EditorVersionWithRevision: 6000.3.26f1 (x)\n')
     write(repo, 'ProjectSettings/ProjectSettings.asset', YAML.format('x') + '  companyName: Kiln Run\n  productName: Kiln Run\n')
     write(repo, 'ProjectSettings/NavMeshAreas.asset', YAML.format('areas'))   # YAML: plain git, as the template keeps it
+    write(repo, 'ProjectSettings/VersionControlSettings.asset', '%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n'
+          '--- !u!890905787 &1\nVersionControlSettings:\n  m_ObjectHideFlags: 0\n  m_Mode: Visible Meta Files\n'
+          '  m_TrackPackagesOutsideProject: 0\n')   # as Unity 6000.3 writes it on the first open
     write(repo, 'Packages/packages-lock.json', '{"dependencies": {}}\n')
     asset(repo, 'Assets/Scenes/Main.unity', YAML.format('Main'))
     asset(repo, 'Assets/Scripts/Kiln.cs', code('Kiln', 30))
@@ -336,11 +339,19 @@ class RepoRules(Base):
         es = os.path.join(self.repo, 'ProjectSettings/EditorSettings.asset')
         text = read(es).replace('m_SerializationMode: 2', 'm_SerializationMode: 1')
         write(self.repo, 'ProjectSettings/EditorSettings.asset', text.replace('Visible Meta Files', 'Hidden Meta Files'))
+        vcs = os.path.join(self.repo, 'ProjectSettings/VersionControlSettings.asset')
+        write(self.repo, 'ProjectSettings/VersionControlSettings.asset', read(vcs).replace('Visible', 'Hidden'))
         commit(self.repo, 'Downgrade')
         errs = errors(self.check(), 'repo')
         self.assertTrue(any("m_EditorVersion '2022.3.62f1'" in e for e in errs), errs)
         self.assertTrue(any('m_SerializationMode' in e for e in errs), errs)
-        self.assertTrue(any('m_ExternalVersionControlSupport' in e for e in errs), errs)
+        self.assertTrue(any(e.startswith("ProjectSettings/VersionControlSettings.asset: m_Mode is 'Hidden Meta Files'")
+                            for e in errs), errs)
+        self.assertFalse(any('m_ExternalVersionControlSupport' in e for e in errs), errs)   # the obsolete place
+        os.remove(vcs)
+        commit(self.repo, 'No mode')
+        self.assertTrue(any(e.startswith(r'missing ^ProjectSettings/VersionControlSettings\.asset$')
+                            for e in errors(self.check(), 'repo')))
 
     def test_gitignore_hides_assets(self):
         with open(os.path.join(self.repo, '.gitignore'), 'a') as f:

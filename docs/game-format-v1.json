@@ -27,7 +27,11 @@
       },
       {
         "pattern": "^ProjectSettings/EditorSettings\\.asset$",
-        "what": "Force Text serialization and Visible Meta Files"
+        "what": "Force Text serialization"
+      },
+      {
+        "pattern": "^ProjectSettings/VersionControlSettings\\.asset$",
+        "what": "Visible Meta Files (Unity keeps the mode here since 2020.1, VersionControlSettings.mode; EditorSettings' m_ExternalVersionControlSupport is the old, obsolete place)"
       },
       {
         "pattern": "^ProjectSettings/ProjectSettings\\.asset$",
@@ -79,14 +83,18 @@
     "editor_versions": [
       "6000.3"
     ],
-    "editor_settings": {
-      "m_SerializationMode": {
-        "value": "2",
-        "what": "Force Text: scenes, prefabs, materials and ScriptableObjects commit as diffable YAML"
+    "project_settings": {
+      "ProjectSettings/EditorSettings.asset": {
+        "m_SerializationMode": {
+          "value": "2",
+          "what": "Force Text: scenes, prefabs, materials and ScriptableObjects commit as diffable YAML"
+        }
       },
-      "m_ExternalVersionControlSupport": {
-        "value": "Visible Meta Files",
-        "what": "every asset's GUID and import settings live in its committed .meta"
+      "ProjectSettings/VersionControlSettings.asset": {
+        "m_Mode": {
+          "value": "Visible Meta Files",
+          "what": "every asset's GUID and import settings live in its committed .meta"
+        }
       }
     },
     "company_name_not": [

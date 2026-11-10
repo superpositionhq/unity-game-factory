@@ -598,6 +598,16 @@ def near_errors(label, o):
     return errs
 
 
+def live(o):
+    """Whether a select names the player or the camera anywhere in it (a `player` select, a point on either), which
+    only a running game has."""
+    if isinstance(o, dict):
+        return bool(o.get('player') or o.get('camera')) or any(live(v) for v in o.values())
+    if isinstance(o, list):
+        return any(live(v) for v in o)
+    return False
+
+
 def component_selects(measure):
     """The components selects of a measure (its own when it reads components)."""
     if measure.get('probe') == 'components' and isinstance(measure.get('select'), dict):
@@ -607,17 +617,19 @@ def component_selects(measure):
 def probe_errors(c, seed, ref, plays):
     """A probe check's rules beyond the schema (docs/task-probes.md):
     asset measures only with play "editor" and trace measures only with play "trace"; an asset measure reads one
-    `asset`, or the objects of one `scene` or `prefab` (with `select`, which takes no `has`), and the fields of that
-    one; a trace probe never gates and takes a literal value; a task play is not named look/drive/editor/trace, has no
-    input at or after its end, sets no flag of the checker's own, and same-named task plays are identical; == and !=
-    take a literal value; a screen measure's threshold is calibrated or relative to the start (the frame's luminance
-    moves between machines), and so is a pieces measure's triangles (they depend on the meshes a build chose) and
-    every NEVER_LITERAL field; a ground measure takes a point `xz` or a `box` and the fields of that one; a drawn
-    measure takes `near` or a `line` and the fields of that one; a components select names its component or `effect`;
-    a near's height band has y_min < y_max and `y_relative` only with one of them; a task play's waits add at most
-    300 s; a ui measure takes `match` exactly when it reads text, `agg` changes, any, all or count when it reads its
-    signature, regular expressions that compile and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a
-    calibrated threshold needs seed.reference and a start-relative one a seed."""
+    `asset`, or the objects of one `scene` or `prefab` (with `select`, which takes no `has`, no `player` and no `near`
+    around the player or the camera), and the fields of that one; a trace probe never gates and takes a literal value;
+    a task play is not named look/drive/editor/trace, has no input at or after its end, sets no flag of the checker's
+    own, and same-named task plays are identical; == and != take a literal value; a screen measure's threshold is
+    calibrated or relative to the start (the frame's luminance moves between machines), and so is a pieces measure's
+    triangles (they depend on the meshes a build chose) and every NEVER_LITERAL field; a screen rect [x0, y0, x1, y1]
+    has x0 < x1 and y0 < y1; a player measure's dist has its `to`; `to_angle` or `to_axis`, not both; a ground measure
+    takes a point `xz` or a `box` and the fields of that one; a drawn measure takes `near` or a `line` and the fields
+    of that one; a components select names its component or `effect`; a near's height band has y_min < y_max and
+    `y_relative` only with one of them; a task play's waits add at most 300 s; regular expressions that compile; a ui
+    measure takes `match` exactly when it reads text, `agg` changes, any, all or count when it reads its signature, and
+    a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a calibrated threshold needs seed.reference and a
+    start-relative one a seed."""
     errs, n = [], c.get('name')
     play = c.get('play')
     measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
@@ -642,6 +654,9 @@ def probe_errors(c, seed, ref, plays):
                         'mesh_collision or prop:')
         if isinstance(measure.get('select'), dict) and measure['select'].get('has') is not None:
             errs.append(f'check {n}: a scene as saved is read without its components drawn, so its select takes no `has`')
+        if live(measure.get('select')):
+            errs.append(f'check {n}: a scene as saved has no player or camera, so its select takes no `player` and no '
+                        '`near` around the player or the camera')
     rel = 'calibrate' if 'calibrate' in expect else ('start' if 'start_times' in expect or 'start_plus' in expect else None)
     if probe == 'trace' and (c.get('required', True) or rel):
         errs.append(f'check {n}: a trace probe never gates (required: false) and takes a literal value')
@@ -664,12 +679,19 @@ def probe_errors(c, seed, ref, plays):
     if probe == 'screen' and not rel:
         errs.append(f"check {n}: the frame's luminance moves between machines, so a screen measure's threshold is "
                     'calibrated or relative to the start, never a literal value')
+    rect = measure.get('rect')
+    if probe == 'screen' and isinstance(rect, list) and len(rect) == 4 and not (rect[0] < rect[2] and rect[1] < rect[3]):
+        errs.append(f'check {n}: a screen rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1')
     if probe == 'pieces' and field in PIECE_TRIANGLES and not rel:
         errs.append(f'check {n}: how many triangles a fair build draws depends on the meshes it chose, so a pieces '
                     "measure's triangles threshold is calibrated or relative to the start, never a literal value")
     if field in NEVER_LITERAL.get(probe, ()) and not rel:
         errs.append(f"check {n}: a {probe} measure's {field} depends on what a build chose, so its "
                     'threshold is calibrated or relative to the start, never a literal value')
+    if probe == 'player' and field == 'dist' and measure.get('to') is None:
+        errs.append(f"check {n}: a player measure's dist is the distance to its `to` point, which it lacks")
+    if measure.get('to_angle') is not None and measure.get('to_axis') is not None:
+        errs.append(f'check {n}: `to_angle` or `to_axis`, not both')
     if probe == 'ground':
         xz, box = measure.get('xz'), measure.get('box')
         if (xz is None) == (box is None):
@@ -692,17 +714,19 @@ def probe_errors(c, seed, ref, plays):
         if sel.get('component') is None and sel.get('effect') is None:
             errs.append(f'check {n}: a components select names its component, or `effect`')
     errs += near_errors(f'check {n}', [measure, play.get('inputs') if isinstance(play, dict) else None])
+    # every regular expression of the measure: the checker reads `match` and a log's `pattern` with Python's re (one
+    # that doesn't compile would stop the task check), the probe a select's `text` with .NET's (checked as Python reads it)
+    sel = measure.get('select') if isinstance(measure.get('select'), dict) else {}
+    for pattern in (measure.get('match'), measure.get('pattern'), sel.get('text')):
+        try:
+            re.compile(pattern) if isinstance(pattern, str) else None
+        except re.error as e:
+            errs.append(f"check {n}: {pattern!r} isn't a regular expression ({e})")
     if probe == 'ui':
-        sel = measure.get('select') if isinstance(measure.get('select'), dict) else {}
         if (field == 'text') != (measure.get('match') is not None):
             errs.append(f'check {n}: a ui measure takes `match` exactly when its field is text')
         if field == 'signature' and measure.get('agg') not in UI_SIGNATURE_AGGS:
             errs.append(f'check {n}: a ui signature is read with `agg` changes, any, all or count')
-        for pattern in (measure.get('match'), sel.get('text')):
-            try:
-                re.compile(pattern) if isinstance(pattern, str) else None
-            except re.error as e:
-                errs.append(f"check {n}: {pattern!r} isn't a regular expression ({e})")
         rect = sel.get('rect')
         if isinstance(rect, list) and len(rect) == 4 and not (rect[0] < rect[2] and rect[1] < rect[3]):
             errs.append(f'check {n}: a ui select rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1')
@@ -719,8 +743,9 @@ def probe_errors(c, seed, ref, plays):
 
 def task_semantic_errors(t):
     """What the schema cannot say (the task format's own rules): check names unique, `needs` naming earlier
-    checks, a code judge or a reference judge only with seed.reference, a before/after judge only with a seed, the
-    task's play_args and player select (no flag of the checker's own; near bands) and the probe rules (probe_errors);
+    checks, a code judge or a reference judge only with seed.reference, a before/after judge only with a seed, a
+    log_absent pattern that compiles, the task's play_args and player select (no flag of the checker's own; near
+    bands) and the probe rules (probe_errors);
     and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
     no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1)."""
     errs, seen, plays = [], set(), {}
@@ -753,6 +778,11 @@ def task_semantic_errors(t):
                 errs.append(f'check {n}: a before/after judge needs a seed')
             if k == 'judge' and c.get('reference') and not ref:
                 errs.append(f'check {n}: a reference judge needs seed.reference')
+            if k == 'log_absent':
+                try:
+                    re.compile(c.get('pattern') or '')
+                except re.error as e:
+                    errs.append(f"check {n}: {c.get('pattern')!r} isn't a regular expression ({e})")
             if n in seen:
                 errs.append(f'check {n} is named twice')
             missing = [x for x in (c.get('needs') or []) if x not in seen]
@@ -877,9 +907,13 @@ def thread_span_errors(repo, seed, on_main):
 
 
 def check_task(rep, a, label, t, game, has_commit):
-    """One whole task (GameTask): schema, the format's extra rules, seed on `game` and on known commits."""
-    for e in list(check_schema(t, SCHEMAS['game-task']))[:5]:
+    """One whole task (GameTask): schema, the format's extra rules, seed on `game` and on known commits. False when the
+    schema refuses it: the rest reads the values as the schema types them, so it waits until the task matches."""
+    problems = list(check_schema(t, SCHEMAS['game-task']))
+    for e in problems[:5]:
         rep.error(a, f'{label}: {e}')
+    if problems:
+        return False
     for e in task_semantic_errors(t)[:5]:
         rep.error(a, f'{label}: {e}')
     gated = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
@@ -905,6 +939,7 @@ def check_task(rep, a, label, t, game, has_commit):
             if c and has_commit is not None and not has_commit(c):
                 rep.error(a, f'{label}: seed.{k} {str(c)[:12]} is not a commit of this game\'s history'
                              + (' (an ancestor of main\'s head)' if a.startswith('repo') else ''))
+    return True
 
 
 TASKS_REFS = ('tasks', 'origin/tasks')   # where a game's tasks live: its orphan tasks branch, never main
@@ -967,7 +1002,8 @@ def check_repo_tasks(rep, repo, files=None):
         if t.get('name') != stem:
             rep.error(a, f'{label}: name {t.get("name")!r} differs from the file name')
         current['stem'] = stem
-        check_task(rep, a, label, t, game, has_commit)
+        if not check_task(rep, a, label, t, game, has_commit):
+            continue
         seed = t.get('seed') if isinstance(t.get('seed'), dict) else {}
         for k in ('commit', 'reference'):
             if seed.get(k) and has_commit(seed[k]):
@@ -1189,13 +1225,13 @@ def check_repo(rep, repo):
         else:
             rep.note('repo', f'{pv}: Unity {version}')
     # Force Text serialization and Visible Meta Files: scenes and prefabs diff as YAML, every asset keeps its GUID
-    es = 'ProjectSettings/EditorSettings.asset'
-    if es in tracked:
-        text = read_text(os.path.join(repo, es))
-        for key, want in R['editor_settings'].items():
-            got = setting(text, key)
-            if got != want['value']:
-                rep.error('repo', f'{es}: {key} is {got!r}, must be {want["value"]!r} ({want["what"]})')
+    for path, keys in R['project_settings'].items():
+        if path in tracked:
+            text = read_text(os.path.join(repo, path))
+            for key, want in keys.items():
+                got = setting(text, key)
+                if got != want['value']:
+                    rep.error('repo', f'{path}: {key} is {got!r}, must be {want["value"]!r} ({want["what"]})')
     ps = 'ProjectSettings/ProjectSettings.asset'
     if ps in tracked:
         company = setting(read_text(os.path.join(repo, ps)), 'companyName')
