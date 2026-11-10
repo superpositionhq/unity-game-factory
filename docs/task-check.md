@@ -266,9 +266,13 @@ hierarchy match unless the select says `"inactive": true`; a component's member 
 `; the probe said: ...` quotes the line of the play's `query_errors` about this measure's own query (what the probe
 couldn't read; it starts with the query's kind: `spawns: no component type Coin`); with two queries of one kind in a
 play, it can be the other one's. The `rows` in the play's `probe.json` show what was found, and `probe.log` beside it
-what the probe did (a `teleport_to` that found nothing, a widget click that matched no button). Some fields have no
-value at first by design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of
-its own then too, audio `level` in the play's first frames.
+what the probe did (a `teleport_to` that found nothing, a widget click that matched no button). A `drawn` measure
+has no value in a player that can't render the place alone (no graphics device, or a render pipeline other than URP
+with its Universal Renderer, URP's 2D Renderer among them), and `lit` or `glow` of a source the probe reads as
+rendered then reads its bound or nothing: the play's `query_errors` (in `probe.json`) holds one `rendering: ...`
+line saying why (task-probes.md, section 2.19). Some fields have no value at first by design: `spin` on the first
+sample an object is seen in, `speed` of an object with no velocity of its own then too, audio `level` in the play's
+first frames, the grading fields and a light's `exposure` and `brightness` at a play's first sample.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,

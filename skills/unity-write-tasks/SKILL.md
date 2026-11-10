@@ -395,14 +395,14 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | an object that breaks by hiding a part or by animating its pieces read whole to `spread`, `extent_*` and `simulating` | object or component `changed` (since the start; `bounds_change` and `pose_change` calibrated or relative to the start) |
 | a lamp drawn by an emissive material rather than a Light read dark to `on`, `intensity` and `light` | object or component `lit` (any Light that is on or glowing renderer; `glow` calibrated or relative to the start) |
 | a HUD made with UI Toolkit read as absent to a uGUI widget select (or the reverse) | `ui`: what the UI shows on screen, whatever draws it (text with `match`, counts by `kind` and `rect`) |
-| a lamp whose glow comes from a Shader Graph's own nodes had no reading from its material | `lit` and `glow` as they are: a renderer whose shader lacks the standard emission interface is read as rendered |
+| a lamp whose glow comes from a Shader Graph's own nodes had no reading from its material | `lit` and `glow` as they are: a renderer whose shader lacks the standard emission interface, or whose colour has a texture, is read as rendered |
 | a readout drawn with `OnGUI`, `GL` lines or a custom mesh read as absent to `ui` | `ui` `text` with `match` on a `select` of `"kind": "text"` with a `rect` around the readout (read from the frame as drawn); there are no line elements, so if it still doesn't read, grade another outcome |
 | a task needs a readout to keep updating, and it may be drawn by any UI system | `ui` `signature` with `"agg": "changes"` on a `select` with a `rect` around the readout (calibrated or relative to the start) |
 | an effect (particles, a panned material, a spinning mesh) had no reading that it shows and moves | `drawn` `near` a point: `drawn`, and `motion` calibrated or relative to the start |
 | a spinning part had no speed, or needed its object's name | `spin` of `components` near a point or by `owner`, or an object's `spin`; calibrated or relative to the start |
 | duplicate effects after a restart went unseen | `components` with `"effect": true` and `near`: `count` of live effects, read after the restart |
 | a score or a timer had to be read as a number, not a string | `ui` `number` or `clock` on a `select` of `"kind": "text"` with a `rect`; `rises`, `falls`, `range` over the window |
-| a lamp lit only by particles read dark | `lit` and `glow` as they are: particle systems are sources |
+| a lamp lit only by particles read dark | `lit` and `glow` as they are: particle systems, trails and visual effects are sources |
 | a beam's length had no reading | `drawn` along a `line` from its source: `reach` or `length`, calibrated or relative to the start |
 | a surface's tint change (not emissive) had no reading | `drawn` `near` it: `base_r`/`base_g`/`base_b` or `base_change`, calibrated or relative to the start |
 | the nearest object a player can push had to be named by type | `has` with `"simulating": true`, in a select or `teleport_to` |
