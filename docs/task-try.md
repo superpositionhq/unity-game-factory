@@ -63,7 +63,8 @@ argument for the harness, repeatable), `--keep` (keep the workspaces and the bui
 Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved` (every required check passed),
 `score` (the weighted share of checks passed, as the cloud scores it, judges left out), `required_passed` of
 `required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness reports them, the
-`checks` rows, and `peeked`; `status` is `DONE`, or `ERROR` with its `reasons` when the try couldn't run (the line then
+`checks` rows, `peeked`, and `why` when the agent's game couldn't be graded at all (it changed the Unity version or
+removed the project); `status` is `DONE`, or `ERROR` with its `reasons` when the try couldn't run (the line then
 reads `ERROR   <task>: ...`, for example a start or reference that doesn't build: run the task check first). Each run's
 transcript is `<task>\run<N>\transcript.jsonl`, its plays beside it, and the brief the agent read `<task>\brief.md`;
 the start's and the reference's plays are in `<task>\start\` and `<task>\reference\`, as the task check keeps them.
