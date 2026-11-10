@@ -117,10 +117,10 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
       "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to the
       player (the player and its own children left out; of two as near, the first in hierarchy order), on the
-      player's side (in front of the object when the player stands right above it) and level with it, plus `offset`
-      (default none), facing `face` (a point, section 2.13) or else that object (with nothing to face within a
-      centimetre on the ground, it keeps its own yaw). The way to reach a spot each build chooses itself (the ore a
-      fix placed, a door it moved).
+      player's side (behind the object, on the side its back is to, when the player stands right above it) and level
+      with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else that object (with nothing
+      to face within a centimetre on the ground, it keeps its own yaw). The way to reach a spot each build chooses
+      itself (the ore a fix placed, a door it moved).
       **Level is pivot to pivot**: the player's own position goes to the height of the object's position plus
       `offset`'s y, and nothing then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up,
       `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). **A select matches every
@@ -507,7 +507,8 @@ Limits:
   glowing bulb reads the post's size: compare a `glow` with itself, calibrated or relative to the start, or select the
   bulb by `mesh` or by its object's name;
 - a mesh drawn only on its inside (a sky dome, a room seen from within) is rendered from outside, usually as nothing,
-  so it reads dark that way; one on a layer only a filtered URP renderer draws (section 2.19) reads dark that way too;
+  so it reads dark that way; one on a layer the player camera's URP renderer doesn't draw (section 2.19) reads dark
+  that way too;
 - rendering is done at the sample, each renderer once a sample, at most 64 renders a sample over every query (past
   that, as without a render, above: a mesh's bound, anything else no value);
 - a Light's cookie is not read; decals, sprite masks and UI are not sources (3D text is a mesh source: it draws with a
@@ -982,11 +983,12 @@ percent, a sprite).
 
 One reading for what is drawn at a spot, whatever draws it: a mesh, a particle system, a VFX Graph effect, a trail, a
 surface whose material pans or animates, no name needed. Every renderer drawn in game (enabled, active, not forced
-off) whose world bounds reach the place is rendered alone, by a camera of the probe's own that shows only those
-renderers: orthographic, from fixed views (four around a point at 64 x 64, two across a line at 128 x 128), lit by a
-flat white ambient light alone, with no Lights, shadows, lightmaps, light probes, reflections, fog, post-processing or
-anti-aliasing, so a still scene renders the same every sample. At most 1024 renderers are rendered. A renderer whose
-bounds enclose the whole place and are at least 20 times its size (a sky dome, a room seen from inside) is left out.
+off, not drawing shadows only) and every terrain whose world bounds reach the place, none on the UI layer, is
+rendered alone, by a camera of the probe's own that shows only those: orthographic, from fixed views (four around a
+point at 64 x 64, two across a line at 128 x 128), lit by a flat white ambient light alone, with no Lights, shadows,
+lightmaps, light probes, reflections, fog, post-processing or anti-aliasing, so a still scene renders the same every
+sample. At most 1024 are rendered, the first in hierarchy order. A renderer or terrain whose bounds enclose the whole
+place and are at least 20 times its size (a sky dome, a room seen from inside) is left out.
 A pixel is in the place when its depth puts it there, or when it shows colour with nothing opaque behind it
 (translucent particles); the views reach no further than the place's far side, so an opaque wall behind the place
 doesn't hide translucent particles in front of it. Everything the render changes is put back before the sample
@@ -1009,18 +1011,22 @@ returns: the game's own frames are the same with and without the measure.
   trail read alike.
 - **Every field but `drawn` depends on what a build drew: its threshold is calibrated or relative to the start, never
   a literal value**; `drawn` takes a literal. A point that doesn't resolve: no value. The sample's value always holds
-  `pixels` and `primitives` (pixels in the place, renderers rendered), for the logs; its base colour is null unless a
-  `base_` field is asked for.
+  `pixels` and `primitives` (pixels in the place, renderers and terrains rendered), for the logs; its base colour is
+  null unless a `base_` field is asked for.
 - Limits: the player's own object counts like anything else in the place (keep it out, or teleport away); a lit
   translucent particle shows as lit by the white ambient light only; a surface that writes no base colour has none
-  (an unlit one reads 0, a translucent one is left out); what isn't a renderer (`GL` drawing, `Graphics.RenderMesh*`
-  from code, UI) reads nothing, nor do layers only a filtered URP renderer draws, world-space canvases on the chosen
-  layers, or terrain; URP's Forward, Forward+ and Deferred renderers read the same, but a shader with only a forward
-  pass draws nothing under Deferred, in the game as in the probe. Game code hooked to the render pipeline's camera
-  callbacks also sees the probe's render, and an object the probe renders may report itself visible to the game that
-  frame (`OnBecameVisible`, `Renderer.isVisible`). URP adaptive probe volumes and realtime GI lightmaps are not
-  switched off (they would add light to a glow reading). Keep the place tight around what the task is about: a floor
-  or a wall inside it counts too.
+  (an unlit one reads 0, a translucent one is left out); what isn't a renderer or a terrain (`GL` drawing,
+  `Graphics.RenderMesh*` from code, UI) reads nothing, nor does anything on the UI layer, where world-space canvases
+  draw (a canvas on another layer isn't a renderer, so nothing switches it off: keep one out of the place). The probe
+  renders with the URP renderer the player's camera draws with, its RenderObjects features on and its other features
+  off, so a layer that renderer doesn't draw reads nothing; URP's Forward, Forward+ and Deferred renderers read the
+  same, but a shader with only a forward pass draws nothing under Deferred, in the game as in the probe. Game code
+  hooked to the render pipeline's camera callbacks also sees the probe's render (an exception it throws there leaves
+  the sample with no value: "rendering: an exception during a render: no value that sample (the exception is in
+  probe.log)"), and an object the probe renders may report itself visible to the game that frame (`OnBecameVisible`,
+  `Renderer.isVisible`). URP adaptive probe volumes and realtime GI lightmaps are not switched off (they would add
+  light to a glow reading). Keep the place tight around what the task is about: a floor or a wall inside it counts
+  too.
 
 ## 3. What gates, and how a probe fails
 
