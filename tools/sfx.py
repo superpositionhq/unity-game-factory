@@ -179,7 +179,8 @@ def measure(a):
             if w.getsampwidth() != 2:
                 sys.exit(f'{name}: expected 16-bit PCM')
             ch, rate, frames = w.getnchannels(), w.getframerate(), w.getnframes()
-            data = w.readframes(frames)
+            # no more than the file holds: a header ffmpeg never finished says 4 GB, and reading that much took 4 GB
+            data = w.readframes(min(frames, os.path.getsize(name) // (2 * ch)))
         if len(data) < frames * ch * 2:  # a download or a decode that died
             sys.exit(f'{name}: cut short: {len(data) // (2 * ch)} of {frames} frames')
         samples = array.array('h', data)
