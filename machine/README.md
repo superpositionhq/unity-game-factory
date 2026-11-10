@@ -8,9 +8,10 @@ setup, including the manual sign-ins: [../docs/new-machine.md](../docs/new-machi
 All machine paths hang off one root, the "UnityWork" folder that holds `unity-game-factory\`, `games\`, `tasks\`,
 `builds\`, `recordings\`, `.recording\`, `deliverables\`, `asset-library\` and `tools\`. Docs write it as `%UGF_ROOT%`.
 `builds\` and `recordings\` are the recording pipeline's (`tools/unity-pipeline/`,
-[../docs/unity-pipeline.md](../docs/unity-pipeline.md)): release builds, the queue and the gameplay bundles. Nothing
-writes to `deliverables\` yet (the dataset packager, `tools/package-dataset.py`, writes into the game repo's own
-folder).
+[../docs/unity-pipeline.md](../docs/unity-pipeline.md)): release builds, the queue and the gameplay bundles. The
+creation replay ([../docs/unity-replay.md](../docs/unity-replay.md)) keeps each game's isolated project and work files
+in `unity-replay\<slug>\` and writes its packages to `deliverables\_replay\`; the dataset packager,
+`tools/package-dataset.py`, writes into the game repo's own folder.
 `lib/ugf-root.ps1` (PowerShell, dot-source it) and `lib/ugfroot.py` (Python: `sys.path.insert(0, <repo>/machine/lib)`,
 `ugfroot.root()`) resolve it in this order:
 
@@ -27,10 +28,10 @@ such as `6000.3.28f1` pins them to it), optional `unity_editors`
 installed), `github_org` (the GitHub organisation or user that owns unity-game-factory and the private
 `unity-game-<slug>` repos: `bootstrap.ps1 -Org` writes it, env `UGF_ORG` overrides it; new-game.ps1, `-CloneGames` and
 check.ps1 read it), and `record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as
-projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where the recording
-pipeline's packages and replay packages will go, GBs per game, so point it at a roomy drive; nothing reads it yet: the
-dataset packager writes next to the game repo, or where its `--out` says) and `min_free_gb` (env `UGF_MIN_FREE_GB`,
-default 50: the task check, the task try and the dataset packager refuse to start on a drive with less free).
+projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where the creation
+replay's packages go, `_replay\<slug>\<sha8>\`, GBs per game, so point it at a roomy drive; the dataset packager writes
+next to the game repo, or where its `--out` says) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task
+check, the task try, the creation replay and the dataset packager refuse to start on a drive with less free).
 
 Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),
 and the tools use exactly that install (`lib/ugf-root.ps1` `Get-UGFUnity`, `lib/ugfroot.py` `unity_editor`):
@@ -99,18 +100,19 @@ is recorded there (see Recording below). What they share on purpose:
 | `hooks/settings-hooks.json` | merged into `~\.claude\settings.json` | Claude Code: the five hook entries (PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit, SessionEnd; `{{HOOKS_DIR}}` filled in) |
 | `hooks/codex-hooks.json` | merged into `~\.codex\hooks.json` | Codex: the four hook entries (PostToolUse, Stop, UserPromptSubmit, SessionEnd; `{{HOOKS_DIR}}` filled in), trusted in `~\.codex\config.toml` |
 | `hooks/recording-exclude.txt` | the hooks dir (once) | session ids never recorded (the coordinator) |
-| `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder after Git LFS's own lines (before another tool's final `exit` or `exec`); warns when the recorder isn't in the hooks dir or another tool's hook can end before it |
+| `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder and the live creation replay's line (`tools/unity-replay/live-hook.ps1` of this checkout; it acts only for `<root>\games\<slug>`) after Git LFS's own lines (before another tool's final `exit` or `exec`); warns when the recorder isn't in the hooks dir, the live hook isn't in the checkout, or another tool's hook can end before them. bootstrap.ps1 runs it for every game under `<root>\games` |
 
 The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks\`. One copy serves both agents.
 `recording-sessions.json` (session id -> project map) is runtime state: bootstrap creates it empty next to the hooks
 and never overwrites it. The hook keeps two more state files there: `recording-backfill.json` (the sessions whose
 earlier tool calls were imported) and `recording-messages.json` (transcript file -> bytes read, for `messages.jsonl`).
 
-Not available yet (docs/unity-pipeline.md holds the plan): the per-commit live creation replay (its post-commit line).
 The recording pipeline is here (`tools/unity-pipeline/`, [../docs/unity-pipeline.md](../docs/unity-pipeline.md)): its
-builds and recordings go through `unity-heavy.ps1`'s slots like every other heavy job. The task checker is here
-(`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its builds and plays go through
-`unity-heavy.ps1` like every other heavy job. So is the dataset packager (`tools/package-dataset.py`,
+builds and recordings go through `unity-heavy.ps1`'s slots like every other heavy job. So is the creation replay
+(`tools/unity-replay/`, [../docs/unity-replay.md](../docs/unity-replay.md)): each game's post-commit line starts its
+live replay after every commit, whose editor runs go through `unity-heavy.ps1 -Low` (one low-priority job
+machine-wide). The task checker is here (`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its
+builds and plays go through `unity-heavy.ps1` like every other heavy job. So is the dataset packager (`tools/package-dataset.py`,
 [../docs/unity-pipeline.md](../docs/unity-pipeline.md#dataset-packager)), which reads a game's `actions.jsonl` and
 `messages.jsonl` into the dataset's `History/sessions/`.
 
@@ -154,8 +156,8 @@ builds and recordings go through `unity-heavy.ps1`'s slots like every other heav
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows
   (`input.command` = the patch), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose response
   shows the exit code).
-- Nothing is recorded while `UGF_NO_RECORDING` (or another factory's `GF_NO_RECORDING`) is set: a task try's agent
-  is not a game session.
+- Nothing is recorded (and nothing replayed) while `UGF_NO_RECORDING` (or another factory's `GF_NO_RECORDING`) is
+  set: a task try's agent is not a game session.
 - **Codex hook trust.** Codex runs a hook from `hooks.json` only after it is trusted (a hash of the hook in
   `config.toml` `[hooks.state."<hooks.json>:<event>:<group>:<handler>"]`); an untrusted or edited hook is skipped
   without a word. bootstrap.ps1 writes the entries for the record-unity-action.ps1 hooks (`lib/codex-hooks.ps1`),

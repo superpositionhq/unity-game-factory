@@ -25,7 +25,7 @@ holds its GPU jobs back while the other factory records), so together they never
 | You need | Why |
 |---|---|
 | Windows 11, 8+ logical cores, 16 GB RAM (32 GB recommended), 200 GB free (100 GB at the very least) on the drive that will hold the root, a DirectX 11/12 GPU | building Unity 6.3 games; setup checks these first |
-| An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC; the recorder is not available yet); without one, recording will fall back to slower encoders |
+| An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC); without one, recording falls back to slower encoders (AMF, then the CPU) |
 | A GitHub account that is a member of `<org>` (the organisation, or user, that owns `unity-game-factory` and the private `unity-game-<slug>` repos), allowed to create private repos there | an owner of `<org>` adds you |
 | A Unity ID with an active licence (Unity Personal is fine where its terms allow; otherwise the seat the org gives you) | Unity Hub and the editor need a signed-in, licensed account; the Asset Store uses the same account |
 | A coding-agent account: Claude, or OpenAI (a ChatGPT plan or an API key) | the agent that builds the game: Claude Code in a terminal or the Claude desktop app (Code tab), or the Codex CLI in a terminal (`setup.ps1 -Agent claude\|codex\|both`) |
@@ -86,8 +86,8 @@ Setup prints these as TODOs (as notes where a PC may not need them) and detects 
 | Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). Every editor run needs it, batchmode too. | the licence file Unity Hub writes (`%LOCALAPPDATA%\Unity\licenses\`) or a serial activation's (`%ProgramData%\Unity\Unity_lic.ulf`); a licence server's floating seat leaves neither, so `check.ps1` only warns |
 | Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
-| NVIDIA driver (if you have an NVIDIA GPU; for recording, which is not available yet) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
-| Display (for recording, which is not available yet) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
+| NVIDIA driver (if you have an NVIDIA GPU; for recording) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
+| Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
 | Asset Store | only to download store packs for a **new** game: in the editor, **Window > Package Manager > My Assets** (signed in with the account that owns them) > Download. Downloads land in `%APPDATA%\Unity\Asset Store-5.x\`. Purchases and licence choices stay with their owner. | `check.ps1` counts the downloads |
 | Agent sign-in | Claude Code: run `claude` once (or open the desktop app) and sign in. Codex: `codex login` (setup runs it; `--device-auth` without a browser) | Claude: not detectable; Codex: `codex login status` |
 
@@ -111,13 +111,15 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
 
 `machine/bootstrap.ps1` (run by setup; can be run on its own any time):
 
-- `%USERPROFILE%\.unity-game-factory\config.json`: `root`, `unity_hub_editors`, `unity_version` (the editor new games
-  use: `6000.3`, its newest installed patch, unless set to an exact version), `github_org`, `record_extra_projects`,
-  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the hardware (the
-  same formula another factory on the machine uses), with their basis in `slots_auto` (values edited by hand are
-  kept, `-Force` recomputes);
+- `%USERPROFILE%\.unity-game-factory\config.json`: `root`, `ugb` (`C:\UGB`: the release builds' private clones and
+  build temp, outside the user profile), `unity_hub_editors`, `unity_version` (the editor new games use: `6000.3`, its
+  newest installed patch, unless set to an exact version), `github_org`, `record_extra_projects`, `agents`,
+  `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the hardware (the same formula another factory on
+  the machine uses), with their basis in `slots_auto` (values edited by hand are kept, `-Force` recomputes);
 - the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`
-  (`builds\`, `recordings\` and `deliverables\` wait for the recording pipeline, which is not available yet);
+  and `<ugb>\src`, `<ugb>\tmp` (`builds\` and `recordings\` are the recording pipeline's, `deliverables\` holds the
+  creation replay's packages; a machine set up before `ugb` existed gets it from this bootstrap, and until then
+  `check.ps1` fails the layout);
 - `tools\unity-heavy.ps1` (the machine-wide job limiter) with `tools\ugf-root.ps1`, the pinned ffmpeg 8.1.2 (SHA-256
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into
@@ -126,7 +128,8 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
   are added or updated, any other hook stays); the `unity-*` skills from `skills\` in
   `~\.claude\skills\` and/or `~\.agents\skills\` (other skill folders untouched); `<root>\CLAUDE.md` importing
   `unity-game-factory/CLAUDE.md` and/or `<root>\AGENTS.md` naming `unity-game-factory\AGENTS.md`;
-- Git LFS filters, the commit recorder in every game repo, and with `-CloneGames` every `<org>/unity-game-*` repo.
+- Git LFS filters, the post-commit hook in every game repo (the commit recorder and the live creation replay), and
+  with `-CloneGames` every `<org>/unity-game-*` repo.
 
 `machine/check.ps1` reports PASS / WARN / FAIL for the toolchain (Unity Hub, the 6.3 LTS editor new games use with
 IL2CPP support, the editors the games here name, C++ tools for IL2CPP), GitHub access, display and power, disk, the
@@ -147,8 +150,8 @@ checks the install, the sign-in (Codex) and that the hooks are wired (and, for C
   `%APPDATA%\UnityHub\logs\`; batchmode runs pass `-logFile <path>` (`Scripts/unity.ps1` does) so a run's log is kept
   with it.
 - Vendor RGB/lighting services can leak commit memory; if free commit keeps falling, find the process whose commit
-  grows and restart or disable it. Windows Firewall prompts dim the screen and block capture: allow a packaged player
-  once before recording (the recorder is not available yet).
+  grows and restart or disable it. Windows Firewall prompts dim the screen and block capture; a release player opens
+  no network port, so recording one never prompts.
 
 ## Scratch test (without touching a live setup)
 

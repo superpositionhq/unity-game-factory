@@ -2,10 +2,10 @@
 
 > **The AutoPlay drop-in is here (v1):** `tools/unity-pipeline/autoplay/AutoPlay/`, copied unchanged into every game
 > as `Assets/AutoPlay/` ([Getting the drop-in](#getting-the-drop-in)). A game implements its side (section 6), tests
-> one scenario by hand (section 7) and tags `milestone/autoplay-<n>`. The recorder, the run checker and the recording
-> queue are the recording pipeline's ([unity-pipeline.md](unity-pipeline.md)): while that page says they are not
-> available yet, a session never queues, requests or waits for a recording, checks its hand test with the summary
-> `Scripts/unity.ps1 autoplay` prints (section 7), and reports to the coordinator what is ready.
+> one scenario by hand (section 7) and tags `milestone/autoplay-<n>`. The recorder, the run checker
+> (`tools/unity-pipeline/validate-run.ps1`) and the recording queue are the recording pipeline's
+> ([unity-pipeline.md](unity-pipeline.md)); a session sends the coordinator what is ready, and only the coordinator
+> queues recordings ([Queue](unity-pipeline.md#queue)).
 
 **Scenario** = a defined start state plus a win/lose condition, numbered 1..n in the game's design doc and named by the
 game. It may be a level, a chapter, a race stage or an open-world start setup. A run plays exactly one scenario from
@@ -402,13 +402,16 @@ human-like: eased camera turns (no snapping), reaction delays, aim noise, no jum
    log's first `AutoPlay:` line names the folder).
 3. Check the run's files: every file of section 5 present and well formed, `inputs.jsonl` has injected input,
    `telemetry.jsonl` has `scenario_start` and `scenario_end`, `outcome.json` has a result and no `error` rows say
-   something is wrong, `audio.wav` is not silent. The recording pipeline's run checker checks the same folder
-   ([unity-pipeline.md](unity-pipeline.md)); while that page says it is not available yet, the summary of step 2 is
-   the check. The bot plays like a human, but its score never holds up a release.
+   something is wrong, `audio.wav` is not silent. The recording pipeline's run checker checks the same folder and must
+   say PASS:
+   `powershell -ExecutionPolicy Bypass -File <root>\unity-game-factory\tools\unity-pipeline\validate-run.ps1 <the run's folder>`
+   ([unity-pipeline.md](unity-pipeline.md#validation-per-run); `go_timed_out` is only a note in a hand test). The bot
+   plays like a human, but its score never holds up a release.
 4. When scenario 1 passes, commit and tag it `milestone/autoplay-1` (later: `milestone/autoplay-<n>` = scenarios 1..n
-   work; the pipeline will record scenarios 1..n of the newest such tag), take the framing-gate screenshots
-   (unity-game-session skill) and report to the coordinator what is ready (the commit, the tag, the hand test's
-   summary). Only the coordinator queues recordings ([unity-pipeline.md](unity-pipeline.md#queue)).
+   work; the recording queue records scenarios 1..n of the newest such tag reachable from the commit), take the
+   framing-gate screenshots (unity-game-session skill) and report to the coordinator what is ready (the commit, the
+   tag, the scenarios, the run checker's result, the screenshot paths). Only the coordinator queues recordings
+   ([unity-pipeline.md](unity-pipeline.md#queue)).
 
 Changes to this contract go through the coordinating session; the drop-in's version (`autoplay_version`) goes up when
 the files change shape, and every game then runs `install.ps1` again.

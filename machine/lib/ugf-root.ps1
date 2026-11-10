@@ -181,9 +181,9 @@ function Get-UGFOrg($Cfg = (Get-UGFConfig)) {
     return ''
 }
 
-# Output root for packages, dataset zips and their staging folders (the packagers are not available yet): $env:UGF_OUT,
-# else "out" in the config file, else <root>\deliverables. Point it at a roomy drive (packages and zips run to GBs per
-# game).
+# Output root for packages (the creation replay's _replay\<slug>\<sha8>\; the dataset packager writes next to the game
+# repo unless its --out names another folder): $env:UGF_OUT, else "out" in the config file, else <root>\deliverables.
+# Point it at a roomy drive (packages and zips run to GBs per game).
 function Get-UGFOut {
     if ($env:UGF_OUT) { return [IO.Path]::GetFullPath($env:UGF_OUT.TrimEnd('\', '/')) }
     $cfg = Get-UGFConfig
@@ -191,9 +191,9 @@ function Get-UGFOut {
     return (Join-Path $cfg.root 'deliverables')
 }
 
-# Refuse to start a disk-heavy job (packaging, creation replay: not available yet; the task check and the task try use
-# ugfroot.py check_free) when the drive holding $Path has less than the floor free: $env:UGF_MIN_FREE_GB, else
-# "min_free_gb" in the config file, else 50. A full disk mid-job corrupts the result.
+# Refuse to start a disk-heavy job (the dataset packager, the creation replay, the task check and the task try are
+# Python and use ugfroot.py check_free) when the drive holding $Path has less than the floor free: $env:UGF_MIN_FREE_GB,
+# else "min_free_gb" in the config file, else 50. A full disk mid-job corrupts the result.
 function Assert-UGFFreeSpace([string]$Path, [string]$What = 'this job') {
     $min = 50
     $cfg = Get-UGFConfig
