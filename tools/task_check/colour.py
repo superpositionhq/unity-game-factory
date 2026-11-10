@@ -198,7 +198,10 @@ def grade(settings):
     rgb = [c * g + lf for c, g, lf in zip(rgb, gain, lift, strict=True)]
     rgb = [math.copysign(_pow(abs(c), g), c) for c, g in zip(rgb, _vec3(settings.get("gamma"), 1.0), strict=True)]
     shift = _number(settings.get("hue_shift"), 0.0)
-    if shift != 0.0:  # HSV and back moves a colour by URP's 1e-4 epsilon only
+    # The shader always goes to HSV and back. That moves a colour above 0 by its 1e-4 epsilon only, so it is left out
+    # where it changes nothing a task reads; one with a channel below 0 (a lift that takes it there) comes back another
+    # colour, as its frame shows it (a grey lifted to (-0.00003, -0.03, -0.03) draws (0, 0.013, 0.013), not black).
+    if shift != 0.0 or min(rgb) < 0.0:
         hsv = _rgb_to_hsv(rgb)
         hue = hsv[0] + shift / 360.0
         hsv[0] = hue + 1.0 if hue < 0.0 else hue - 1.0 if hue > 1.0 else hue  # RotateHue(hue, 0, 1)

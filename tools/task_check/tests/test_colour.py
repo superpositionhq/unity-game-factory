@@ -161,6 +161,15 @@ class Steps(unittest.TestCase):
                 self.assertAlmostEqual(a, b, delta=2e-4, msg=f"{shift} degrees (URP's HSV has a 1e-4 epsilon)")
         self.assertLess(colour.colour({**lit, "hue_shift": 180.0})["warmth"], -0.5, "a warm grey turned cool")
 
+    def test_a_channel_lifted_below_zero_goes_through_the_shaders_hsv_step(self):
+        """The shader goes to HSV and back whatever the hue shift. Above 0 that is its 1e-4 epsilon; a colour whose
+        largest channel sits just below 0 comes back with the others above 0 (S = d / (V + 1e-4) is huge and V is
+        negative), which the frame shows: (0.18 - 0.18003, 0.18 - 0.21, 0.18 - 0.21) draws (0, 0.0128, 0.0128)."""
+        lifted = colour.grade({"lift": [-0.18003, -0.21, -0.21]})
+        for got, shader in zip(lifted, (0.0, 0.0128143, 0.0128143), strict=True):
+            self.assertAlmostEqual(got, shader, places=6)
+        self.assertEqual(colour.grade({"lift": [0.02, 0.02, 0.02]}), [0.18 + 0.02] * 3, "above 0: nothing moves")
+
     def test_ldr_grading_saturates_the_frame_before_and_after_the_lookup(self):
         """URP's LDR uber pass saturates the exposed frame before the grading lookup (ApplyTonemap) and the lookup holds
         0..1 (LutBuilderLdr.shader): an over-exposed grey reads white, never more, and is graded as white."""
