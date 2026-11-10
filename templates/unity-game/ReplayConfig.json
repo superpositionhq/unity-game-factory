@@ -1,0 +1,21 @@
+{
+  "game": "__SLUG__",
+  "live": true,
+  "repo": "{root}/games/__SLUG__",
+  "recording": "{root}/.recording/__SLUG__",
+  "final": "HEAD",
+  "editor": "{editor}",
+  "work_root": "{root}/unity-replay/__SLUG__",
+  "editor_args": ["-batchmode", "-nographics"],
+  "reason_env": "UNITY_RUN_REASON",
+  "readonly_patterns": ["Inspect*", "Measure*", "Check*", "Analyze*", "Scan*", "*Probe*"],
+  "not_readonly": [],
+  "asset_roots": ["Assets"],
+  "scene_roots": ["Assets"],
+  "run_patterns": [],
+  "asset_drops": [],
+  "shell_replay": [],
+  "input_meta": "commit",
+  "run_timeout_s": 3600,
+  "scene_exports": false
+}
