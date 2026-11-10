@@ -931,6 +931,8 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
 - `select` (an object select, optional): only colliders of the objects it matches, or of their descendants, are
   ground; anything else (trees, rocks, roofs) is traced through. The player's colliders are always skipped, with or
   without `select`.
+- The ray is 3D: 2D colliders are never ground (a 2D game's ground isn't read this way). A height comes from a
+  single-precision ray from 2000 m up: it is good to about 0.1 mm.
 - **A `range` threshold is calibrated or relative to the start, never a literal value**; heights take a literal, as
   an object's `y` does.
 
