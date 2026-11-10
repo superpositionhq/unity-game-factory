@@ -218,9 +218,12 @@ original's, unchanged (`probes.py`).
     hierarchy (no statics, no indexers); `[i]` an element; a dictionary's entry by its key; a vector's `.x` and a
     colour's `.r` by their own member names (no aliases at run time; the editor pass has them). A path that doesn't
     resolve on the named component is tried on the GameObject, then on its Transform; `prop:<Component>` alone is 1
-    when the object has one, no value when not. The value as the checker takes it (`Reflect.Plain`): numbers and bools
-    as numbers, an enum its value, a Unity object 1 when set and 0 when not (an unset reference reads 0), a string, an
-    array, list or dictionary its count; anything else (a vector or colour without its part) no value;
+    when the object has one, no value when not. A step through a getter that would instantiate (`Renderer.material`
+    and `materials`, `MeshFilter.mesh`, `Collider.material`, TextMeshPro's `fontMaterial` and `fontMaterials`) reads
+    its shared twin, so a read never gives the component a copy of its own; a path of more than 16 steps reads
+    nothing (the original's cap). The value as the checker takes it (`Reflect.Plain`): numbers and bools as numbers,
+    an enum its value, an object reference 1 when set and 0 when not, a string, an array, list, set or dictionary
+    its count; anything else (a vector or colour without its part) no value;
   - `bone:<Component>.<Bone>.x|y|z` (the original's `<BoneOrSocket>`; `ObjectRead.Bone`): a SkinnedMeshRenderer's bone
     of that name, else an Animator's human bone (a `HumanBodyBones` name, any case), else a descendant transform of
     that name under the component, then under the object;
