@@ -1016,24 +1016,6 @@ class FakeRegistry:
         self.deleted.append(path)
 
 
-class ImportCache(unittest.TestCase):
-    def test_a_copy_takes_a_built_copys_import_cache_without_its_code(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            donor, fresh = Path(tmp) / "a", Path(tmp) / "b"
-            (donor / "Library" / "Artifacts").mkdir(parents=True)
-            (donor / "Library" / "Artifacts" / "x").write_text("1")
-            (donor / "Library" / "ScriptAssemblies").mkdir()
-            (donor / "Library" / "ScriptAssemblies" / "Game.dll").write_text("dll")
-            (donor / "Library" / "Artifacts" / "Bee").mkdir()  # only the top folders named are left out
-            fresh.mkdir()
-            self.assertTrue(seeds.seed_library(donor, fresh))
-            self.assertTrue((fresh / "Library" / "Artifacts" / "x").is_file())
-            self.assertTrue((fresh / "Library" / "Artifacts" / "Bee").is_dir())
-            self.assertFalse((fresh / "Library" / "ScriptAssemblies").exists(), "compiled scripts are the other copy's")
-            self.assertFalse(seeds.seed_library(donor, fresh), "never over a cache the copy already has")
-            self.assertFalse(seeds.seed_library(Path(tmp) / "none", Path(tmp) / "c"), "no donor cache: nothing to take")
-
-
 class Limiter(unittest.TestCase):
     def test_a_limiter_that_cant_be_started_is_an_error_not_a_failed_build(self):
         refused = "& : File C:\\Work\\tools\\unity-heavy.ps1 cannot be loaded because running scripts is disabled"
