@@ -3179,7 +3179,7 @@
     },
     "Select": {
       "additionalProperties": false,
-      "description": "GameObjects that match every key given: `component` (a component it carries, by C# type name or full name; base\ntypes and interfaces match), `tag` (its tag), `layer` (its layer, by name), `name` (a wildcard on its name),\n`near` (within `radius` m of a point), `player` (the player object), `has` (a part it carries that matches\nevery key given there: an object that gives light, one with a drawn mesh near a point), `inactive` (inactive\nobjects match too; without it only objects active in the hierarchy do).",
+      "description": "GameObjects that match every key given: `component` (a component on the object itself, by C# type name or full\nname; base types and interfaces match), `tag` (its tag), `layer` (its layer, by name), `name` (a wildcard on its name),\n`near` (within `radius` m of a point), `player` (the player object), `has` (a part it carries that matches\nevery key given there: an object that gives light, one with a drawn mesh near a point), `inactive` (inactive\nobjects match too; without it only objects active in the hierarchy do).",
       "properties": {
         "component": {
           "anyOf": [
