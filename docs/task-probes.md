@@ -1,10 +1,9 @@
 # Task probes: the contract for `probe` checks
 
-How a task author writes the checks that decide whether a Unity game task passes. It goes with the task format
-([schemas/game-task.schema.json](schemas/game-task.schema.json), `GameTask`, game-task/1, Unity flavour:
-`"engine": "unity-6000.3"`) and the `unity-write-tasks` skill
-([skills/unity-write-tasks/SKILL.md](../skills/unity-write-tasks/SKILL.md)), and `tools/validate-game.py` checks every
-rule below that can be checked without running the game.
+How a task author writes the checks that decide whether a game task passes. It goes with the task format
+([schemas/game-task.schema.json](schemas/game-task.schema.json), `GameTask`, game-task/1) and the `unity-write-tasks`
+skill ([skills/unity-write-tasks/SKILL.md](../skills/unity-write-tasks/SKILL.md)), and `tools/validate-game.py` checks
+every rule below that can be checked without running the game.
 
 **Pass/fail is deterministic (owner's decision, 2026-10-19).** A task passes or fails only on checks the checker
 computes from the running game or from the project: `build`, `boot`, `log_absent` and `probe`. A model judge never
@@ -15,20 +14,22 @@ quality checks (`"required": false`).
 
 Words used here:
 - **the start**: the game at the task's `seed.commit`, as the agent receives it;
-- **the fix**: the developers' own solution, `seed.reference` (bug fixes and corrections; most features and changes
-  have none);
+- **the fix**: the developers' own solution, `seed.reference` (for a feature or a change, their own implementation of
+  it; `tools/validate-game.py` refuses a task without one);
 - **the checker**: what builds, plays and measures a game for a task, the same way for the start, the fix and an
   agent's result;
 - **the task check**: what makes a task valid before any agent is given it (section 4);
 - **an object**: a GameObject. Its **parts** are the components on it and on its descendants;
-- **the player**: the task's `player` select (an object select, section 2.4) when it has one, else the first active
-  object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController`, else the root of the
-  main camera;
+- **the player**: the first object the task's `player` select matches (an object select, section 2.4), when the task
+  has one; then nothing else is tried, so a select that matches nothing leaves the play without a player. Else an
+  active object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController`, else the root
+  object of the camera below. A scene with more than one of these needs the task's `player`;
 - **the camera**: `Camera.main` (tagged `MainCamera`, enabled), else the enabled camera of highest depth that renders
   to the screen.
 
-Units are Unity's: metres, metres per second, degrees. Y is up. `yaw` is the euler Y angle, `pitch` the euler X
-(positive looks down), `roll` the euler Z, as the Inspector shows them, normalised to (-180, 180].
+Units are Unity's: metres, metres per second, degrees. Y is up. `yaw`, `pitch` and `roll` are the euler Y, X and Z
+angles of the world rotation (`transform.eulerAngles`; the Inspector shows a child's rotation relative to its parent
+instead), normalised to (-180, 180]; a positive `pitch` looks down.
 
 ## 1. The check
 
@@ -54,33 +55,6 @@ Units are Unity's: metres, metres per second, degrees. Y is up. `yaw` is the eul
 
 ### 1.1 Plays
 
-Every play is the game's Windows player, built from the commit with the probe in it and started by the checker
-windowed at 960x540 **on a Windows desktop of its own**: nothing shows on the screen of whoever uses the machine, the
-play can't take the keyboard, and a game that locks the mouse cursor can't grab the real one. The game counts itself
-focused for the whole play (`Application.isFocused` is true and no object gets `OnApplicationFocus(false)`), so a
-game that pauses when it loses focus plays on, and the frame it draws is the same as in a normal window. Its clock is
-a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30): it starts when the play's scene has loaded,
-**holds while any scene is still loading** (an async load takes real time, not game time) and during a `wait`, and
-keeps counting when the game pauses itself (`timeScale` 0). Inputs go through the Input System (below).
-
-Every play (look, drive, a boot, a task play) opens the task's `play_scene` with the task's `play_args` on the
-player's command line (`"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args": ["-scenario", "2"]`); with
-`play_scene` null, the game's own first build scene. A task play's own `scene` and `args`, when the key is present,
-take their place for that play (`"scene": null`: the game's first build scene).
-
-**How a play opens its scene.** The probe asks for `play_scene` before the game's first build scene has woken up. That
-first scene's objects still get `Awake` and `OnEnable` (Unity has loaded it already) and are then destroyed before
-their `Start` and first `Update`. So a singleton a boot scene makes in `Awake` with `DontDestroyOnLoad` exists in the
-play; anything it sets up in `Start` does not. A game that needs its boot scene to run is started through its own
-`play_args` (`["-scenario", "2"]`) with `play_scene` null.
-
-**Every play starts from clean saved data.** The checker's build gives the copy's player a company name of its own
-(`TaskProbe.<hash>`: `Application.companyName` reads that in a play), so its PlayerPrefs and
-`Application.persistentDataPath` are the copy's own, never the real game's; the probe clears both when a play starts.
-The build is a Mono, non-development player (no watermark on the frame), without the splash screen and without static
-batching (a batched renderer's mesh would become one combined mesh, hiding each object's own mesh name and triangle
-count), windowed 960x540 and running in the background.
-
 - `"look"`: the checker's idle play of the task's `play_scene`: 20 s, no input, sampled every 0.5 s.
 - `"drive"`: the checker's scripted drive of `play_scene`: 22 s, `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s,
   `<Keyboard>/w` 8-13 s with a jump (`<Keyboard>/space`) at 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s;
@@ -99,59 +73,70 @@ count), windowed 960x540 and running in the background.
   - `name`: not `look`, `drive`, `editor` or `trace`. Plays with the same name in one task must be identical.
   - `seconds`: 5-120. No input at or after the end.
   - `every`: the sampling step, 0.1-1.0 s (default 0.5).
-  - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`Assets/...unity`).
-  - `args` (optional): the player's command-line arguments for this play instead of the task's `play_args`, at most
-    16, each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and a letter is a flag (`-scenario`,
-    `-devmenu`); anything else is a value (`2`, `2:quest=bull,6:fell`). A play's own `scene` or `args`, when the key is
-    present, takes the place of the task's for that play. Never the flags Unity or the checker set themselves
-    (case-insensitive, with or without the dash): `batchmode`, `nographics`, `quit`, `logfile`, `projectpath`,
-    `executemethod`, `popupwindow`, `monitor`, `parentHWND`, `single-instance`, any flag starting with `screen-` or
-    `force-`, and any flag starting with `taskprobe` (the probe's own); `tools/validate-game.py` lists what it refuses.
-  - `inputs`, each at time `t` (seconds of play). Keys and axes go through the **Input System** on the probe's own
-    virtual Keyboard, Mouse and Gamepad: real devices are not read, and a game that reads the old Input Manager
-    (`UnityEngine.Input`) can't be driven (section 5). An input at `t` is queued before the game's scripts run and
-    processed by the Input System at the next frame's start, so the game reads it one frame (1/30 s) after `t`. The
-    Gamepad is added only when an input names `<Gamepad>` (a gamepad switches many games' button prompts).
+  - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
+    scene).
+  - `args` (optional): the player's command-line arguments for this play instead of the task's `play_args` (`[]`:
+    none), at most 16, each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and a letter is a flag
+    (`-scenario`, `-devmenu`); anything else is a value (`2`, `2:quest=bull,6:fell`). Never a flag the checker sets
+    itself or one that changes how the player runs (any case, after one dash or more): `batchmode`, `nographics`,
+    `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`, `single-instance`, any
+    flag starting with `screen-` or `force-`, nor the probe's own (any flag starting with `taskprobe`);
+    `tools/validate-game.py` lists what it refuses.
+  - `inputs`, each at time `t` (seconds of play). Keys, buttons and axes go through the **Input System**, on the
+    probe's own virtual Keyboard, Mouse and Gamepad: a game that reads the old Input Manager (`UnityEngine.Input`)
+    sees none of them (section 5). One sent at `t` is queued before the game's scripts run and processed by the Input
+    System at the next frame's start, so the game reads it one frame (1/30 s) after `t`. The Gamepad is added only
+    when an input names `<Gamepad>` (a gamepad switches many games' button prompts).
     - a key: `{"t": 1.0, "key": "<Keyboard>/w", "press": true}` and later `"press": false`. `key` is an Input System
-      control path on `<Keyboard>`, `<Mouse>` or `<Gamepad>`, `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`
-      (`<Keyboard>/space`, `<Keyboard>/leftShift`, `<Keyboard>/f2`, `<Keyboard>/escape`, `<Mouse>/leftButton`,
-      `<Gamepad>/buttonSouth`, ...);
-    - an axis event: `{"t": 2.0, "key": "<Mouse>/delta/x", "axis": 40.0}`. `<Mouse>/delta/*` and `<Mouse>/scroll/*`
-      are one-frame impulses; any other axis (`<Gamepad>/leftStick/x`) keeps its value until set again (see the
-      lessons on mouse axes in section 5);
+      control path, `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`: any key of `<Keyboard>/` by its Input System
+      name (`w`, `space`, `leftShift`, `f2`, `escape`); on `<Mouse>/`, `leftButton`, `rightButton`, `middleButton`,
+      `forwardButton`, `backButton`; on `<Gamepad>/`, `buttonSouth`, `buttonEast`, `buttonWest`, `buttonNorth`,
+      `leftShoulder`, `rightShoulder`, `start`, `select`, `leftStickPress`, `rightStickPress`, `dpad/up`, `dpad/down`,
+      `dpad/left`, `dpad/right`. Any other control is a line in the play's `query_errors`, and nothing is pressed;
+    - an axis event: `{"t": 2.0, "key": "<Mouse>/delta/x", "axis": 40.0}`, on `<Mouse>/` `delta/x`, `delta/y`,
+      `scroll/x`, `scroll/y` or `<Gamepad>/` `leftStick/x`, `leftStick/y`, `rightStick/x`, `rightStick/y`,
+      `leftTrigger`, `rightTrigger`. The mouse's delta and scroll are one-frame impulses; a stick or a trigger keeps
+      its value until set again (see the lessons on mouse axes in section 5);
     - a widget click: `{"t": 6.0, "widget": "RetryButton", "click": true}` clicks the first visible, interactable uGUI
       Selectable or UI Toolkit Button whose name (a wildcard) or type matches, as a player's click fires it: a uGUI
-      Selectable gets a pointer enter, down, up and click at its centre; a UI Toolkit Button gets a submit event,
-      which fires `Button.clicked`. A game that handles a raw `ClickEvent` instead needs the cursor (below);
+      Selectable gets the pointer events of a click at its centre (enter, down, up, click), a UI Toolkit Button a
+      submit event, which fires `Button.clicked` (a game that handles a raw `ClickEvent` instead needs the cursor,
+      below). No match: nothing happens (the play's `probe.log` says `no visible button matches '<widget>'`);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
-      from the top); a following `<Mouse>/leftButton` press clicks there: uGUI through an EventSystem with an
-      `InputSystemUIInputModule`, UI Toolkit buttons, and the game through `Mouse.current`;
-    - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` places the player (m, facing `yaw`): the way to reach
-      a test spot;
+      from the top; it starts at the centre); a following `<Mouse>/leftButton` press and release clicks there: uGUI
+      through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit buttons, and the game through
+      `Mouse.current`;
+    - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` puts the player's own position (its pivot) at that
+      point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player): the way to reach a test
+      spot. The probe doesn't move it to the ground or out of a collider afterwards: take the point from where the
+      player stands in a play (the `track` of its `probe.json`);
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
-      "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to it,
-      on the player's side and level with it, plus `offset` (default none), facing `face` (a point, section 2.13) or
-      else that object. The spot is level with the target's own transform: its y plus `offset`'s, with no snap to the
-      ground, so for a target that hovers or whose pivot isn't at its foot give a negative y `offset` or use `hold`.
-      The way to reach a spot each build chooses itself (the ore a fix placed, a door it moved). No match: nothing
-      happens (`probe.log` says so);
+      "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to it
+      (the player and its own children left out; of two as near, the first in hierarchy order), on the player's side
+      and level with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else that object. The
+      way to reach a spot each build chooses itself (the ore a fix placed, a door it moved). **Level is pivot to
+      pivot**: the player's own position goes to the height of the object's position plus `offset`'s y, and nothing
+      then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up, `"offset": [0, -0.8, 0]`
+      puts a player whose pivot is at its feet on the ground). **A select matches every object that fits it, and the
+      nearest wins**: `{"name": "Coin*"}` also takes a `CoinSpawner`, and a player standing beside the spawner goes
+      there; select the instances themselves (their exact name, their own component, or `has`: section 2.4). No
+      match: nothing happens. The play's `probe.log` says what each one did, `teleported next to <name>: asked
+      (x, y, z) yaw <degrees>, now at (x, y, z)` or `teleport_to skipped (no object matches)`: check it in the fix's
+      play;
     - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 120) puts the player back
       at the spot (its position; its view stays free) after every frame's game logic for that many seconds of play.
       For a game that sets its player's ground position every frame, which would otherwise undo a teleport at once.
       Without `hold`, a teleport places the player once;
     - a wait in real time: `{"t": 8.0, "wait": 30}` (seconds, more than 0). Plays run on a fixed 30 fps clock as fast
-      as the machine renders, so what runs on the wall clock (a menu that pages on `Time.unscaledTime` or
-      `Time.realtimeSinceStartup`, a timer on the system clock) sees less real time than the play's seconds. At `t`
-      the play's clock holds while the game keeps running, paced to real time (each frame waits for the wall clock to
-      catch up with the game's own time), until `wait` real seconds and `wait` seconds of game time have both passed;
-      nothing is sampled, sent or screenshot meanwhile; then the play goes on from `t`. A play's waits add at most
-      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 120 s.
-  - A play that measures audio (an `audio` measure, section 2.16) is paced to real time (still 30 fps); every other
-    play runs as fast as the machine renders, where sounds play out in less game time, so only a play with an `audio`
-    measure reads sound. In every play the probe's tap on the listener measures the mix and then silences it, so
-    nothing is heard on the machine (section 2.16).
-  - The probe writes its own lines (teleports, clicks, waits, errors, each with play time and real time) to
-    `probe.log` beside `probe.json`; the game's own log is the play's `play.log`.
+      as the machine renders, so what runs on the wall clock (a menu that pages on `Time.realtimeSinceStartup`, a timer
+      on the system clock) sees less real time than the play's seconds. At `t` the play's clock holds while the game
+      keeps running, paced to real time (each frame waits for the wall clock to catch up with the game's own time),
+      until `wait` real seconds and `wait` seconds of game time have both passed; nothing is sampled, sent or
+      screenshot meanwhile; then the play goes on from `t`. A play's waits add at most 300 s in all, and its timeout
+      grows by them; `seconds`, windows and `at` stay in play time, within 120 s.
+  - A play that measures audio (an `audio` measure, section 2.16) runs paced to real time, so its sounds keep time
+    with the game; every other play runs as fast as the machine renders. No play is heard on the machine (section
+    2.16).
 - `"editor"`: one batchmode editor pass over the project as saved; takes only `asset` measures, and `asset` measures
   are taken only there.
 - `"trace"`: the agent's own trace; takes only `trace` measures, and `trace` measures are read only there. Trace
@@ -244,92 +229,105 @@ its renderers', else its position.
   - `component`: a component on the object, by its C# type name (`CastlePiece`, `MeshRenderer`, `Rigidbody`) or full
     name (`MyGame.CastlePiece`); the type, any of its base types and its interfaces match (`Collider` takes in
     `BoxCollider`; `MonoBehaviour` every script).
-  - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's name (an instantiated
-    prefab's name ends in `(Clone)`: `Projectile*`).
+  - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's whole name (`*` any
+    run of characters, `?` one character, any case). Every object whose name fits matches: `Coin*` takes a
+    `CoinSpawner` or a `CoinPool` as well as the coins, and a select that picks one match (`teleport_to`, a point,
+    `"of": "first"`) may pick the spawner. To pick the things themselves, select them by their own component
+    (`"component": "Coin"`) or by their full name: an object instantiated at run time is named `<Prefab>(Clone)`
+    (`Coin(Clone)`).
   - `near`: within `radius` m of a point. `{"player": true}`: the player.
-  - `inactive: true`: inactive objects match too (they read `active` 0).
   - `has`: a part the object carries, `{"has": {"component": ..., "lit": true, "visible": true, "near": {"point":
     <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on any of its
-    descendants) matches every key given. `component` is the part's type or a base type, as a `components` select
-    names it; `lit: true` reads it as the components `lit` field does (a light that is on, or a drawn renderer whose
-    material gives off light, section 2.5); `visible: true` as the components `visible` field does; `near` measures
-    from the part's own place, not the object's. `"simulating": true` (a non-kinematic Rigidbody or a Dynamic
-    Rigidbody2D) and `"movable": true` find an object by what it can do: `{"teleport_to": {"has": {"simulating":
-    true, "near": ...}}}` reaches the nearest object a player can shove, whichever component a build used. At least
-    one key, and only `true` for `lit`, `visible`, `simulating` and `movable`. The way to select by what an object
-    does ("an object that gives light", "an object with a drawn mesh near here") rather than by the type or name a
-    build gave it. It works in every object select: these, other measures' (`owner`, `ground`), points (section 2.13)
-    and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`.
+    descendants, inactive ones included) matches every key given. `component` is the part's type or a base type, as a
+    `components` select names it; `lit: true` reads it as the components `lit` field does (a Light that lights the
+    scene, a drawn mesh renderer whose material gives off light, from its material properties or else as rendered, or
+    a live particle system that draws light; section 2.5); `visible: true` keeps a Renderer that is drawn, as the
+    components `visible` field reads a Renderer; `near` measures from the part's own place, not the object's. At least
+    one key, and only `true` for `lit`, `visible`, `simulating` and `movable` (below). The way to select by what an
+    object does ("an object that gives light", "an object with a drawn mesh near here") rather than by the type or
+    name a build gave it. It works in every object select: these, other measures' (`owner`, `ground`), points
+    (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true`
+    (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) and `"movable": true` (the part's
+    object isn't marked Static: Unity's counterpart of Movable mobility) find an object by what it can do:
+    `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
+    whichever component a build used.
+  - `inactive: true`: inactive objects match too (they read `active` 0).
 - `field`:
   - `count`: the selection's size (`of` ignored);
   - `x`, `y`, `z` (m), `yaw`, `pitch`, `roll` (degrees), `scale` (the mean of the absolute lossy scale's axes);
   - `extent_x`, `extent_y`, `extent_z`: **the object's drawn renderers' world-aligned half-size** (m). The box is the
     union of the bounds of the renderers in the object and its descendants that are drawn (enabled, active, not
-    forced off), particle and trail renderers left out (they span where their particles went). Colliders, lights,
-    audio and empty objects don't count; no value when the object draws nothing. A LODGroup's lower LODs stay enabled,
-    so their renderers count here (and in `spread` and `hidden`) too. World-aligned, so a rotated object's extent
-    mixes its own axes (an object turned 90 degrees reports its width as `extent_z`);
+    forced off). Colliders, lights, audio, particle and trail renderers (they span where their particles went) and
+    renderers with empty bounds (a MeshRenderer without a mesh) don't count; no value when the object draws nothing.
+    A LODGroup's lower LODs stay enabled, so their renderers count here (and in `spread` and `hidden`) too.
+    World-aligned, so a rotated object's extent mixes its own axes (an object turned 90 degrees reports its width as
+    `extent_z`);
   - `active` (active in the hierarchy); `hidden` (1 when it is inactive, or it has renderers and none is drawn);
     `collision` (it or a descendant has an enabled collider that isn't a trigger); `speed` (m/s): its own velocity
-    when it reports one that isn't zero (a non-kinematic Rigidbody, a Dynamic Rigidbody2D, an enabled
-    CharacterController or a NavMeshAgent on its NavMesh), else how far it moved since the previous sample over that
-    time. One with such a velocity source at rest reads 0 on its first sample; one without has no value the first time
-    it is seen;
-  - `spin` (deg/s): how fast the object turns, the fastest of its mesh parts (none: its own transform), each read as
-    a component's `spin` (section 2.5): no value on the first sample it is seen in, except a non-kinematic Rigidbody
-    (its angular velocity). **Its threshold is calibrated or relative to the start, never a literal value**;
+    when it reports one that isn't zero (the first of these it has: a non-kinematic Rigidbody, a Dynamic Rigidbody2D,
+    an enabled CharacterController, a NavMeshAgent on its NavMesh), else how far it moved since the previous sample
+    over that time. One with such a velocity source at rest reads 0 on its first sample; one without has no value the
+    first time it is seen;
+  - `spin` (deg/s): how fast the object turns, the fastest of its mesh parts (its MeshRenderers with a mesh and its
+    SkinnedMeshRenderers, in it and its descendants, drawn or not; none: its own transform), each read as a
+    component's `spin` (section 2.5). **Its threshold is calibrated or relative to the start, never a literal value**;
   - `simulating`: 1 when the object or a descendant has a non-kinematic Rigidbody or a Dynamic Rigidbody2D (pieces
     that broke loose, a ragdoll);
-  - `spread` (m): how far apart the object's parts are, the diagonal of the world-aligned box around its drawn
-    renderers' bounds centres (particle and trail renderers left out, as for `extent_*`); 0 with one, no value with
-    none. A whole crate reads its pieces' own layout; one broken
-    into pieces that fell apart reads more, though its pieces stay drawn and tagged. **Its threshold is calibrated or
-    relative to the start, never a literal value**;
+  - `spread` (m): how far apart the object's parts are, the diagonal of the world-aligned box around their centres:
+    each renderer `extent_*` counts by its bounds centre; 0 with one part, no value when it draws nothing. A whole
+    crate reads its pieces' own layout; one broken into pieces that fell apart reads more, though its pieces stay
+    drawn and tagged. **Its threshold is calibrated or relative to the start, never a literal value**;
   - `changed`: 1 when the object differs from the first sample it was seen in (the play's first sample, for an object
-    there from the start), else 0. Its parts here are its MeshRenderers with a mesh and its SkinnedMeshRenderers,
-    drawn or not. It reads 1 when a part was hidden or shown, a part drawn then is gone or a part drawn now was not
-    there, a part's world bounds moved more than 0.01 m (moved, turned, scaled), or a skinned mesh's pose moved: its
-    bones more than 0.05 m in all, in the mesh's own space, or its local bounds more than 0.01 m. So an object that
-    breaks by hiding a part, or by animating its pieces in place with no physics, reads 1, as one that moves does; one
-    left alone reads 0. An object animated from the start (a looping idle) reads 1 too: read it after the start of the
-    play that matters, or read `pose_change`;
+    there from the start), else 0. Its parts are its mesh parts, as `spin` counts them, drawn or not. It reads 1 when
+    a part was hidden or shown (drawn: enabled, active, not forced off), a part drawn then is gone or a part drawn now
+    was not there, a part's world bounds moved more than 0.01 m (moved, turned, scaled), or a skinned mesh's pose
+    moved: its bones more than 0.05 m in all, in the mesh's own space, or its local bounds more than 0.01 m. So an
+    object that breaks by hiding a part, or by animating its pieces in place with no physics, reads 1, as one that
+    moves does; one left alone reads 0. An object animated from the start (a looping idle) reads 1 too: read it after
+    the start of the play that matters, or read `pose_change`;
   - `bounds_change` (m): the furthest any face of a part's world bounds moved since that first sample, the largest
     over its parts; `pose_change` (m): how far its skinned meshes' bones moved since then in their own space, summed
     over every bone (no value without a SkinnedMeshRenderer). **Their thresholds are calibrated or relative to the
     start, never a literal value**; `changed` takes a literal;
-  - `lit`: 1 when the object gives off light, whatever made it: any of its Lights is on (as `on` reads it, section
-    2.5), any of its drawn mesh renderers has a material that gives off light, or any of its particle systems is live
-    and lit (section 2.5). **This is the way to check for light**: a lamp lit by a Light and a lamp drawn by a glowing
-    material read the same. Takes a literal;
+  - `lit`: 1 when the object gives off light, whatever made it: any of its Lights lights the scene (as `on` reads it,
+    section 2.5, and its colour isn't black), any of its mesh parts is drawn with a material whose light is above a
+    luminance of 0.01 (an emissive material, or an unlit one, whose colour is what it gives off), or any of its
+    particle systems is live and draws light (section 2.5). **This is the way to check for light**: a lamp lit by a
+    Light and a lamp drawn by a glowing material read the same. Takes a literal;
   - `glow`: how much light, one amount summed over its lit sources so either kind compares: a Light's intensity in
-    Unity's own units (not candelas) times its colour's luminance (linear, its colour temperature applied when the
-    project uses it); a mesh's emissive luminance times a quarter of the surface of its local bounds (m2); a rendered
-    source as section 2.5 says. **Its threshold is calibrated or relative to the start, never a literal value**. A row
-    with `lit` or `glow` also carries `glow_sources`, the kinds lit (`light`, `emissive`, `unlit`, `effect`), and
+    Unity's own units (not candelas) times its colour's luminance (linear, and its colour temperature when the
+    project and the Light use it); a mesh's brightest material's luminance times a quarter of the surface of its
+    local bounds in m2, scaled (what a glowing surface that size gives every way); a source read as rendered, as
+    section 2.5 says. **Its threshold is calibrated or relative to the start, never a literal value**. A row with
+    `lit` or `glow` also carries `glow_sources`, the kinds lit (`light`, `emissive`, `unlit`, `effect`), and
     `glow_read`, how its renderers were read (`props`, `render`, or `unread`: there was no way to read one, and then
     the row has no value unless another source is lit), for the logs; neither is a field to measure. How a renderer's
     light is read, and its limits: section 2.5;
-  - `prop:<Component>.<member>[.<sub>]` or `prop:<member>`: read by reflection, fields and properties, public or not.
-    The component by type name on the object, else the first in its descendants (`prop:Health.current`,
-    `prop:Rigidbody.mass`, `prop:Light.intensity`); `prop:<member>` alone reads the GameObject, else its Transform
-    (`prop:activeSelf`, `prop:localScale.y`). Numbers and booleans as numbers, enums as their value, object references
-    as 1 when set, strings through `match`; an array or list without an index gives its length, `[i]` its element
-    (`prop:Inventory.items[0]`); `.x`, `.y`, `.z`, `.r`, `.g`, `.b`, `.a` of vectors and colours;
+  - `prop:<Component>.<member>[.<sub>]` or `prop:<member>`: read by reflection, instance fields and properties,
+    public or not (static members and indexers are not read). The component by type name on the object, else the
+    first in its descendants (`prop:Health.current`, `prop:Rigidbody.mass`, `prop:Light.intensity`); `prop:<member>`
+    alone reads the GameObject, else its Transform (`prop:activeSelf`, `prop:localScale.y`). Numbers and booleans as
+    numbers, enums as their number, object references as 1 when set and 0 when not, strings through `match`; an array
+    or list without an index gives its length, `[i]` its element (`prop:Inventory.items[0]`); a dictionary's entry by
+    its key (`prop:Inventory.counts.coins`); a vector's `.x`, `.y`, `.z` and a colour's `.r`, `.g`, `.b`, `.a`. Read a
+    renderer's `sharedMaterial` and a MeshFilter's `sharedMesh`: the plain `material`, `materials` and `mesh` give
+    that object a copy of its own, which changes the game;
   - `bone:<Component>.<Bone>.x|y|z`: the world position of a bone of a SkinnedMeshRenderer, a human bone of an
     Animator (`bone:Animator.Head.y`), or a descendant transform of that name. Bone, Part (below) and Animator
     parameter names are written as Unity has them, spaces, colons, parentheses and hyphens included
     (`bone:SkinnedMeshRenderer.mixamorig:Hips.y`, `world_yaw:Lamp (1)`);
   - `rel_yaw:<Part>`: the part's world yaw minus the object's (turning the whole object doesn't change it);
   - `world_yaw:<Part>`, `world_pitch:<Part>`, `world_roll:<Part>`: the part's own rotation in the world (degrees),
-    whether its object or the part itself turned; `forward:<Part>.x|y|z`: its forward unit vector in the world. A
-    **Part** is a descendant by its GameObject name, else the first object in it carrying a component of that type
-    name. For a Light this is the way its light travels: a directional light pointing down has a positive
-    `world_pitch` and a negative `forward:<Part>.y` (`world_pitch:Light`, `forward:Sun.y`);
+    whether its object or the part itself turned; `forward:<Part>.x|y|z`: its forward unit vector in the world. For a
+    Light this is the way its light travels: a directional light pointing down has a positive `world_pitch` and a
+    negative `forward:<Part>.y`. A **Part** is the object itself or a descendant, by its GameObject name, else the
+    first of them carrying a component of that type name (`world_pitch:Light`, `forward:Sun.y`);
   - `facing_vs_velocity`: degrees between the object's forward and its velocity (0 when it moves forward; no value
     under 0.1 m/s);
-  - `anim:<Parameter>`: a parameter of its Animator (floats and ints as numbers, bools as 1/0); `clip`: the name of
-    its Animator's current clip on layer 0, through `match`. Unity has no blackboards; an AI's state reads through
-    `anim:` or `prop:` of its own component.
+  - `anim:<Parameter>`: a parameter of its Animator (on it, else the first in its descendants, enabled and with a
+    controller): floats and ints as numbers, bools as 1/0, a trigger has no value; `clip`: the name of that Animator's
+    current clip on layer 0 (the heaviest while it blends), through `match`. Unity has no built-in AI blackboard: read
+    an AI's state with `anim:` or a `prop:` of the component that holds it.
 
 ### 2.5 `components`: components in the scene
 
@@ -406,35 +404,38 @@ Limits:
 
 Cost: an `objects` sample over a whole scene of 3000 objects takes about 20 ms.
 
-### 2.6 `widgets`: the UI's own elements
+### 2.6 `widgets`: the UI on screen
 
 `{"probe": "widgets", "select": {"component": "TextMeshProUGUI", "name": "AmmoText"}, "field": "text", "match":
 "AMMO\\s*\\d+", "of": "any"}`.
 
-- What is searched: uGUI (the `UnityEngine.UI` Graphics and Selectables, TextMeshPro text) on the scene's canvases,
-  and UI Toolkit (every element of every `UIDocument`'s panel). A widget is a uGUI component's object or a UI Toolkit
-  element: one row per GameObject or element, not per component. A row's `class` is the matched component's type,
-  else the object's Selectable, else its text or graphic. World-space canvases are included (their rectangle projected
-  through the player's camera); `ui` leaves them out.
-- `select`: `component` (a uGUI component's type, `Image`, `Slider`, `TextMeshProUGUI`, a game's own Graphic; or a UI
-  Toolkit element's type, `Label`, `ProgressBar`, a game's own element), `name` (a wildcard on the GameObject's or the
-  element's name), `text` (a regular expression its text must match), `visible`.
+- What is searched: uGUI (the `UnityEngine.UI` Graphics and Selectables, TextMeshPro text) on every canvas of the
+  loaded scenes, and UI Toolkit (every element of every `UIDocument`'s panel), hidden and inactive widgets included.
+  World-space canvases are included too, their rectangle projected through the camera (`ui` leaves them out). A
+  widget is a uGUI component's object or a UI Toolkit element: one row per GameObject or element, not per component.
+  A row's `class` is the matched component's type, else the object's Selectable, else its text or graphic (a UI
+  Toolkit element's: its type).
+- `select`: `component` (a uGUI component's type: `Image`, `Slider`, `TextMeshProUGUI`, a game's own component on a
+  canvas object; or a UI Toolkit element's type: `Label`, `ProgressBar`, a game's own element; base types match too,
+  so `Button` takes uGUI and UI Toolkit buttons alike), `name` (a wildcard on the GameObject's or the element's name),
+  `text` (a regular expression its text must match), `visible`.
 - **To check what a HUD shows, whatever draws it, use `ui` (section 2.18).** `widgets` reads a named widget's own
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
 - `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for: never an inactive, disabled
   or fully transparent one, nor one under such a parent (a CanvasGroup at alpha 0, a UI Toolkit element with
-  `display: none` or `visibility: hidden`), so `count` counts what is on screen (a warning bar's shown messages, not
-  the ones the game keeps hidden).
+  `display: none` or `visibility: hidden`), nor one culled by a RectMask2D or entirely outside the frame, so `count`
+  counts what is on screen (a warning bar's shown messages, not the ones the game keeps hidden).
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; a Selectable with no text of its own
-  reads its first child label's, so a Button reads "PRESS"); `percent` (a Slider's normalized value, a filled Image's
-  fill amount, a ProgressBar's share, a Scrollbar's value; 0-1); `value` (a Slider's value, a Toggle's 1/0, a
-  ProgressBar's, a Scrollbar's or a Dropdown's value); `interactable` (a Selectable's, or an element's enabled state);
-  `has_brush` (an Image's sprite, a RawImage's texture or an element's background image is set); `brush` (its name,
-  with `match`); `x`, `y`, `w`, `h` (the widget's rectangle in viewport fractions 0-1, **y down from the top**,
-  whatever anchor or layout placed it; no value for a widget with a zero-size rect, such as one under
-  `display: none`).
+  reads its first child label's, so a Button reads its label); `percent` (0-1: a Slider's normalized value, a filled
+  Image's fill amount, a ProgressBar's share, a Scrollbar's or Scroller's position); `value` (a Slider's value, a
+  Toggle's 1/0, a ProgressBar's, Scrollbar's or Scroller's value, a Dropdown's selected index); `interactable` (1 when
+  a uGUI Selectable is interactable and enabled, no value for another uGUI widget; a UI Toolkit element's enabled
+  state); `has_brush` (1 when an Image's sprite, a RawImage's texture, or a UI Toolkit element's image or background
+  image is set; no value for another uGUI widget); `brush` (that image's name, with `match`); `x`, `y`, `w`, `h` (the
+  widget's rectangle in viewport fractions 0-1, **y down from the top**, whatever anchor or layout placed it; no value
+  for a widget with a zero-size rect, such as one under `display: none`, or a world-space one behind the camera).
 - A project without the TextMeshPro essential resources draws no TMP text, but `widgets` and `ui` still report its
   `.text`.
 
@@ -443,18 +444,20 @@ Cost: an `objects` sample over a whole scene of 3000 objects takes about 20 ms.
 `{"probe": "light", "point": <Point>, "field": "illuminance|exposure|brightness", ...}`:
 - `illuminance`: the sum over the Lights that are on of their contribution at the point (point and spot lights by
   intensity x colour luminance x URP's distance and cone attenuation; directional lights by intensity x colour
-  luminance; the colour linear, its colour temperature applied when used), each with a wall check: a ray toward the
-  light that a collider stops (triggers, the Ignore Raycast layer, the player's colliders and the lamp's own colliders
-  never do). The wall check runs for lights with shadows off too, though URP itself lights through walls then. Area
-  lights are skipped (URP only bakes them). Plus the ambient light: the ambient probe's upward value in every mode
-  (flat ambient ignores `ambientIntensity`; gradient ambient is a mix of the sky, equator and ground colours, not the
-  sky colour), times the open share of 9 upward rays. It is in Unity's own light units, not lux;
+  luminance; the colour linear, its colour temperature applied when used), each with a wall check: a ray from the
+  light to the point (from the point toward a directional light, 2000 m) that any collider stops but a trigger, one
+  on the Ignore Raycast layer, the player's and the Light's own (on its object or under it). The wall check runs for
+  lights with shadows off too, though URP itself lights through walls then. Area lights are skipped (URP only bakes
+  them). Plus the ambient light: the ambient probe's upward value in every mode (flat ambient ignores
+  `ambientIntensity`; gradient ambient is a mix of the sky, equator and ground colours, not the sky colour), times the
+  open share of 9 upward rays (straight up and 8 around it at 45 degrees, 2000 m each, stopped as the wall check is).
+  It is in Unity's own light units, not lux;
 - `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without one, or when the
   camera's post-processing is off. URP has no auto-exposure;
 - `brightness`: `illuminance * exposure`, what the player sees at that point.
 
-The sample's value also holds `local`, `directional`, `sky`, `lights` (how many sources lit it) and `point`, for the
-logs. A point that doesn't resolve: no value.
+The sample's value also holds the parts of `illuminance` (`local`: point and spot lights, `directional`, `sky`: the
+ambient), `lights` (how many sources lit it) and `point`, for the logs. A point that doesn't resolve: no value.
 
 A Light counts when it is on: enabled, active in the hierarchy, of an intensity above 0 (`grading`'s sun the same).
 
@@ -468,22 +471,28 @@ or a renderer drawn with a glowing material), is `lit` of the lamp (section 2.4)
 URP volume stack in effect at the camera (global and local volumes by priority and blend weight), read as the shader
 constants URP itself prepares (colour balance as LMS coefficients, contrast, saturation, colour filter, post exposure,
 lift, gamma and gain, tonemapping), and the key lights: the strongest directional light that is on (the sun), the
-`RenderSettings` ambient (the sky) and fog. The checker runs a neutral grey (0.18), lit by the key light's hue, through
-URP's own grading order (white balance, contrast, colour filter, gain and lift, gamma, saturation): `grey` = the
-resulting luminance; `cast` = its chroma (0 = neutral); `warmth` = (R - B) / luminance; `tint` = (G - (R + B) / 2) /
-luminance; `saturation`, `contrast` = the effective values. `post:<Component>.<parameter>` (`post:Bloom.intensity`,
-`post:Vignette.intensity`, `post:ColorAdjustments.postExposure`, `post:MotionBlur.intensity`, ...): a volume
-parameter's effective value at the camera after blending.
+`RenderSettings` ambient (the sky) and fog. The checker runs a neutral grey (0.18), lit by the key light's hue (the
+sun's colour, else the sky's), through URP's own grading in its order (post exposure, white balance, contrast, colour
+filter, gain and lift, gamma, saturation): `grey` = the resulting luminance; `cast` = its chroma, (max - min) /
+luminance (0 = neutral); `warmth` = (R - B) / luminance; `tint` = (G - (R + B) / 2) / luminance; `saturation`,
+`contrast` = the effective multipliers (1 = neutral: a Color Adjustments saturation of -30 reads 0.7).
+`post:<Component>.<parameter>` (`post:Bloom.intensity`, `post:Vignette.intensity`,
+`post:ColorAdjustments.postExposure`, `post:MotionBlur.intensity`, ...): a volume parameter's effective value at the
+camera after blending.
 
-- The stack: the probe blends the volumes for the main camera's volume trigger and volume layer mask at each sample
+- The stack: the probe blends the volumes for the camera's volume trigger and volume layer mask at each sample
   (`source: "camera"`), or takes the camera's own stack when the camera updates it by script (`camera_stack`). A camera
-  with post-processing off draws ungraded: neutral constants and exposure 1.
-- `grey` includes the post exposure (URP multiplies the frame by 2^postExposure before the grading lookup). Contrast
-  pivots on ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own
-  behaviour. An untouched volume stack gives exactly `grey` 0.18 and `cast` 0. The checker's colour maths follows
-  URP's LDR grading order.
-- A `post:` parameter no volume overrides reads the component's default. A `post:` name that doesn't exist (a component
-  or a parameter), or a colour or vector without a part, has no value and gives a `query_errors` line.
+  with post-processing off draws ungraded: neutral constants and exposure 1 (its `post:` values still read the stack).
+  Without URP the constants are neutral and a `post:` field has no value.
+- Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
+  ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
+  untouched volume stack gives exactly `grey` 0.18 and `cast` 0. The checker's colour maths follows URP's LDR grading
+  order and leaves out tonemapping, the hue shift, split toning, the channel mixer, shadows/midtones/highlights and the
+  curves: read those with `post:` (`post:Tonemapping.mode`, `post:ColorAdjustments.hueShift`).
+- A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
+  enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set. A `post:` name that doesn't exist (a
+  component or a parameter), or a colour or vector parameter (`post:Vignette.color`: the task format can't name its
+  part), has no value and gives a `query_errors` line.
 - The sample's value also holds, for the logs: `post_processing`, `grading_mode` (`ldr` or `hdr`), `source`,
   `pipeline`, the constants (linear colours; `hue_shift` in degrees), `sun`, `sky` and `fog` (with its `mode`).
 
@@ -500,8 +509,9 @@ child counts too.
 
 ### 2.10 `log`: the play's player log
 
-`{"probe": "log", "pattern": "<regex>", "field": "count"}`: lines of the play's player log (`Debug.Log` output,
-warnings, exceptions and Unity's own lines) that match, during the play.
+`{"probe": "log", "pattern": "Scenario \\d+ started", "field": "count"}`: lines of the play's player log (`Debug.Log`
+output, warnings, exceptions and Unity's own lines) that match, during the play: the whole log of the player's run, from
+its start-up to its exit (a `log` measure takes no `window`, `at` or `agg`).
 
 ### 2.11 `asset`: the project as saved (`play: "editor"`)
 
@@ -512,52 +522,70 @@ warnings, exceptions and Unity's own lines) that match, during the play.
  "field": "material_default", "of": "all"}
 ```
 
-One batchmode editor pass per side, over the project as saved. A measure names exactly one of `asset`, `scene` and
-`prefab`. The pass never saves: every file under `Assets/` and `ProjectSettings/` is unchanged after it.
-- `asset` + a field, on the asset at that path:
-  - `prop:<path>`: the main asset's member by reflection (a ScriptableObject's field, `prop:waves` for a list's
-    length, `prop:waves[2].count`), else a SerializedObject property path. On a prefab asset it reads the prefab's
-    root as a scene object's `prop:` does (`prop:Light.intensity`). `material`, `materials` and `mesh` in a path are
-    read as their `shared...` versions (the plain getters would copy the asset);
+One batchmode editor pass per side reads the project as saved. It never saves: every file under `Assets/` and
+`ProjectSettings/` is unchanged after it. A measure names exactly one of `asset`, `scene` and `prefab`.
+
+- `asset` (its path) with a `prop:`, `import:`, `shader:` or `keyword:` field and no `select`: one value (`of` doesn't
+  apply; a string reads through `match`):
+  - `prop:<path>`: the main asset's member by reflection, else a SerializedObject property path (a ScriptableObject's
+    field `prop:waves[2].count`; `prop:waves`, a list, is its length; `prop:m_Name`). On a prefab asset it reads the
+    prefab's root as a scene object's `prop:` does (`prop:Light.intensity`, the first Light in it). `material`,
+    `materials` and `mesh` in a path are read as their `shared...` versions (the plain getters would copy the asset);
   - `import:<path>`: its importer's setting (`import:maxTextureSize`, `import:textureCompression`), falling back to
     an AudioImporter's `defaultSampleSettings` (so `import:loadType` works);
-  - `shader:<Property>`: a material's shader property (floats and ints as they are; `.r`, `.g`, `.b`, `.a` of a colour
-    and `.x`, `.y`, `.z`, `.w` of a vector, either spelling for either; a texture 1 when set, and its name with
-    `.name` and `match`): `shader:_BaseColor.r`, `shader:_EmissionColor.g`, `shader:_BaseMap`, `shader:_BaseMap.name`;
-    `shader:name` is the shader's name (with `match`);
-  - `keyword:<NAME>`: a material's shader keyword, 1 when enabled (`keyword:_EMISSION`).
-- `scene` (or `prefab`) + `select` (as for `objects`): objects in that scene or prefab as saved. A select using
-  `player` or `has`, or a `near` around the player or the camera, is an error for that measure, not empty rows; a
-  `near` around `{"xyz": ...}` or `{"object": <select>}` works (the object resolved in the same scene or prefab).
-  Fields:
-  - `count`;
-  - `material_default` = 1 when any renderer of the object or its descendants (inactive ones included) has a slot
-    that is empty or missing, uses the error shader (or one that doesn't compile), or holds Unity's built-in default
-    material or the render pipeline's default material (what a new primitive gets in URP);
+  - `shader:<Property>`: a material's shader property: a float, range or int as it is (`shader:_Smoothness`); a
+    colour's channel `.r`, `.g`, `.b`, `.a` or a vector's `.x`, `.y`, `.z`, `.w`, either spelling for either
+    (`shader:_BaseColor.r`); a texture 1 when set (`shader:_BaseMap`), its name with `.name` and `match`
+    (`shader:_BaseMap.name`; an unset texture's name has no value); `shader:name`, the shader's name, with `match`;
+  - `keyword:<NAME>`: 1 when the material has that shader keyword enabled, else 0 (`keyword:_EMISSION`).
+- `scene` or `prefab` (its path) with a `count`, `material_default`, `material:`, `mesh_collision` or `prop:` field
+  and a `select` (an object select, as for `objects`; none: every object): the objects it matches in that scene or
+  prefab as saved, in hierarchy order, the active ones unless the select says `"inactive": true`. Each field gives
+  rows, and `of` combines them (default `count`: how many rows have a value other than 0):
+  - `count`: how many objects match (`of` ignored);
+  - `material_default`: one row per object, 1 when any renderer of it or its descendants (inactive ones included)
+    has no material slot, a slot that is empty or missing, a material with the error shader (or one that doesn't
+    compile), or Unity's built-in default material or the render pipeline's default material (what a new primitive
+    gets in URP);
   - `material:<property>`: one row per material slot of every renderer of the object and its descendants (inactive
-    ones included), read as `shader:` reads it: a float or int property as it is, a colour's or vector's channel
-    (`material:_BaseColor.r`), a texture 1 when set (`.name` for its name), `material:shader` the shader's name; and
-    `material:keyword:<NAME>`, 1 when that slot's material has the keyword enabled. A colour or vector without a
-    channel has no value;
-  - `mesh_collision`: one row per mesh (MeshFilter with a mesh) in the object, 1 when it or a parent up to the object
-    has an enabled collider that isn't a trigger;
-  - `prop:<Component>.<path>`.
-- Errors rather than values (the probe fails with the editor's reason): a missing asset (`no asset <path>`), scene
-  (`no scene <path>`) or prefab (`no prefab <path>`); a colour or vector without a channel; an unknown shader
-  property; `shader:` or `keyword:` on something that isn't a material; an unknown member on an asset. An unknown
-  member on a scene object is a row with no value; an unset texture's name has no value.
+    ones included; rows named `<object>/<renderer's object>`), the slot's material read as `shader:` reads it
+    (`material:_BaseColor.r`, `material:_BaseMap.name`, `material:shader` for the shader's name), or
+    `material:keyword:<NAME>`, 1 when that slot's material has the keyword enabled. An empty slot, a property its
+    shader lacks or a colour without a channel is a row with no value, not an error;
+  - `mesh_collision`: one row per mesh (a MeshFilter with a mesh) in the object (rows named `<object>/<mesh's
+    object>`), 1 when its object or a parent up to the matched object has an enabled collider that isn't a trigger;
+  - `prop:<Component>.<path>`: one row per object, read as an object's `prop:` is (section 2.4); an unknown member is a
+    row with no value.
+- A select that needs a running game is an error for that measure, not empty rows: `player`, `has`, or a `near`
+  around the player or the camera. A `near` around `{"xyz": [x, y, z]}` or `{"object": <select>}` works (the object
+  resolved in the same scene or prefab; when nothing there matches it, nothing is near it).
+- Errors: the probe fails with "the editor couldn't measure it: " and the editor's message, one of (`<...>` stands for
+  the names in question):
+  - `no asset <path>`, `no scene <path>`, `no prefab <path>`;
+  - `no property <path> on <asset type> <asset path>` (`prop:`); `no import setting <path> on <importer type> <asset
+    path>`, `no importer for <asset path>` (`import:`);
+  - `<asset path> is not a material (<asset type>)` (`shader:` or `keyword:` on another asset);
+  - `no shader property <name> on <shader> (<material>)`; `<name> is a colour: name a channel (<name>.r, .g, .b or
+    .a)`; `<name> is a vector: name a channel (<name>.x, .y, .z or .w)`; `no <part> on the shader property <name>`
+    (`.name` of a float, a channel of a texture);
+  - "`player` selects need a running game: the editor pass can't match them", "`has` needs a running game: the editor
+    pass can't match it" and "a `near` point on the player or the camera needs a running game: use {"xyz": [x, y,
+    z]}".
+  A value that reads no number fails too: "the property has no number" (an `asset` field without a value, or a
+  string read without `match`), "no selected object has a value" (rows without a value, or none, under `of` `min`,
+  `max`, `mean` or `first`).
 - Floats come back as stored (`_BaseColor.r` set to 0.2 reads 0.19999995827674866): compare with a tolerance
   (`>=`/`<=` a little either side), never `==` on a fraction.
 - URP rewrites some material values on import: a material created with `_EMISSION` but default global illumination
   flags has the keyword turned off again. Read what the saved asset really holds, at both seeds.
-- A project whose scripts don't compile fails its editor probes (Unity runs no editor method then).
+- A project that doesn't build fails its editor probes ("the project didn't build, so the editor couldn't open it").
 
 ### 2.12 `trace`: the agent's own trace (`play: "trace"`, never gating)
 
-`{"probe": "trace", "fact":
-"built_after_last_change|played_after_last_change|read_before_first_edit|build_ok_at_end|edits_outside_project"}`: a
-successful build / game run after the last change; a read before the first edit; the last build succeeded; edits
-refused for a path outside the project. Only as `"required": false` quality notes with a literal threshold.
+`{"probe": "trace", "fact": "build_ok_at_end"}`, a fact of the agent's trace: `built_after_last_change` or
+`played_after_last_change` (a successful build / game run after the last change), `read_before_first_edit` (a read
+before the first edit), `build_ok_at_end` (the last build succeeded), `edits_outside_project` (edits refused for a
+path outside the project). Only as `"required": false` quality notes with a literal threshold.
 
 ### 2.13 Points
 
