@@ -10,7 +10,7 @@ import json
 import os
 import re
 
-DEFAULT_UNITY_VERSION = "6000.3.26f1"   # Unity 6.3 LTS, as ugf-root.ps1 (keep the two in step)
+DEFAULT_UNITY_VERSION = "6000.3"   # Unity 6.3 LTS: new games use its newest installed patch, as ugf-root.ps1
 DEFAULT_HUB_EDITORS = "C:/Program Files/Unity/Hub/Editor"
 
 
@@ -53,15 +53,39 @@ def unity_for_version(version):
     return p if os.path.isfile(p) else ""
 
 
+def unity_version():
+    """The editor version new games use, as ugf-root.ps1 Get-UGFUnityVersion (keep the two in step): "unity_version" in
+    the config, default 6000.3 (Unity 6.3 LTS). A series ("6000.3") means its newest installed final patch; an exact
+    version ("6000.3.28f1") pins it. "" when no editor of the series is installed."""
+    c = config()
+    v = str(c.get("unity_version") or DEFAULT_UNITY_VERSION)
+    if not re.fullmatch(r"\d+\.\d+", v):
+        return v
+    hub = (c.get("unity_hub_editors") or DEFAULT_HUB_EDITORS).replace("\\", "/").rstrip("/")
+    have = [d for d in (os.listdir(hub) if os.path.isdir(hub) else [])
+            if os.path.isfile("%s/%s/Editor/Unity.exe" % (hub, d))]
+    have += [d for d, p in (c.get("unity_editors") or {}).items() if p and os.path.isfile(p)]
+    finals = [(int(m.group(1)), int(m.group(2)), d) for d in have
+              for m in [re.fullmatch(re.escape(v) + r"\.(\d+)f(\d+)", d)] if m]
+    return max(finals)[2] if finals else ""
+
+
 def unity_editor(project=None):
     """Unity.exe for a project, as ugf-root.ps1 Get-UGFUnity (keep the two in step): the exact version its
-    ProjectVersion.txt names, else "unity_version". Exits naming the version to install when it is missing."""
+    ProjectVersion.txt names, else unity_version(). Exits naming what to install when it is missing."""
     import sys
-    ver = project_unity_version(project) or config().get("unity_version") or DEFAULT_UNITY_VERSION
+    ver = project_unity_version(project) or unity_version()
     exe = unity_for_version(ver)
     if not exe:
-        sys.exit("Unity %s is not installed: install it through Unity Hub (with Windows Build Support (IL2CPP)), or "
-                 "name its Unity.exe in unity_editors in %s" % (ver, config_path()))
+        if ver:
+            what = ("Unity %s is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for "
+                    "an older patch: version %s" % (ver, ver))
+        else:
+            series = config().get("unity_version") or DEFAULT_UNITY_VERSION
+            what = ("no Unity %s editor is installed: install the newest %s patch through Unity Hub (Installs > "
+                    "Install Editor" % (series, series))
+        sys.exit("%s, with Windows Build Support (IL2CPP)), or name its Unity.exe in unity_editors in %s"
+                 % (what, config_path()))
     return exe
 
 

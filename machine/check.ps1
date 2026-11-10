@@ -2,13 +2,14 @@
 .SYNOPSIS
   Check that this machine can run unity-game-factory sessions; prints a PASS / WARN / FAIL report. Read-only.
 .DESCRIPTION
-  Toolchain: Unity Hub, a Unity 6.3 LTS editor (6000.3.*; the config's unity_version for new games) with Windows Build
-  Support (IL2CPP), Visual Studio's C++ tools for IL2CPP builds (WARN only: Mono builds need none), git + Git LFS, gh
-  (logged in, can see the org's repos), Python. Recording: NVIDIA driver (NVENC with the pinned ffmpeg), refresh rate,
-  display sleep off, the pinned ffmpeg. Space: free disk on the root's drive. Content: the asset library folder and the
-  Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex): installed, signed in
-  where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the recording hooks and each
-  agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md / AGENTS.md.
+  Toolchain: Unity Hub, the Unity 6.3 LTS editor new games use (the config's unity_version) with Windows Build Support
+  (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN only: Mono builds need
+  none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording: NVIDIA driver (NVENC with the pinned
+  ffmpeg), refresh rate, display sleep off, the pinned ffmpeg. Space: free disk on the root's drive. Content: the asset
+  library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
+  installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
+  recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
+  AGENTS.md.
   Exit code = number of FAILs. -Json writes the report as JSON too.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\check.ps1
@@ -62,20 +63,30 @@ Try-Check 'Unity Hub' {
     else { Add-Result FAIL 'Unity Hub' 'not installed' 'winget install -e --id Unity.UnityHub, then sign in with a Unity ID and activate a licence (Personal is fine)' }
 }
 Try-Check 'Unity 6.3 LTS editor' {
-    $want = [string]$cfg.unity_version
-    $all = @(Get-UGFInstalledUnity $cfg)
-    $lts = @($all | Where-Object { $_.version -match '^6000\.3\.\d+f\d+$' })
-    $exact = Get-UGFUnityForVersion $want $cfg
-    $fix = "Unity Hub > Installs > Install Editor: Unity 6.3 LTS ($want or a newer 6000.3 patch) with the module Windows Build Support (IL2CPP)"
-    if (-not $lts) { Add-Result FAIL 'Unity 6.3 LTS editor' $(if ($all) { "installed: $(($all | ForEach-Object version) -join ', '); none is 6000.3" } else { "no editor under $($cfg.unity_hub_editors)" }) $fix; return }
-    if ($exact) { Add-Result PASS 'Unity 6.3 LTS editor' "$want (unity_version) at $exact; all 6000.3: $(($lts | ForEach-Object version) -join ', ')" }
-    else { Add-Result WARN 'Unity 6.3 LTS editor' "unity_version $want is not installed; installed 6000.3: $(($lts | ForEach-Object version) -join ', ') (new-game.ps1 takes the newest)" "install $want through Unity Hub, or set unity_version in $(Get-UGFConfigPath) to an installed 6000.3 patch" }
+    $ver = Get-UGFUnityVersion $cfg   # the editor new games use: unity_version, a series (its newest patch) or exact
+    $exe = Get-UGFUnityForVersion $ver $cfg
+    if (-not $exe -and $ver) { Add-Result FAIL 'Unity 6.3 LTS editor' "unity_version $ver is not installed" "install it through Unity Hub (Installs > Install Editor > Archive), or set unity_version in $(Get-UGFConfigPath) to 6000.3 (its newest installed patch)"; return }
+    if (-not $exe) { Add-Result FAIL 'Unity 6.3 LTS editor' "no $($cfg.unity_version) editor under $($cfg.unity_hub_editors)" 'Unity Hub > Installs > Install Editor > Unity 6.3 (LTS), the newest 6000.3 patch, with the module Windows Build Support (IL2CPP) (or name where the editors are: unity_hub_editors / unity_editors in the config)'; return }
+    if ($ver -match '^6000\.3\.') { Add-Result PASS 'Unity 6.3 LTS editor' "$ver at $exe (unity_version $($cfg.unity_version))" }
+    else { Add-Result FAIL 'Unity 6.3 LTS editor' "unity_version $ver is not 6.3 LTS" 'set unity_version to 6000.3 (its newest installed patch) or an installed 6000.3 version; new games and the template target 6000.3' }
     # Windows Build Support (IL2CPP): the editor's Data\PlaybackEngines\windowsstandalonesupport has Variations\*il2cpp*
-    $ed = Split-Path $lts[0].Path -Parent
-    $ws = Join-Path $ed 'Data\PlaybackEngines\windowsstandalonesupport'
+    $ws = Join-Path (Split-Path $exe -Parent) 'Data\PlaybackEngines\windowsstandalonesupport'
     $il2cpp = (Test-Path $ws) -and @(Get-ChildItem (Join-Path $ws 'Variations') -Directory -ErrorAction SilentlyContinue | Where-Object Name -match 'il2cpp').Count -gt 0
-    if ($il2cpp) { Add-Result PASS 'Windows Build Support (IL2CPP)' "$($lts[0].version)" }
-    else { Add-Result WARN 'Windows Build Support (IL2CPP)' "not found for $($lts[0].version) (Mono player builds still work)" "Unity Hub > Installs > $($lts[0].version) > Add modules > Windows Build Support (IL2CPP)" }
+    if ($il2cpp) { Add-Result PASS 'Windows Build Support (IL2CPP)' $ver }
+    else { Add-Result WARN 'Windows Build Support (IL2CPP)' "not found for $ver (Mono player builds still work)" "Unity Hub > Installs > $ver > Add modules > Windows Build Support (IL2CPP)" }
+}
+# A game builds, tests and plays only on the exact editor its ProjectSettings\ProjectVersion.txt names (Get-UGFUnity).
+Try-Check 'Unity editors of the games' {
+    $need = [ordered]@{}
+    foreach ($g in @(Get-ChildItem (Join-Path $Root 'games') -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '_*' })) {
+        $pv = Join-Path $g.FullName 'ProjectSettings\ProjectVersion.txt'
+        if (-not ((Test-Path $pv) -and ((Get-Content $pv -Raw) -match 'm_EditorVersion:\s*(\S+)'))) { continue }
+        if (-not $need.Contains($Matches[1])) { $need[$Matches[1]] = @() }
+        $need[$Matches[1]] += $g.Name
+    }
+    $missing = @($need.Keys | Where-Object { -not (Get-UGFUnityForVersion $_ $cfg) })
+    if (-not $missing) { Add-Result PASS 'Unity editors of the games' $(if ($need.Count) { "installed: $(@($need.Keys) -join ', ')" } else { 'no game projects yet' }) }
+    else { Add-Result WARN 'Unity editors of the games' "not installed: $(($missing | ForEach-Object { "$_ ($($need[$_] -join ', '))" }) -join '; ')" 'needed only to build, test or play those games: Unity Hub > Installs > Install Editor > Archive > that exact version, with Windows Build Support (IL2CPP)' }
 }
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 Try-Check 'C++ tools for IL2CPP' {

@@ -38,7 +38,7 @@
 param(
     [string]$Root,                                              # default: UGF_ROOT / existing config / %USERPROFILE%\UnityWork
     [string]$UnityHubEditors,                                   # default: config / C:\Program Files\Unity\Hub\Editor
-    [string]$UnityVersion,                                      # default: config / 6000.3.26f1 (Unity 6.3 LTS; new games)
+    [string]$UnityVersion,                                      # default: config / 6000.3 (its newest installed patch; new games)
     [ValidateSet('auto', 'claude', 'codex', 'both')][string]$Agent = 'auto',   # which coding agents to wire up
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
     [string]$CodexDir,                                          # default: CODEX_HOME / %USERPROFILE%\.codex

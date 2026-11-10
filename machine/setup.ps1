@@ -52,7 +52,7 @@ param(
     [switch]$SkipFfmpeg
 )
 $ErrorActionPreference = 'Stop'
-$UnityLts = '6000.3.26f1'   # Unity 6.3 LTS: the editor version new games use (config unity_version overrides)
+$UnityLts = '6000.3'   # Unity 6.3 LTS: new games use its newest installed patch (config unity_version: a series or exact)
 $items = New-Object Collections.Generic.List[object]
 function Item([string]$Status, [string]$What, [string]$Detail = '', [string]$Todo = '') {
     $items.Add([pscustomobject]@{ status = $Status; what = $What; detail = $Detail; todo = $Todo })
@@ -302,15 +302,20 @@ Write-Host "6. sign-ins and installs only you can do"
 $cfgNew = if (Test-Path -LiteralPath $cfgFile) { [IO.File]::ReadAllText($cfgFile) | ConvertFrom-Json } else { $null }
 $hubEditors = if ($cfgNew -and $cfgNew.unity_hub_editors) { [string]$cfgNew.unity_hub_editors } else { 'C:\Program Files\Unity\Hub\Editor' }
 $wantVer = if ($cfgNew -and $cfgNew.unity_version) { [string]$cfgNew.unity_version } else { $UnityLts }
-$lts = @(Get-ChildItem -LiteralPath $hubEditors -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^6000\.3\.\d+f\d+$' -and (Test-Path (Join-Path $_.FullName 'Editor\Unity.exe')) } | ForEach-Object Name)
+# the editors installed (as lib\ugf-root.ps1 Get-UGFInstalledUnity), and the one new games use: a series is its newest
+# final patch, an exact version itself (Get-UGFUnityVersion)
+$have = @(Get-ChildItem -LiteralPath $hubEditors -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'Editor\Unity.exe') } | ForEach-Object Name)
+if ($cfgNew -and $cfgNew.unity_editors) { $have += @($cfgNew.unity_editors.PSObject.Properties | Where-Object { Test-Path -LiteralPath ([string]$_.Value) } | ForEach-Object Name) }
+$useVer = if ($wantVer -notmatch '^\d+\.\d+$') { @($have) -eq $wantVer | Select-Object -First 1 } else {
+    @($have | Where-Object { $_ -match ('^' + [regex]::Escape($wantVer) + '\.\d+f\d+$') } | Sort-Object { [int]($_.Split('.')[2] -replace 'f.*') }, { [int]($_ -replace '^.*f') } -Descending) | Select-Object -First 1
+}
 if (Get-UnityHubExe) {
     Item INFO 'Unity Hub sign-in' 'open Unity Hub, sign in with a Unity ID (create one if needed) and activate a licence (Preferences > Licenses; Personal is fine); not detectable here'
 }
-if ($wantVer -in $lts) { Item PASS 'Unity 6.3 LTS editor' "$wantVer in $hubEditors" }
-elseif ($lts) { Item PASS 'Unity 6.3 LTS editor' "$($lts -join ', ') in $hubEditors (unity_version $wantVer is not installed: new-game.ps1 takes the newest 6000.3)" }
+if ($useVer) { Item PASS 'Unity 6.3 LTS editor' "$useVer (unity_version $wantVer)" }
 else {
-    Item TODO 'Unity 6.3 LTS editor' "no 6000.3 editor in $hubEditors" ("in Unity Hub: Installs > Install Editor > Unity 6.3 (LTS) ($wantVer, or the newest 6000.3 patch; " +
-        "older patches under Archive), with the module Windows Build Support (IL2CPP); about 10 GB. Then run setup again.")
+    Item TODO 'Unity 6.3 LTS editor' "no $wantVer editor in $hubEditors" ("in Unity Hub: Installs > Install Editor > Unity 6.3 (LTS), the newest 6000.3 patch " +
+        "(an exact unity_version: that version, under Archive), with the module Windows Build Support (IL2CPP); about 10 GB. Then run setup again.")
 }
 Item INFO 'C++ tools for IL2CPP' 'only for IL2CPP player builds: Visual Studio 2022 (or Build Tools) with "Desktop development with C++" (check.ps1 reports it)'
 if ($nv) {

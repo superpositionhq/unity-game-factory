@@ -15,23 +15,27 @@ All machine paths hang off one root, the "UnityWork" folder that holds `unity-ga
 3. `%USERPROFILE%\UnityWork`.
 
 The config also holds `unity_hub_editors` (default `C:\Program Files\Unity\Hub\Editor`: where Unity Hub installs
-editors), `unity_version` (default `6000.3.26f1`, Unity 6.3 LTS: the editor new games use), optional `unity_editors`
-(`{"6000.3.26f1": "D:\\Unity\\6000.3.26f1\\Editor\\Unity.exe"}`: editors installed elsewhere), `github_org` (the
-GitHub organisation or user that owns unity-game-factory and the private `unity-game-<slug>` repos: `bootstrap.ps1
--Org` writes it, env `UGF_ORG` overrides it; new-game.ps1, `-CloneGames` and check.ps1 read it), and
+editors), `unity_version` (default `6000.3`, Unity 6.3 LTS: new games use its newest installed patch; an exact version
+such as `6000.3.28f1` pins them to it), optional `unity_editors`
+(`{"6000.3.28f1": "D:\\Unity\\6000.3.28f1\\Editor\\Unity.exe"}`: editors installed elsewhere, which then count as
+installed), `github_org` (the GitHub organisation or user that owns unity-game-factory and the private
+`unity-game-<slug>` repos: `bootstrap.ps1 -Org` writes it, env `UGF_ORG` overrides it; new-game.ps1, `-CloneGames` and
+check.ps1 read it), and
 `record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as projects besides
 `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: packages, dataset zips and replay
 packages, GBs per game, so point it at a roomy drive) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: packaging
 refuses to start on a drive with less free).
 
-Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.26f1`),
+Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),
 and the tools use exactly that install (`lib/ugf-root.ps1` `Get-UGFUnity`, `lib/ugfroot.py` `unity_editor`):
 `unity_editors[<version>]` if set, else `<unity_hub_editors>\<version>\Editor\Unity.exe`; a missing version gives
 `$null` and a warning naming the version to install through Unity Hub (`ugfroot.py` exits with that message), so a
-project never silently opens in another editor, which would re-serialize its assets. `Get-UGFUnityVersion` is the
-configured default (`unity_version`). `Get-UGFNewestUnity -Series 6000.3` gives the newest installed 6.3 LTS patch as
-`.Version` / `.Path` (versions compared numerically), or `$null`; `templates/new-game.ps1` writes it into a new
-project.
+project never silently opens in another editor, which would re-serialize its assets. Without a project, the version new
+games use: `Get-UGFUnityVersion` (`ugfroot.py` `unity_version`), which turns the series `6000.3` into its newest
+installed final patch and gives `''` when none is installed (Unity Hub installs each patch beside the others, so a
+pinned default would go stale). `Get-UGFNewestUnity -Series 6000.3` gives the newest installed 6.3 LTS patch as
+`.Version` / `.Path` (versions compared numerically), or `$null`. `templates/new-game.ps1` writes the version new games
+use into a new project.
 
 Job slots (unity-heavy.ps1):
 
@@ -48,7 +52,7 @@ source (config set by hand, config from bootstrap, or computed at run time). The
 `lib/ugf-root.ps1` (`Get-UGFComputedSlots`) and `lib/ugfroot.py` (`computed_slots`).
 
 ```json
-{ "root": "C:\\Users\\<name>\\UnityWork", "unity_hub_editors": "C:\\Program Files\\Unity\\Hub\\Editor", "unity_version": "6000.3.26f1",
+{ "root": "C:\\Users\\<name>\\UnityWork", "unity_hub_editors": "C:\\Program Files\\Unity\\Hub\\Editor", "unity_version": "6000.3",
   "github_org": "<org>", "record_extra_projects": [], "agents": ["claude"], "hooks_dir": "C:\\Users\\<name>\\.unity-game-factory\\hooks",
   "heavy_slots": 3, "gpu_slots": 2, "slots_auto": { "heavy_slots": 3, "gpu_slots": 2, "basis": "<hardware>" } }
 ```

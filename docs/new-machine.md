@@ -82,7 +82,7 @@ Setup prints these as TODOs and detects them on the next run.
 | Step | How | Detected by |
 |---|---|---|
 | Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). | (not detectable; the editor refuses to open without it) |
-| Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**: `6000.3.26f1` (the config's `unity_version`) or the newest 6000.3 patch (older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed. | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
+| Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
 | NVIDIA driver (if you have an NVIDIA GPU) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
 | Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
@@ -110,7 +110,8 @@ Start sessions in the UnityWork root (or a game folder under it), never in the U
 `machine/bootstrap.ps1` (run by setup; can be run on its own any time):
 
 - `%USERPROFILE%\.unity-game-factory\config.json`: `root`, `unity_hub_editors`, `unity_version` (the editor new games
-  use, Unity 6.3 LTS), `github_org`, `record_extra_projects`; the job slots `heavy_slots` / `gpu_slots` sized from the
+  use: `6000.3`, its newest installed patch, unless set to an exact version), `github_org`, `record_extra_projects`,
+  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the
   hardware (the Unreal factory's formula), with their basis in `slots_auto` (values edited by hand are kept, `-Force`
   recomputes);
 - the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`;

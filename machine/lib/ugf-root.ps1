@@ -6,7 +6,8 @@
 #   2. "root" in the config file: $env:UGF_CONFIG, else %USERPROFILE%\.unity-game-factory\config.json (bootstrap.ps1 writes it)
 #   3. %USERPROFILE%\UnityWork
 # The same config file also holds "unity_hub_editors" (the Unity Hub's editor folder), "unity_version" (the editor new
-# games use), optional "unity_editors" ({"6000.3.26f1": "<path to Unity.exe>", ...}), "record_extra_projects"
+# games use: "6000.3", its newest installed patch, or an exact version; Get-UGFUnityVersion), optional "unity_editors"
+# ({"6000.3.28f1": "<path to Unity.exe>", ...}), "record_extra_projects"
 # (top-level folders under the root that the recording hooks treat as projects besides games\<slug>), "github_org"
 # (the GitHub organisation or user that owns unity-game-factory and the private unity-game-<slug> repos; Get-UGFOrg),
 # "agents" (the coding agents bootstrap.ps1 wired up: "claude", "codex") and "hooks_dir" (where the recording hooks
@@ -22,7 +23,7 @@ function Get-UGFConfigPath {
     return (Join-Path $env:USERPROFILE '.unity-game-factory\config.json')
 }
 
-$script:UGFDefaultUnityVersion = '6000.3.26f1'   # Unity 6.3 LTS: the editor new games use unless the config says otherwise
+$script:UGFDefaultUnityVersion = '6000.3'   # Unity 6.3 LTS: new games use its newest installed patch (Get-UGFUnityVersion)
 
 function Get-UGFConfig {
     $cfg = [ordered]@{
@@ -68,13 +69,28 @@ function Get-UGFHooksDir($Cfg = (Get-UGFConfig)) {
     return (Join-Path $env:USERPROFILE '.unity-game-factory\hooks')
 }
 
-# A project's editor version: ProjectSettings\ProjectVersion.txt, "m_EditorVersion: 6000.3.26f1". '' without one.
-function Get-UGFProjectUnityVersion([string]$Project) {
-    if (-not $Project) { return '' }
-    $pv = Join-Path $Project 'ProjectSettings\ProjectVersion.txt'
-    if (-not (Test-Path -LiteralPath $pv)) { return '' }
-    foreach ($l in [IO.File]::ReadAllLines($pv)) { if ($l -match '^\s*m_EditorVersion:\s*(\S+)') { return $Matches[1] } }
-    return ''
+# Unity.exe for a project: the exact version its ProjectSettings\ProjectVersion.txt names (m_EditorVersion) picks the
+# install, so a game keeps building on the editor it was made with (an upgrade is a deliberate, committed step).
+# $Project is the project folder; without one, or without a ProjectVersion.txt, the editor new games use
+# (Get-UGFUnityVersion). $null with a warning naming what to install when it is missing (none under -ErrorAction
+# SilentlyContinue / Ignore): callers decide whether that is fatal.
+function Get-UGFUnity {
+    [CmdletBinding()]
+    param([Parameter(Position = 0)][string]$Project, [Parameter(Position = 1)]$Cfg = (Get-UGFConfig))
+    $ver = ''
+    if ($Project) {
+        $pv = Join-Path $Project 'ProjectSettings\ProjectVersion.txt'
+        if (Test-Path -LiteralPath $pv) { foreach ($l in [IO.File]::ReadAllLines($pv)) { if ($l -match '^\s*m_EditorVersion:\s*(\S+)') { $ver = $Matches[1]; break } } }
+    }
+    if (-not $ver) { $ver = Get-UGFUnityVersion $Cfg }
+    $exe = Get-UGFUnityForVersion $ver $Cfg
+    if ($exe) { return $exe }
+    if ($ErrorActionPreference -notin 'SilentlyContinue', 'Ignore') {
+        $what = if ($ver) { "Unity $ver is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for an older patch: version $ver" }
+        else { "no Unity $($Cfg.unity_version) editor is installed: install the newest $($Cfg.unity_version) patch through Unity Hub (Installs > Install Editor" }
+        Write-Warning "$what, with Windows Build Support (IL2CPP)), or name its Unity.exe in unity_editors in $(Get-UGFConfigPath)"
+    }
+    return $null
 }
 
 # Unity.exe for an exact editor version: "unity_editors" in the config, else <unity_hub_editors>\<version>\Editor\Unity.exe.
@@ -90,28 +106,17 @@ function Get-UGFUnityForVersion([string]$Version, $Cfg = (Get-UGFConfig)) {
     return ''
 }
 
-# The editor version new games use: "unity_version" in the config, else 6000.3.26f1 (Unity 6.3 LTS).
+# The editor version new games use: "unity_version" in the config, default 6000.3 (Unity 6.3 LTS). A series ("6000.3")
+# means its newest installed final patch (Unity Hub installs each patch beside the others and never updates one in
+# place, so a pinned patch goes stale); an exact version ("6000.3.28f1") pins new games to it. '' when no editor of the
+# series is installed.
 function Get-UGFUnityVersion($Cfg = (Get-UGFConfig)) {
     $v = [string]$Cfg.unity_version
-    if ($v) { return $v }
-    return $script:UGFDefaultUnityVersion
-}
-
-# Unity.exe for a project: the exact version its ProjectSettings\ProjectVersion.txt names (a game keeps building on the
-# editor it was made with; an upgrade is a deliberate, committed step). Without a project: "unity_version". $null with a
-# warning naming the version to install when it is missing (no warning under -ErrorAction SilentlyContinue / Ignore):
-# callers decide whether that is fatal.
-function Get-UGFUnity {
-    [CmdletBinding()]
-    param([Parameter(Position = 0)][string]$Project, [Parameter(Position = 1)]$Cfg = (Get-UGFConfig))
-    $ver = Get-UGFProjectUnityVersion $Project
-    if (-not $ver) { $ver = Get-UGFUnityVersion $Cfg }
-    $exe = Get-UGFUnityForVersion $ver $Cfg
-    if ($exe) { return $exe }
-    if ($ErrorActionPreference -notin 'SilentlyContinue', 'Ignore') {
-        Write-Warning "Unity $ver is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for an older patch: version $ver, with Windows Build Support (IL2CPP)), or name its Unity.exe in unity_editors in $(Get-UGFConfigPath)"
-    }
-    return $null
+    if (-not $v) { $v = $script:UGFDefaultUnityVersion }
+    if ($v -notmatch '^\d+\.\d+$') { return $v }
+    $n = Get-UGFNewestUnity $v $Cfg
+    if ($n) { return $n.Version }
+    return ''
 }
 
 # The editors installed: objects { Version; Path (full path to Unity.exe) } for every
