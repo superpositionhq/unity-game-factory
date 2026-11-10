@@ -9,10 +9,10 @@ For one task and each run:
    with the brief as its prompt, within the task's limits (turns where the harness has a flag, minutes always), with
    the machine's recording hooks off (UGF_NO_RECORDING, and GF_NO_RECORDING for the Unreal factory's hooks). Its
    transcript is kept.
-3. The workspace is graded as a solution: its build outputs and Library removed (the grade starts from the start's
-   import cache instead), TaskProbe added, built fresh, played, every check but judges, trace probes and packaging run
-   against the thresholds the start and the reference give (both built and measured once for all runs, before the
-   first agent starts: the reference copy is the answer, and it would lie two folders above the agent's).
+3. The workspace is graded as a solution: its build outputs and Library removed, TaskProbe added, built fresh,
+   played, every check but judges, trace probes and packaging run against the thresholds the start and the reference
+   give (both built and measured once for all runs, before the first agent starts, and deleted then: the reference copy
+   is the answer, and it would lie two folders above the agent's).
 
 The result says, per run, whether the agent solved the task (every required check passed), which milestones it
 reached, its time, turns and cost when the harness reports them, and whether its transcript names the game repo or the
@@ -33,7 +33,7 @@ LONG_MINUTES = 25  # a guide for a long task, not a requirement: what counts is 
 LIMITS = {"max_turns": 200, "max_minutes": 240}  # the schema's defaults (game-task.schema.json Limits)
 # Build outputs removed before a run is graded: the grade builds it fresh. Library too: besides Unity's import cache it
 # holds the agent's editor state (build profiles with their own defines and scenes, compiled scripts, build caches),
-# which a game's files never carry; the grade starts from the start's import cache instead (seeds.seed_library).
+# which a game's files never carry; the grade imports everything again, as the task check does for each copy.
 BUILT = ("Library", "Temp", "Obj", "Logs", "Build", "Builds")
 NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-action hooks record nothing when set
 NO_ROOT = ("UGF_ROOT", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")  # nothing points the agent at a machine root
@@ -329,9 +329,9 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                 except verdict.Uncalibrated:
                     pass  # kept in `thresholds`: every run's grade fails that check the same way
         # Gone before an agent starts, as it could read them two folders above its own: the reference copy is the answer
-        # and the copies' logs hold the grader's queries. The start's import cache (its Library) serves the grades.
-        seeds.remove(scratch / "reference")
-        clear(scratch / "start", ("Logs", "Build"))
+        # and the copies' logs hold the grader's queries.
+        for label in ("start", "reference"):
+            seeds.remove(scratch / label)
         prompt = brief(task, machines["start"].editor)  # the workspace's: the reference may name another 6000.3 release
         (evidence / "brief.md").write_text(prompt, encoding="utf-8")
         limits = limits_of(task)
@@ -365,8 +365,6 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                 if outside(folder, [scratch]):  # the agent swapped its folder for a link: nothing there is the try's
                     raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
                 clear(folder, BUILT)
-                if seeds.seed_library(scratch / "start", folder):
-                    log(f"  {label}: starts from the import cache of the start")
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
             except (seeds.WrongEngine, FileNotFoundError, RuntimeError) as exc:  # Unity version or project changed
                 row.update(solved=False, score=0.0, required_passed=0, required=None, milestones={}, checks=[],
@@ -433,8 +431,8 @@ def main(argv=None):
     parser.add_argument("--model", help="the model the harness uses (default: its own)")
     parser.add_argument("--agent-arg", action="append", default=[], metavar="ARG",
                         help="an extra argument for the harness (repeatable)")
-    parser.add_argument("--keep", action="store_true", help="keep the workspaces and the start's copy after the try "
-                        "(the reference's goes before an agent starts)")
+    parser.add_argument("--keep", action="store_true", help="keep the workspaces after the try (the start's and the "
+                        "reference's copies go before an agent starts)")
     parser.add_argument("--out", help="where results go (default: <repo>\\.task-tries)")
     parser.add_argument("--scratch", help="where workspaces go (default: <repo's drive>\\.task-try)")
     parser.add_argument("--direct", action="store_true",
@@ -496,7 +494,7 @@ def main(argv=None):
                               model=args.model, extra=args.agent_arg, keep=args.keep, direct=args.direct,
                               timeout=args.timeout, build_timeout=args.build_timeout, places=places, log=log)
             if args.keep:
-                log(f"  kept the workspaces and the start's copy in {scratch_root / tag}")
+                log(f"  kept the workspaces in {scratch_root / tag}")
         results.append(result)
         print(line(result), flush=True)
     log(f"results: {out}")

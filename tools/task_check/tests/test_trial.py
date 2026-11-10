@@ -99,19 +99,6 @@ def write(folder, *names, text="x"):
         (Path(folder) / name).write_text(text)
 
 
-def leaving_files(side):
-    """trial.side, the start's and the reference's copies holding what a real build and play leave in them: an import
-    cache, compiled scripts, the grader's requests, a player."""
-
-    def made(name, folder, *rest):
-        if name in ("start", "reference"):
-            write(folder, "Library/Artifacts/a1", "Library/ScriptAssemblies/Game.dll", "Logs/TaskProbe/play_spec.json",
-                  "Build/TaskProbe/Game.exe", text=name)
-        return side(name, folder, *rest)
-
-    return made
-
-
 class Brief(unittest.TestCase):
     EDITOR = "C:/Program Files/Unity/Hub/Editor/6000.3.26f1/Editor/Unity.exe"
 
@@ -356,47 +343,48 @@ class Whole(unittest.TestCase):
 
     def test_the_answer_is_gone_before_an_agent_starts(self):
         """The reference copy (the fix) and the copies' logs (the grader's queries) would lie two folders above the
-        agent's own: every threshold is measured first, then they go. The start's import cache stays for the grades."""
+        agent's own: every threshold is measured first, then both copies go."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
             scratch, seen = Path(tmp) / "scratch", {}
 
             def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
-                seen.update(reference=(scratch / "reference").exists(), logs=(scratch / "start" / "Logs").exists(),
-                            cache=(scratch / "start" / "Library" / "Artifacts").is_dir(),
+                seen.update(start=(scratch / "start").exists(), reference=(scratch / "reference").exists(),
                             measured=len(projects["start"].plays) + len(projects["reference"].plays))
                 return answered(argv, cwd, prompt, transcript, minutes)
 
-            with faked(agent) as projects, mock.patch.object(trial, "side", leaving_files(trial.side)):
+            with faked(agent) as projects:
                 result = trial.try_task(repo, task, b"{}", scratch, Path(tmp) / "out", "claude", "claude",
                                         log=lambda *a: None)
             self.assertEqual(result["status"], "DONE", result["reasons"])
-            self.assertEqual(seen, {"reference": False, "logs": False, "cache": True, "measured": 2})
+            self.assertEqual(seen, {"start": False, "reference": False, "measured": 2})
+            self.assertEqual(result["runs"][0]["milestones"], {"graded": False}, "graded on the thresholds measured")
 
-    def test_a_run_is_graded_from_the_starts_import_cache_never_the_agents_library(self):
+    def test_a_run_is_graded_without_the_agents_library_and_build_outputs(self):
         """Library holds the agent's editor state besides the import cache (build profiles with their own defines and
-        scenes, compiled scripts), which a game's files never carry: the grade starts from the start's cache."""
+        scenes, compiled scripts), which a game's files never carry: the grade imports everything again."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
             at_grade = {}
 
             def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
                 write(cwd, "Library/BuildProfiles/PlatformProfile.asset", "Library/Artifacts/a2", "Temp/t",
-                      "Build/Game.exe", text="the agent's")
+                      "Build/Game.exe", "Assets/Scripts/Fix.cs", text="the agent's")
                 return answered(argv, cwd, prompt, transcript, minutes)
 
             def graded(name, folder, *rest):
                 if name.startswith("run"):
                     at_grade[name] = sorted(p.relative_to(folder).as_posix() for d in ("Library", "Temp", "Build")
                                             for p in (Path(folder) / d).rglob("*") if p.is_file())
-                return made(name, folder, *rest)
+                    at_grade["work"] = (Path(folder) / "Assets" / "Scripts" / "Fix.cs").is_file()
+                return original(name, folder, *rest)
 
-            made = leaving_files(trial.side)
+            original = trial.side
             with faked(agent), mock.patch.object(trial, "side", graded):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                         "claude", log=lambda *a: None)
             self.assertEqual(result["status"], "DONE", result["reasons"])
-            self.assertEqual(at_grade, {"run1": ["Library/Artifacts/a1"]}, "the start's cache, without its compiled code")
+            self.assertEqual(at_grade, {"run1": [], "work": True}, "the agent's work is graded, never its editor's state")
 
     def test_the_brief_names_the_editor_of_the_start(self):
         """The workspace is the start: when the thread moved the game to another 6000.3 release, the agent is still
