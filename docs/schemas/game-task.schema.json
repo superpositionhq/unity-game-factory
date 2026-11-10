@@ -66,8 +66,7 @@
         "asset": {
           "anyOf": [
             {
-              "maxLength": 300,
-              "pattern": "^(Assets|Packages)/[A-Za-z0-9_ /.()-]{1,300}$",
+              "pattern": "^(Assets|Packages)/[A-Za-z0-9_][A-Za-z0-9_ /.()@-]{0,299}$",
               "type": "string"
             },
             {
