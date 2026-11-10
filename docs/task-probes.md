@@ -316,15 +316,15 @@ renderers, else its position.
     <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on any of its
     descendants, inactive ones included) matches every key given. `component` is the part's type or a base type, as a
     `components` select names it; `lit: true` reads it as the components `lit` field does (a Light that lights the
-    scene, a drawn mesh renderer whose material gives off light, from its material properties or else as rendered, or
-    a live particle system that draws light; section 2.5); `visible: true` keeps a Renderer that is drawn, as the
-    components `visible` field reads a Renderer; `near` measures from the part's own place, not the object's. At least
-    one key, and only `true` for `lit`, `visible` and `simulating` (below). The way to select by what an object does
-    ("an object that gives light", "an object with a drawn mesh near here") rather than by the type or name a build
-    gave it. It works in every object select: these, other measures' (`owner`, `ground`), points (section 2.13) and
-    `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true` (the part is, or
-    belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can do:
-    `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
+    scene; a drawn renderer that gives off light, a mesh read from its material properties or else as rendered, a
+    sprite or a line as rendered; or a live effect that draws light; section 2.5); `visible: true` keeps a Renderer
+    that is drawn, as the components `visible` field reads a Renderer; `near` measures from the part's own place, not
+    the object's. At least one key, and only `true` for `lit`, `visible` and `simulating` (below). The way to select
+    by what an object does ("an object that gives light", "an object with a drawn mesh near here") rather than by the
+    type or name a build gave it. It works in every object select: these, other measures' (`owner`, `ground`), points
+    (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true`
+    (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can
+    do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
     whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
 - `field`:
@@ -370,10 +370,11 @@ renderers, else its position.
     over every bone (no value without a SkinnedMeshRenderer). **Their thresholds are calibrated or relative to the
     start, never a literal value**; `changed` takes a literal;
   - `lit`: 1 when the object gives off light, whatever made it: any of its Lights lights the scene (as `on` reads it,
-    section 2.5, and its colour isn't black), any of its mesh parts is drawn with a material whose light is above a
-    luminance of 0.01 (an emissive material, or an unlit one, whose colour is what it gives off), or any of its
-    particle systems is live and draws light (section 2.5). **This is the way to check for light**: a lamp lit by a
-    Light and a lamp drawn by a glowing material read the same. Takes a literal;
+    section 2.5, and its colour isn't black), any of its parts is drawn with a material whose light is above a
+    luminance of 0.01 (an emissive material, or an unlit one, whose colour is what it gives off; a sprite or a line by
+    what it draws), or any of its effects (particle systems, trails, visual effects) is live and draws light (section
+    2.5). **This is the way to check for light**: a lamp lit by a Light and a lamp drawn by a glowing material read the
+    same. Takes a literal;
   - `glow`: how much light, one amount summed over its lit sources so either kind compares: a Light's intensity in
     Unity's own units (not candelas) times its colour's luminance (linear, and its colour temperature when the
     project and the Light use it); a mesh's brightest material's luminance times a quarter of the surface of its
@@ -447,12 +448,14 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
 - `changed`, `bounds_change`, `pose_change`: a Renderer against the first sample it was seen in, as an object's
   (section 2.4) for one part: hidden or shown, its world bounds moved, a skinned mesh's pose moved (`pose_change` has
   no value unless it is a SkinnedMeshRenderer);
-- `lit` and `glow`: as an object's (section 2.4), for one source: a Light, a MeshRenderer or SkinnedMeshRenderer with
-  its materials, or a particle system (its ParticleSystem or its renderer); no value for any other component (a
-  SpriteRenderer, a LineRenderer or a TrailRenderer among them). A particle system is read as rendered, as a mesh is
-  below (its world bounds for the box), lit when it is live (playing or holding particles), its renderer drawn and its
-  brightest pixel above 0.01. A row it lights names `effect` in `glow_sources`. **Check for light with these**,
-  whatever the build made it with;
+- `lit` and `glow`: as an object's (section 2.4), for one source: a Light; a renderer with its materials (a
+  MeshRenderer or SkinnedMeshRenderer as below; any other that draws a shape, a SpriteRenderer, a LineRenderer, a
+  TilemapRenderer, always as rendered: what it draws is its own, not its material's); or an effect (a ParticleSystem,
+  a TrailRenderer, a VisualEffect, or its renderer); no value for any other component. An effect is read as rendered,
+  as a mesh is below (its world bounds for the box), lit when it is live (a particle system playing or holding
+  particles, a trail drawing points, a visual effect holding particles), its renderer drawn and its brightest pixel
+  above 0.01. A row it lights names `effect` in `glow_sources`. **Check for light with these**, whatever the build
+  made it with;
 - `intensity` (a Light's own intensity, in its units) and `on` (1 when the Light lights the scene: enabled, active in
   the hierarchy, of an intensity above 0; the `light` probe counts the same lights). A lamp switched off by intensity 0
   or by disabling the Light reads 0. One switched off by deactivating its object reads 0 when the select says
@@ -492,9 +495,8 @@ Limits:
   so it reads dark that way; one on a layer only a filtered URP renderer draws (section 2.19) reads dark that way too;
 - rendering is done at the sample, each renderer once a sample, at most 64 renders a sample over every query (past
   that, a source isn't read that sample: no value, `glow_read` `unread`);
-- a Light's cookie is not read; decals and UI are not sources, nor are sprites, lines and trails (3D text is a mesh
-  source: it draws with a MeshRenderer); select the lamp (by owner, tag, `mesh` or `near`), not every renderer in the
-  scene.
+- a Light's cookie is not read; decals, sprite masks and UI are not sources (3D text is a mesh source: it draws with a
+  MeshRenderer); select the lamp (by owner, tag, `mesh` or `near`), not every renderer in the scene.
 
 ### 2.6 `widgets`: the UI on screen
 
