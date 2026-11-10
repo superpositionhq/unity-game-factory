@@ -513,9 +513,11 @@ camera after blending.
   Without URP the constants are neutral and a `post:` field has no value.
 - Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
-  untouched volume stack gives exactly `grey` 0.18 and `cast` 0. The checker's colour maths follows URP's LDR grading
-  order and leaves out tonemapping, the hue shift, split toning, the channel mixer, shadows/midtones/highlights and the
-  curves: read those with `post:` (`post:Tonemapping.mode`, `post:ColorAdjustments.hueShift`).
+  untouched volume stack gives exactly `grey` 0.18, whatever the key light (only its hue counts), and `cast` 0 under a
+  white one; a coloured sun or sky casts its hue even then (a sun of colour (1, 0.57, 0.26): `cast` and `warmth`
+  1.15). The checker's colour maths follows URP's LDR grading order and leaves out tonemapping, the hue shift, split
+  toning, the channel mixer, shadows/midtones/highlights and the curves: read those with `post:`
+  (`post:Tonemapping.mode`, `post:ColorAdjustments.hueShift`).
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
   enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set. A `post:` name that doesn't exist (a
   component or a parameter), or a colour or vector parameter (`post:Vignette.color`: the task format can't name its
@@ -648,20 +650,25 @@ How many mesh pieces are placed, however the scene holds them: trees painted on 
 component to `objects` and `components`, but as their real number of pieces here.
 
 - A piece: a MeshRenderer whose mesh has triangles is 1; a SkinnedMeshRenderer with a mesh is 1; a Terrain's tree
-  instances are 1 each. Only renderers of objects active in the hierarchy count (a disabled renderer is a piece that
-  isn't drawn). Under a LODGroup only LOD 0's renderers count, so an object with three LODs is one piece. Anything else
-  (a mesh drawn from code with `Graphics.RenderMesh*`, a Terrain's detail grass) is no piece. A tree's `mesh` name is
-  its prototype's first mesh's; trees are visible when the Terrain is enabled and draws its trees.
+  instances are 1 each. Empty meshes (no mesh, or no triangles), other renderers (sprites, lines, trails, particles),
+  meshes drawn from code with `Graphics.RenderMesh*` and a Terrain's detail grass count 0. Only renderers of objects
+  active in the hierarchy count (a disabled renderer is a piece that isn't drawn). Under a LODGroup only LOD 0's
+  renderers count, so an object with three LODs is one piece.
 - `select` (optional; every key given must match, none means every mesh piece in the scene):
-  - `component`: the renderer's type or a base type (`MeshRenderer`, `SkinnedMeshRenderer`, `Terrain`, `Renderer`);
-    default every one;
-  - `name`: a wildcard on the renderer's object's name; `mesh`: a wildcard on its mesh asset's name (`Rock*`);
-  - `owner`: an object select the renderer's object or an ancestor must match (as in `objects`);
-  - `near`: within `radius` m of a point, **each piece by its own place** (a tree instance's position, a renderer's
-    place).
-- `field`: `count` (pieces), `visible` (pieces drawn: renderer enabled and active, not forced off), `components` (how
-  many renderers or terrains hold them), `objects` (how many objects), `triangles` (the triangles the pieces hold:
-  index count / 3 over the mesh's submeshes), `visible_triangles` (the triangles of the pieces drawn, as `visible`).
+  - `component`: the renderer's type or a base type (`MeshRenderer`, `SkinnedMeshRenderer`; `Renderer` takes in
+    both), or `Terrain` for a Terrain's trees; default every one;
+  - `name`: a wildcard on the renderer's object's name (a tree's: its Terrain's); `mesh`: a wildcard on its mesh
+    asset's name (`Rock*`; a tree's is its prototype's first mesh's);
+  - `owner`: an object select the renderer's object (a tree's: its Terrain's) or an ancestor must match (as in
+    `objects`);
+  - `near`: within `radius` m of a point, **each piece by its own place** (a tree instance's position, else its
+    renderer's object's position).
+- `field`: `count` (pieces), `visible` (pieces drawn: renderer enabled and active, not forced off; trees when their
+  Terrain is enabled and draws its trees), `components` (how many renderers or terrains hold them), `objects` (how many
+  objects), `triangles` (the triangles the pieces hold), `visible_triangles` (the triangles of the pieces drawn, as
+  `visible`).
+- A piece's triangles: its mesh's index count / 3 over the submeshes drawn as triangles; a tree's, its prototype
+  prefab's at full detail (the renderers of its LODGroup's LOD 0, else every mesh renderer in it).
 - Counted over every piece in the probe, never cut at the rows cap. A literal threshold is fine on `count`, `visible`,
   `components` and `objects` (a count doesn't depend on the machine).
 - **A `triangles` or `visible_triangles` threshold is calibrated or relative to the start, never a literal value**
@@ -953,21 +960,22 @@ task is void.
 
 ## 5. Lessons
 
+- **Mouse axes go through the game's input scale.** An axis event's value is not degrees: `<Mouse>/delta/x` is a mouse
+  movement in pixels over one frame, and the game's input actions (processors such as Scale) and its own look
+  sensitivity scale it. A play that assumes `"axis": 90` turns the camera 90 degrees barely moves it. Read the game's
+  look scale at the seed and size the axis values (or send several events) so the camera really turns, then measure
+  the turn.
 - **Only the Input System can be driven.** The probe sends keys, buttons, axes and the cursor through its own virtual
-  Input System devices. A game that reads `UnityEngine.Input` (the old Input Manager: `Input.GetKey`,
-  `Input.GetAxis`) sees none of it, and a play of it is a play with no input. Check the game's input code at the seed
-  before writing a task play.
-- **Mouse axes go through the game's own look scale.** An axis event's value is not degrees: `<Mouse>/delta/x` is a
-  mouse movement in pixels for one frame, and the game's input actions (processors such as Scale), its look
-  sensitivity and whatever it multiplies by scale it. A play that assumes `"axis": 90` turns the camera 90 degrees
-  barely moves it, or spins it. Read the game's look scale at the seed and size the axis values (or send several
-  events) so the camera really turns, then measure the turn.
+  Input System devices. A game that reads `UnityEngine.Input` (the old Input Manager: `Input.GetKey`, `Input.GetAxis`)
+  sees none of them; teleports, widget clicks and waits still work, as they don't go through the Input System. Check
+  the game's input code at the seed before writing a task play.
+- **Check that a play really reaches the situation.** A probe of a moment the play never reaches measures nothing
+  useful. Teleport to the spot (`teleport` input), use a scenario (`scene`/`args`) that starts there, and check on
+  the fix that the play gets there before trusting its threshold: the fix's `probe.json` holds the player's `track`,
+  and its `probe.log` names what each `teleport_to` reached.
 - **A boot scene doesn't run before `play_scene`.** Its objects get `Awake` and `OnEnable`, then go before `Start`
   (section 1.1): what a boot scene sets up in `Start` (a save loaded, a manager filled in) is missing in a play that
   opens a later scene. Such a game is started through its own `play_args` with `play_scene` null.
-- **Check that a play really reaches the situation.** A probe of a moment the play never reaches measures nothing
-  useful. Teleport to the spot (`teleport` input), use a scenario (`scene`/`args`) that starts there, and check on
-  the fix that the play gets there before trusting its threshold.
 - **A measure that reads the same on the start and the fix can't gate.** If both sides give the same value, the probe
   doesn't see the bug (calibrated ones make the task invalid outright). Pick a measure the fix actually changes.
 - **Calibrate thresholds between the start and the fix.** Use `calibrate` (or literal values that sit clearly between
@@ -981,7 +989,8 @@ task is void.
   0.92"; another valid fix must pass.
 - **Read names from the game.** Component types, tags, layers, object and UI element names and scene paths come from
   the code and assets at `seed.commit` and `seed.reference`, never guessed. An instantiated prefab is named
-  `<Prefab>(Clone)`.
+  `<Prefab>(Clone)`, and a wildcard takes in every name it fits (`Coin*` matches `CoinSpawner` too): select the
+  objects you mean, and check in the fix's play what a select reached.
 - **Count what the player sees placed.** Trees painted on a Terrain are one object and one component but many pieces:
   count with `pieces`, so a fair build that dressed the scene another way still passes. When a fair build may also
   combine them (many props merged into a few meshes), count the geometry drawn: `visible_triangles`, calibrated or
@@ -1003,11 +1012,11 @@ task is void.
   `ui` (text with `match`, counts by `kind` and `rect`), which reads both the same; `widgets` sees only the widget it
   names. A HUD drawn with `OnGUI` or `GL` is no element: `ui` reads only its text, from the frame (a select of text in
   a `rect`).
+- **Brightness on screen goes through calibration.** A `screen` threshold is always calibrated between the start and
+  the fix (or relative to the start), and its window starts after the scene has settled (a fade-in, a teleport).
+- **The screen includes the UI.** A `screen` rect over the HUD measures the HUD: keep it on the scene.
+- **A material asset holds floats as stored.** An editor `shader:` value set to 0.2 reads 0.19999995827674866: compare
+  with `>=`/`<=` a little either side, never `==`.
 - **A one-shot sound has no name.** A sound played with `PlayOneShot` counts, but the probe sees only its source's own
   clip, so no `sound` select finds it by the one-shot's name: read `level` (calibrated or relative to the start) in a
   play that hears it, or select its source by `owner`.
-- **A material asset holds floats as stored.** An editor `shader:` value set to 0.2 reads 0.19999995827674866: compare
-  with `>=`/`<=` a little either side, never `==`.
-- **The screen includes the UI.** A `screen` rect over the HUD measures the HUD: keep it on the scene.
-- **Brightness on screen goes through calibration.** A `screen` threshold is always calibrated between the start and
-  the fix (or relative to the start), and its window starts after the scene has settled (a fade-in, a teleport).
