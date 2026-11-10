@@ -865,11 +865,12 @@ percent, a sprite).
   frame. No value when no frame is drawn.
 - Each element is one row: on a screen-space canvas (Overlay or Camera), a `Text` or `TMP_Text` is `text`, an `Image`
   or `RawImage` with a sprite or texture is `image`, any other drawn Graphic is `box`; in a UI Toolkit panel drawn on
-  the screen, a `TextElement` with text is `text`, an element with an image (an `Image` element's, or a background
-  image) is `image`, one with a background colour or a border is `box`. An element can be two rows: a UI Toolkit Button
-  gives a `box` row and a `text` row, as a uGUI button gives its image and its child text. Text is read as shown: rich
-  text tags stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured. Rows come in this order:
-  uGUI elements in hierarchy order, then UI Toolkit elements in tree order, then the lines read from the frame (below).
+  the screen, a `TextElement` with text (an empty field: its placeholder) is `text`, an element with an image (an
+  `Image` element's, or a background image) is `image`, one with a background colour or a border is `box`. An element
+  can be two rows: a UI Toolkit Button gives a `box` row and a `text` row, as a uGUI button gives its image and its
+  child text. Text is read as shown: rich text tags stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`)
+  honoured. Rows come in this order: uGUI elements in hierarchy order, then UI Toolkit elements in tree order, then
+  the lines read from the frame (below).
 - `select` (optional; default every element): `kind` (`text`, `box`, `image`); `text` (a regular expression the
   element's text must match; text elements only, so with `kind` `text` or none); `rect` `[x0, y0, x1, y1]` in viewport
   fractions, y down from the top, x0 < x1 and y0 < y1 (the element's centre inside). There is no `line` kind: Unity
@@ -919,7 +920,9 @@ percent, a sprite).
   so `match` and `of` read it like any other; a line another element already reads as text is left to that element,
   so nothing reads twice. It reads digits 0-9, capital letters A-Z and `%`, `/`, `.`, `-`, `:`, in the shapes
   line-drawn and segment fonts give them (plain strokes, cut or rounded corners, seven segments, a slashed 0, diagonals
-  in 1, 4 and 7). Only such a select reads the frame's pixels; any other select reads the elements alone.
+  in 1, 4 and 7). Only such a select reads the frame's pixels; any other select reads the elements alone. Should the
+  reader itself fail, the sample keeps its other elements and the play's `query_errors` says `ui <id>: <type> in the
+  frame reader (the exception is in probe.log)`.
   - It reads nothing rather than guess: text that doesn't stand out in one colour from an even background behind it;
     a line that runs out of the rect or that another mark crosses; a glyph two characters fit (an unslashed 0 and O,
     a 5 and S or an 8 and B drawn as segments, a plain bar for 1 and I); a lone character; lower case; slanted
