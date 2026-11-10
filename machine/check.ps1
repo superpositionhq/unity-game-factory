@@ -247,7 +247,8 @@ Try-Check 'Recording hooks' {
     $absent = @($files | Where-Object { -not (Test-Path (Join-Path $hd $_)) })
     $lib = Test-Path (Join-Path $hd 'ugf-root.ps1')
     if ($absent -or -not $lib) { Add-Result FAIL 'Recording hooks' "missing in ${hd}: $(@($absent) + @($(if (-not $lib) { 'ugf-root.ps1' })) -join ', ')" 'machine\bootstrap.ps1'; return }
-    if ($diff -or -not (Same-File (Join-Path $PSScriptRoot 'lib\ugf-root.ps1') (Join-Path $hd 'ugf-root.ps1'))) { Add-Result WARN 'Recording hooks' "$hd`: older than the repo copy ($(@($diff) + @('ugf-root.ps1') -join ', '))" 'machine\bootstrap.ps1 (backs up the old copies)'; return }
+    if (-not (Same-File (Join-Path $PSScriptRoot 'lib\ugf-root.ps1') (Join-Path $hd 'ugf-root.ps1'))) { $diff += 'ugf-root.ps1' }   # the hooks run with this copy
+    if ($diff) { Add-Result WARN 'Recording hooks' "$hd`: older than the repo copy ($($diff -join ', '))" 'machine\bootstrap.ps1 (backs up the old copies)'; return }
     Add-Result PASS 'Recording hooks' $hd
 }
 # The events each agent must run record-unity-action.ps1 on (Codex has no PostToolUseFailure).
