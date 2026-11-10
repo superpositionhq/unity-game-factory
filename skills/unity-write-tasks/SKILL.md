@@ -154,7 +154,8 @@ depends on, or an unrelated later fix is needed for it to compile), give it a ma
   (`Assets/`, `Packages/`, `ProjectSettings/`), re-created by hand where later work moved the code: the issue must
   really be back, and S must still compile. Every other path of S (`workflow.jsonl`, `Scripts/`, `Docs/`,
   `README.md`, manifests) is exactly as at the old pre-fix commit, so nothing in the start records or regenerates the
-  fix. **R** (`seed.reference`) = a child of S whose tree is B's (`git commit-tree <B^{tree}> -p S`).
+  fix. **R** (`seed.reference`) = a child of S whose tree is B's (`git commit-tree <B^{tree}> -p S -m "<message>"`;
+  without `-m` it waits for a message on its input, or makes R with none).
 - Both live on the branch `starts/<task name>` (pointing at R), pushed with the game; the dataset ships every branch
   but `tasks`, so the delivered history holds them.
 - Scenes and prefabs are YAML: a scene or prefab may go back to its pre-fix version only if no later commit changed
