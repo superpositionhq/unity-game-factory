@@ -20,6 +20,7 @@ tasks worktree (it could have read the answer there). It is advice: the cloud's 
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -39,7 +40,10 @@ NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-a
 # Nothing points the agent at a machine root, its config (which names the root), its deliverables (every game's history)
 # or the organisation that holds the game repos.
 NO_ROOT = ("UGF_ROOT", "UGF_CONFIG", "UGF_OUT", "UGF_ORG", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")
-HOME = ("~", "$home", "${home}", "$env:userprofile", "%userprofile%")  # the home folder as the shells write it
+# The home folder as the shells write it (Git Bash has USERPROFILE too); a path's slashes either way, doubled by JSON
+HOME = ("~", "$home", "${home}", "$env:userprofile", "${env:userprofile}", "$userprofile", "${userprofile}",
+        "%userprofile%")
+SLASHES = re.compile(r"[\\/]+")
 
 
 def brief(task, editor):
@@ -218,23 +222,22 @@ def usage(agent, transcript):
 
 def peeked(transcript, places):
     """The `places` (the game repo, the tasks worktree) the transcript names: the agent could have read the answer. A
-    place counts with either slash, as Git Bash writes it (/c/..., Claude Code's shell on Windows) and from the home
-    folder (~/..., $HOME/...)."""
+    place counts with either slash or both, as Git Bash writes it (/c/..., Claude Code's shell on Windows) and from the
+    home folder (~/..., $HOME/...), and as a whole name only: ~/.claude is no mention of ~/.claude.json."""
     try:
-        text = Path(transcript).read_text(encoding="utf-8", errors="replace").lower().replace("\\\\", "\\")
+        text = SLASHES.sub("/", Path(transcript).read_text(encoding="utf-8", errors="replace").lower())
     except OSError:
         return []
-    home = os.path.expanduser("~").lower().rstrip("\\/")
+    home = SLASHES.sub("/", os.path.expanduser("~").lower()).rstrip("/")
     found = []
     for place in places:
-        path = str(place).lower()
+        path = SLASHES.sub("/", str(place).lower()).rstrip("/")
         forms = {path}
-        if path[1:3] in (":\\", ":/"):
+        if path[1:3] == ":/":
             forms.add("/" + path[0] + path[2:])
-        if path.startswith((home + "\\", home + "/")):
+        if path.startswith(home + "/"):
             forms.update(name + path[len(home):] for name in HOME)
-        forms |= {f.replace("\\", "/") for f in forms}
-        if any(f and f in text for f in forms):
+        if any(re.search(re.escape(f) + r"(?![\w-]|\.\w)", text) for f in forms if f):
             found.append(str(place))
     return found
 

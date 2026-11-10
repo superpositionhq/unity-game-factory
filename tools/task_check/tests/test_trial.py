@@ -276,11 +276,33 @@ class Transcript(unittest.TestCase):
             for said in (f"ls {git_bash}/Assets", "cat ~/UnityWork/games/stealth/README.md",
                          "dir $HOME\\UnityWork\\games\\stealth", "ls ${HOME}/UnityWork/games/stealth",
                          "Get-ChildItem $env:USERPROFILE\\UnityWork\\games\\stealth",
-                         "type %USERPROFILE%\\UnityWork\\games\\stealth\\README.md"):
+                         "type %USERPROFILE%\\UnityWork\\games\\stealth\\README.md",
+                         "ls $USERPROFILE/UnityWork/games/stealth", "ls ${USERPROFILE}/UnityWork/games/stealth",
+                         "Get-Item ${env:USERPROFILE}\\UnityWork\\games\\stealth",
+                         "open " + os.path.join(repo.replace("\\", "/"), "Assets"), "cd " + repo.replace("\\", "/", 3),
+                         json.dumps({"path": repo})):  # Python's join; a path half each way; JSON inside JSON
                 f.write_text(json.dumps({"cmd": said}))
                 self.assertEqual(trial.peeked(f, [repo]), [repo], said)
             f.write_text(json.dumps({"cmd": "ls ~/UnityWork/games/other"}))
             self.assertEqual(trial.peeked(f, [repo]), [])
+
+    def test_a_place_counts_only_as_a_whole_name(self):
+        """A watched place that begins another path's name is no mention of it: Claude Code's own config is
+        ~/.claude.json, a game's neighbour may be named like it, and a scratch folder beside the machine root names
+        it in every transcript (the agent's own folder)."""
+        home = os.path.expanduser("~")
+        repo, root, claude = (os.path.join(home, "UnityWork", "games", "stealth"), os.path.join(home, "UnityWork"),
+                              os.path.join(home, ".claude"))
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "t.jsonl"
+            for said, place in (("cat ~/.claude.json", claude), (os.path.join(home, ".claude.json"), claude),
+                                (repo + "-two\\Assets", repo), (repo + "_old", repo),
+                                (os.path.join(root + "-tries", "1a2b3c4d", "run1", "stealth"), root)):
+                f.write_text(json.dumps({"cwd": said}))
+                self.assertEqual(trial.peeked(f, [place]), [], said)
+            for said in (repo, repo + ".", f"'{repo}'", repo + "\\", os.path.join(claude, "projects")):
+                f.write_text(json.dumps({"cmd": f"ls {said} and more"}))
+                self.assertTrue(trial.peeked(f, [repo, root, claude]), said)
 
 
 class Score(unittest.TestCase):
