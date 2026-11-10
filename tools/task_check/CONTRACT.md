@@ -422,29 +422,43 @@ probe reads the play's log (`check.Side.idle`): it then takes 6 screenshots and 
 every 0.5 s (a task play's `every`, 0.1-1.0). `play_args` apply to every play (look, drive, boot, task plays); a task
 play's `args` key replaces them, its `scene` key the `play_scene` (`tasks.place`).
 
-The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast
-as the machine renders (vSync off, `Application.targetFrameRate` -1), but paced to real time at 30 fps in a play that
+The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast as
+the machine renders (`Application.targetFrameRate` -1; vertical sync and the capture frame rate set again before every
+frame, since with vertical sync on Unity ignores the target frame rate), but paced to real time at 30 fps in a play that
 measures audio (the spec's `sound`), during a `wait` and while a scene loads. It starts when the play's scene is the
-active scene and no scene is loading (after 600 frames without the play's scene, a `query_errors` line, and it starts
-in the scene that plays), holds while any scene is still loading and during a `wait`, and counts on when the game sets
-`timeScale` 0. The game's `Time.time` runs on it; `Time.unscaledTime`, `Time.unscaledDeltaTime`,
+active scene and no scene is loading (after 600 frames without the play's scene, a `query_errors` line, and it starts in
+the scene that plays), holds during a `wait` and while any scene is still loading, for at most 300 frames of one load (a
+load the game parks with `allowSceneActivation = false` never finishes; `probe.log` then says `a scene has been loading
+for 300 frames (a load the game parks never finishes): the play's clock goes on`), and counts on when the game sets
+`timeScale` 0. The queries' `Frame` runs in every frame, a wait's and a load's too (`speed`, `spin` and `spawns` count
+them). The game's `Time.time` runs on the play's clock; `Time.unscaledTime`, `Time.unscaledDeltaTime`,
 `Time.realtimeSinceStartup` and the system clock follow the wall clock (measured by the probe's core tests: from play
-time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as `Time.realtimeSinceStartup` did). The probe asks for the
-play's `scene` at `BeforeSceneLoad`, before the game's first build scene has woken up: that scene's objects get `Awake`
-and `OnEnable`, then are destroyed before `Start` (a scene the build lacks: a `query_errors` line, and the game's own
-first scene plays). Every play starts from clean saved data: the build gives the copy a company name of its own
-(`TaskProbe.<hash>`, section 5), the probe clears PlayerPrefs and `persistentDataPath` when the play starts, and the
-checker deletes what the plays left outside the copy with it (section 5).
+time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as `Time.realtimeSinceStartup` did). The probe asks for the play's
+`scene` at `BeforeSceneLoad`, before the game's first build scene has woken up: that scene's objects get `Awake` and
+`OnEnable`, then are destroyed before `Start` (a scene the build lacks: a `query_errors` line, and the game's own first
+scene plays). Every play starts from clean saved data: the build gives the copy a company name of its own
+(`TaskProbe.<hash>`, section 5), the probe clears PlayerPrefs and `persistentDataPath` when the play starts
+(`Probe.ForgetSaves`: only when the company name is exactly `TaskProbe.` and 12 hex digits and `persistentDataPath` is
+that company's own folder; anything else keeps its saved data and `probe.log` says why), and the checker deletes what
+the plays left outside the copy with it (section 5).
 
-Inputs go through the **Input System** on the probe's own virtual devices (`Inputs.cs`; the original sends FKey
-events): `TaskProbeKeyboard` and `TaskProbeMouse`, added before the game's first frame, and `TaskProbeGamepad` only when
-an input names `<Gamepad>` (a gamepad switches many games' prompts); `InputSystem.settings.backgroundBehavior` is
-`IgnoreFocus`, since the window never has the focus. Real devices are not read, and the old Input Manager can't be
-driven (a project without the Input System package gets one `query_errors` line for its keys, axes and cursor moves).
-Each device's whole state is queued with every change, before the game's scripts (the probe runs at execution order
--32000), and the Input System processes it at the next frame's start, so the game reads an input one frame after its
-time. Inputs of one time go in the order the task wrote them. An unknown control is a `query_errors` line (`inputs:
-the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has no control <x>`), never a stop.
+A frame has three passes (`Probe.Stamp`): before the game's scripts (`Probe`, execution order -32000: the inputs), after
+their Updates (a held player put back) and after their LateUpdates (`ProbeLate`, 32000: a held player put back again,
+then the samples, the screenshots and the end); what is looked up once a pass (the player, a glow render's budget) is
+kept by it, so a search an input makes never serves the samples.
+
+Inputs go through the **Input System** on the probe's own virtual devices (`Inputs.cs`; the original sends FKey events):
+`TaskProbeKeyboard` and `TaskProbeMouse`, added before the game's first frame, and `TaskProbeGamepad` only when an input
+names `<Gamepad>` (a gamepad switches many games' prompts); `InputSystem.settings.backgroundBehavior` is `IgnoreFocus`,
+since the window never has the focus. Real devices are not read, and the old Input Manager can't be driven (a project
+without the Input System package gets one `query_errors` line for its keys, axes and cursor moves). Each device's whole
+state is queued with every change, before the game's scripts (the probe runs at execution order -32000), and the Input
+System processes it at the next frame's start, so the game reads an input one frame after its time. A row is tried as a
+widget click (`click` true and a `widget`), a cursor move, a teleport_to, a teleport, a wait, then a key or axis, in the
+original's order; a row that is none of them is left out and not counted in `inputs_sent`, and a row without `t` is sent
+at 0. Inputs of one time go in the order the task wrote them. An unknown control is a `query_errors` line (`inputs: the
+keyboard has no key <x>`, `inputs: the mouse has no control <x>`, `inputs: the gamepad has no control <x>`, `inputs: no
+control <path>`, `inputs: no device for <path>`), never a stop.
 
 - key: `{"t", "key": "<Keyboard>/w", "press": true|false}`: a key by its Input System name (`<Keyboard>/space`,
   `<Keyboard>/leftShift`, `<Keyboard>/f2`), a mouse button (`<Mouse>/leftButton`, `rightButton`, `middleButton`,
@@ -459,23 +473,25 @@ the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has n
   (`ExecuteEvents`), so `onClick`, toggles and the game's own `IPointer*Handler`s react; a UI Toolkit one a
   `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor path).
   `probe.log` says `clicked <widget>` or `no visible button matches '<widget>'`.
-- cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down): moves the virtual mouse there (it starts at the
-  window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an EventSystem with
-  an InputSystemUIInputModule, UI Toolkit buttons, the game through `Mouse.current`).
-- teleport: `{"t", "teleport": [x, y, z], "yaw": deg, "hold": s}`; teleport_to: `{"t", "teleport_to": <object
-  select>, "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`. The original moves the pawn with
-  Unreal's TeleportTo, which finds a free spot near the point; the port sets the player's transform, its pivot, to
-  the point (`Inputs.Place`), through its CharacterController (disabled for the move), its NavMeshAgent (`Warp`, on its
-  NavMesh) or its Rigidbody (and a Rigidbody2D's position), with no free-spot search and no snap to the ground, and
-  stills its bodies. `yaw` turns it (the checker writes 0 when unset, as the original's does). teleport_to takes the
-  match nearest the player, the player and its children left out; the spot is `distance` from the target along the
-  level line toward the player (in front of the target when the player is right above it), plus `offset`; it faces
-  `face`, else the target (it keeps its yaw when what it faces is within a centimetre on the level). `hold`: after
-  every frame's game logic, for that many seconds, the player is put back at the spot and stilled. `probe.log` says
-  where each went (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped (no object
-  matches)`).
-- wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of
-  both real and game time have passed; the inputs after it wait for its end (the original's).
+- cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
+  starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
+  EventSystem with an InputSystemUIInputModule, UI Toolkit buttons, the game through `Mouse.current`).
+- teleport: `{"t", "teleport": [x, y, z], "yaw": deg, "hold": s}`; teleport_to: `{"t", "teleport_to": <object select>,
+  "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`. The original moves the pawn with Unreal's
+  TeleportTo, which finds a free spot near the point; the port sets the player's transform, its pivot, to the point
+  (`Inputs.Place`), through its CharacterController (disabled for the move), its NavMeshAgent (`Warp`, on its NavMesh)
+  or its Rigidbody (and a Rigidbody2D's position), with no free-spot search and no snap to the ground, and stills its
+  bodies. `yaw` turns it (the checker writes 0 when unset, as the original's does). teleport_to takes the match nearest
+  the player, the player and its children left out; the spot is `distance` from the target along the level line toward
+  the player (when the player is right above it, along the target's `-transform.forward`, as the original's
+  `-GetActorForwardVector()`, which both codes' comments call in front), plus `offset`; it faces `face`, else the target
+  (it keeps its yaw when what it faces is within a centimetre on the level). `hold`: for that many seconds of play time,
+  the player is put back at the spot and stilled after every script's Update and again after every LateUpdate (a camera
+  that follows it in LateUpdate frames it at the spot), through waits and scene loads. `probe.log` says where each went
+  (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped (no object matches)`).
+- wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
+  real and game time have passed; the inputs after it wait for its end (the original's). The frame it starts in takes
+  its sample first, as the original's tick does.
 
 ## 5. Files the probe and the checker exchange
 
