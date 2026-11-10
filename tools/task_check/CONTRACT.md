@@ -58,11 +58,15 @@ Plays and inputs:
   default: a play's own key, when it is there, takes the place of the task's `play_scene` / `play_args` for that play
   (`"scene": null` opens the project's first build scene).
 - Play arguments (`play_args`, a play's `args`): each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`, at most 16 (the original's are
-  `-Name[=value]` only, at most 8). An element starting with `-` and a letter is a flag, anything else a value
-  (`["-scenario", "2"]`). The validator refuses, in both, the flags the checker sets itself (the window, the log, the
-  probe's own; `DENIED_PLAY_ARGS`, `DENIED_PLAY_PREFIXES`; case-insensitive, after one dash or more, the name before
-  any `=`): `batchmode`, `nographics`, `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`,
-  `parentHWND`, `single-instance`, and any flag starting with `screen-`, `force-` or `taskprobe`.
+  `-Name[=value]` only, at most 8). An element starting with one dash or more and a letter is a flag, anything else a
+  value (`["-scenario", "2"]`). The validator refuses, in both, the flags the checker sets itself (the window, the
+  log, the probe's own) and those that would undo them (`DENIED_PLAY_ARGS`, `DENIED_PLAY_PREFIXES`; case-insensitive,
+  written with one dash or more: `-quit`, `--quit`; the name before any `=`; a word without a dash is a value, never
+  refused): `batchmode`, `nographics`, `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`,
+  `monitor`, `parentHWND`, `single-instance`, `window-mode`, and any flag starting with `screen-`, `force-` or
+  `taskprobe`. `-nolog` would undo the checker's `-logFile` (`play.log` is where a crash, a `log` measure and
+  `log_absent` are read) and `-window-mode` its windowed 960x540; no game needs either as a play argument, so refusing
+  them costs nothing, as the original's list refuses `log` and `windowed` among the engine's flags.
 - Inputs (section 4): `key` (key and axis rows) is an Input System control path,
   `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`, in place of an FKey name; a widget click's `widget` is a wildcard
   on a name, or a type name (`^[A-Za-z0-9_.*?() -]{1,120}$`; the original's: a plain name); `teleport_to`'s `distance`
@@ -75,8 +79,10 @@ Selects and points:
   matches: section 1).
 - Object select (`Select`): `component`, `tag`, `layer` (new: a layer, by name), `name` (a wildcard on the GameObject's
   whole name), `near`, `has`, `player` (true), `inactive` (new: true lets inactive objects match; by default only
-  objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating`, `movable` (at least one
-  key; `lit`, `visible`, `simulating`, `movable` only `true`).
+  objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating` (at least one key;
+  `lit`, `visible`, `simulating` only `true`). The original's `movable` has no Unity counterpart: a non-kinematic
+  Rigidbody can always move, so `simulating` says what the pair said, and a built player keeps no Static flag
+  (`GameObject.isStatic` reads false there for an object saved static: measured).
 - Component select: `component` or `effect` or both, `name` (a wildcard on its object's name), `owner` (an object
   select), `near`, `mesh`, `visible`, `inactive` (new).
 - Widget select: `component`, `name`, `text` (a regular expression on its text), `visible`. No `slate`.
