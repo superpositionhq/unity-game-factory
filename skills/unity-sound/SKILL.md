@@ -74,12 +74,13 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
   `git check-attr filter -- <file>`. Unity imports each as an AudioClip on the next editor run and writes its `.meta`
   (the first clip also `Assets/Audio.meta` and `Assets/Audio/SFX.meta`): commit every WAV with its `.meta`, never one
   without the other.
-- Set the import settings with a committed editor step, e.g. `Assets/Editor/Steps/ImportSfx.cs`, run through
-  `Scripts/unity.ps1 step -Method <Namespace>.ImportSfx.Run -Reason "..."`: `AudioImporter` per clip (`forceToMono`
-  for world sounds; `loadType` DecompressOnLoad for short clips, CompressedInMemory for medium ones, Streaming for
-  ambience and music; Vorbis compression; `loadInBackground` for long clips), then `SaveAndReimport()`, one workflow
-  row per run (unity-game-session skill, "Replay-friendly work"). Commit the WAVs, their `.meta` files and the step
-  together.
+- Set their import settings with a committed editor step, e.g. `Assets/Editor/Steps/ImportSfx.cs`, run through
+  `Scripts/unity.ps1 step -Method <Namespace>.ImportSfx.Run -Reason "..."`: per clip the `AudioImporter`'s
+  `forceToMono` (world sounds) and `loadInBackground` (long clips), and its `defaultSampleSettings`, a struct to copy,
+  change and assign back: `loadType` DecompressOnLoad for short clips, CompressedInMemory for medium ones, Streaming
+  for ambience and music; `preloadAudioData` on for short clips (Unity 6.3 imports with it off, so a clip's data loads
+  only when it first plays); Vorbis, the default compression. Then `SaveAndReimport()`, one workflow row per run
+  (unity-game-session skill, "Replay-friendly work"). Commit the WAVs, their `.meta` files and the step together.
 - A cue that repeats (footsteps, hits, gunfire) gets 3 to 5 clips played at random with slight pitch variation
   (a small `ScriptableObject` cue bank: clips, volume range, pitch range), so it never sounds like a loop. World sounds
   get a 3D `AudioSource` with a rolloff curve and max distance that fit the scene's scale.
