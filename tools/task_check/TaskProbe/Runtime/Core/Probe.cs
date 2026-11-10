@@ -44,6 +44,7 @@ namespace TaskProbe
         readonly List<Query> queries = new List<Query>();
         readonly Dictionary<string, List<object>> measures = new Dictionary<string, List<object>>(StringComparer.Ordinal);
         readonly List<string> errors = new List<string>();
+        readonly HashSet<string> errorsSeen = new HashSet<string>(StringComparer.Ordinal);
         readonly List<object> track = new List<object>(), cameraRows = new List<object>(), shotNames = new List<object>();
 
         bool started, done, sceneAsked;
@@ -267,8 +268,9 @@ namespace TaskProbe
         /// <summary>Something a query couldn't read; goes to probe.json "query_errors" (once each, at most 50).</summary>
         public void Error(string message)
         {
+            if (!errorsSeen.Add(message)) return;  // a query that fails every sample says so once
             Log("error: " + message);
-            if (errors.Count < MaxErrors && !errors.Contains(message)) errors.Add(message);
+            if (errors.Count < MaxErrors) errors.Add(message);
         }
 
         /// <summary>A line in the play's probe.log (beside probe.json), not in the game's own log.</summary>

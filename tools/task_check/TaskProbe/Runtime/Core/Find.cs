@@ -142,7 +142,7 @@ namespace TaskProbe
             foreach (var go in Candidates(sel))
                 if (Matches(go, sel, centre, hasCentre)) found.Add(go);
             total = found.Count;
-            if (found.Count > 1) found.Sort(CompareHierarchy);
+            SortByHierarchy(found);
             if (found.Count > limit) found.RemoveRange(limit, found.Count - limit);
             return found;
         }
@@ -348,31 +348,86 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- hierarchy order
 
-        static readonly List<int> KeyA = new List<int>(), KeyB = new List<int>();
+        // In a built player every scene root reports sibling index 0, so roots are ordered by their place in the
+        // scene's own root list (the same in every play of one build); below a root, by sibling index. Each object's
+        // key is made once per sort: comparing transforms pair by pair cost most of a whole-scene sample.
+        static readonly Dictionary<int, Dictionary<Transform, int>> RootOrder = new Dictionary<int, Dictionary<Transform, int>>();
+        static int rootOrderFrame = -1;
 
-        static void HierarchyKey(Transform t, List<int> key)
+        static int RootIndex(Transform root)
         {
-            key.Clear();
-            for (var at = t; at != null; at = at.parent) key.Add(at.GetSiblingIndex());
-            key.Add(t.gameObject.scene.handle);
-            key.Add(t.gameObject.scene.buildIndex);
-            key.Reverse();
+            if (rootOrderFrame != Time.frameCount)
+            {
+                RootOrder.Clear();
+                rootOrderFrame = Time.frameCount;
+            }
+            var scene = root.gameObject.scene;
+            if (!RootOrder.TryGetValue(scene.handle, out var order))
+            {
+                order = new Dictionary<Transform, int>();
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    var roots = scene.GetRootGameObjects();
+                    for (var i = 0; i < roots.Length; i++) order[roots[i].transform] = i;
+                }
+                RootOrder[scene.handle] = order;
+            }
+            return order.TryGetValue(root, out var index) ? index : root.GetSiblingIndex();
         }
 
-        static int CompareHierarchy(GameObject a, GameObject b)
+        static int[] HierarchyKey(Transform t)
         {
-            if (a == b) return 0;
-            HierarchyKey(a.transform, KeyA);
-            HierarchyKey(b.transform, KeyB);
-            for (var i = 0; i < KeyA.Count && i < KeyB.Count; i++)
-                if (KeyA[i] != KeyB[i]) return KeyA[i].CompareTo(KeyB[i]);
-            return KeyA.Count.CompareTo(KeyB.Count);
+            var depth = 0;
+            for (var at = t; at != null; at = at.parent) depth++;
+            var key = new int[depth + 2];
+            var i = key.Length - 1;
+            var here = t;
+            for (; here.parent != null; here = here.parent) key[i--] = here.GetSiblingIndex();
+            key[i--] = RootIndex(here);
+            key[1] = here.gameObject.scene.handle;
+            key[0] = here.gameObject.scene.buildIndex;
+            return key;
+        }
+
+        static int CompareKeys(int[] a, int[] b)
+        {
+            for (var i = 0; i < a.Length && i < b.Length; i++)
+                if (a[i] != b[i]) return a[i].CompareTo(b[i]);
+            return a.Length.CompareTo(b.Length);
+        }
+
+        /// <summary>Sorts objects into hierarchy order.</summary>
+        public static void SortByHierarchy(List<GameObject> objects)
+        {
+            if (objects.Count < 2) return;
+            var keyed = new List<KeyValuePair<int[], GameObject>>(objects.Count);
+            foreach (var go in objects) keyed.Add(new KeyValuePair<int[], GameObject>(HierarchyKey(go.transform), go));
+            keyed.Sort((x, y) => CompareKeys(x.Key, y.Key));
+            for (var i = 0; i < keyed.Count; i++) objects[i] = keyed[i].Value;
         }
 
         /// <summary>Sorts components into hierarchy order (by their objects; several on one object keep their order).</summary>
         public static void SortByHierarchy<T>(List<T> components) where T : Component
         {
-            if (components.Count > 1) components.Sort((x, y) => CompareHierarchy(x.gameObject, y.gameObject));
+            if (components.Count < 2) return;
+            var keyed = new List<KeyValuePair<int[], T>>(components.Count);
+            for (var i = 0; i < components.Count; i++)
+            {
+                var path = HierarchyKey(components[i].transform);
+                var key = new int[path.Length + 1];
+                path.CopyTo(key, 0);
+                key[path.Length] = i;  // the order they came in, among the components of one object
+                keyed.Add(new KeyValuePair<int[], T>(key, components[i]));
+            }
+            keyed.Sort((x, y) =>
+            {
+                // the last element is the tie-break only: compare the paths first
+                int n = x.Key.Length - 1, m = y.Key.Length - 1;
+                for (var i = 0; i < n && i < m; i++)
+                    if (x.Key[i] != y.Key[i]) return x.Key[i].CompareTo(y.Key[i]);
+                return n != m ? n.CompareTo(m) : x.Key[n].CompareTo(y.Key[m]);
+            });
+            for (var i = 0; i < keyed.Count; i++) components[i] = keyed[i].Value;
         }
 
         // ---------------------------------------------------------------- angles
