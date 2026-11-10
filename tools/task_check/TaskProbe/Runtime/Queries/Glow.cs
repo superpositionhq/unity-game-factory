@@ -3,11 +3,12 @@
 // Light and a lamp drawn by a glowing material read the same.
 //
 // A mesh renderer is read from its materials' properties when every material it draws with has a shader with the
-// standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`)
-// and no texture multiplies the colour read, MaterialPropertyBlock overrides included; else (a texture, a Shader Graph
-// or a custom shader) it is rendered alone (DrawnRender.Glow), as the original renders a mesh whose material graph it
-// can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot. Any other part
-// (a sprite, a line) and a live effect (a particle system, a trail, a visual effect) are always read as rendered: what
+// standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`),
+// no texture multiplies the colour read and no MaterialPropertyBlock sets it; else (a texture, a block's value, a
+// Shader Graph or a custom shader) it is rendered alone (DrawnRender.Glow), as the original renders a mesh whose
+// material graph it can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot;
+// a block's value may have been set as a colour or as a vector, which the shader gets differently. Any other part (a
+// sprite, a line) and a live effect (a particle system, a trail, a visual effect) are always read as rendered: what
 // they draw is their own (a sprite, vertex colours), not their material's. Past the render budget a mesh reads the
 // bound its properties give (a texture taken as white: "bound"); anything else then has no value ("unread").
 using System;
@@ -184,8 +185,8 @@ namespace TaskProbe
                     one = blockOne.isEmpty ? null : blockOne;
                     all = blockAll.isEmpty ? null : blockAll;
                 }
-                var l = MaterialLight(m, face, one, all, out var textured);
-                exact &= !textured;
+                var l = MaterialLight(m, face, one, all, out var inexact);
+                exact &= !inexact;
                 if (l > best)
                 {
                     best = l;
@@ -287,41 +288,48 @@ namespace TaskProbe
         }
 
         /// <summary>The luminance a material gives off by its properties, as the shader gets the colour (ColourOf);
-        /// `textured`: a texture multiplies it, so it is a bound (the texture taken as white).</summary>
-        static double MaterialLight(Material m, Face face, MaterialPropertyBlock one, MaterialPropertyBlock all, out bool textured)
+        /// `inexact`: a texture multiplies it or a property block sets it, so it is a bound (the texture taken as white;
+        /// the block's value the larger way the shader may get it).</summary>
+        static double MaterialLight(Material m, Face face, MaterialPropertyBlock one, MaterialPropertyBlock all, out bool inexact)
         {
-            textured = false;
+            inexact = false;
             if (face == Face.Emissive)
             {
                 // emission off (no _EMISSION keyword) draws none, whatever its colour or map
                 if (!m.IsKeywordEnabled("_EMISSION")) return 0.0;
-                textured = TextureOf(m, one, all, EmissionMap, EmissionMap) != null;
-                return Luminance(ColourOf(m, one, all, EmissionColor, "_EmissionColor", EmissionColor, "_EmissionColor"));
+                inexact = TextureOf(m, one, all, EmissionMap, EmissionMap) != null;
+                return Luminance(ColourOf(m, one, all, EmissionColor, "_EmissionColor", EmissionColor, "_EmissionColor", ref inexact));
             }
-            textured = TextureOf(m, one, all, BaseMap, MainTex) != null;
-            return Luminance(ColourOf(m, one, all, BaseColor, "_BaseColor", ColorId, "_Color"));
+            inexact = TextureOf(m, one, all, BaseMap, MainTex) != null;
+            return Luminance(ColourOf(m, one, all, BaseColor, "_BaseColor", ColorId, "_Color", ref inexact));
         }
 
-        /// <summary>The colour a property gives the shader, linear: a property block's (the slot's, then the renderer's)
-        /// colour made linear as the block's SetColor makes it, whatever the property (a block knows no shader), a
-        /// vector on it as it is; else the material's colour, made linear unless the shader marks the property [HDR],
-        /// which Unity hands on as the material holds it (measured: URP Lit's [HDR] _EmissionColor (4, 4, 4) draws 4,
-        /// a custom shader's plain (3, 2, 1) draws (11.2, 4.6, 1)).</summary>
-        static Color ColourOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, string name, int fallback, string fallbackName)
+        /// <summary>The colour a property gives the shader, linear: the material's made linear unless the shader marks the
+        /// property [HDR], which Unity hands on as the material holds it (measured: URP Lit's [HDR] _EmissionColor
+        /// (4, 4, 4) draws 4, a custom shader's plain (3, 2, 1) draws (11.2, 4.6, 1)). A property block's value (the
+        /// slot's, then the renderer's) has no exact reading: Unity makes a colour set with SetColor linear and hands a
+        /// vector set with SetVector on as it is, and the block answers HasColor and GetColor alike for both (measured:
+        /// (4, 4, 4) on a block draws 4^2.2 set as a colour, 4 set as a vector). It is `inexact` (the part is rendered)
+        /// and reads the larger of the two, a bound.</summary>
+        static Color ColourOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, string name, int fallback, string fallbackName, ref bool inexact)
         {
-            if (BlockColour(one, id, fallback, out var c) || BlockColour(all, id, fallback, out c)) return c;
+            if (BlockValue(one, id, fallback, out var v) || BlockValue(all, id, fallback, out v))
+            {
+                inexact = true;
+                var made = Find.Linear(v);
+                return new Color(Mathf.Max(v.r, made.r), Mathf.Max(v.g, made.g), Mathf.Max(v.b, made.b), v.a);
+            }
             if (m.HasProperty(id)) return HandedOn(m, id, name);
             if (m.HasProperty(fallback)) return HandedOn(m, fallback, fallbackName);
             return Color.white;
         }
 
-        static bool BlockColour(MaterialPropertyBlock block, int id, int fallback, out Color c)
+        static bool BlockValue(MaterialPropertyBlock block, int id, int fallback, out Color v)
         {
-            c = default;
+            v = default;
             if (block == null) return false;
-            if (block.HasColor(id)) c = Find.Linear(block.GetColor(id));
-            else if (block.HasVector(id)) c = block.GetVector(id);
-            else if (id != fallback && block.HasColor(fallback)) c = Find.Linear(block.GetColor(fallback));
+            if (block.HasColor(id) || block.HasVector(id)) v = block.GetColor(id);
+            else if (id != fallback && (block.HasColor(fallback) || block.HasVector(fallback))) v = block.GetColor(fallback);
             else return false;
             return true;
         }
