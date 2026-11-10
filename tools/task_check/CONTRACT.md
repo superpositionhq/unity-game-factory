@@ -182,9 +182,8 @@ original's, unchanged (`probes.py`).
   writes an empty `rows` (no `total`, no error): the checker reads a `count` of 0 and no value for any other field.
   Every row has `name` and `class`, for the logs: an object row's `class` is its first MonoBehaviour's type, else its
   first Behaviour or Renderer, else its first other component (Transform and MeshFilter aside), else `GameObject`
-  (`ObjectRead.ClassOf`); a component
-  row's `class` is its type, and its `name` and `owner` are both its object's name (a Unity component has no name of
-  its own). A field with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall
+  (`ObjectRead.ClassOf`); a component row's `class` is its type, and its `name` and `owner` are both its object's name
+  (a Unity component has no name of its own). A field with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall
   checks, the ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never
   blocks one.
 - **player**, **camera** (the original's pawn and player camera manager): the checker computes every field but two from
