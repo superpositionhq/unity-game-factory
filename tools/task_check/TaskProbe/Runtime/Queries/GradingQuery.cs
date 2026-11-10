@@ -130,8 +130,9 @@ namespace TaskProbe
         }
 
         /// <summary>post:&lt;Component&gt;.&lt;parameter&gt;[.&lt;channel&gt;]: the parameter's value in the stack (its blend of
-        /// every volume's override, else the component's default). Floats, ints, bools as 1/0, enums as their value, an
-        /// object reference 1 when set, a colour's or a vector's channel. Null when it doesn't resolve.</summary>
+        /// every volume's override, else the component's default). Floats, ints, bools as 1/0, enums as their value, a
+        /// texture (or another asset) 1 when set and 0 when not, a colour's or a vector's channel. Null when it doesn't
+        /// resolve or has no single number (a curve).</summary>
         object Post(VolumeStack stack, string field)
         {
             var parts = field.Substring(5).Split('.');
@@ -168,7 +169,8 @@ namespace TaskProbe
                 Probe.Error("grading " + Id + ": " + field + " is a " + value.GetType().Name + ": name a part (.r .g .b .a or .x .y .z .w)");
                 return null;
             }
-            var plain = Reflect.Plain(value);
+            // an object that is no asset (a TextureCurve) would read 1 as a set reference: it has no single number
+            var plain = value == null || value is UnityEngine.Object || value.GetType().IsValueType ? Reflect.Plain(value) : null;
             if (plain is double) return plain;
             Probe.Error("grading " + Id + ": " + field + " is a " + value.GetType().Name + ": it has no single number");
             return null;
