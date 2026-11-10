@@ -198,7 +198,7 @@ original's, unchanged (`probes.py`).
 - **objects** (the original's `actors`; `ObjectsQuery`, `ObjectRead`):
   - the drawn box of `extent_*` and `spread`: the renderers drawn (`Find.Drawn`: enabled, active in the hierarchy, not
     `forceRenderingOff`) with non-empty bounds, ParticleSystemRenderers and TrailRenderers left out
-    (`ObjectRead.Geometry`); a LODGroup's lower LODs stay enabled, so they count. `spread` counts each renderer by its
+    (`ObjectRead.Geometry`; lower LODs count: task-probes.md 2.4). `spread` counts each renderer by its
     bounds centre (the original also counts each physics body of a skeletal mesh by its place; here a ragdoll, one
     SkinnedMeshRenderer over its bones' Rigidbodies, is one part);
   - the mesh parts of `spin`, `changed`, `bounds_change`, `pose_change` and `lit`: MeshRenderers whose MeshFilter's
@@ -269,15 +269,14 @@ original's, unchanged (`probes.py`).
   fractions, y down from the top, whatever render mode or panel scale placed it. On screen (`visible`, and `ui` below)
   means active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way up (`UiScan.AlphaFloor`:
   CanvasGroups, the graphic's colour, its CanvasRenderer), not culled by a RectMask2D, at least partly inside the
-  frame; for a UI Toolkit element, displayed, visible and of an opacity above 0.004 up the chain. Text is read without
-  rich text tags, TextMeshPro's `maxVisibleCharacters` honoured. No `slate` select: Unity has no lower-level widget
-  tree under the UI to walk.
+  frame; for a UI Toolkit element, displayed, visible and of an opacity above 0.004 up the chain. How text is read:
+  task-probes.md 2.6. No `slate` select: Unity has no lower-level widget tree under the UI to walk.
 - **ui** (`UiQuery`, `UiScan`, `UiOcr`; the original's Slate tree, HUD canvas and paint elements): the elements on
   screen in the frame drawn right after the sample (`FrameNeed`: the sample is completed once that frame is drawn; one
   whose frame never came has no `rows` key). uGUI graphics on screen-space canvases (Overlay or Camera; text: `Text`,
   `TMP_Text`; image: an `Image` with a sprite or a `RawImage` with a texture; box: any other drawn graphic) and UI
   Toolkit elements of screen panels (text: a `TextElement` with text; image: an `Image` element's image or a background
-  image; box: a background colour or a border). World-space canvases and 3D text are no elements. Rows carry `source`
+  image; box: a background colour or a border); what isn't an element: task-probes.md 2.18. Rows carry `source`
   (`ugui`, `uitk`, `ocr`; the original's `umg`, `slate`, `canvas`, `paint`, `ocr`) and `kind`; there is no `line`
   kind, since Unity keeps no list of what `GL`, `OnGUI` or a mesh draws. A select of text in a rect also reads the
   frame's pixels inside the rect (`UiOcr`, the original's glyph reader ported with its constants and decisions; only
@@ -286,16 +285,16 @@ original's, unchanged (`probes.py`).
   `signature`, `number` and `clock` are computed by the checker from the rows (`probes.ui_signature`, `ui_number`,
   `ui_clock`), as in the original.
 - **screen** (`ScreenQuery`; the original's frame had the HUD canvas on it but not the UMG and Slate UI): the frame as
-  displayed, read back once it is drawn, every UI on it included (Screen Space - Overlay too), over `rect`. The value
-  also holds `pixels` and `size`.
+  displayed, read back once it is drawn, every UI on it included (Screen Space - Overlay too), over `rect` (its value's
+  keys: task-probes.md 2.15).
 - **light** (`LightQuery`, `LightKit`; the original's lux from the renderer's lights and the sky light):
-  `illuminance` is in Unity's own light units, not lux. Each Light that is on (`LightKit.On`) adds the luminance of
-  its final colour (colour x intensity, the intensity linear in a linear project, x its temperature colour), a point
-  or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl` computes it
+  `illuminance` is in Unity's light units (task-probes.md 2.7). Each Light that is on (`LightKit.On`) adds the
+  luminance of its final colour (colour x intensity, the intensity linear in a linear project, x its temperature
+  colour), a point or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl` computes it
   (`LightQuery.Attenuation`), a directional one as it is; each passes a wall check (`LightKit.Blocked`: from the light
   to the point, stopping 0.01 m short of it; from the point toward a directional light, 2000 m) that runs for lights
-  with shadows off too and skips the player's colliders and the light's own (on its object or under it). Area lights
-  are skipped (URP only bakes them). The ambient: `RenderSettings.ambientProbe` evaluated straight up, in every
+  with shadows off too and skips the player's colliders and the light's own (on its object or under it); area lights:
+  task-probes.md 2.7. The ambient: `RenderSettings.ambientProbe` evaluated straight up, in every
   ambient mode, times the open share of 9 upward rays (straight up and 8 at 45 degrees, 2000 m each). `exposure` is
   2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
   post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
@@ -322,8 +321,7 @@ original's, unchanged (`probes.py`).
   LogC around 0.4135884 (ACEScc mid-grey, about 0.2248 linear), colour filter, gain and lift, gamma, hue shift,
   saturation and the lookup's saturate (the LDR order; the tonemapper is left out, a tonemapping change is read through
   `post:Tonemapping.mode`; constants from the URP package source in
-  `Library/PackageCache/com.unity.render-pipelines.*`). An untouched stack gives exactly grey 0.18, and cast 0 under a
-  white key light.
+  `Library/PackageCache/com.unity.render-pipelines.*`). What an untouched stack reads: task-probes.md 2.8.
 - **spawns** (`SpawnsQuery`; the original counts actors of a class spawned and destroyed): every frame of the play's
   clock, a wait's frames included, the objects carrying the component type (active ones; subtypes too) are compared
   with the frame before: one there now and not then is spawned (instantiated, activated, or in a scene loaded during
@@ -333,10 +331,8 @@ original's, unchanged (`probes.py`).
 - **pieces** (`PiecesQuery`; the original counts instanced meshes (ISM, HISM, foliage) one per instance and procedural
   mesh sections): a MeshRenderer whose mesh has triangles is 1, a SkinnedMeshRenderer with a mesh is 1, a Terrain's
   tree instances 1 each (Unity's counterpart of instanced meshes; detail grass and `Graphics.RenderMesh*` draws aren't
-  renderers and count 0); renderers of active objects only; under a LODGroup only LOD 0's renderers. Triangles: index
-  count / 3 over the triangle submeshes (cached per mesh); a tree's, its prototype prefab's at full detail (its LOD 0,
-  else every mesh renderer in it), and its `mesh` name the prototype's first mesh's. Counted over every piece, never
-  cut at the rows cap.
+  renderers and count 0); which renderers count, and a piece's triangles: task-probes.md 2.14 (`PiecesQuery` caches
+  each mesh's triangle count; trees are read from their prototypes).
 - **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled
   and playing (and matching the select) at its volume at the listener (the first enabled AudioListener on an active
   object): its `volume` (0 when muted) x ((1 - `spatialBlend`) + `spatialBlend` x its rolloff at the listener's
@@ -346,15 +342,13 @@ original's, unchanged (`probes.py`).
   since the previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on the enabled listener
   (it looks again every 4 frames), which sums the final mix (mixers and effects applied) and then zeroes it, in every
   play, so no play is ever heard. A play that measures audio is paced to real time at 30 fps (the play spec's
-  `sound`); every other play runs as fast as the machine renders. The value also holds `loudest` (the loudest source's
-  own clip's name, "" when it has none), `peak` and `listener` (its object's name). What was measured of Unity's audio
-  (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer volumes) is in `docs/task-probes.md`
-  section 2.16.
+  `sound`); every other play runs as fast as the machine renders. The value's other keys, and what was measured of
+  Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer volumes), are in
+  `docs/task-probes.md` section 2.16.
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from
-  y = 2000 m (4000 m long) at `xz`, or at each point of a `grid` x `grid` lattice over `box` (2-32, default 8, corners
-  and edges included), takes the first collider it meets, the player's always skipped; with `select`, only colliders
-  of the matched objects or their descendants are ground, the rest traced through. The value also holds `points`
-  (grid x grid).
+  y = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
+  (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept); which colliders count, the
+  lattice and the value's keys: task-probes.md 2.17.
 - **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game whose world
   bounds reach the place, at most 1024, but one that encloses the whole place and is at least 20 times its size,
   rendered alone from fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two
@@ -376,9 +370,8 @@ original's, unchanged (`probes.py`).
     opaque behind it and its ray crosses the place (translucent particles). `motion`: a pixel changed when it came in
     or went out, or a channel of its colour c / (1 + c) moved more than 1/255 (the original's); `length` counts up to
     128 steps along the line, none finer than a pixel.
-  - The value always holds `pixels` and `primitives` (the renderers rendered); the base colour is null unless a
-    `base_` field is asked for (`motion`, `reach`, `length` are always computed). Its limits, as measured, are in
-    `docs/task-probes.md` section 2.19.
+  - The value's keys and the limits, as measured: `docs/task-probes.md` section 2.19 (`motion`, `reach`, `length` are
+    always computed; the base colour only when a `base_` field is asked for).
   - Measured: 5 to 8 ms a sample near a point, 4 ms along a line.
 - **log**: the lines of the play's player log (`-logFile`, kept as `play.log`) that match, read by the checker as the
   original reads its game log.
@@ -401,10 +394,8 @@ original's, unchanged (`probes.py`).
     slot, the error shader or one that doesn't compile (`ShaderUtil.ShaderHasError`), or Unity's built-in default
     material or the pipeline's (`AssetValues.IsDefault`). Rows of `material:` are named `<object>/<renderer's object>`,
     of `mesh_collision` `<object>/<mesh's object>`.
-  - A missing asset, scene or prefab is an error (`no asset <path>`, `no scene <path>`, `no prefab <path>`). An
-    unknown member, an unknown shader property, a colour or vector without its channel, or `shader:` / `keyword:` on
-    something that isn't a material is an error for an `asset`, and a row with no value on a scene's or prefab's
-    objects (`SceneRows` keeps the row). Every message is in `docs/task-probes.md` section 2.11.
+  - Which reads are errors, and their messages: `docs/task-probes.md` section 2.11. On a scene's or prefab's objects
+    the same faults give a row with no value (`SceneRows` keeps the row).
 
 ## 4. Plays and inputs
 
