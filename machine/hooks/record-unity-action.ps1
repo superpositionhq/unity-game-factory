@@ -181,7 +181,7 @@ function Save-BackfillState([string]$Sid, [string]$Project, [string]$Path, $Rows
 # ---- manual backfill of a session that was mapped before the backfill existed ---------------------------------------
 if ($Backfill) {
   $mutex = New-Object Threading.Mutex($false, 'Global\ugf-recording-hooks')
-  [void]$mutex.WaitOne(30000)
+  [void](Enter-UGFMutex $mutex 30000)
   try {
     $map = Read-JsonMap $mapFile
     if (-not $map.ContainsKey($Backfill)) { throw "session $Backfill is not mapped to a project (recording-sessions.json)" }
@@ -217,9 +217,10 @@ $sid = [string]$e.session_id
 if ((Test-Path $excludeFile) -and ((Get-Content $excludeFile) -contains $sid)) { exit 0 }
 
 # One mutex for every writer of this factory's recording (both agents' hooks, record-unity-commit.ps1). Not the Unreal
-# factory's mutex: the two write different files and need not wait on each other.
+# factory's mutex: the two write different files and need not wait on each other. A hook killed at its timeout leaves
+# it abandoned; Enter-UGFMutex takes it over (WaitOne threw there, and every hook waiting on it lost its row).
 $mutex = New-Object Threading.Mutex($false, 'Global\ugf-recording-hooks')
-[void]$mutex.WaitOne(30000)
+[void](Enter-UGFMutex $mutex 30000)
 try {
   $map = Read-JsonMap $mapFile
 
