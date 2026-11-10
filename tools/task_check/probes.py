@@ -8,8 +8,8 @@ Units are metres, Y is up.
 - `measured(measure, probe, log)`: one number from a play's probe.json (`measures`, and the `track` and `camera` rows
   for the player's and the camera's own fields) or its log, following window/at/of/agg/match, and why there is none.
   The grading probe's grey, cast, warmth, tint, saturation and contrast come from colour.py.
-- `editor_request(items, nonce)` / `editor_results(file, nonce)` / `reduce_asset(measure, result)`: the editor pass,
-  one batchmode Unity run (TaskProbe.EditorTools.AssetPass) evaluating every `asset` measure of a side."""
+- `editor_request(items, nonce)` / `editor_results(file, nonce, output)` / `reduce_asset(measure, result)`: the editor
+  pass, one batchmode Unity run (TaskProbe.EditorTools.AssetPass) evaluating every `asset` measure of a side."""
 
 import hashlib
 import json
@@ -22,7 +22,8 @@ from . import tasks
 QUERIES_FORMAT = "game-probe-queries/1"
 EVERY = 0.5  # seconds between samples
 NEAR = 0.26  # a sample within this many seconds of a time is the sample at that time
-EDITOR_FILE = "Logs/TaskProbe/probes_editor.json"  # the editor pass's result file, in the project
+EDITOR_FILE = "Logs/TaskProbe/probes_editor.json"  # the editor pass's result, beside its printed line
+MARKER = "TASK_PROBES"
 
 
 def _hash(data, n=10):
@@ -520,21 +521,28 @@ def editor_request(items, nonce):
     """The editor pass's request (-taskProbeAssets) for `items` ([(id, measure JSON)]): {"nonce", "measures": {id:
     measure}}; unity.Project adds where the result goes (EDITOR_FILE). TaskProbe.EditorTools.AssetPass evaluates each
     measure on the project as saved and writes {"nonce", "measures": {id: {"value"} | {"rows": [{name, value}]} |
-    {"error"}}} there. `nonce` (the checker's, unknown to the project) marks the real result."""
+    {"error"}}} there and as one line, after MARKER, to its log. `nonce` (the checker's, unknown to the project) marks
+    the real one."""
     return {"nonce": nonce, "measures": dict(items)}
 
 
-def editor_results(file, nonce):
-    """{id: result} from the editor pass's result file (its bytes, or None when it wrote none), when it carries
-    `nonce`; None otherwise (no file, not JSON, or someone else's)."""
-    if file is None:
-        return None
-    try:
-        found = json.loads(file.decode("utf-8-sig", errors="replace") if isinstance(file, bytes) else file)
-    except ValueError:
-        return None
-    if isinstance(found, dict) and found.get("nonce") == nonce and isinstance(found.get("measures"), dict):
-        return found["measures"]
+def editor_results(file, nonce, output=""):
+    """{id: result} from the editor pass: its file's contents (bytes) when it wrote one, else the last MARKER line of
+    its output, whichever carries `nonce`; None when neither does."""
+    candidates = []
+    if file is not None:
+        candidates.append(file.decode("utf-8", errors="replace") if isinstance(file, bytes) else file)
+    for line in reversed((output or "").splitlines()):
+        at = line.find(MARKER + " ")
+        if at >= 0:
+            candidates.append(line[at + len(MARKER) + 1:])
+    for text in candidates:
+        try:
+            found = json.loads(text)
+        except ValueError:
+            continue
+        if isinstance(found, dict) and found.get("nonce") == nonce and isinstance(found.get("measures"), dict):
+            return found["measures"]
     return None
 
 

@@ -1124,9 +1124,10 @@ class Editor(unittest.TestCase):
                    "terraces": {"rows": [{"name": "Terrace_1", "value": 0}, {"name": "Terrace_2", "value": 1}]},
                    "colliding": {"rows": [{"name": "Terrace_1", "value": 1}, {"name": "Terrace_2", "value": 0}]},
                    "prefab": {"rows": [{"name": "Lamp/Bulb", "value": 2.5}, {"name": "Lamp/Fill", "value": None}]}}
-        written = json.dumps({"nonce": "n0nce", "measures": {probes.editor_id(checks[n]): r
-                                                             for n, r in answers.items()}}).encode()
-        results = probes.editor_results(written, "n0nce")
+        line = json.dumps({"nonce": "n0nce", "measures": {probes.editor_id(checks[n]): r for n, r in answers.items()}})
+        results = probes.editor_results(line.encode(), "n0nce")
+        log = f"Refreshing native plugins\n{probes.MARKER} {line}\nExiting batchmode successfully now!\n"
+        self.assertEqual(results, probes.editor_results(None, "n0nce", log), "the file and the printed line agree")
         values = {n: probes.reduce_asset(checks[n], results[probes.editor_id(checks[n])]) for n in checks}
         self.assertEqual((values["double"], values["emits"], values["named"]), ((0.0, None), (1.0, None), (1.0, None)))
         self.assertEqual(values["compressed"],
@@ -1141,13 +1142,15 @@ class Editor(unittest.TestCase):
         self.assertEqual(probes.reduce_asset(checks["double"], {"value": None}), (None, "the property has no number"))
 
     def test_the_editor_results_need_the_checkers_nonce(self):
-        mine = json.dumps({"nonce": "mine", "measures": {"a1": {"value": 1}}})
+        line = json.dumps({"nonce": "mine", "measures": {"a1": {"value": 1}}})
         planted = json.dumps({"nonce": "guess", "measures": {"a1": {"value": 0}}})
-        self.assertEqual(probes.editor_results(mine.encode(), "mine"), {"a1": {"value": 1}})
-        self.assertEqual(probes.editor_results(("﻿" + mine).encode(), "mine"), {"a1": {"value": 1}}, "a BOM")
+        output = f"{probes.MARKER} {line}\n{probes.MARKER} {planted}\n"
+        self.assertEqual(probes.editor_results(None, "mine", output), {"a1": {"value": 1}})
+        self.assertEqual(probes.editor_results(planted.encode(), "mine", output), {"a1": {"value": 1}})
+        self.assertIsNone(probes.editor_results(None, "mine", "Crash!!!"))
+        self.assertIsNone(probes.editor_results(b"nor this", "mine", f"{probes.MARKER} not json"))
+        self.assertEqual(probes.editor_results(line.encode(), "mine"), {"a1": {"value": 1}})
         self.assertIsNone(probes.editor_results(planted.encode(), "mine"))
-        self.assertIsNone(probes.editor_results(None, "mine"))
-        self.assertIsNone(probes.editor_results(b"not json", "mine"))
         self.assertIsNone(probes.editor_results(json.dumps({"nonce": "mine"}).encode(), "mine"))
         measure = m(probe="asset", scene="Assets/Scenes/L.unity", select={"tag": "T"}, field="count")
         self.assertEqual(probes.reduce_asset(measure, {"rows": [{"name": "a", "value": 1}] * 3}), (3.0, None))
