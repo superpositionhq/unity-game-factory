@@ -4,7 +4,7 @@ refuses a package. Plain git and git-lfs; no Unity and no PowerShell.
 
     python -m unittest discover -s tools/tests -p "test_package_dataset.py" -v
 """
-import io, json, os, re, shutil, subprocess, sys, tempfile, unittest, zipfile
+import io, json, os, re, shutil, subprocess, sys, tempfile, time, unittest, zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_validate_game as base  # noqa: E402  the fixture: make_game, task, set_tasks, git, write
@@ -75,14 +75,99 @@ def make_inputs(tmp):
                 brief=os.path.join(tmp, 'brief.md'), design=os.path.join(tmp, 'design.md'))
 
 
-def run(inp, *extra, env=None):
+def run(inp, *extra, env=None, build=True, brief=True):
     # UGF_OUT and UGF_CONFIG inside the test's folder: what the packager keeps in the out folder stays there, and no test
     # reads this machine's config
     env = dict(dict(base.ENV, UGF_ROOT=inp['root'], UGF_OUT=os.path.join(inp['root'], 'deliverables'),
                     UGF_CONFIG=os.path.join(inp['root'], 'no-config.json'), UGF_MIN_FREE_GB='0', USERNAME=ACCOUNT,
                     COMPUTERNAME='JT-DESKTOP'), **(env or {}))
-    return subprocess.run([sys.executable, os.path.join(TOOLS, 'package-dataset.py'), SLUG, '--build', inp['build'], '--brief', inp['brief'],
-                           '--design', inp['design'], '--version', '1.0', *extra], capture_output=True, text=True, env=env)
+    args = [sys.executable, os.path.join(TOOLS, 'package-dataset.py'), SLUG, '--version', '1.0']
+    args += ['--build', inp['build']] if build else []
+    args += ['--brief', inp['brief'], '--design', inp['design']] if brief else []
+    return subprocess.run(args + list(extra), capture_output=True, text=True, env=env)
+
+
+PKG = base.load('package_dataset', 'package-dataset.py')
+_PROBE = PKG.find_ffprobe()   # this machine's ffmpeg, when it has one: the videos are then real ones a probe accepts
+FFMPEG = _PROBE and os.path.join(os.path.dirname(_PROBE), os.path.basename(_PROBE).replace('ffprobe', 'ffmpeg'))
+_MP4 = []
+
+
+def gameplay_mp4():
+    """An mp4 the layout accepts (1920x1080 h264 + aac, one second) when ffmpeg is here, else bytes no probe reads (the
+    tests' packager finds no ffprobe under their root, and the validators then note that the videos were not probed)."""
+    if not _MP4:
+        data = b'\0\0\0\x18ftypmp42' + bytes(range(256)) * 4
+        if FFMPEG and os.path.isfile(FFMPEG):
+            out = os.path.join(tempfile.mkdtemp(prefix='ugfv'), 'v.mp4')
+            r = subprocess.run([FFMPEG, '-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=1920x1080:r=60:d=1', '-f', 'lavfi',
+                                '-i', 'anullsrc=r=48000:cl=stereo', '-t', '1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+                                '-shortest', out], capture_output=True)
+            if r.returncode == 0:
+                data = base.read(out, 'rb')
+            shutil.rmtree(os.path.dirname(out), ignore_errors=True)
+        _MP4.append(data)
+    return _MP4[0]
+
+
+def pipeline_build(inp, commit, hits=(), status='ok', config='release'):
+    """A pipeline build of commit, as build.ps1 leaves one: <root>/builds/<slug>/<sha8>/Windows/ (the fixture's player) and
+    build_info.json (unity-build/1)."""
+    d = os.path.join(inp['root'], 'builds', SLUG, commit[:8])
+    shutil.copytree(inp['build'], os.path.join(d, 'Windows'))
+    base.write(d, 'build_info.json', json.dumps({'schema': 'unity-build/1', 'game': SLUG, 'commit': commit, 'short_sha': commit[:8],
+                                                 'status': status, 'config': config, 'backend': 'il2cpp', 'autoplay_version': 1,
+                                                 'leak_scan': {'scanned': 'Windows\\', 'hits': list(hits)}}))
+    return d
+
+
+def bundle(inp, commit, scenario, stamp, status='ok', result='win', marker=None, notes=None):
+    """A recording as record.ps1 leaves one: <root>/recordings/<slug>/<run id>/ with metadata.json, validation.json,
+    gameplay.mp4 and eight stills (also in recordings/<slug>/_stills/). Returns the run id."""
+    run_id = f'{SLUG}_S{scenario}_{stamp}_s7'
+    d = os.path.join(inp['root'], 'recordings', SLUG, run_id)
+    base.write(d, 'metadata.json', json.dumps({
+        'schema': 'unity-autoplay-bundle/v1', 'run_id': run_id, 'game': SLUG, 'scenario': scenario, 'scenario_name': f'Kiln {scenario}',
+        'result': result, 'capture_notes': notes, 'status': status, 'video_start_offset_ns': 1000000000,
+        'system_audio': {'start_offset_ns': 1250000000, 'aligned': True},
+        'build': {'commit': commit, 'short_sha': commit[:8], 'config': 'release', 'backend': 'il2cpp',
+                  'path': f'C:\\Users\\{ACCOUNT}\\UnityWork\\builds\\{SLUG}\\{commit[:8]}'},
+        'gameplay_mp4': {'file': 'gameplay.mp4', 'duration_s': 21.5, 'audio_offset_s': 0.25, 'error': None}}))
+    base.write(d, 'validation.json', json.dumps({'status': status, 'problems': [], 'checks': {'video': {'duration_s': 21.5}}}))
+    base.write(d, 'gameplay.mp4', gameplay_mp4())
+    for i in range(1, 9):
+        still = b'\xff\xd8\xff\xe0' + bytes([scenario, i]) * 40
+        base.write(d, f'stills/{i:02d}.jpg', still)
+        base.write(os.path.join(inp['root'], 'recordings', SLUG, '_stills'), f'{run_id}_{i:02d}.jpg', still)
+    if marker:
+        base.write(d, marker, 'excluded\n')
+    return run_id
+
+
+def replay(inp, commit, passed=False, ready=True):
+    """The creation replay's package of commit, as unity_replay.py release leaves it: <out>/_replay/<slug>/<sha8>/ with
+    ReplayScripts/ (unscrubbed) and READY."""
+    d = os.path.join(inp['root'], 'deliverables', '_replay', SLUG, commit[:8])
+    rs = os.path.join(d, 'ReplayScripts')
+    base.write(rs, 'Verification/report.json', json.dumps({
+        'schema': 'unity-replay.verification/v1', 'game': SLUG, 'final_commit': commit, 'time': '2026-11-10T00:00:00+00:00',
+        'files': {}, 'assets': {'total': 3}, 'scenes': {}, 'rows': {}, 'windows': [{'window': 1, 'commit': commit}],
+        'verdict': {'pass': passed, 'criteria': [{'id': 'files', 'text': 'every tracked file outside Assets/ byte-identical',
+                                                  'result': '3 identical, 1 differs', 'pass': passed}],
+                    'exclusions': [{'id': 'guid', 'what': 'GUID strings Unity writes at random', 'count': 2, 'items': []}]}}, indent=1))
+    base.write(rs, 'Verification/report.md', f'# Replay verification\n\n## Verdict: {"PASS" if passed else "FAIL"}\n')
+    base.write(rs, 'README.md', '# ReplayScripts: creation replay of kiln-run\n')
+    base.write(rs, 'ledger.json', json.dumps({'final': commit, 'note': f'replayed in C:\\Users\\{ACCOUNT}\\UnityWork\\unity-replay\\{SLUG}'}))
+    base.write(rs, 'unity_replay.py', 'print("replay")\n')
+    base.write(rs, '__pycache__/unity_replay.cpython-312.pyc', b'\0\0pyc')
+    if ready:
+        base.write(d, 'READY', '2026-11-10T00:00:00+00:00\n')
+    return d
+
+
+def manifest_of(path):
+    with zipfile.ZipFile(path) as z:
+        return json.loads(z.read(f'{SLUG}/manifest.json'))
 
 
 def commit(repo, files, message):
@@ -213,6 +298,212 @@ class Package(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.history.git')))
         self.assertEqual(base.git(self.inp['repo'], 'rev-parse', 'HEAD'), self.inp['head'])   # the game's history is not changed
         self.assertIn('original\tdelivered', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.commit-map.tsv')))
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Complete(unittest.TestCase):
+    """A release with the pipeline's build, recordings and the creation replay: Dataset.zip, status complete."""
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='ugfc')
+        inp = cls.inp = make_inputs(cls.tmp)
+        head, start = inp['head'], inp['start']
+        pipeline_build(inp, head)
+        cls.runs = {
+            'failed': bundle(inp, head, 1, '20990101-000000', status='failed', marker='FAILED'),
+            's1': bundle(inp, head, 1, '20990101-000100', result='lose'),
+            's1_later': bundle(inp, head, 1, '20990101-000200'),
+            's2': bundle(inp, head, 2, '20990101-000300', result='timeout', notes='Low quality for 60 fps capture'),
+            'invalid': bundle(inp, head, 3, '20990101-000400', marker='INVALID'),
+            'older': bundle(inp, start, 4, '20990101-000500')}
+        replay(inp, head)
+        cls.res = run(inp, build=False)   # the player: the pipeline's build of the release commit
+        cls.zip = os.path.join(inp['repo'], 'Dataset.zip')
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, onerror=base.onerror)
+
+    def members(self):
+        with zipfile.ZipFile(self.zip) as z:
+            return {n[len(SLUG) + 1:]: z.read(n) for n in z.namelist()}
+
+    def test_a_complete_zip(self):
+        self.assertEqual(self.res.returncode, 0, self.res.stdout + self.res.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+        rep = vg.Report()
+        vg.check_dataset(rep, self.zip, 'dataset')
+        self.assertEqual(base.errors(rep), [])
+        m = manifest_of(self.zip)
+        self.assertEqual((m['status'], m['pending']), ('complete', []))
+        self.assertIn('COMPLETE', self.res.stdout)
+
+    def test_gameplay_from_the_first_valid_run_of_each_scenario(self):
+        m, mem = manifest_of(self.zip), self.members()
+        self.assertEqual([(s['scenario'], s['source_run'], s['result']) for s in m['scenarios']],
+                         [(1, self.runs['s1'], 'lose'), (2, self.runs['s2'], 'timeout')])   # the result never picks a run
+        s1 = m['scenarios'][0]
+        self.assertEqual((s1['file'], s1['name'], s1['seconds'], s1['audio_offset_s']), (f'Gameplay/{SLUG}_S1.mp4', 'Kiln 1', 21.5, 0.25))
+        self.assertNotIn('capture_notes', s1)
+        self.assertEqual(m['scenarios'][1]['capture_notes'], 'Low quality for 60 fps capture')
+        self.assertEqual(sorted(n for n in mem if n.startswith('Gameplay/')), [f'Gameplay/{SLUG}_S1.mp4', f'Gameplay/{SLUG}_S2.mp4'])
+        self.assertEqual(mem[f'Gameplay/{SLUG}_S1.mp4'], gameplay_mp4())
+        readme = mem['README.md'].decode()
+        self.assertIn(f'| `Gameplay/{SLUG}_S2.mp4` | 2 | Kiln 2 | timeout | 21.5 s |', readme)
+        self.assertIn('Recording note, scenario 2: Low quality for 60 fps capture.', readme)
+        for k in ('failed', 'invalid', 'older'):   # FAILED, INVALID and a run of another commit are named, never taken
+            self.assertIn(f'recording {self.runs[k]} not taken', self.res.stdout)
+
+    def test_replay_scripts_with_a_fail_verdict(self):
+        m, mem = manifest_of(self.zip), self.members()
+        rv = m['replay_verification']
+        self.assertEqual((rv['pass'], rv['report']), (False, 'ReplayScripts/Verification/report.md'))
+        self.assertEqual(rv['criteria'], [{'id': 'files', 'text': 'every tracked file outside Assets/ byte-identical',
+                                           'result': '3 identical, 1 differs', 'pass': False}])
+        self.assertEqual(rv['exclusions'], [{'id': 'guid', 'what': 'GUID strings Unity writes at random', 'count': 2}])
+        report = json.loads(mem['ReplayScripts/Verification/report.json'])
+        self.assertEqual(report['final_commit'], m['commit'])   # the replay's commit ids are the delivered history's
+        self.assertEqual(report['windows'][0]['commit'], m['commit'])
+        ledger = json.loads(mem['ReplayScripts/ledger.json'])
+        self.assertEqual(ledger['note'], f'replayed in C:\\Users\\dev\\UnityWork\\unity-replay\\{SLUG}')   # scrubbed like the rest
+        self.assertFalse([n for n in mem if '__pycache__' in n])
+        readme = mem['README.md'].decode()
+        self.assertIn('verified against the release commit: **FAIL**', readme)
+        self.assertNotIn('**Pending:**', readme)
+
+    def test_the_pipelines_player(self):
+        m = manifest_of(self.zip)
+        self.assertEqual(m['build']['commit'], m['commit'])
+        self.assertEqual(m['build']['source'], "the pipeline's release build of the release commit (tools/unity-pipeline/build.ps1, il2cpp)")
+        self.assertIn('Build/KilnRun.exe', self.members())
+
+    def test_the_repo_dataset_folder_has_gameplay_and_replay(self):
+        ds = os.path.join(self.inp['repo'], 'Dataset')
+        rep = vg.Report()
+        vg.check_dataset(rep, ds, 'dataset')
+        self.assertEqual(base.errors(rep), [])
+        self.assertTrue(os.path.isfile(os.path.join(ds, 'Gameplay', f'{SLUG}_S2.mp4')))
+        self.assertTrue(os.path.isfile(os.path.join(ds, 'ReplayScripts', 'Verification', 'report.json')))
+        self.assertEqual(json.loads(base.read(os.path.join(ds, 'manifest.json')))['status'], 'complete')
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Products(unittest.TestCase):
+    """What the release's build, recordings and replay decide, one case each."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfq')
+        self.inp = make_inputs(self.tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def test_without_ready_the_replay_is_pending(self):
+        head = self.inp['head']
+        bundle(self.inp, head, 1, '20990101-000100')
+        replay(self.inp, head, ready=False)   # a replay still being packaged
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('is not finished (no READY)', r.stdout)
+        m = manifest_of(os.path.join(self.inp['repo'], 'Dataset.pending.zip'))
+        self.assertEqual((m['status'], m['pending'], m['replay_verification']), ('pending', ['ReplayScripts'], None))
+        self.assertEqual(len(m['scenarios']), 1)
+
+    def test_a_replay_of_another_commit_refuses(self):
+        head = self.inp['head']
+        d = replay(self.inp, head)
+        rp = os.path.join(d, 'ReplayScripts', 'Verification', 'report.json')
+        report = json.loads(base.read(rp))
+        report['final_commit'] = self.inp['start']
+        base.write(os.path.dirname(rp), 'report.json', json.dumps(report))
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('not the release commit', r.stdout)
+
+    def test_leak_scan_hits_refuse(self):
+        pipeline_build(self.inp, self.inp['head'], hits=[{'file': 'Windows\\GameAssembly.dll', 'pattern': 'claude', 'count': 1}])
+        r = run(self.inp, '--dry-run', build=False)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('leak-scan hit(s) in build_info.json', r.stdout)
+
+    def test_an_earlier_pipeline_build_is_named(self):
+        pipeline_build(self.inp, self.inp['start'])   # the release commit has no build of its own
+        r = run(self.inp, '--no-repo-dataset', '--no-zip', build=False)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('commit(s) before the release commit', r.stdout)
+        m = json.loads(base.read(os.path.join(self.inp['repo'], '.dataset', SLUG, 'manifest.json')))
+        self.assertNotEqual(m['build']['commit'], m['commit'])
+        self.assertNotIn(self.inp['start'], json.dumps(m))   # the build's commit by its delivered id
+        self.assertIn(f"the pipeline's release build of commit {m['build']['commit'][:12]}", m['build']['source'])
+
+    def test_a_build_outside_the_release_history_refuses(self):
+        base.git(self.inp['repo'], 'switch', '-q', '-c', 'side', self.inp['start'])
+        side = commit(self.inp['repo'], {'Docs/Side.md': 'side work\n'}, 'Side work')
+        base.git(self.inp['repo'], 'switch', '-q', 'main')
+        d = pipeline_build(self.inp, side)
+        r = run(self.inp, '--dry-run', '--build', d, build=False)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('which is not in the history of the release commit', r.stdout)
+
+    @unittest.skipUnless(os.name == 'nt', 'the pipeline lock is a Windows file opened without sharing')
+    def test_the_pipelines_lock_refuses(self):
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        k32.CreateFileW.restype = wintypes.HANDLE
+        k32.CreateFileW.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
+                                    wintypes.HANDLE)
+        k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        builds = os.path.join(self.inp['root'], 'builds')
+        base.write(builds, f'_pipeline-{SLUG}.lock.json', json.dumps({'pid': 4242, 'job': f'build {SLUG} 0123abcd', 'since': 'now'}))
+        # as common.ps1 Enter-PipelineLock holds it: read and write, no sharing, opened or created
+        h = k32.CreateFileW(os.path.join(builds, f'_pipeline-{SLUG}.lock'), 0xC0000000, 0, None, 4, 0x80, None)
+        self.assertNotIn(h, (None, ctypes.c_void_p(-1).value))
+        try:
+            r = run(self.inp, '--dry-run')
+        finally:
+            k32.CloseHandle(h)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(f'the pipeline is working on {SLUG} right now: build {SLUG} 0123abcd (pid 4242', r.stdout)
+        self.assertEqual(run(self.inp, '--dry-run').returncode, 0)   # freed: the file alone is no lock
+
+    def test_screenshots_fall_back_to_the_recordings_stills(self):
+        repo = self.inp['repo']
+        readme = base.read(os.path.join(repo, 'README.md'))
+        head = commit(repo, {'README.md': re.sub(r'(?m)^.*(!\[|<img).*\n', '', readme)}, 'The README without images')
+        shutil.rmtree(os.path.join(repo, 'Docs', 'screenshots'), onerror=base.onerror)
+        head = commit(repo, {}, 'No screenshots folder')
+        run_id = bundle(self.inp, head, 1, '20990101-000100')
+        r = run(self.inp, '--no-repo-dataset', '--no-zip')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        shots = sorted(os.listdir(os.path.join(repo, '.dataset', SLUG, 'Screenshots')))
+        self.assertEqual(shots, [f'{run_id}_{n}.jpg' for n in ('01', '03', '05', '07')])
+        self.assertIn('Screenshots/ holds stills of the recordings', r.stdout)
+
+    def test_a_session_build_before_a_content_change_is_named(self):
+        # D14: the template's flow commits the build's workflow row after the build; only a later change to the game's
+        # content or code (Assets/, Packages/) means the build is not the release's
+        repo, exe = self.inp['repo'], os.path.join(self.inp['build'], 'KilnRun.exe')
+        future = int(time.time()) + 100
+        os.utime(exe, (future, future))
+        env = dict(base.ENV, GIT_COMMITTER_DATE=f'{future + 50} +0000', GIT_AUTHOR_DATE=f'{future + 50} +0000')
+        base.write(repo, 'workflow.jsonl', base.read(os.path.join(repo, 'workflow.jsonl')) + '\n')
+        subprocess.run(['git', '-C', repo, 'commit', '-qam', 'Record the build row'], check=True, env=env)
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn('was built before', r.stdout)
+        base.write(repo, 'Assets/Scripts/Kiln.cs', base.read(os.path.join(repo, 'Assets', 'Scripts', 'Kiln.cs')) + '// later\n')
+        subprocess.run(['git', '-C', repo, 'commit', '-qam', 'Change the kiln after the build'], check=True, env=env)
+        r = run(self.inp, '--dry-run')
+        self.assertIn('Build/KilnRun.exe was built before 1 commit(s) that changed Assets/ or Packages/', r.stdout)
+
+    def test_the_brief_comes_from_the_release_commit(self):
+        repo = self.inp['repo']
+        commit(repo, {'Brief/brief.md': '# Brief\n\n' + 'The committed brief. ' * 20, 'Brief/design.md': '# Design\n\n' + 'Committed. ' * 30},
+               'Add the brief and the design doc')
+        base.write(repo, 'Brief/brief.md', '# Brief\n\n' + 'An edit nobody committed. ' * 20)
+        r = run(self.inp, '--no-repo-dataset', '--no-zip', brief=False)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(base.read(os.path.join(repo, '.dataset', SLUG, 'Brief', 'brief.md')).startswith('# Brief\n\nThe committed brief.'))
 
 
 @unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')

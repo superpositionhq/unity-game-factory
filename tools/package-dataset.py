@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Build a Unity game's dataset (unity-dataset-layout/v1, docs/game-format.md): <repo>/Dataset.pending.zip.
+"""Build a Unity game's dataset (unity-dataset-layout/v1, docs/game-format.md): <repo>/Dataset.zip, or
+<repo>/Dataset.pending.zip while an entry is missing.
 
     python tools/package-dataset.py <slug>                      # the game at <root>/games/<slug>, its HEAD
     python tools/package-dataset.py <slug> --commit <rev> --version 1.0 --brief <brief.md> --design <design.md>
     python tools/package-dataset.py <slug> --dry-run            # what would go in; writes nothing
 
-What it packs, from the game repo at the release commit, its recording (<root>/.recording/<slug>/) and its player
-build (<repo>/Build/Windows, made with Scripts/unity.ps1 build; --build names another folder):
+What it packs, from the game repo at the release commit, its recording (<root>/.recording/<slug>/) and the release's
+three products: the player (the pipeline's release build <root>/builds/<slug>/<sha8>/ with build_info.json, else
+<repo>/Build/Windows from Scripts/unity.ps1 build; --build names another), the recordings (<root>/recordings/<slug>/)
+and the creation replay (<out>/_replay/<slug>/<release sha8>/ with READY; --replay names another):
 
     History/<slug>.bundle     the history rewritten for delivery: authors and committers dev_NN, agent trailer lines
                               gone, the scrub rules on every message and text blob. The release commit as
@@ -21,27 +24,36 @@ build (<repo>/Build/Windows, made with Scripts/unity.ps1 build; --build names an
     UnityProject/             the delivered tree at the release commit, LFS files as their real content (no Dataset/)
     Tasks/                    the tasks of the repo's tasks branch, seeds mapped to the delivered history, each split
                               into task.json and grader.json (tools/split-tasks.py), and a README.md
-    Brief/                    brief.md and design.md (--brief / --design, else the places listed at find_brief)
-    Screenshots/              the images the game's README.md shows
-    Build/                    the Windows player, without .pdb files and Unity's "do not ship" folders
+    Brief/                    brief.md and design.md (--brief / --design, else the release commit's, see find_brief)
+    Gameplay/<slug>_S<n>.mp4  per scenario, the gameplay.mp4 of its first valid recording of the release commit
+                              (gameplay_runs); the result is metadata, never a reason to pick a run
+    ReplayScripts/            the creation replay's package, its commit ids mapped; its verdict, PASS or FAIL, becomes
+                              manifest.json replay_verification
+    Screenshots/              the images the game's README.md shows, else Docs/screenshots/, else the recordings' stills
+    Build/                    the Windows release player, without .pdb files and Unity's "do not ship" folders
     README.md, manifest.json
 
-Not packed yet: Gameplay/ and ReplayScripts/ (the recorder and the creation replay are not available yet). The manifest
-lists both as pending, its status is "pending" and the zip is Dataset.pending.zip.
+Status "complete" and Dataset.zip when Gameplay/ holds a video and ReplayScripts/ is there (a FAIL verdict too);
+otherwise "pending", the missing entries listed in the manifest's pending, and Dataset.pending.zip. A pipeline build
+whose leak scan found anything, a development player or another product's, and a running pipeline job of the game
+(its lock in <root>/builds/) refuse the package.
 
 Every text file of the delivery is scrubbed (studio and tool names, agent, model and provider names, the account and
 machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a name
 left in a text file or a path refuses the package (exit 2, nothing zipped; the hits in <scratch>/<slug>.refused-hits.tsv).
-Binary files are never changed: names found in them are listed in <scratch>/<slug>.binary-hits.tsv and reported, and
-refuse the package only with --strict-binaries. Commit ids change with the rewrite: the delivery uses the new ids
-everywhere, and <scratch>/<slug>.commit-map.tsv keeps original -> delivered.
+Binary files are never changed: names found in them are listed in <scratch>/<slug>.binary-hits.tsv, and one inside a
+string (8 or more printable characters in a row) refuses the package too; --lenient-binaries lists them without
+refusing, to review a refusal. Commit ids change with the rewrite: the delivery uses the new ids everywhere, and
+<out>/<slug>/<slug>_<sha8>.commit-map.tsv keeps original -> delivered (<out>: env UGF_OUT, config "out", else
+<root>/deliverables).
 
 It ends with the checks a consumer runs: tools/validate-game.py --dataset on the delivery (an error refuses the
 package). Then it writes the zip and, unless --no-repo-dataset, the repo's Dataset/ folder (the delivery minus
 UnityProject/, Build/, History/ and Tasks/) for the game session to commit. Nothing is committed here, and the game
-repo's history is not changed. Scratch: <repo>/.dataset/ (git-ignored). Standard library, Python 3.10+, git, git-lfs.
+repo's history is not changed. One run per game at a time (<out>/<slug>/.package.lock). Scratch: <repo>/.dataset/
+(git-ignored). Standard library, Python 3.10+, git, git-lfs; the pipeline's ffprobe checks the videos where it is found.
 """
-import argparse, base64, getpass, hashlib, importlib.util, json, os, re, shutil, socket, stat, subprocess, sys, time, zipfile
+import argparse, base64, getpass, glob, hashlib, importlib.util, json, os, re, shutil, socket, stat, subprocess, sys, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -49,9 +61,10 @@ sys.path.insert(0, os.path.join(REPO, 'machine', 'lib'))
 import ugfroot  # noqa: E402
 
 LAYOUT = 'unity-dataset-layout/v1'
+with open(os.path.join(REPO, 'docs', 'dataset-layout-v1.json'), encoding='utf-8') as _f:
+    LAYOUT_SPEC = json.load(_f)
 SECTIONS = ('Requirements', 'Package contents', 'Play the game', 'Replay the creation process',
             'Restore the git history', 'Tasks', 'Scenarios', 'Screenshots', 'Assets and licences', 'Integrity')
-PENDING = ['ReplayScripts', 'Gameplay']   # entries no tool makes yet
 UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 LFS_MAGIC = b'version https://git-lfs.github.com/spec/'
 LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
@@ -786,24 +799,38 @@ def session_logs(recording, until, exclude, dest, stats):
 
 
 # ---- brief, screenshots, build ---------------------------------------------------------------------------------------------
-def find_brief(repo, slug, given, kind):
-    """The brief as given (kind 'brief') or the design doc ('design'): the file named on the command line, else the
-    game repo's Brief/<kind>.md or Docs/<Kind>.md, else this repo's docs (briefs/original/game-<slug>.md, then
-    briefs/games/<slug>.md, for the brief; games/<slug>.md for the design doc)."""
+def blob_at(repo, rev, path):
+    """The bytes of path at rev, or None when it is not there."""
+    r = subprocess.run(['git', '-C', repo, 'cat-file', 'blob', f'{rev}:{path}'], capture_output=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def find_brief(repo, sha, slug, given, kind, warnings):
+    """(where, bytes) of the brief as given (kind 'brief') or the design doc ('design'), or None: the file named on the
+    command line; else the game repo's Brief/<kind>.md, Docs/<Kind>.md or Docs/<kind>.md as the release commit has it,
+    then as the working tree has it (a warning: it is not part of the release); else this repo's docs
+    (briefs/original/game-<slug>.md, then briefs/games/<slug>.md, for the brief; games/<slug>.md for the design doc)."""
     if given:
         if not os.path.isfile(given):
             raise Refused(f'--{kind} {given}: no such file')
-        return given
-    cands = [os.path.join(repo, 'Brief', f'{kind}.md'), os.path.join(repo, 'Docs', f'{kind.capitalize()}.md'),
-              os.path.join(repo, 'Docs', f'{kind}.md')]
+        return given, read_bytes(given)
+    rels = [f'Brief/{kind}.md', f'Docs/{kind.capitalize()}.md', f'Docs/{kind}.md']
+    for rel in rels:
+        data = blob_at(repo, sha, rel)
+        if data is not None:
+            return f'{rel} at the release commit', data
+    for rel in rels:
+        if os.path.isfile(os.path.join(repo, *rel.split('/'))):
+            warnings.append(f'{rel} is not in the release commit: Brief/{kind}.md is taken from the working tree (commit it)')
+            return rel, read_bytes(os.path.join(repo, *rel.split('/')))
     docs = os.path.join(REPO, 'docs')
     if kind == 'brief':
-        cands += [os.path.join(docs, 'briefs', 'original', f'game-{slug}.md'), os.path.join(docs, 'briefs', 'games', f'{slug}.md')]
+        cands = [os.path.join(docs, 'briefs', 'original', f'game-{slug}.md'), os.path.join(docs, 'briefs', 'games', f'{slug}.md')]
     else:
-        cands += [os.path.join(docs, 'games', f'{slug}.md')]
+        cands = [os.path.join(docs, 'games', f'{slug}.md')]
     for c in cands:
         if os.path.isfile(c):
-            return c
+            return c, read_bytes(c)
     return None
 
 
@@ -820,6 +847,54 @@ def readme_images(text):
         seen.add(p)
         out.append((alt, p.lstrip('./')))
     return out
+
+
+def screenshots(project, readme_src, runs, dest, warnings):
+    """Screenshots/ and its [(file, caption)]: the images the game's README.md shows (alt text as caption), else every
+    image in the project's Docs/screenshots/ at the commit, else up to four stills of the recordings taken (round robin
+    over the runs: the middle frame first, then the quarter points; stills of other runs may show older art)."""
+    shots = []
+
+    def add(src, name, caption):
+        name = re.sub(r'[^A-Za-z0-9._-]', '_', name)   # the README links it without escapes
+        while any(s[0].lower() == name.lower() for s in shots):
+            name = '_' + name
+        copy_file(src, os.path.join(dest, name))
+        shots.append((name, caption))
+
+    def caption_of(name):
+        return re.sub(r'[-_]+', ' ', re.sub(r'^\d+[-_ ]*', '', os.path.splitext(name)[0])).strip() or os.path.splitext(name)[0]
+
+    for alt, rel in readme_images(readme_src):
+        src = os.path.join(project, *rel.split('/'))
+        if not os.path.isfile(lp(src)):
+            warnings.append(f'the README shows {rel}, which is not in the project at the commit')
+            continue
+        add(src, os.path.basename(rel), alt or os.path.splitext(os.path.basename(rel))[0])
+    if shots:
+        return shots
+    for docs in ('Docs', 'docs'):
+        folder = os.path.join(project, docs, 'screenshots')
+        if os.path.isdir(lp(folder)):
+            for n in sorted(os.listdir(lp(folder))):
+                if n.lower().endswith(IMAGE_EXT) and os.path.isfile(lp(os.path.join(folder, n))):
+                    add(os.path.join(folder, n), n, caption_of(n))
+            if shots:
+                warnings.append(f'the README shows no image: Screenshots/ holds {docs}/screenshots/ (show them in the README)')
+                return shots
+    picked = []
+    for pos in (0.5, 0.25, 0.75, 0.1):
+        for r in runs:
+            if len(picked) < 4 and r['stills']:
+                f = r['stills'][min(len(r['stills']) - 1, int(pos * len(r['stills'])))]
+                if f not in [p[0] for p in picked]:
+                    picked.append((f, r))
+    for f, r in picked:
+        frame = re.sub(r'^' + re.escape(r['run']) + '_', '', os.path.splitext(os.path.basename(f))[0])
+        add(f, f'{r["run"]}_{frame}.jpg', f'Scenario {r["scenario"]} {r["name"]}, frame {frame} of run {r["run"]}')
+    if shots:
+        warnings.append('the README shows no image and Docs/screenshots/ holds none: Screenshots/ holds stills of the recordings')
+    return shots
 
 
 def md_section(text, heading_rx):
@@ -861,6 +936,190 @@ def player_problem(repo, sha, build, exe):
     if m and lines and lines[-1] != m.group(1):   # app.info: company name, then product name
         return f'{exe} is a player of "{lines[-1]}", not of this game ("{m.group(1)}" at the commit)'
     return None
+
+
+# ---- the release's products: the pipeline's player, the recordings, the creation replay ----------------------------------
+RESULTS = ('win', 'lose', 'timeout', 'abort')
+
+
+def read_json(path):
+    """The JSON object in a file (UTF-8 with or without the BOM PowerShell writes), or None."""
+    try:
+        with open(lp(path), encoding='utf-8-sig') as f:
+            v = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return v if isinstance(v, dict) else None
+
+
+def pipeline_job(root, game):
+    """The pipeline job holding the game's lock right now, or None. build.ps1 and record.ps1 hold
+    <root>/builds/_pipeline-<game>.lock open with no sharing while they write the game's player or a recording
+    (tools/unity-pipeline/common.ps1 Enter-PipelineLock), and name themselves in <lock>.json; an open that fails with a
+    sharing violation is the sign. The pipeline runs on Windows only."""
+    path = os.path.join(root, 'builds', f'_pipeline-{game}.lock')
+    if os.name != 'nt' or not os.path.isfile(lp(path)):
+        return None
+    try:
+        with open(lp(path), 'rb'):
+            return None
+    except PermissionError:
+        h = read_json(path + '.json') or {}
+        return f'{h.get("job") or "a pipeline job"} (pid {h.get("pid", "?")}, since {h.get("since", "?")})'
+    except OSError:
+        return None
+
+
+def pipeline_builds(root, game, lineage):
+    """[(age, folder, build_info)] of the pipeline's release builds of the game in the release commit's history, nearest
+    first (age: commits before the release commit, 0 = the release commit itself): <root>/builds/<game>/<sha8>/ with its
+    player in Windows/ and build_info.json (unity-build/1) status "ok", config "release"."""
+    base, out = os.path.join(root, 'builds', game), []
+    if not os.path.isdir(lp(base)):
+        return out
+    for d in sorted(os.listdir(lp(base))):
+        full = os.path.join(base, d)
+        if d.startswith('_') or not os.path.isdir(lp(os.path.join(full, 'Windows'))):
+            continue
+        info = read_json(os.path.join(full, 'build_info.json'))
+        if info and info.get('status') == 'ok' and str(info.get('config', '')).lower() == 'release' and info.get('commit') in lineage:
+            out.append((lineage[info['commit']], full, info))
+    return sorted(out, key=lambda t: t[0])
+
+
+def find_ffprobe():
+    """ffprobe where the pipeline finds ffmpeg (tools/unity-pipeline/common.ps1 Find-FFmpeg): beside env UGF_FFMPEG,
+    the pinned copy under <root>/tools/ffmpeg-<version>/ (machine/get-ffmpeg.ps1), PATH, the winget package; else None."""
+    name = 'ffprobe.exe' if os.name == 'nt' else 'ffprobe'
+    cands = [os.path.join(os.path.dirname(os.environ['UGF_FFMPEG']), name)] if os.environ.get('UGF_FFMPEG') else []
+    cands += sorted(glob.glob(os.path.join(ugfroot.root(), 'tools', 'ffmpeg-*', '*', 'bin', name)), reverse=True)
+    cands.append(shutil.which('ffprobe') or '')
+    if os.environ.get('LOCALAPPDATA'):
+        cands += glob.glob(os.path.join(os.environ['LOCALAPPDATA'], 'Microsoft', 'WinGet', 'Packages', 'Gyan.FFmpeg*', '**', name), recursive=True)
+    return next((c for c in cands if c and os.path.isfile(c)), None)
+
+
+def probe_video(ffprobe, path):
+    """(why it is not the layout's gameplay video or None, seconds): an mp4 with one h264 1920x1080 stream and aac audio
+    (dataset-layout-v1.json gameplay_video)."""
+    want = LAYOUT_SPEC['gameplay_video']
+    try:
+        r = subprocess.run([ffprobe, '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height:format=format_name,duration',
+                            '-of', 'json', path], capture_output=True, timeout=300)
+        j = json.loads(r.stdout.decode('utf-8', 'replace') or '{}')
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        return f'ffprobe failed: {e}', 0.0
+    fmt, streams = j.get('format') or {}, j.get('streams') or []
+    v = [s for s in streams if s.get('codec_type') == 'video']
+    a = [s for s in streams if s.get('codec_type') == 'audio']
+    try:
+        seconds = float(fmt.get('duration') or 0)
+    except ValueError:
+        seconds = 0.0
+    if not fmt:
+        return 'not readable as a video', seconds
+    if want['container'] not in str(fmt.get('format_name', '')):
+        return f'not an {want["container"]} ({fmt.get("format_name")})', seconds
+    if len(v) != 1 or v[0].get('codec_name') != want['video_codec'] or (v[0].get('width'), v[0].get('height')) != (want['width'], want['height']):
+        return 'video ' + (', '.join(f'{s.get("codec_name")} {s.get("width")}x{s.get("height")}' for s in v) or 'missing'), seconds
+    if want.get('audio_required') and (not a or a[0].get('codec_name') != want['audio_codec']):
+        return 'audio ' + (', '.join(str(s.get('codec_name')) for s in a) or 'missing'), seconds
+    return None, seconds
+
+
+def gameplay_runs(root, game, sha, exclude, ffprobe):
+    """Per scenario, the first valid recording of the release commit, by run id (<game>_S<n>_<yyyyMMdd-HHmmss>_s<seed>:
+    the earliest first): <root>/recordings/<game>/<run id>/ with metadata.json (unity-autoplay-bundle/v1) build.commit =
+    the release commit, validation.json status ok or warn (written last, so a run still being written is not taken),
+    neither FAILED nor INVALID, and its gameplay.mp4 (the layout's video, when ffprobe is here to check it). The result
+    (win, lose, timeout, abort) is metadata, never a reason to pick a run. Returns ([run], [(run id, why it is not
+    taken)]), runs in scenario order."""
+    base = os.path.join(root, 'recordings', game)
+    chosen, skipped = {}, []
+    if not os.path.isdir(lp(base)):
+        return [], []
+    for name in sorted(os.listdir(lp(base))):
+        d = os.path.join(base, name)
+        if name.startswith('_') or not os.path.isdir(lp(d)):
+            continue
+        meta, val = read_json(os.path.join(d, 'metadata.json')), read_json(os.path.join(d, 'validation.json'))
+        mp4 = os.path.join(d, 'gameplay.mp4')
+        built = str(((meta or {}).get('build') or {}).get('commit') or '')
+        n = (meta or {}).get('scenario')
+        why = None
+        if name in exclude:
+            why = 'left out with --exclude-runs'
+        elif os.path.exists(lp(os.path.join(d, 'INVALID'))):
+            why = 'INVALID (mark-invalid.ps1)'
+        elif os.path.exists(lp(os.path.join(d, 'FAILED'))):
+            why = 'FAILED'
+        elif not meta or not val:
+            why = 'no metadata.json or validation.json (not finished)'
+        elif val.get('status') not in ('ok', 'warn'):
+            why = f'validation {val.get("status")}'
+        elif built != sha:
+            why = f'recorded from {built[:8] or "an unknown build"}, not from the release commit'
+        elif not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            why = 'no scenario number'
+        elif n in chosen:
+            continue   # the scenario's earlier valid run is taken
+        elif meta.get('result') not in RESULTS:
+            why = f'result {meta.get("result")!r} is not one of {", ".join(RESULTS)}'
+        elif not os.path.isfile(lp(mp4)):
+            err = ((meta.get('gameplay_mp4') or {}).get('error') or 'never written')
+            why = f'no gameplay.mp4 ({err}): tools/unity-pipeline/gameplay-mp4.ps1 {game} -RunId {name} writes it'
+        if why:
+            skipped.append((name, why))
+            continue
+        gm = meta.get('gameplay_mp4') or {}
+        seconds = ((val.get('checks') or {}).get('video') or {}).get('duration_s') or gm.get('duration_s')
+        if ffprobe:
+            bad, probed = probe_video(ffprobe, lp(mp4))
+            if bad:
+                skipped.append((name, f'gameplay.mp4 is not the layout\'s video ({bad}): tools/unity-pipeline/gameplay-mp4.ps1 '
+                                      f'{game} -RunId {name} -Force writes it again'))
+                continue
+            seconds = seconds or probed
+        offset = gm.get('audio_offset_s')
+        if offset is None:
+            try:
+                offset = (float((meta.get('system_audio') or {}).get('start_offset_ns')) - float(meta.get('video_start_offset_ns'))) / 1e9
+            except (TypeError, ValueError):
+                offset = None
+        stills = sorted(glob.glob(os.path.join(glob.escape(os.path.join(base, '_stills')), glob.escape(name) + '_*.jpg')))
+        if not stills:   # the bundle's own stills\NN.jpg, delivered under the run's name as _stills\ has them
+            stills = sorted(glob.glob(os.path.join(glob.escape(d), 'stills', '*.jpg')))
+        chosen[n] = {'run': name, 'dir': d, 'mp4': mp4, 'scenario': n, 'name': str(meta.get('scenario_name') or f'Scenario {n}'),
+                     'result': meta['result'], 'seconds': round(float(seconds or 0), 3),
+                     'audio_offset_s': None if offset is None else round(float(offset), 3),
+                     'capture_notes': str(meta.get('capture_notes') or '').strip(), 'stills': stills}
+    return [chosen[k] for k in sorted(chosen)], skipped
+
+
+def ready_scenarios(repo, sha):
+    """n of the newest milestone/autoplay-<n> tag in the release commit's history: scenarios 1..n are ready to record
+    (tools/unity-pipeline/pipeline.ps1 reads the same tags); 0 without one."""
+    tags = git_text(repo, 'tag', '--merged', sha, '--list', 'milestone/autoplay-*', check=False).split()
+    return max((int(m.group(1)) for t in tags if (m := re.fullmatch(r'milestone/autoplay-(\d+)', t))), default=0)
+
+
+def replay_verification(report):
+    """manifest.json replay_verification from ReplayScripts/Verification/report.json: the verdict's pass, its criteria
+    and its exclusions as {id, what, count} (the report lists them, or keys them by id)."""
+    v = report['verdict']
+    crit = [{'id': str(c.get('id', '')), 'text': str(c.get('text', '')), 'result': str(c.get('result', '')), 'pass': bool(c.get('pass'))}
+            for c in v.get('criteria') or [] if isinstance(c, dict)]
+    ex = v.get('exclusions') or []
+    items = ex.items() if isinstance(ex, dict) else ((e.get('id'), e) for e in ex if isinstance(e, dict))
+    exclusions = []
+    for k, e in items:
+        if isinstance(e, (list, str)):
+            exclusions.append({'id': str(k), 'what': 'git-ignored extra files', 'count': len(e) if isinstance(e, list) else 1})
+        elif isinstance(e, dict):
+            cnt = e.get('count')
+            exclusions.append({'id': str(k), 'what': str(e.get('what', '')),
+                               'count': int(cnt) if isinstance(cnt, (int, float)) and cnt >= 0 else len(e.get('maps') or e.get('items') or [])})
+    return {'pass': bool(v['pass']), 'report': 'ReplayScripts/Verification/report.md', 'criteria': crit, 'exclusions': exclusions}
 
 
 # ---- scan ------------------------------------------------------------------------------------------------------------------
@@ -923,11 +1182,16 @@ def main():
     ap.add_argument('--repo', help='the game repo, when it is not <root>/games/<slug>')
     ap.add_argument('--commit', default='HEAD', help='the release commit (default HEAD)')
     ap.add_argument('--version', default='', help='the release version for the README and manifest.json, e.g. 1.0')
-    ap.add_argument('--build', help='the player build folder (default <repo>/Build/Windows)')
+    ap.add_argument('--build', help='the player: a pipeline build folder (<root>/builds/<slug>/<sha8>, with build_info.json) or '
+                                    'a player folder (default the newest pipeline release build of the release commit\'s '
+                                    'history, else <repo>/Build/Windows)')
     ap.add_argument('--brief', help='the brief as given (Brief/brief.md)')
     ap.add_argument('--design', help='the design doc (Brief/design.md)')
     ap.add_argument('--tasks-ref', default='', help='where Tasks/ comes from (default the branch tasks, else origin/tasks)')
     ap.add_argument('--exclude-sessions', default='', help='session ids, comma-separated, whose rows are not creation work')
+    ap.add_argument('--exclude-runs', default='', help='recording run ids, comma-separated, never to take for Gameplay/')
+    ap.add_argument('--replay', help='the creation replay\'s package folder, with READY and ReplayScripts/ '
+                                     '(default <out>/_replay/<slug>/<release sha8>)')
     ap.add_argument('--recording', help='the recording folder (default <root>/.recording/<slug>)')
     ap.add_argument('--out', help='where the zip and the scratch folder go (default the game repo)')
     ap.add_argument('--lenient-binaries', action='store_true',
@@ -966,18 +1230,90 @@ def package(args):
     problems, warnings = [], []
 
     # inputs that can refuse the package before anything is written
-    build = os.path.abspath(args.build or os.path.join(repo, 'Build', 'Windows'))
+    root = ugfroot.root()
+    job = pipeline_job(root, game)
+    if job:   # build.ps1 or record.ps1 is writing this game's player or a recording
+        problems.append(f'error: the pipeline is working on {game} right now: {job}; package after it finishes')
+    lineage = {c: i for i, c in enumerate(git_text(repo, 'rev-list', sha).split())}
+    build_info = None
+    if args.build:   # a pipeline build folder (its player in Windows/, build_info.json beside it), or a player folder
+        build = os.path.abspath(args.build)
+        for d, player in ((build, os.path.join(build, 'Windows')), (os.path.dirname(build), build)):
+            if os.path.isdir(lp(player)) and os.path.isfile(lp(os.path.join(d, 'build_info.json'))):
+                build, build_info = player, read_json(os.path.join(d, 'build_info.json')) or {}
+                break
+    else:
+        cands = pipeline_builds(root, game, lineage)
+        build, build_info = (os.path.join(cands[0][1], 'Windows'), cands[0][2]) if cands else (os.path.join(repo, 'Build', 'Windows'), None)
     exe = find_exe(build) if os.path.isdir(build) else None
+    build_commit, build_source = sha, "the game session's own player build (Scripts/unity.ps1 build); its commit is stated, not verified"
     if not exe:
-        problems.append(f'error: no player build at {build} (no .exe): build it with Scripts\\unity.ps1 build, or name the folder with --build')
+        problems.append(f'error: no player build at {build} (no .exe): build the release commit (tools/unity-pipeline/build.ps1 '
+                        f'{game} -Commit {sha[:8]}), or name a folder with --build')
     elif why := player_problem(repo, sha, build, exe):
         problems.append('error: ' + why)
-    brief, design = find_brief(repo, game, args.brief, 'brief'), find_brief(repo, game, args.design, 'design')
+    if build_info is not None:   # the pipeline's own record of the build (unity-build/1)
+        bc = str(build_info.get('commit') or '')
+        hits = (build_info.get('leak_scan') or {}).get('hits') or []
+        if build_info.get('status') != 'ok' or str(build_info.get('config', '')).lower() != 'release':
+            problems.append(f'error: {build} is not an ok release build (build_info.json: status {build_info.get("status")}, '
+                            f'config {build_info.get("config")}): the dataset ships the release player')
+        elif bc not in lineage:
+            problems.append(f'error: {build} was built from {bc[:8] or "an unknown commit"}, which is not in the history of the release commit')
+        elif hits:   # build.ps1's leak scan: a build with hits can be recorded but never handed out
+            h = hits[0] if isinstance(hits[0], dict) else {}
+            problems.append(f'error: {build} has {len(hits)} leak-scan hit(s) in build_info.json (e.g. {h.get("file")}: {h.get("pattern")}): '
+                            'a build with hits must not be handed out; build it again from a clone outside the user profile (build.ps1 does)')
+        else:
+            build_commit = bc   # named in the manifest by its delivered id, once the history is rewritten
+            build_source = 'the pipeline\'s release build of {} (tools/unity-pipeline/build.ps1, ' + str(build_info.get('backend') or 'il2cpp') + ')'
+            if lineage[bc]:
+                warnings.append(f'Build/ is the pipeline build of {bc[:8]}, {lineage[bc]} commit(s) before the release commit: build '
+                                f'{sha[:8]} (tools/unity-pipeline/build.ps1 {game} -Commit {sha[:8]}) to ship its own player')
+    elif exe:   # a session's build: a commit after it that changed the game's content or code means it is not the release's
+        built = os.path.getmtime(os.path.join(build, exe))
+        later = [l.split(' ', 2) for l in git_text(repo, 'log', '--format=%H %ct %s', sha, '--', 'Assets', 'Packages').splitlines()]
+        later = [l for l in later if len(l) == 3 and int(l[1]) > built]
+        if later:
+            warnings.append(f'Build/{exe} was built before {len(later)} commit(s) that changed Assets/ or Packages/ (the latest: '
+                            f'{later[0][0][:8]} "{later[0][2][:60]}"): build the release commit before packaging')
+    ffprobe = find_ffprobe()
+    exclude_runs = {s.strip() for s in args.exclude_runs.split(',') if s.strip()}
+    runs, skipped_runs = gameplay_runs(root, game, sha, exclude_runs, ffprobe)
+    for name, why in skipped_runs:
+        warnings.append(f'recording {name} not taken: {why}')
+    ready = ready_scenarios(repo, sha)
+    missing = [n for n in range(1, ready + 1) if n not in {r['scenario'] for r in runs}]
+    if runs and missing:
+        warnings.append(f'scenario(s) {", ".join(map(str, missing))} of the {ready} ready (milestone/autoplay-{ready}) have no valid '
+                        'recording of the release commit: Gameplay/ holds the others (one video is enough)')
+    elif not runs:
+        warnings.append(f'no valid recording of the release commit in {os.path.join(root, "recordings", game)}: Gameplay/ stays pending')
+    replay = os.path.abspath(args.replay or os.path.join(ugfroot.out(), '_replay', game, sha[:8]))
+    rs_src, report = os.path.join(replay, 'ReplayScripts'), None
+    if os.path.isfile(lp(os.path.join(replay, 'READY'))) and os.path.isdir(lp(rs_src)):
+        report = read_json(os.path.join(rs_src, 'Verification', 'report.json'))
+        if not report or not isinstance(report.get('verdict'), dict) or not isinstance(report['verdict'].get('pass'), bool):
+            problems.append(f'error: {os.path.join(rs_src, "Verification", "report.json")} has no verdict: make the replay again '
+                            f'(python tools/unity-replay/unity_replay.py release --game {game})')
+            report = None
+        elif report.get('final_commit') != sha:
+            problems.append(f'error: the replay in {replay} verified {str(report.get("final_commit"))[:12]}, not the release commit {sha[:12]}')
+            report = None
+    elif os.path.isdir(lp(rs_src)):
+        warnings.append(f'the creation replay in {replay} is not finished (no READY): ReplayScripts/ stays pending')
+    else:
+        warnings.append(f'no creation replay of {sha[:8]} in {replay}: ReplayScripts/ stays pending '
+                        f'(python tools/unity-replay/unity_replay.py release --game {game} makes it)')
+    pending = [e for e, missing_entry in (('ReplayScripts', report is None), ('Gameplay', not runs)) if missing_entry]
+    status = 'pending' if pending else 'complete'
+    brief = find_brief(repo, sha, game, args.brief, 'brief', warnings)
+    design = find_brief(repo, sha, game, args.design, 'design', warnings)
     for kind, f in (('brief', brief), ('design', design)):
         if not f:
             problems.append(f'error: no {kind} found: name it with --{kind} <file> (it becomes Brief/{kind}.md)')
-        elif os.path.getsize(f) < 200:
-            problems.append(f'error: {f} is nearly empty ({os.path.getsize(f)} bytes): Brief/{kind}.md must say something')
+        elif len(f[1]) < 200:
+            problems.append(f'error: {f[0]} is nearly empty ({len(f[1])} bytes): Brief/{kind}.md must say something')
     tasks_at = None
     for r in ([args.tasks_ref] if args.tasks_ref else ['tasks', 'origin/tasks']):
         c = git_text(repo, 'rev-parse', '--verify', '-q', r + '^{commit}', check=False)
@@ -994,8 +1330,10 @@ def package(args):
     if not os.path.isfile(os.path.join(recording, 'messages.jsonl')):
         warnings.append(f'no {os.path.join(recording, "messages.jsonl")}: History/sessions/ will hold no prompts or replies '
                         '(sessions recorded before they were: record-unity-action.ps1 -Backfill all imports them while their transcripts are on this machine)')
+    zip_name = 'Dataset.zip' if status == 'complete' else 'Dataset.pending.zip'
     step(f'{game}: commit {sha[:12]} ({commit_time.isoformat()}), build {build if exe else "MISSING"}, '
-         f'{len(task_files)} task(s) on {tasks_at[0] if tasks_at else "no tasks branch"}')
+         f'{len(task_files)} task(s) on {tasks_at[0] if tasks_at else "no tasks branch"}, '
+         f'{len(runs)} scenario video(s), replay {"PASS" if report and report["verdict"]["pass"] else "FAIL" if report else "pending"}')
     errors = [p for p in problems if p.startswith('error:')]
     if args.dry_run or errors:
         for p in problems:
@@ -1004,7 +1342,9 @@ def package(args):
             print('  warning: ' + w)
         if errors:
             raise Refused(f'{len(errors)} thing(s) missing; nothing was written')
-        print(f'  would write {os.path.join(out_root, "Dataset.pending.zip")} (pending: {", ".join(PENDING)})')
+        for r in runs:
+            print(f'  would take Gameplay/{game}_S{r["scenario"]}.mp4 from {r["run"]}')
+        print(f'  would write {os.path.join(out_root, zip_name)} ({status}' + (f': {", ".join(pending)} pending)' if pending else ')'))
         return 0
     ugfroot.check_free(out_root, 'package-dataset')
     lock = hold_lock(os.path.join(ugfroot.out(), game, '.package.lock'))   # noqa: F841  held until the run ends
@@ -1082,22 +1422,17 @@ def package(args):
               '# Text changes are full unified diffs; binary files and Git LFS files are given as path + sha256 + bytes (old -> new).\n\n')
     log_commits = write_git_log(bare, head, os.path.join(stage, 'git.log'), header)
 
-    # ---- Brief, Screenshots, Build ----
-    copy_file(brief, os.path.join(stage, 'Brief', 'brief.md'))
-    copy_file(design, os.path.join(stage, 'Brief', 'design.md'))
-    shots = []
-    for alt, rel in readme_images(readme_src):
-        src = os.path.join(project, *rel.split('/'))
-        if not os.path.isfile(lp(src)):
-            warnings.append(f'the README shows {rel}, which is not in the project at the commit')
-            continue
-        name = re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(rel))   # the README links it without escapes
-        while any(s[0].lower() == name.lower() for s in shots):
-            name = '_' + name
-        copy_file(src, os.path.join(stage, 'Screenshots', name))
-        shots.append((name, alt or os.path.splitext(name)[0]))
+    # ---- Brief, Screenshots, Gameplay, Build ----
+    write_bytes(os.path.join(stage, 'Brief', 'brief.md'), brief[1])
+    write_bytes(os.path.join(stage, 'Brief', 'design.md'), design[1])
+    shots = screenshots(project, readme_src, runs, os.path.join(stage, 'Screenshots'), warnings)
     if not shots:
-        problems.append('error: the game\'s README.md shows no committed image: Screenshots/ needs at least one (hero + gallery in Docs/screenshots/)')
+        problems.append('error: no screenshot: the game\'s README.md shows no committed image, Docs/screenshots/ holds none at the '
+                        'commit and no recording taken has stills (Screenshots/ needs at least one: hero + gallery in Docs/screenshots/)')
+    for r in runs:   # the recorder's gameplay.mp4 as it is: H.264 copied from the capture, the game audio as AAC
+        copy_file(r['mp4'], os.path.join(stage, 'Gameplay', f'{game}_S{r["scenario"]}.mp4'))
+    if runs:
+        step('gameplay: ' + ', '.join(f'S{r["scenario"]} from {r["run"]} ({r["result"]}, {r["seconds"]:.0f} s)' for r in runs))
     n_build = 0
     for d, dirs, fs in os.walk(lp(build)):
         dirs[:] = [x for x in dirs if not NOT_SHIPPED_BUILD.search(x)]
@@ -1107,8 +1442,6 @@ def package(args):
             full = os.path.join(d, f)
             copy_file(full, os.path.join(stage, 'Build', os.path.relpath(full, lp(build))))
             n_build += 1
-    if os.path.getmtime(os.path.join(build, exe)) < commit_time.timestamp():
-        warnings.append(f'Build/{exe} is older than the release commit: build the release commit before packaging')
 
     # ---- Tasks ----
     step(f'tasks: {len(task_files)} from Tasks/ on {tasks_at[0]} ({tasks_at[1][:12]})')
@@ -1145,17 +1478,35 @@ def package(args):
     write_text(os.path.join(stage, 'Tasks', 'README.md'), tasks_readme(game, task_rows))
     remove_tree(tasks_tmp)
 
-    # ---- README, then the scrub and the scan of everything ----
-    ses_files = [n for n in ('messages.jsonl', 'actions.jsonl') if os.path.isfile(lp(os.path.join(hist, 'sessions', n)))]
-    ctx = dict(game=game, title=title, version=args.version, head=head, exe=exe, shots=shots, task_rows=task_rows,
-               readme_src=readme_src, sessions=ses_files, engine=ugfroot.project_unity_version(project) or '6000.3')
-    write_text(os.path.join(stage, 'README.md'), dataset_readme(ctx, False))
+    # ---- ReplayScripts: the creation replay's package as it is (unscrubbed there), scrubbed and remapped here ----
+    if report is not None:
+        n_replay = 0
+        for rel in files_under(rs_src):
+            parts = rel.split('/')
+            if '__pycache__' in parts or rel.lower().endswith(('.pyc', '.pdb')):
+                continue
+            copy_file(os.path.join(rs_src, *parts), os.path.join(stage, 'ReplayScripts', *parts))
+            n_replay += 1
+        step(f'ReplayScripts: {n_replay} files from {replay} (verdict {"PASS" if report["verdict"]["pass"] else "FAIL"})')
+
+    # ---- the scrub of everything, the README, then the scan ----
     step('scrubbing every text file of the delivery')
     counts, touched = {}, []
     scrub_tree(stage, rules, counts, touched)
     remapped = remap_tree(stage, cmap)
     step(f'scrubbed {len(touched)} file(s): ' + (', '.join(f'{k} {v}' for k, v in counts.items()) or 'nothing to replace') +
          f'; commit ids mapped in {remapped} file(s)')
+    rv = None
+    if report is not None:   # the manifest's replay_verification from the report as delivered (scrubbed, ids mapped)
+        delivered = read_json(os.path.join(stage, 'ReplayScripts', 'Verification', 'report.json'))
+        if not delivered or delivered.get('final_commit') != head:
+            raise Refused(f'ReplayScripts/Verification/report.json final_commit is not the delivered release commit {head[:12]} after the id map')
+        rv = replay_verification(delivered)
+    ses_files = [n for n in ('messages.jsonl', 'actions.jsonl') if os.path.isfile(lp(os.path.join(hist, 'sessions', n)))]
+    ctx = dict(game=game, title=title, version=args.version, head=head, exe=exe, shots=shots, task_rows=task_rows,
+               readme_src=readme_src, sessions=ses_files, engine=ugfroot.project_unity_version(project) or '6000.3',
+               pending=pending, runs=runs, rv=rv)
+    write_text(os.path.join(stage, 'README.md'), remap_text(apply_rules(dataset_readme(ctx, False), rules, False, False), cmap))
     step('scanning every file (paths and text; binaries as ASCII and UTF-16)')
     enforced = enforced_pattern(user, identities)
     needles = ['superposition', 'game-factory', 'game_factory', 'gamefactory', 'anthropic', 'claude', 'openai']
@@ -1218,13 +1569,23 @@ def package(args):
                'lfs_objects': len(need), 'lfs_bytes': lfs_bytes, 'authors_anonymised': True}
     if ses_manifest:
         history['sessions'] = ses_manifest
-    base = {'layout': LAYOUT, 'game': game, 'title': title, 'version': args.version, 'commit': head, 'status': 'pending',
-            'pending': list(PENDING), 'created': datetime.now().astimezone().isoformat(timespec='seconds'), 'replay_verification': None,
-            'scenarios': [],
+    scenarios = []
+    for r in runs:
+        s = {'file': f'Gameplay/{game}_S{r["scenario"]}.mp4', 'scenario': r['scenario'], 'name': r['name'], 'result': r['result'],
+             'seconds': r['seconds'], 'source_run': r['run']}
+        if r['audio_offset_s'] is not None:
+            s['audio_offset_s'] = r['audio_offset_s']
+        if r['capture_notes']:   # what the recording did differently, e.g. a lower quality level
+            s['capture_notes'] = r['capture_notes']
+        scenarios.append(s)
+    base = {'layout': LAYOUT, 'game': game, 'title': title, 'version': args.version, 'commit': head, 'status': status,
+            'pending': list(pending), 'created': datetime.now().astimezone().isoformat(timespec='seconds'), 'replay_verification': rv,
+            'scenarios': scenarios,
             'brief': {'brief': 'Brief/brief.md', 'design': 'Brief/design.md'}}
     write_manifest(stage, dict(base, variant='full', history=history,
-                               build={'config': 'Release', 'commit': head, 'exe': f'Build/{exe}',
-                                      'source': 'the game session\'s own player build (Scripts/unity.ps1 build); its commit is stated, not verified'},
+                               build={'config': 'Release', 'commit': cmap.get(build_commit, head), 'exe': f'Build/{exe}',
+                                      'source': build_source.replace('{}', 'the release commit' if build_commit == sha else
+                                                                     f'commit {cmap.get(build_commit, head)[:12]}')},
                                tasks={'count': len(task_rows), 'names': [r['name'] for r in task_rows], 'schema': 'game-task/1'}))
     mhits = [mm.group(0) for mm in enforced.finditer(read_bytes(os.path.join(stage, 'manifest.json')).decode('latin-1'))]
     if mhits:
@@ -1239,13 +1600,13 @@ def package(args):
         raise Refused(f'the delivery is not valid ({len(verdict["errors"])} error(s)); nothing was zipped. The staged delivery: {stage}')
     zip_path = None
     if not args.no_zip:
-        zip_path = os.path.join(out_root, 'Dataset.pending.zip')
+        zip_path = os.path.join(out_root, zip_name)
         step(f'zipping {zip_path}')
         tmp = zip_path + '.tmp'
         n_zip = zip_tree(stage, tmp, game)
-        for old in (zip_path, os.path.join(out_root, 'Dataset.zip')):   # a pending delivery never sits next to a complete one
-            if os.path.isfile(old):
-                os.remove(old)
+        for old in ('Dataset.zip', 'Dataset.pending.zip'):   # a pending delivery never sits next to a complete one
+            if os.path.isfile(os.path.join(out_root, old)):
+                os.remove(os.path.join(out_root, old))
         os.replace(tmp, zip_path)
     if not args.no_repo_dataset:
         ds = os.path.join(repo, 'Dataset')
@@ -1256,19 +1617,19 @@ def package(args):
                     p = os.path.join(ds, n)
                     remove_tree(p) if os.path.isdir(p) else os.remove(p)
         for rel in files_under(stage):
-            if rel.split('/')[0] in ('git.log', 'workflow.jsonl', 'Brief', 'Screenshots'):
+            if rel.split('/')[0] in ('git.log', 'workflow.jsonl', 'Brief', 'Screenshots', 'Gameplay', 'ReplayScripts'):
                 copy_file(os.path.join(stage, *rel.split('/')), os.path.join(ds, *rel.split('/')))
-        write_text(os.path.join(ds, 'README.md'), apply_rules(dataset_readme(ctx, True), rules, False, False))
+        write_text(os.path.join(ds, 'README.md'), remap_text(apply_rules(dataset_readme(ctx, True), rules, False, False), cmap))
         # the files are committed byte for byte as manifest.json lists them: no line-ending conversion (Git for Windows'
         # core.autocrlf with the template's "* text=auto" checks them out with CRLF, and every size and sha256 differs)
         write_text(os.path.join(ds, '.gitattributes'), '* -text\n' + ''.join(
             f'*.{e} filter=lfs diff=lfs merge=lfs -text\n' for e in ('mp4', 'png', 'jpg', 'jpeg', 'webp')))
         write_manifest(ds, dict(base, variant='repo-dataset', history=None, build=None, tasks=None))
-        rv = validate(ds, True)
-        if rv['errors']:
-            for e in rv['errors'][:30]:
+        dv = validate(ds, True)
+        if dv['errors']:
+            for e in dv['errors'][:30]:
                 print('  x ' + e)
-            raise Refused(f'{ds} is not valid ({len(rv["errors"])} error(s))')
+            raise Refused(f'{ds} is not valid ({len(dv["errors"])} error(s))')
     remove_tree(bare)
     # the old -> new map of this delivery, kept where the next run does not empty it (the scratch is emptied each run)
     keep = os.path.join(ugfroot.out(), game, f'{game}_{head[:8]}.commit-map.tsv')
@@ -1278,7 +1639,8 @@ def package(args):
     for rel in files_under(stage):
         top = rel.split('/')[0] if '/' in rel else '(top level)'
         sizes[top] = sizes.get(top, 0) + os.path.getsize(lp(os.path.join(stage, *rel.split('/'))))
-    print(f'\nOK  {zip_path or stage}  (pending: {", ".join(PENDING)})')
+    print(f'\n{status.upper()}  {zip_path or stage}' + (f'  (pending: {", ".join(pending)})' if pending else
+                                                         f'  (replay {"PASS" if rv["pass"] else "FAIL"}, {len(runs)} scenario video(s))'))
     for k in sorted(sizes):
         print(f'  {k:<16} {sizes[k] / 1e6:12.1f} MB')
     if zip_path:
@@ -1319,11 +1681,19 @@ def scrub_tree(root, rules, counts, touched):
                 touched.append(rel)
 
 
+COMMIT_ID = re.compile(r'(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])')
+
+
+def remap_text(text, cmap):
+    """Every full commit id of the map in text -> its delivered id."""
+    return COMMIT_ID.sub(lambda m: cmap.get(m.group(0), m.group(0)), text) if cmap else text
+
+
 def remap_tree(root, cmap):
     """Every full commit id of the map in the text files under root -> its delivered id. Returns the files changed."""
     if not cmap:
         return 0
-    rx, n = re.compile(r'(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])'), 0
+    n = 0
     for rel in files_under(root):
         if rel.startswith('History/lfs/objects/') or rel.endswith('.bundle') or rel == 'git.log':
             continue
@@ -1335,7 +1705,7 @@ def remap_tree(root, cmap):
         if not is_text(rel, data[:8000]):
             continue
         text, enc = decode(data)
-        new = rx.sub(lambda m: cmap.get(m.group(0), m.group(0)), text)
+        new = remap_text(text, cmap)
         if new != text:
             write_bytes(full, new.encode(enc, 'replace'))
             n += 1
@@ -1407,24 +1777,30 @@ def tasks_readme(game, rows):
 
 def dataset_readme(c, repo):
     """README.md of the delivery (repo: of the game repo's Dataset/ folder), sections in the layout's order."""
-    game, title, shots = c['game'], c['title'], c['shots']
+    game, title, shots, runs, rv, pending = c['game'], c['title'], c['shots'], c['runs'], c['rv'], c['pending']
     a = [f'# {title}', '']
     if shots:
-        a += [f'![{title}](Screenshots/{shots[0][0]})', '']
-    a += ['> **Pending:** `ReplayScripts/` (the replay of the creation process) and `Gameplay/` (the scenario videos) are not in',
-          '> this delivery yet; everything else is complete.', '']
-    intro = c['readme_src'].split('\n## ')[0]
+        a += [f'![{shots[0][1]}](Screenshots/{shots[0][0]})', '']
+    if pending:
+        what = [{'ReplayScripts': '`ReplayScripts/` (the replay of the creation process)',
+                 'Gameplay': '`Gameplay/` (the scenario videos)'}.get(p, f'`{p}/`') for p in pending]
+        a += [f'> **Pending:** {" and ".join(what)} {"are" if len(what) > 1 else "is"} not in this delivery yet; everything else is',
+              '> complete. This delivery is replaced by the complete one when they land.', '']
+    intro = re.sub(r'(?s)<!--.*?-->', '', c['readme_src'].split('\n## ')[0])   # the template's notes are for the session
     intro = '\n'.join(l for l in intro.splitlines()[1:] if not re.match(r'\s*(!\[|<img)', l)).strip()
     if intro:
         a += [intro, '']
     a += [f'Version {c["version"] or "(not numbered)"}, release commit `{c["head"]}`.', '',
           '## Requirements', '',
           f'- Unity {c["engine"]} (Unity 6.3 LTS, with Windows Build Support) to open the project' + ('.' if repo else '; nothing to run the built player.'),
-          '- 64-bit Windows 10/11 for the built player.', '- `git` and `git-lfs` to restore the history.', '',
-          '## Package contents', '']
+          '- 64-bit Windows 10/11 for the built player.', '- `git` and `git-lfs` to restore the history.']
+    if rv:
+        a.append('- Python 3.10+ and the Unity editor of each commit to run the creation replay (`ReplayScripts/README.md`).')
+    a += ['', '## Package contents', '']
     if not repo:
         a.append('- `UnityProject/` — the completed game project at the release commit (`Assets/` with every `.meta`, `Packages/`, `ProjectSettings/`).')
-    a += ['- `ReplayScripts/` — replay of the creation process from the recorded editor operations. *(pending)*',
+    a += ['- `ReplayScripts/` — replay of the creation process from the recorded editor operations' +
+          (', with its verification against the release commit (`ReplayScripts/Verification/`).' if rv else '. *(pending)*'),
           '- `workflow.jsonl` — editor, code and build operations, one row per operation, written when it happened. Rows with `actor` "user" and '
           '`op` "user.direction" summarise what the person directing the work asked for; later rows name the direction they act on.',
           '- `git.log` — every commit with its message and full diff (binary files as path and sha256).']
@@ -1440,9 +1816,13 @@ def dataset_readme(c, repo):
     a.append('- `Brief/` — the original brief the game was built from (`Brief/brief.md`) and its design doc with story bible and status (`Brief/design.md`).')
     if not repo:
         a.append(f'- `Tasks/` — {len(c["task_rows"])} task(s) on this game for a game-creation environment (`Tasks/README.md`).')
-    a.append('- `Gameplay/` — videos of the recorded scenarios, played through with the game audio. *(pending)*')
+    if runs:
+        a.append(f'- `Gameplay/` — {"a video of one scenario" if len(runs) == 1 else f"videos of {len(runs)} scenarios"} of this version, played '
+                 'through by the game\'s AutoPlay bot with the game audio (1920x1080, 60 fps, H.264 and AAC).')
+    else:
+        a.append('- `Gameplay/` — videos of the recorded scenarios, played through with the game audio. *(pending)*')
     if not repo:
-        a.append(f'- `Build/` — the Windows player (`Build/{c["exe"]}`).')
+        a.append(f'- `Build/` — the Windows release player (`Build/{c["exe"]}`).')
     a += ['- `Screenshots/` — the images in this README.', '- `manifest.json` — path, size and sha256 of every file, and the release metadata.', '',
           'Keep these files and folders together.', '', '## Play the game', '']
     if repo:
@@ -1452,14 +1832,28 @@ def dataset_readme(c, repo):
     play = md_section(c['readme_src'], r'^(how to )?play|^controls')
     if play:
         a += ['', '\n'.join(l for l in play.splitlines() if not re.search(r'Build[/\\]', l)).strip()]
-    a += ['', '## Replay the creation process', '', '`ReplayScripts/` is pending.', '', '## Restore the git history', '']
+    a += ['', '## Replay the creation process', '']
+    if rv:
+        a += ['See `ReplayScripts/README.md` for the command and its options; the supplied project is not changed.', '',
+              'The replay was run end to end, headless, from these scripts and verified against the release commit: **' +
+              ('PASS' if rv['pass'] else 'FAIL') + '** (`ReplayScripts/Verification/report.md`). The verdict is metadata: the replay is',
+              'part of every complete delivery, whether it passes or not.', '',
+              '| Pass criterion | Result | Pass |', '|---|---|---|']
+        a += [f'| {cr["text"]} | {cr["result"]} | {"yes" if cr["pass"] else "no"} |' for cr in rv['criteria']]
+        if rv['exclusions']:
+            a += ['', 'Known differences that are not content (normalised or not compared, listed explicitly):', '']
+            a += [f'- `{e["id"]}` ({e["count"]}): {e["what"]}' for e in rv['exclusions']]
+    else:
+        a.append('`ReplayScripts/` is pending.')
+    a += ['', '## Restore the git history', '']
     if repo:
         a.append('This repository is the history itself: every commit, with Git LFS for the binary files.')
     else:
         a += ["`History/` restores the project's repository at any commit (`git` and `git-lfs` needed):", '', '```',
               f'git clone History/{game}.bundle {game}', f'robocopy History\\lfs {game}\\.git\\lfs /E          # or: cp -r History/lfs {game}/.git/',
               f'cd {game}', 'git lfs install --local', 'git checkout <commit>      # any commit of git.log; main is the release commit',
-              'git lfs checkout', '```', '', f'The release commit is `{c["head"]}`; `git.log` and the tasks use the same commit ids.']
+              'git lfs checkout', '```', '', f'The release commit is `{c["head"]}`; `git.log`, ' + ('`ReplayScripts/` ' if rv else '') +
+              'and the tasks use the same commit ids.']
     a += ['', '## Tasks', '']
     if repo:
         a.append("The game's tasks are kept out of this history, on a separate orphan branch of the repository (`Tasks/`, one task per file); "
@@ -1472,8 +1866,20 @@ def dataset_readme(c, repo):
               '| Task | Kind | Difficulty | Title |', '|---|---|---|---|']
         a += [f'| `{r["name"]}` | {r["kind"]} | {r["difficulty"]} | {r["title"]} |' for r in c['task_rows']]
     a += ['', '## Scenarios', '']
+    if runs:
+        a += ['| Video | # | Scenario | Result | Length |', '|---|---|---|---|---|']
+        a += [f'| `Gameplay/{game}_S{r["scenario"]}.mp4` | {r["scenario"]} | {r["name"]} | {r["result"]} | {r["seconds"]:.1f} s |' for r in runs]
+        a.append('')
+        notes = [r for r in runs if r['capture_notes']]   # what a recording did differently (manifest scenarios[].capture_notes)
+        if notes:
+            a += [f'Recording note, scenario {r["scenario"]}: {r["capture_notes"].rstrip(".")}.' for r in notes] + ['']
+        a += ['The result (win, lose, timeout) is what the bot reached in that run; it is metadata, never a reason a run was chosen.', '']
+    else:
+        a += ['The scenario videos are pending.', '']
     scen = md_section(c['readme_src'], r'^scenarios')
-    a += [scen if scen else 'The scenario videos are pending.', '', '## Screenshots', '']
+    if scen:
+        a += ['\n'.join(l for l in scen.splitlines() if 'Gameplay/' not in l).strip(), '']
+    a += ['## Screenshots', '']
     for name, alt in shots:
         a += [f'![{alt}](Screenshots/{name})', '']
     a += ['## Assets and licences', '']
