@@ -506,13 +506,13 @@ URP volume stack in effect at the camera (global and local volumes by priority a
 constants URP itself prepares (colour balance as LMS coefficients, contrast, saturation, colour filter, post exposure,
 lift, gamma and gain, tonemapping), and the key lights: the strongest directional light that is on (the sun), the
 `RenderSettings` ambient (the sky) and fog. The checker runs a neutral grey (0.18), lit by the key light's hue (the
-sun's colour, else the sky's), through URP's own grading in its order (post exposure, white balance, contrast, colour
-filter, gain and lift, gamma, saturation): `grey` = the resulting luminance; `cast` = its chroma, (max - min) /
-luminance (0 = neutral); `warmth` = (R - B) / luminance; `tint` = (G - (R + B) / 2) / luminance; `saturation`,
-`contrast` = the effective multipliers (1 = neutral: a Color Adjustments saturation of -30 reads 0.7).
-`post:<Component>.<parameter>` (`post:Bloom.intensity`, `post:Vignette.intensity`,
-`post:ColorAdjustments.postExposure`, `post:MotionBlur.intensity`, ...): a volume parameter's effective value at the
-camera after blending.
+sun's colour, else the sky's), through URP's own LDR grading in its order (post exposure, then clipped to 0-1, white
+balance, contrast, colour filter, gain and lift, gamma, hue shift, saturation, then clipped to 0-1): `grey` = the
+resulting luminance; `cast` = its chroma, (max - min) / luminance (0 = neutral); `warmth` = (R - B) / luminance;
+`tint` = (G - (R + B) / 2) / luminance; `saturation`, `contrast` = the effective multipliers (1 = neutral: a Color
+Adjustments saturation of -30 reads 0.7). `post:<Component>.<parameter>` (`post:Bloom.intensity`,
+`post:Vignette.intensity`, `post:ColorAdjustments.postExposure`, `post:MotionBlur.intensity`, ...): a volume
+parameter's effective value at the camera after blending.
 
 - The stack: the probe blends the volumes for the camera's volume trigger and volume layer mask at each sample
   (`source: "camera"`), or takes the camera's own stack when the camera updates it by script (`camera_stack`). A camera
@@ -522,9 +522,11 @@ camera after blending.
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
   untouched volume stack gives exactly `grey` 0.18, whatever the key light (only its hue counts), and `cast` 0 under a
   white one; a coloured sun or sky casts its hue even then (a sun of colour (1, 0.57, 0.26): `cast` and `warmth`
-  1.15). The checker's colour maths follows URP's LDR grading order and leaves out tonemapping, the hue shift, split
-  toning, the channel mixer, shadows/midtones/highlights and the curves: read those with `post:`
-  (`post:Tonemapping.mode`, `post:ColorAdjustments.hueShift`).
+  1.16). LDR grading clips: a deep blue key light (blue above about twice its red plus 6.6 times its green) puts the
+  grey's blue above 1, so its `grey` reads below 0.18, and an over-exposed grey reads white (`grey` 1), as the frame
+  shows it. The checker's colour maths follows URP's LDR grading (under HDR grading, which doesn't clip before the
+  grading, only a colour above 1 there reads differently) and leaves out tonemapping, split toning, the channel mixer,
+  shadows/midtones/highlights and the curves: read a tonemapping change with `post:Tonemapping.mode`.
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
   enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set. A `post:` name that doesn't exist (a
   component or a parameter), or a colour or vector parameter (`post:Vignette.color`: the task format can't name its
