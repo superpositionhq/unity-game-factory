@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {{HOOKS_DIR}}/record-unity-action.ps1",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{{HOOKS_DIR}}/record-unity-action.ps1\"",
             "async": true,
             "timeout": 60
           }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {{HOOKS_DIR}}/record-unity-action.ps1",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{{HOOKS_DIR}}/record-unity-action.ps1\"",
             "async": true,
             "timeout": 60
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {{HOOKS_DIR}}/record-unity-action.ps1 -Stop",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{{HOOKS_DIR}}/record-unity-action.ps1\" -Stop",
             "timeout": 120
           }
         ]
