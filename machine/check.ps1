@@ -140,20 +140,20 @@ Try-Check 'Python' {
 # --- recording hardware / display ------------------------------------------------------------------------------------
 Try-Check "NVIDIA driver >= $MinDriver" {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if (-not $smi) { Add-Result WARN "NVIDIA driver >= $MinDriver" 'nvidia-smi not found (no NVIDIA GPU/driver)' 'recording prefers NVENC; without it recordings fall back to the CPU (slower)'; return }
+    if (-not $smi) { Add-Result WARN "NVIDIA driver >= $MinDriver" 'nvidia-smi not found (no NVIDIA GPU/driver)' 'only for the recorder, which is not available yet: it will prefer NVENC and without it fall back to the CPU (slower)'; return }
     $r = Run $smi.Source @('--query-gpu=name,driver_version,memory.total', '--format=csv,noheader')
     $first = ($r.out -split "`n")[0]
     $parts = $first -split ',\s*'
     $drv = [double]($parts[1] -replace '[^\d.]', '')
     if ($drv -ge $MinDriver) { Add-Result PASS "NVIDIA driver >= $MinDriver" $first }
-    else { Add-Result FAIL "NVIDIA driver >= $MinDriver" $first "update the driver (the pinned ffmpeg 8.1.2 NVENC needs >= 610)" }
+    else { Add-Result WARN "NVIDIA driver >= $MinDriver" $first "only for the recorder, which is not available yet: update the driver (the pinned ffmpeg 8.1.2 NVENC needs >= 610)" }
 }
 Try-Check 'Primary display' {
     Add-Type -Namespace UgfCheck -Name Metrics -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int i); [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
     [void][UgfCheck.Metrics]::SetProcessDPIAware()   # physical pixels, as a desktop capture sees them
     $w = [UgfCheck.Metrics]::GetSystemMetrics(0); $h = [UgfCheck.Metrics]::GetSystemMetrics(1)
     if ($w -ge 1920 -and $h -ge 1080) { Add-Result PASS 'Primary display' "${w}x${h} (holds a 1920x1080 player window)" }
-    else { Add-Result FAIL 'Primary display' "${w}x${h}" 'recordings show a 1920x1080 player window on the primary display: use a display (and scaling) of at least 1920x1080' }
+    else { Add-Result WARN 'Primary display' "${w}x${h}" 'only for the recorder, which is not available yet and will show a 1920x1080 player window on the primary display: use a display (and scaling) of at least 1920x1080' }
 }
 Try-Check 'Display refresh rate' {
     $rates = @(Get-CimInstance Win32_VideoController | Where-Object { $_.CurrentRefreshRate } | ForEach-Object { "$($_.Name): $($_.CurrentHorizontalResolution)x$($_.CurrentVerticalResolution) @ $($_.CurrentRefreshRate) Hz" })
@@ -161,8 +161,8 @@ Try-Check 'Display refresh rate' {
     # Fractional rates (59.94, 119.88 Hz) are reported rounded down (59, 119): treat them as the 60-multiple they are.
     if ($max -ge 59 -and ($max + 1) % 60 -eq 0) { $rates = @($rates) + "reported $max Hz = a fractional $($max + 1)-class rate (e.g. 59.94), counted as $($max + 1)"; $max = $max + 1 }
     if ($max -ge 60 -and $max % 60 -eq 0) { Add-Result PASS 'Display refresh rate' ($rates -join '; ') }
-    elseif ($max -ge 60) { Add-Result WARN 'Display refresh rate' ($rates -join '; ') 'recordings are 60 fps CFR: pick a multiple of 60 (60/120/240 Hz) for recording, or frames repeat/skip (Settings > Display > Advanced display)' }
-    else { Add-Result FAIL 'Display refresh rate' $(if ($rates) { $rates -join '; ' } else { 'no active display' }) 'recording captures the desktop at 60 fps: needs a display at >= 60 Hz' }
+    elseif ($max -ge 60) { Add-Result WARN 'Display refresh rate' ($rates -join '; ') 'only for the recorder, which is not available yet and will record 60 fps CFR: pick a multiple of 60 (60/120/240 Hz), or frames repeat/skip (Settings > Display > Advanced display)' }
+    else { Add-Result WARN 'Display refresh rate' $(if ($rates) { $rates -join '; ' } else { 'no active display' }) 'only for the recorder, which is not available yet and will capture the desktop at 60 fps: a display at >= 60 Hz' }
 }
 function Get-PowerAc([string]$Sub, [string]$Setting) {
     $r = Run powercfg @('/query', 'SCHEME_CURRENT', $Sub, $Setting)

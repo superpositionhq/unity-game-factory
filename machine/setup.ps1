@@ -329,7 +329,7 @@ Item INFO 'C++ tools for IL2CPP' 'only for IL2CPP player builds: Visual Studio 2
 if ($nv) {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     $drv = if ($smi) { [double](((Quiet { & $smi.Source --query-gpu=driver_version --format=csv,noheader }).out -split "`n")[0] -replace '[^\d.]', '') } else { 0 }
-    if ($drv -ge 610) { Item PASS 'NVIDIA driver' "$drv" } else { Item TODO 'NVIDIA driver' $(if ($drv) { "$drv" } else { 'nvidia-smi not found' }) 'install the current Game Ready or Studio driver (610 or newer) from nvidia.com/drivers or the NVIDIA app, then run setup again' }
+    if ($drv -ge 610) { Item PASS 'NVIDIA driver' "$drv" } else { Item INFO 'NVIDIA driver' $(if ($drv) { "$drv" } else { 'nvidia-smi not found' }) 'only for the recorder, which is not available yet: install the current Game Ready or Studio driver (610 or newer) from nvidia.com/drivers or the NVIDIA app' }
 }
 Item INFO 'Asset Store' 'only to download store packs for a NEW game: sign in to the Unity Asset Store with the account that owns them (Package Manager > My Assets); cloned games already carry their packs'
 if ($useClaude) { Item INFO 'Claude Code sign-in' 'run claude once (or open the desktop app) and sign in with your account; not detectable' }
