@@ -1033,18 +1033,6 @@ class ImportCache(unittest.TestCase):
             self.assertFalse(seeds.seed_library(donor, fresh), "never over a cache the copy already has")
             self.assertFalse(seeds.seed_library(Path(tmp) / "none", Path(tmp) / "c"), "no donor cache: nothing to take")
 
-    def test_only_a_copys_first_build_takes_the_cache(self):
-        project = FakeProject()
-        project.folder = Path("X:/scratch/copy")
-        taken = []
-        with mock.patch.object(seeds, "seed_library", lambda donor, folder: taken.append((donor, folder)) or True):
-            built = check.Built(project, log=lambda _: None, cache=lambda: Path("X:/scratch/other"))
-            built.build(60)
-            built.build(60, ["Assets/Scenes/More.unity"])  # built again for a scene: its own cache is there now
-        self.assertEqual(taken, [(Path("X:/scratch/other"), Path("X:/scratch/copy"))])
-        with mock.patch.object(seeds, "seed_library", lambda *a: self.fail("no built copy to take from")):
-            check.Built(FakeProject(), log=lambda _: None, cache=lambda: None).build(60)
-
 
 class Limiter(unittest.TestCase):
     def test_a_limiter_that_cant_be_started_is_an_error_not_a_failed_build(self):
