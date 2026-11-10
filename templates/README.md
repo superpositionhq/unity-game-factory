@@ -18,8 +18,9 @@ pushing (`-NoGitHub` skips that; an existing repo of that name is never linked).
 Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes or backslashes (they land in C#
 string literals).
 
-The editor version: `-UnityVersion`, else the newest installed `6000.3.*` editor (Unity Hub), else the config's
-`unity_version` (default `6000.3.26f1`).
+The editor version: `-UnityVersion`, else the config's `unity_version` (default `6000.3`: the newest installed
+`6000.3.*` editor; an exact version such as `6000.3.28f1` pins it). With no 6.3 LTS editor installed, new-game.ps1
+stops: install one through Unity Hub first.
 
 What the skeleton carries, and why:
 

@@ -7,10 +7,10 @@
   <org>/unity-game-<slug> (not pushed; <org> = -Org, else the config's github_org).
 .DESCRIPTION
   Placeholders replaced in file names and contents: __PROJECT__ (C# namespace / assembly prefix / exe name), __SLUG__,
-  __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. The editor version is -UnityVersion, else the newest installed 6000.3
-  editor (Unity Hub), else the config's unity_version (default 6000.3.26f1). The first workflow.jsonl row (op
-  project.create) is written at the moment the project is created; the first commit names it. Pushing is left to the
-  coordinator's go-ahead (unity-commit-always skill).
+  __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. The editor version is -UnityVersion, else the config's unity_version
+  (default 6000.3: the newest installed 6000.3 editor; an exact version pins it); with no 6.3 LTS editor installed it
+  stops. The first workflow.jsonl row (op project.create) is written at the moment the project is created; the first
+  commit names it. Pushing is left to the coordinator's go-ahead (unity-commit-always skill).
   -Path is required: the absolute project folder <root>\games\<slug>, written out in the command (the recording hooks
   see the command text, so %UGF_ROOT% or $env:UGF_ROOT would not map the session). That call files this session under
   the game, and the hooks import its earlier calls from the transcript.
@@ -27,7 +27,7 @@ param(
     [string]$Description = '',
     [string]$IdPrefix,                  # workflow row id prefix; default the slug's initials (is, rr, td) or its first two letters
     [string]$Reason = 'Create the project from the standard Unity skeleton (Unity 6.3 LTS, visible meta files, text serialization, editor tools, LFS for every binary type)',
-    [ValidatePattern('^6000\.3\.\d+[abfp]\d+$')][string]$UnityVersion,   # default: the newest installed 6000.3 editor
+    [string]$UnityVersion,              # default: the config's unity_version (the newest installed 6000.3 editor)
     [string]$Root,
     [string]$HooksDir,                  # default: the config's hooks_dir (machine/lib/ugf-root.ps1 Get-UGFHooksDir)
     [string]$Org,                       # default: the config's github_org (UGF_ORG)
@@ -68,14 +68,11 @@ foreach ($v in @($Slug, $Project, $Title, $Description, $Reason)) {
 if ((Test-Path -LiteralPath $Path) -and @(Get-ChildItem -LiteralPath $Path -Force).Count) { throw "$Path exists and is not empty" }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'git not found (run machine\bootstrap.ps1 first)' }
 
-# The editor: -UnityVersion, else the newest installed 6000.3, else the configured default (installed later).
-$editor = $null
-if (-not $UnityVersion) {
-    $newest = Get-UGFNewestUnity -Series '6000.3'
-    if ($newest) { $UnityVersion = $newest.Version; $editor = $newest.Path }
-}
+# The editor: -UnityVersion, else the config's unity_version (Get-UGFUnityVersion: 6000.3, its newest installed patch,
+# unless set to an exact version). ProjectVersion.txt needs an exact version: without one installed, stop here.
 if (-not $UnityVersion) { $UnityVersion = Get-UGFUnityVersion }
-if ($UnityVersion -notmatch '^6000\.3\.') { throw "Unity $UnityVersion is not 6.3 LTS (6000.3.x)" }
+if (-not $UnityVersion) { throw 'no Unity 6.3 LTS editor is installed: install the newest 6000.3 patch through Unity Hub (Installs > Install Editor, with Windows Build Support (IL2CPP)), or pass -UnityVersion 6000.3.<patch>' }
+if ($UnityVersion -cnotmatch '^6000\.3\.\d+[abfp]\d+$') { throw "Unity $UnityVersion is not 6.3 LTS (6000.3.x)" }
 
 $template = Join-Path $PSScriptRoot 'unity-game'
 $map = [ordered]@{ '__PROJECT__' = $Project; '__SLUG__' = $Slug; '__TITLE__' = $Title; '__DESCRIPTION__' = $Description; '__UNITY_VERSION__' = $UnityVersion }
@@ -130,7 +127,7 @@ $sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nV
 # committed with the files it made.
 $setup = 'skipped (-NoSetup): run Scripts\unity.ps1 setup, then commit'
 if (-not $NoSetup) {
-    if (-not $editor) { $editor = Get-UGFUnity $Path -ErrorAction SilentlyContinue }
+    $editor = Get-UGFUnity $Path -ErrorAction SilentlyContinue
     if ($editor -and (Test-Path -LiteralPath $editor)) {
         Write-Host "first editor open with Unity $UnityVersion (packages, URP, settings; a few minutes)"
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Path 'Scripts\unity.ps1') setup
