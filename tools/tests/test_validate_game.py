@@ -833,6 +833,12 @@ class Units(unittest.TestCase):
             self.assertTrue(any(w.startswith(start) for w in ws), (start, ws))
         self.assertEqual(report({'name': 'Coin*', 'component': 'Coin'}, {'name': 'Lamp_1'},
                                 {'name': 'Coin*', 'tag': 'Coin'}), [])
+        for key, value in (('effect', True), ('owner', {'tag': 'Yard'}), ('mesh', 'Rock_LOD0'), ('text', '^SCORE')):
+            self.assertFalse(vg.wild({'name': 'Smoke*', key: value}), key)   # a components or widgets select's own keys
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][2]['checks'][2]['measure'] = {'probe': 'components', 'select': {'name': 'Smoke*', 'effect': True},
+                                                      'field': 'active', 'of': 'first'}
+        self.assertEqual(vg.task_warnings(t), [])
 
     def test_schema_first(self):
         """A task the schema refuses gets the schema's errors, never a traceback from the rules that read its values."""

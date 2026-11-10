@@ -803,9 +803,11 @@ def task_semantic_errors(t):
 
 
 def wild(sel):
-    """A select that takes its objects by a wildcard on their name and nothing else that narrows them."""
+    """A select that takes its objects by a wildcard on their name and nothing else that narrows them (a components
+    select's effect, owner and mesh, a widgets select's text narrow it too)."""
     return isinstance(sel, dict) and isinstance(sel.get('name'), str) and bool(re.search(r'[*?]', sel['name'])) and \
-        all(sel.get(k) is None for k in ('component', 'tag', 'layer', 'near', 'has', 'player'))
+        all(sel.get(k) is None for k in ('component', 'tag', 'layer', 'near', 'has', 'player', 'effect', 'owner', 'mesh',
+                                         'text'))
 
 
 def object_points(o):
