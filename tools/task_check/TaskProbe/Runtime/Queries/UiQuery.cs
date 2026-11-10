@@ -19,7 +19,7 @@ namespace TaskProbe
         static readonly HashSet<string> Known = new HashSet<string>(StringComparer.Ordinal) { "count", "text", "x", "y", "w", "h" };
         string kind;
         Regex text;
-        bool bad, ocr, readerFailed;
+        bool bad, ocr;
         double[] rect;
 
         public override void Load()
@@ -59,13 +59,7 @@ namespace TaskProbe
             if (ocr && frame != null)
             {
                 try { UiOcr.Elements(frame, rect, found, candidates); }
-                catch (Exception e)
-                {
-                    // the elements still count; the lines of this frame are lost
-                    if (!readerFailed) Probe.Log(e.ToString());
-                    readerFailed = true;
-                    Probe.Error("ui " + Id + ": " + e.GetType().Name + " in the frame reader (the exception is in probe.log)");
-                }
+                catch (Exception e) { Probe.Failed("ui " + Id + ": {0} in the frame reader", e); }  // the elements still count
             }
             var rows = new RowSet(Fields);
             if (!bad)
