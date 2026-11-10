@@ -159,6 +159,6 @@ only:
 powershell -ExecutionPolicy Bypass -File machine/setup.ps1 -Org <org> -DryRun -Agent both -Root C:/ugf-test/UnityWork -ClaudeDir C:/ugf-test/home/.claude -CodexDir C:/ugf-test/home/.codex -AgentsSkillsDir C:/ugf-test/home/.agents/skills -HooksDir C:/ugf-test/home/.unity-game-factory/hooks -ConfigPath C:/ugf-test/home/.unity-game-factory/config.json
 ```
 
-With `UGF_CONFIG` set to the scratch config, `templates/new-game.ps1 -Slug <game> -Path
-C:/ugf-test/UnityWork/games/<game> -NoGitHub -Root C:/ugf-test/UnityWork -HooksDir
+With `UGF_CONFIG` set to the scratch config, `powershell -ExecutionPolicy Bypass -File templates/new-game.ps1 -Slug
+<game> -Path C:/ugf-test/UnityWork/games/<game> -NoGitHub -Root C:/ugf-test/UnityWork -HooksDir
 C:/ugf-test/home/.unity-game-factory/hooks` creates a game without creating a GitHub repo.

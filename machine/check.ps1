@@ -15,7 +15,8 @@
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\check.ps1
   powershell -ExecutionPolicy Bypass -File machine\check.ps1 -Root C:\ugf-test\UnityWork -ClaudeDir C:\ugf-test\home\.claude -CodexDir C:\ugf-test\home\.codex `
-      -AgentsSkillsDir C:\ugf-test\home\.agents\skills -HooksDir C:\ugf-test\home\.unity-game-factory\hooks -Json C:\ugf-test\check.json
+      -AgentsSkillsDir C:\ugf-test\home\.agents\skills -HooksDir C:\ugf-test\home\.unity-game-factory\hooks `
+      -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Json C:\ugf-test\check.json
 #>
 param(
     [string]$Root,

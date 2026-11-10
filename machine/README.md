@@ -121,10 +121,10 @@ creation replay (its post-commit line), the recording queue and its recorder, an
   older than the transcript file are imported (a fork's copied context predates the file). Each session is backfilled
   once (`recording-backfill.json` next to the hooks: count, transcript, imported tool_use_ids), and a call imported this
   way is never written again by its own live hook.
-- **Sessions mapped before the backfill existed:** `powershell -File <hooks dir>\record-unity-action.ps1 -Backfill
-  <session id> [-TranscriptPath <file>] [-Agent codex]` inserts the rows before that session's first row in
-  `actions.jsonl` (finds the transcript under `~\.claude\projects\`, or `~\.codex\sessions\` with `-Agent codex`,
-  when not given); a second run does nothing.
+- **Sessions mapped before the backfill existed:** `powershell -ExecutionPolicy Bypass -File
+  <hooks dir>\record-unity-action.ps1 -Backfill <session id> [-TranscriptPath <file>] [-Agent codex]` inserts the rows
+  before that session's first row in `actions.jsonl` (finds the transcript under `~\.claude\projects\`, or
+  `~\.codex\sessions\` with `-Agent codex`, when not given); a second run does nothing.
 - Live rows carry no `status`; every row of a backfill carries `from_transcript`, so the two are never confused.
 - Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
   The Unreal factory writes `superposition.agent-action/v0` / `superposition.commit/v0` and its packager strips the
