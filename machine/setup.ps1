@@ -24,8 +24,9 @@
 
   Minimums: Windows 11; 8 logical cores and 16 GB RAM (32 GB recommended: job slots scale with RAM); 200 GB free on
   the root's drive (100 GB at the very least; game repos with their store packs and each project's Library\ cache are
-  several GB each, builds and the asset library grow); a DirectX 11/12 GPU for the editor. Recording gameplay wants an
-  NVIDIA GPU (8 GB+ VRAM, driver 610+, NVENC); without one it falls back to slower encoders.
+  several GB each, builds and the asset library grow); a DirectX 11/12 GPU for the editor. Recording gameplay (the
+  recorder is not available yet) wants an NVIDIA GPU (8 GB+ VRAM, driver 610+, NVENC); without one it falls back to
+  slower encoders.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>
   powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org> -Agent codex

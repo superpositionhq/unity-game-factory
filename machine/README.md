@@ -7,6 +7,8 @@ setup, including the manual sign-ins: [../docs/new-machine.md](../docs/new-machi
 
 All machine paths hang off one root, the "UnityWork" folder that holds `unity-game-factory\`, `games\`, `tasks\`,
 `builds\`, `recordings\`, `.recording\`, `deliverables\`, `asset-library\` and `tools\`. Docs write it as `%UGF_ROOT%`.
+`builds\`, `recordings\` and `deliverables\` are for the recording queue, its recorder and the packagers, which are not
+available yet: bootstrap.ps1 creates them empty, and nothing writes there today.
 `lib/ugf-root.ps1` (PowerShell, dot-source it) and `lib/ugfroot.py` (Python: `sys.path.insert(0, <repo>/machine/lib)`,
 `ugfroot.root()`) resolve it in this order:
 
@@ -20,11 +22,11 @@ such as `6000.3.28f1` pins them to it), optional `unity_editors`
 (`{"6000.3.28f1": "D:\\Unity\\6000.3.28f1\\Editor\\Unity.exe"}`: editors installed elsewhere, which then count as
 installed), `github_org` (the GitHub organisation or user that owns unity-game-factory and the private
 `unity-game-<slug>` repos: `bootstrap.ps1 -Org` writes it, env `UGF_ORG` overrides it; new-game.ps1, `-CloneGames` and
-check.ps1 read it), and
-`record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as projects besides
-`games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: packages, dataset zips and replay
-packages, GBs per game, so point it at a roomy drive) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: packaging
-refuses to start on a drive with less free).
+check.ps1 read it), and `record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as
+projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where packages,
+dataset zips and replay packages will go, GBs per game, so point it at a roomy drive; the packagers are not available
+yet) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task check and the task try refuse to start on a drive
+with less free, and so will the packagers).
 
 Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),
 and the tools use exactly that install (`lib/ugf-root.ps1` `Get-UGFUnity`, `lib/ugfroot.py` `unity_editor`):
@@ -37,7 +39,7 @@ pinned default would go stale). `Get-UGFNewestUnity -Series 6000.3` gives the ne
 `.Version` / `.Path` (versions compared numerically), or `$null`. `templates/new-game.ps1` writes the version new games
 use into a new project.
 
-Job slots (unity-heavy.ps1):
+Job slots (unity-heavy.ps1, docs/unity-pipeline.md "Machine-wide slots"):
 
 | Key | Meaning | Without it |
 |---|---|---|
@@ -62,16 +64,18 @@ source (config set by hand, config from bootstrap, or computed at run time). The
 A PC may also run the Unreal game-factory (root `%USERPROFILE%\Work`, config `%USERPROFILE%\.game-factory\`). The two
 keep separate roots, configs, hooks folders, session maps and skills, and each one's bootstrap adds its hook entries
 next to the other's in `~\.claude\settings.json` / `~\.codex\hooks.json` without touching them (ours run
-`record-unity-action.ps1`, theirs `record-action.ps1`). A tool call is recorded by the factory whose root it names. What
-they share on purpose:
+`record-unity-action.ps1`, theirs `record-action.ps1`). A session is recorded by the factory whose root one of its tool
+calls names (by both, if its calls name both roots), and from then on every call of it is recorded there. What they
+share on purpose:
 
 - **Job slots.** `unity-heavy.ps1` takes the same machine-wide mutexes as `ue-heavy.ps1` (`Global\ue-heavy-slot-<n>`,
   `Global\ue-gpu-slot-<n>`, `Global\ue-heavy-low-slot`), so Unity and Unreal jobs draw from one set of slots. Both use
   the same slot formula; if the two configs set different counts, each limiter enforces its own count over the shared
   mutexes, so keep them equal.
-- **Recordings.** A recording in either factory (its `builds\_queue\_recording-wants-gpu` flag) holds back GPU jobs
-  of both, and `unity-heavy.ps1` reads both job logs for waiting jobs and recent GPU starts (`Get-UGFUnrealRoot`
-  finds the other root from `GF_ROOT` or `%USERPROFILE%\.game-factory\config.json`).
+- **Recordings.** `unity-heavy.ps1` holds back its GPU jobs while either factory's `builds\_queue\_recording-wants-gpu`
+  flag is fresh, and reads both factories' job logs for waiting jobs and recent GPU starts (`Get-UGFUnrealRoot` finds
+  the other root from `GF_ROOT` or `%USERPROFILE%\.game-factory\config.json`); `ue-heavy.ps1` reads only its own
+  root's. A running recording holds every GPU slot, which stops the GPU jobs of both.
 
 ## Files
 
@@ -82,22 +86,22 @@ they share on purpose:
 | `check.ps1` | | read-only PASS/WARN/FAIL report (toolchain, GPU/display, disk, agents, setup, asset library) |
 | `get-ffmpeg.ps1` | `<root>\tools\ffmpeg-8.1.2\` | downloads gyan.dev ffmpeg 8.1.2 full_build .7z, verifies SHA-256 `0fff1889...7059`, unpacks |
 | `lib/ugf-root.ps1` | `<root>\tools\`, the hooks dir | root/config resolver (also `Get-UGFHooksDir`, `Get-UGFAgents`, `Get-UGFUnity`, `Get-UGFNewestUnity`, the slot mutexes), dot-sourced by every script |
-| `lib/ugfroot.py` | | the same for Python tools (`root`, `org`, `unity_editor`, `computed_slots`, `slot_plan`, `out`, `check_free`) |
+| `lib/ugfroot.py` | | the same for Python tools (`root`, `org`, `unity_editor`, `unity_version`, `computed_slots`, `slot_plan`, `out`, `check_free`) |
 | `lib/codex-hooks.ps1` | | Codex hook trust: the `[hooks.state]` entries Codex needs in `config.toml` before it runs a hook (bootstrap writes ours, check compares) |
-| `tools/unity-heavy.ps1` | `<root>\tools\unity-heavy.ps1` | machine-wide job limiter: `heavy_slots` general slots + `gpu_slots` GPU slots, one named mutex per slot (shared with the Unreal factory, see above: a killed job leaks none; VRAM guard; a recording takes all GPU slots), counts from the config or the hardware formula above, `-Low` for background work, GPU auto-detected (`Unity.exe` without `-nographics`, a packaged player), log `.recording\_heavy-jobs.jsonl`. Installed next to a copy of `lib\ugf-root.ps1` |
-| `hooks/record-unity-action.ps1` | the hooks dir | the agent hook (Claude Code: PostToolUse / PostToolUseFailure / Stop; Codex: PostToolUse / Stop with `-Agent codex`): every tool call of a game session to `.recording\<project>\actions.jsonl` (earlier calls backfilled from the transcript, see Recording); Stop auto-commits leftovers as `WIP` |
+| `tools/unity-heavy.ps1` | `<root>\tools\unity-heavy.ps1` | machine-wide job limiter: `heavy_slots` general slots + `gpu_slots` GPU slots, one named mutex per slot (shared with the Unreal factory, see above: a killed job leaks none; VRAM guard; a recording takes all GPU slots), counts from the config or the hardware formula above, `-Low` for background work, GPU auto-detected (`Unity.exe` without `-nographics`, a packaged player; `-Gpu` forces it, `-nographics` always rules it out), yields to `builds\_queue\_recording-wants-gpu`, log `.recording\_heavy-jobs.jsonl`. Installed next to a copy of `lib\ugf-root.ps1` |
+| `hooks/record-unity-action.ps1` | the hooks dir | the agent hook (Claude Code: PostToolUse / PostToolUseFailure / Stop; Codex: PostToolUse / Stop with `-Agent codex`): every tool call of a game session to `.recording\<project>\actions.jsonl` (earlier calls backfilled from the transcript, see Recording); Stop auto-commits leftovers as `WIP` (none while conflicts are unresolved) |
 | `hooks/record-unity-commit.ps1` | the hooks dir | called by each game repo's post-commit hook: `.recording\<repo>\commits.jsonl` |
 | `hooks/settings-hooks.json` | merged into `~\.claude\settings.json` | Claude Code: the three hook entries (`{{HOOKS_DIR}}` filled in) |
 | `hooks/codex-hooks.json` | merged into `~\.codex\hooks.json` | Codex: the two hook entries (`{{HOOKS_DIR}}` filled in), trusted in `~\.codex\config.toml` |
 | `hooks/recording-exclude.txt` | the hooks dir (once) | session ids never recorded (the coordinator) |
-| `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder after Git LFS's own lines |
+| `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder after Git LFS's own lines; warns when the recorder isn't in the hooks dir |
 
 The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks\`. One copy serves both agents.
 `recording-sessions.json` (session id -> project map) is runtime state: bootstrap creates it empty next to the hooks
 and never overwrites it.
 
-Not ported yet from the Unreal factory (they come with the recording pipeline): the per-commit live creation replay
-(its post-commit line), the recording queue and its recorder, and packaging. The task checker is here
+Not available yet (they come with the recording pipeline; docs/unity-pipeline.md holds the plan): the per-commit live
+creation replay (its post-commit line), the recording queue and its recorder, and packaging. The task checker is here
 (`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its builds and plays go through
 `unity-heavy.ps1` like every other heavy job.
 
@@ -121,6 +125,9 @@ Not ported yet from the Unreal factory (they come with the recording pipeline): 
   `actions.jsonl` (finds the transcript under `~\.claude\projects\`, or `~\.codex\sessions\` with `-Agent codex`,
   when not given); a second run does nothing.
 - Live rows carry no `status`; every row of a backfill carries `from_transcript`, so the two are never confused.
+- Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
+  The Unreal factory writes `superposition.agent-action/v0` / `superposition.commit/v0` and its packager strips the
+  prefix; this factory never writes it.
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows
   (`input.command` = the patch), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose response
   shows the exit code).
@@ -128,8 +135,8 @@ Not ported yet from the Unreal factory (they come with the recording pipeline): 
   is not a game session.
 - **Codex hook trust.** Codex runs a hook from `hooks.json` only after it is trusted (a hash of the hook in
   `config.toml` `[hooks.state."<hooks.json>:<event>:<group>:<handler>"]`); an untrusted or edited hook is skipped
-  without a word. bootstrap.ps1 writes the entries for our record-unity-action.ps1 hooks (`lib/codex-hooks.ps1`), check.ps1
-  compares them, and `/hooks` inside Codex shows (and can set) the same state.
+  without a word. bootstrap.ps1 writes the entries for the record-unity-action.ps1 hooks (`lib/codex-hooks.ps1`),
+  check.ps1 compares them, and `/hooks` inside Codex shows (and can set) the same state.
 
 Installed copies are plain copies: after changing a file here, run `bootstrap.ps1` again (it backs up what it
 replaces under `_backup\<time>\`). `check.ps1` reports installed copies that differ from the repo.

@@ -5,8 +5,10 @@
 .DESCRIPTION
   1. Machine root and config: writes %USERPROFILE%\.unity-game-factory\config.json (root, unity_hub_editors,
      unity_version, and the job slots heavy_slots / gpu_slots computed from the hardware by lib\ugf-root.ps1
-     Get-UGFComputedSlots, recorded in slots_auto; values set by hand stay unless -Force) and creates the layout under
-     the root (games, tasks, builds\_queue, builds\_logs, recordings, .recording, deliverables, asset-library, tools).
+     Get-UGFComputedSlots, recorded in slots_auto; values set by hand stay unless -Force) and creates the UnityWork
+     layout under the root (games, tasks, builds\_queue, builds\_logs, recordings, .recording, deliverables,
+     asset-library, tools; builds, recordings and deliverables wait for the recording pipeline and the packagers, which
+     are not available yet).
   2. Tools: <root>\tools\unity-heavy.ps1 (+ ugf-root.ps1) and the pinned ffmpeg
      (machine\get-ffmpeg.ps1, downloaded and SHA-256 verified, never committed).
   3. Coding agents (-Agent claude|codex|both; default: the config's "agents", else the ones installed, else both;
@@ -24,8 +26,8 @@
   The GitHub organisation (or user) that owns unity-game-factory and the game repos is "github_org" in the config: -Org
   sets it, else the config's value is kept, else bootstrap asks (non-interactive runs warn and leave it unset).
   Any file it replaces is copied to a backup first (<root>\tools\_backup\<time>\, <hooks dir>\_backup\<time>\,
-  <skills folder>\_backup\<time>\). It never pushes, never changes Windows settings, never installs Unity and never
-  signs in for you. Then run machine\check.ps1. Manual steps (Unity Hub sign-in and licence, the editor, gh login):
+  <skills folder>\_backup\<time>\). It never pushes, never changes Windows settings and never signs in for you.
+  Then run machine\check.ps1. Manual steps (Unity Hub sign-in and licence, the editor, gh login, display sleep):
   docs\new-machine.md.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1

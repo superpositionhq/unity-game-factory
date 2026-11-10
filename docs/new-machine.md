@@ -6,28 +6,29 @@ Windows modules is about 10 GB; game repos are several GB each with their store 
 rest; it is idempotent and resumable: after any manual step or a reboot, run it again and it continues where it
 stopped.
 
-> **Not yet proven on a clean PC.** setup.ps1 is a port of the Unreal game-factory's setup; bootstrap.ps1 has run
-> against scratch roots only. The winget installs, UAC steps, Unity Hub steps and sign-ins have not yet run end to end
-> on a fresh Windows install. Report what breaks on the first real clean run.
+> **Not yet proven on a clean PC.** setup.ps1 has been tested only as dry runs against scratch roots on a machine that
+> already had the toolchain (resume from saved answers included); a standalone copy that clones the repo, the winget
+> installs, UAC steps, Unity Hub steps and sign-ins have not yet run end to end on a fresh Windows install. Report what
+> breaks on the first real clean run.
 
 **The Unreal game-factory on the same PC.** Both can live on one machine. This one has its own root
 (`%USERPROFILE%\UnityWork`), config (`%USERPROFILE%\.unity-game-factory\config.json`), hooks folder
 (`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-sound`,
-`unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. Each
-factory's recording hooks record only sessions working under their own root. The two share one thing on purpose: the
-machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as `ue-heavy.ps1`), so together they never
-run more heavy or GPU jobs than the PC holds.
+`unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
+session is recorded by the factory whose root one of its tool calls names. The two share one thing on purpose: the
+machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as `ue-heavy.ps1`, and also holds its GPU jobs
+back while the other factory records), so together they never run more heavy or GPU jobs than the PC holds.
 
 ## Before you start
 
 | You need | Why |
 |---|---|
-| Windows 11, 8+ logical cores, 16 GB RAM (32 GB recommended), 200 GB free (100 GB at the very least) on the drive that will hold the root, a DirectX 11/12 GPU | building and packaging Unity 6.3 games; setup checks these first |
-| An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC); without one, recording falls back to slower encoders |
+| Windows 11, 8+ logical cores, 16 GB RAM (32 GB recommended), 200 GB free (100 GB at the very least) on the drive that will hold the root, a DirectX 11/12 GPU | building Unity 6.3 games; setup checks these first |
+| An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC; the recorder is not available yet); without one, recording will fall back to slower encoders |
 | A GitHub account that is a member of `<org>` (the organisation, or user, that owns `unity-game-factory` and the private `unity-game-<slug>` repos), allowed to create private repos there | an owner of `<org>` adds you |
 | A Unity ID with an active licence (Unity Personal is fine where its terms allow; otherwise the seat the org gives you) | Unity Hub and the editor need a signed-in, licensed account; the Asset Store uses the same account |
 | A coding-agent account: Claude, or OpenAI (a ChatGPT plan or an API key) | the agent that builds the game: Claude Code in a terminal or the Claude desktop app (Code tab), or the Codex CLI in a terminal (`setup.ps1 -Agent claude\|codex\|both`) |
-| Admin rights on the PC | a few UAC prompts (Unity Hub, long paths) |
+| Admin rights on the PC | a few UAC prompts (some of the installs, long paths) |
 
 ## 1. Run setup
 
@@ -85,7 +86,7 @@ Setup prints these as TODOs and detects them on the next run.
 | Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
 | NVIDIA driver (if you have an NVIDIA GPU) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
-| Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
+| Display (for recording, which is not available yet) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
 | Asset Store | only to download store packs for a **new** game: in the editor, **Window > Package Manager > My Assets** (signed in with the account that owns them) > Download. Downloads land in `%APPDATA%\Unity\Asset Store-5.x\`. Purchases and licence choices stay with their owner. | `check.ps1` counts the downloads |
 | Agent sign-in | Claude Code: run `claude` once (or open the desktop app) and sign in. Codex: `codex login` (setup runs it; `--device-auth` without a browser) | Claude: not detectable; Codex: `codex login status` |
 
@@ -111,10 +112,11 @@ Start sessions in the UnityWork root (or a game folder under it), never in the U
 
 - `%USERPROFILE%\.unity-game-factory\config.json`: `root`, `unity_hub_editors`, `unity_version` (the editor new games
   use: `6000.3`, its newest installed patch, unless set to an exact version), `github_org`, `record_extra_projects`,
-  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the
-  hardware (the Unreal factory's formula), with their basis in `slots_auto` (values edited by hand are kept, `-Force`
-  recomputes);
-- the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`;
+  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the hardware (the Unreal factory's
+  formula), with their basis in `slots_auto` (values edited by hand are kept, `-Force` recomputes);
+- the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`
+  (`builds\`, `recordings\` and `deliverables\` wait for the recording pipeline and the packagers, which are not
+  available yet);
 - `tools\unity-heavy.ps1` (the machine-wide job limiter) with `tools\ugf-root.ps1`, the pinned ffmpeg 8.1.2 (SHA-256
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into
@@ -125,8 +127,9 @@ Start sessions in the UnityWork root (or a game folder under it), never in the U
   `unity-game-factory/CLAUDE.md` and/or `<root>\AGENTS.md` naming `unity-game-factory\AGENTS.md`;
 - Git LFS filters, the commit recorder in every game repo, and with `-CloneGames` every `<org>/unity-game-*` repo.
 
-`machine/check.ps1` reports PASS / WARN / FAIL for the toolchain (Unity Hub, a 6000.3 editor with IL2CPP support, C++
-tools for IL2CPP), GitHub access, display and power, disk, the pinned ffmpeg (NVENC test), config, job slots, layout,
+`machine/check.ps1` reports PASS / WARN / FAIL for the toolchain (Unity Hub, the 6.3 LTS editor new games use with
+IL2CPP support, the editors the games here name, C++ tools for IL2CPP), GitHub access, display and power, disk, the
+pinned ffmpeg (NVENC test), config, job slots, layout,
 hooks, skills, game repo hooks and the asset library; its exit code is the number of FAILs; for each agent it also
 checks the install, the sign-in (Codex) and that the hooks are wired (and, for Codex, trusted). Details of every file:
 [../machine/README.md](../machine/README.md).
@@ -139,11 +142,12 @@ checks the install, the sign-in (Codex) and that the hooks are wired (and, for C
   re-serialized files together.
 - Each project's `Library\` folder is a local cache (git-ignored) that the first open rebuilds: a fresh clone's first
   editor run takes several minutes, run it through `unity-heavy.ps1` like any heavy job.
-- Unity Hub and the editor keep their own logs in `%LOCALAPPDATA%\Unity\Editor\Editor.log`; batchmode runs should pass
-  `-logFile <path>` so a run's log is kept with it.
+- The editor keeps its own log in `%LOCALAPPDATA%\Unity\Editor\Editor.log` and Unity Hub its logs in
+  `%APPDATA%\UnityHub\logs\`; batchmode runs pass `-logFile <path>` (`Scripts/unity.ps1` does) so a run's log is kept
+  with it.
 - Vendor RGB/lighting services can leak commit memory; if free commit keeps falling, find the process whose commit
   grows and restart or disable it. Windows Firewall prompts dim the screen and block capture: allow a packaged player
-  once before recording.
+  once before recording (the recorder is not available yet).
 
 ## Scratch test (without touching a live setup)
 
@@ -154,5 +158,6 @@ agent folders, the bootstrap and check parts run against those only:
 powershell -ExecutionPolicy Bypass -File machine/setup.ps1 -Org <org> -DryRun -Agent both -Root C:/ugf-test/UnityWork -ClaudeDir C:/ugf-test/home/.claude -CodexDir C:/ugf-test/home/.codex -AgentsSkillsDir C:/ugf-test/home/.agents/skills -HooksDir C:/ugf-test/home/.unity-game-factory/hooks -ConfigPath C:/ugf-test/home/.unity-game-factory/config.json
 ```
 
-`templates/new-game.ps1 -NoGitHub -Root C:/ugf-test/UnityWork -HooksDir C:/ugf-test/home/.unity-game-factory/hooks`
-creates a game without creating a GitHub repo.
+With `UGF_CONFIG` set to the scratch config, `templates/new-game.ps1 -Slug <game> -Path
+C:/ugf-test/UnityWork/games/<game> -NoGitHub -Root C:/ugf-test/UnityWork -HooksDir
+C:/ugf-test/home/.unity-game-factory/hooks` creates a game without creating a GitHub repo.

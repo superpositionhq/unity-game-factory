@@ -4,8 +4,9 @@
 .DESCRIPTION
   Toolchain: Unity Hub, the Unity 6.3 LTS editor new games use (the config's unity_version) with Windows Build Support
   (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN only: Mono builds need
-  none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording: NVIDIA driver (NVENC with the pinned
-  ffmpeg), refresh rate, display sleep off, the pinned ffmpeg. Space: free disk on the root's drive. Content: the asset
+  none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what the recorder will need; it is
+  not available yet): NVIDIA driver (NVENC with the pinned ffmpeg), refresh rate, display sleep off, the pinned ffmpeg
+  (tools/sfx.py uses it today). Space: free disk on the root's drive. Content: the asset
   library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
   installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
   recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
