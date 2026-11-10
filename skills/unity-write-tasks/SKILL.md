@@ -7,7 +7,7 @@ description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo
 
 A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an LLM agent can be given on this game,
 fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.json` (`kind`: `fix`, `corr`, `feat`,
-`change`), in the task format `GameTask`
+`change`; lower-case letters, digits and `-`, at most 63 characters), in the task format `GameTask`
 ([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`, Unity flavour:
 `"engine": "unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
 shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat
@@ -336,7 +336,9 @@ docs' "Common reasons and fixes"), never the threshold toward what the start hap
 - `tools/validate-game.py` fails a task that is `easy`, has no `seed.reference`, has fewer than 3 required probes
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
-  `seed.reference`. These are floors, not targets: pick the longest threads the history has.
+  `seed.reference`. These are floors, not targets: pick the longest threads the history has. It also refuses a task
+  without the `long-thread` tag, a weighted check a no-op passes (section 5) and anything against the format rules of
+  section 0.
 - **Judge difficulty in the session; never run the task with another agent** (the try took up to 25 minutes a task
   and slowed contractors down). Don't run `tools/task-try.py` or start a fresh Claude Code or Codex session on a
   task. Before committing, review each task against section 1 here, with the person: would a strong agent given only
