@@ -299,18 +299,25 @@ original's, unchanged (`probes.py`).
 - **screen** (`ScreenQuery`; the original's frame had the HUD canvas on it but not the UMG and Slate UI): the frame as
   displayed, read back once it is drawn, every UI on it included (Screen Space - Overlay too), over `rect` (its value's
   keys: task-probes.md 2.15).
-- **light** (`LightQuery`, `LightKit`; the original's lux from the renderer's lights and the sky light):
-  `illuminance` is in Unity's light units (task-probes.md 2.7). Each Light that is on (`LightKit.On`) adds the
-  luminance of its final colour (colour x intensity, the intensity linear in a linear project, x its temperature
-  colour), a point or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl` computes it
-  (`LightQuery.Attenuation`), a directional one as it is; each passes a wall check (`LightKit.Blocked`: from the light
-  to the point, stopping 0.01 m short of it; from the point toward a directional light, 2000 m) that runs for lights
-  with shadows off too and skips the player's colliders and the light's own (on its object or under it); area lights:
-  task-probes.md 2.7. The ambient: `RenderSettings.ambientProbe` evaluated straight up, in every
-  ambient mode, times the open share of 9 upward rays (straight up and 8 at 45 degrees, 2000 m each). `exposure` is
-  2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
-  post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
-  `directional`, `sky`, `lights` (the sources that lit it, the ambient counting as one) and `point`.
+- **light** (`LightQuery`, `LightKit`; the original's lux from the renderer's lights and the sky light): what URP lights
+  a moving, upward-facing surface at the point with, in Unity's light units (task-probes.md 2.7). The Lights on active
+  objects, in hierarchy order, once a pass (`LightKit.Lights`); one counts when URP lights with it at run time
+  (`LightKit.Lit`): on (`Find.LightOn`), a directional, point or spot light (area lights: task-probes.md 2.7), its light
+  not stored by a bake (`bakingOutput`), and drawn by the pipeline asset (the main light when it is lit per pixel, the
+  others when additional lights are on; without URP every Light that is on, and a `query_errors` line). Each adds the
+  luminance of its final colour (colour x intensity, the intensity linear in a linear project, x its temperature colour:
+  `LightKit.FinalColor`), a point or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl`
+  computes it (`LightQuery.Attenuation`), a directional one as it is. Where URP draws the Light's shadows (its own on,
+  of a strength above 0, and the asset's for its kind: the main light's, point and spot lights'; URP shadows no other
+  directional light), a collider on the ray from the light to the point lets only 1 - the shadow strength through
+  (`LightQuery.Shade`, `LightKit.Blocked`: the ray stops 0.01 m short of the point, a directional light's starts 2000 m
+  back along it, a collider the ray starts inside doesn't stop it, the player's and the light's own are skipped). The
+  ambient (`LightKit.Ambient`): the spherical harmonics URP lights a moving object there with, evaluated straight up,
+  the baked light probes around the point when the scene has them, else `RenderSettings.ambientProbe`, unshaded (URP
+  doesn't shade ambient light by walls at run time). `exposure` is 2^postExposure of the volume stack at the camera (as
+  `grading` finds it), 1 without one or when the camera's post-processing is off: URP has no auto-exposure, the
+  original's eye adaptation. The value also holds `local`, `directional`, `sky`, `lights` (the sources that lit it, the
+  ambient counting as one) and `point`.
 - **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings of
   the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
   mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
@@ -347,17 +354,19 @@ original's, unchanged (`probes.py`).
   renderers and count 0); which renderers count, and a piece's triangles: task-probes.md 2.14 (`PiecesQuery` caches
   each mesh's triangle count; trees are read from their prototypes).
 - **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled and
-  playing (and matching the select) at its volume at the listener (the first enabled AudioListener on an active object):
-  its `volume` (0 when muted) x ((1 - `spatialBlend`) + `spatialBlend` x its rolloff at the listener's distance:
-  logarithmic min distance / distance, linear down to 0 at max distance, or its custom curve over distance / max
-  distance). Mixer group volumes and `AudioListener.volume` are left out (the original multiplies its sound classes' and
-  mixes' volumes in). `level` has no counterpart in the original: the RMS of the listener's mixed output since the
-  previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on the enabled listener (it looks
-  again before and after the game's scripts every frame, `AudioTap.Follow`), which sums the final mix (mixers and
-  effects applied) and then zeroes it, in every play, so no play is ever heard. A play that measures audio is paced to
-  real time at 30 fps (the play spec's `sound`); every other play runs as fast as the machine renders but for its waits
-  and scene loads (section 4). The value's other keys, and what was measured of Unity's audio (one-shot sounds, rolloff
-  past max distance, `AudioListener.pause`, mixer volumes), are in `docs/task-probes.md` section 2.16.
+  playing (and matching the select), in hierarchy order, at its volume at the listener (the first enabled AudioListener
+  on an active object, in hierarchy order: `AudioTap.Listener`): its `volume` (0 when muted) x ((1 - `spatialBlend`) +
+  `spatialBlend` x its rolloff at the listener's distance: logarithmic min distance / distance, linear down to 0 at max
+  distance, or its custom curve over distance / max distance). Mixer group volumes and `AudioListener.volume` are left
+  out (the original multiplies its sound classes' and mixes' volumes in). `level` has no counterpart in the original:
+  the RMS of the listener's mixed output since the previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the
+  probe keeps on every enabled listener (`AudioTap.Follow`, before and after the game's scripts every frame: it adds a
+  tap, and switches one the game switched off back on), which sums the final mix (mixers and effects applied) and then
+  zeroes it, in every probe play, so no play is ever heard; a tap outside a probe play (the package copied into a game)
+  lets the sound through. A play that measures audio is paced to real time at 30 fps (the play spec's `sound`); every
+  other play runs as fast as the machine renders but for its waits and scene loads (section 4). The value's other keys,
+  and what was measured of Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer
+  volumes), are in `docs/task-probes.md` section 2.16.
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from
   y = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept); which colliders count, the
