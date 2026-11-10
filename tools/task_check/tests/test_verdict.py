@@ -86,6 +86,16 @@ class Verdict(unittest.TestCase):
         self.assertEqual(verdict.verdict(task, None, record(checked("hero_on_ground", "probe", True)))[1],
                          ["start already passes every required probe"])
 
+    def test_a_start_only_task_needs_a_threshold_for_every_required_probe(self):
+        """A required probe the start can't set a threshold for is not the start failing the task: no solution could
+        pass it (with a reference, the reference's row says so)."""
+        task = task_with(probe(expect={"op": ">=", "start_plus": 5}), seed=NO_FIX)
+        detail = "uncalibrated: hero_on_ground: the start measured nothing (no samples in the window (the play ended at " \
+                 "3.1 s)), and the threshold is relative to it"
+        valid, why, _ = verdict.verdict(task, None, record(checked("hero_on_ground", "probe", False, detail)))
+        self.assertFalse(valid)
+        self.assertEqual(why, [f"hero_on_ground has no threshold: {detail[:160]}"])
+
     def test_the_reference_must_build_and_boot_and_its_other_checks_are_notes(self):
         task = task_with(probe(), {"kind": "file_exists", "name": "route_left", "glob": "Tests/*.json"},
                          {"kind": "boot", "name": "boots_clean"})
