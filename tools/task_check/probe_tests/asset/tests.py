@@ -161,7 +161,7 @@ def assets(t, r):
     value(t, r, "a.waves.array_size", 3, "prop: a SerializedObject array path (waves.Array.size)")
     value(t, r, "a.waves.nan", None, "prop: NaN as saved: no value")
     value(t, r, "a.waves.inf", None, "prop: infinity as saved: no value")
-    value(t, r, "a.waves.curve", None, "prop: an AnimationCurve: no value")
+    value(t, r, "a.waves.curve", 1, "prop: an AnimationCurve, an object that is set: 1")
     value(t, r, "a.waves.curve_keys", 3, "prop: an AnimationCurve's keys")
     value(t, r, "a.waves.past_unset", None, "prop: a step past a reference that is not set: no value, not an error")
     value(t, r, "a.waves.past_end", None, "prop: an index past a list's end: no value, not an error")
