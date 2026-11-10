@@ -354,6 +354,25 @@ class Reducers(unittest.TestCase):
         self.assertEqual(probes.measured(measure, found), (None, "no value in the window (nothing it selects was "
                                                                  "measured)"), "another query's error is not quoted")
 
+    def test_a_measure_read_off_a_render_says_why_the_renderer_gave_nothing(self):
+        """drawn, and an object's or a component's lit and glow, are read off the probe's own renders: the renderer's
+        line names no query, and without it the reason sent its reader to the select."""
+        said = "rendering: the render pipeline isn't URP: drawn and glow as rendered have no value"
+        for measure in (m(probe="drawn", near={"point": {"xyz": [0, 1, 0]}, "radius": 1}, field="motion"),
+                        m(probe="objects", select={"name": "Lamp"}, field="glow", of="max"),
+                        m(probe="components", select={"component": "Light"}, field="lit", of="max")):
+            qid = probes.query_id(probes.needs(measure)[0])
+            sample = {"t": 0.5, "value": None} if measure["probe"] == "drawn" else {"t": 0.5, "rows": [{"name": "x"}]}
+            found = {"format": "unity-probe/1", "ended": "time", "seconds": 20.0, "track": [[0.5, 0, 0, 0]],
+                     "camera": [], "measures": {qid: [sample]}, "query_errors": ["spawns: no component type Coin", said]}
+            self.assertEqual(probes.measured(measure, found), (None, "no value in the window (nothing it selects was "
+                                                                     f"measured); the probe said: {said}"),
+                             measure["probe"])
+        height = m(probe="objects", select={"name": "Lamp"}, field="y", of="max")
+        found["measures"] = {probes.query_id(probes.needs(height)[0]): [{"t": 0.5, "rows": []}]}
+        self.assertEqual(probes.measured(height, found)[1], "no value in the window (nothing it selects was measured)",
+                         "a measure no render feeds says nothing of the renderer")
+
 
 class FairReadings(unittest.TestCase):
     def test_a_count_reads_every_match_past_the_rows_cap(self):
