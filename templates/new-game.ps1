@@ -107,7 +107,9 @@ foreach ($f in Get-ChildItem -LiteralPath $template -Recurse -File -Force) {
 }
 
 # workflow.jsonl, first row: the operation this script just performed.
-$scriptSha = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
+# The hash of this script as committed (LF), as WorkflowLog.cs takes a step's: a Windows clone holds it with CRLF.
+$latin1 = [Text.Encoding]::GetEncoding(28591)   # one character per byte, so the bytes come back unchanged
+$scriptSha = -join ([Security.Cryptography.SHA256]::Create().ComputeHash($latin1.GetBytes($latin1.GetString([IO.File]::ReadAllBytes($PSCommandPath)).Replace("`r`n", "`n"))) | ForEach-Object { $_.ToString('x2') })
 # null when this folder is no git work tree (a copy, or one git refuses): under 'Stop' the line git writes to stderr
 # would end the script here, with the skeleton half made
 $templateCommit = & { $ErrorActionPreference = 'Continue'; & git -C $repo rev-parse --short=12 HEAD 2>$null }
