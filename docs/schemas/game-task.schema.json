@@ -1628,7 +1628,7 @@
     },
     "Has": {
       "additionalProperties": false,
-      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (a Renderer\ndrawn, as the components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D), `movable` (its object isn't static): an object\na player can shove (docs/task-probes.md, section 2.4).",
+      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (a Renderer\ndrawn, as the components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D): an object\na player can shove (docs/task-probes.md, section 2.4).",
       "minProperties": 1,
       "properties": {
         "component": {
@@ -1656,19 +1656,6 @@
           ],
           "default": null,
           "title": "Lit"
-        },
-        "movable": {
-          "anyOf": [
-            {
-              "const": true,
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Movable"
         },
         "near": {
           "anyOf": [

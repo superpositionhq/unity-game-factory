@@ -914,7 +914,7 @@ class Schema(unittest.TestCase):
                'near': {'point': {'object': {'name': 'Kiln*'}, 'offset': [0, 1, 0]}, 'radius': 2.0,
                         'y_min': -1, 'y_max': 3, 'y_relative': True},
                'has': {'component': 'Light', 'lit': True, 'visible': True, 'near': {'point': x, 'radius': 1},
-                       'simulating': True, 'movable': True},
+                       'simulating': True},
                'player': True, 'inactive': True}
         self.assertEqual(self.ok(sel, 'Select'), [])
         for point in ({'xyz': [1, 2, 3]}, {'player': True, 'offset': [0, 1, 0]}, {'camera': True, 'forward': 5},
@@ -948,7 +948,7 @@ class Schema(unittest.TestCase):
                                                                               'offset': [0, 0, 1]}})):
             self.assertEqual(self.ok(value, ref), [], (ref, value))
         for ref, value in (
-                ('Select', {'class': 'BP_Wall_C'}), ('Has', {'class': 'PointLightComponent'}),
+                ('Select', {'class': 'BP_Wall_C'}), ('Has', {'class': 'PointLightComponent'}), ('Has', {'movable': True}),
                 ('ComponentSelect', {'class': 'NiagaraComponent'}), ('PieceSelect', {'class': 'StaticMeshComponent'}),
                 ('WidgetSelect', {'class': 'TextBlock'}), ('WidgetSelect', {'slate': 'STextBlock'}),
                 ('UiSelect', {'kind': 'line'}), ('Near', {'point': {'pawn': True}, 'radius': 1}),
