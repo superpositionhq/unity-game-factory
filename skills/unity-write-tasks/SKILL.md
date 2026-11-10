@@ -86,15 +86,17 @@ A thread qualifies only when all of these hold (the validator enforces the numbe
 1. **Many edits.** From `seed.commit` to `seed.reference`, at least 4 commits change the game itself (`Assets/`,
    `Packages/`, `ProjectSettings/`), and the reference changes at least 5 game files against the start (an editor
    step under `Assets/Editor/Steps/` is the creation's record and a `.meta` follows its asset: neither is a game
-   file), with at least 100 code lines added plus removed (C#, shaders, `.uss`/`.uxml`, editor steps included; store
-   packs' own code under `ThirdParty/` doesn't count). Status, docs and `workflow.jsonl` commits don't count. Assets
-   and binary files don't count as code lines (scenes, prefabs and materials neither, even though they are YAML text).
-2. **Several systems.** The change spans at least two of: C# code (`.cs`, `.asmdef`; game and editor code alike),
-   config (`ProjectSettings/`, `Packages/manifest.json` and its lock file), embedded packages (`Packages/<name>/`),
-   scenes (`.unity`), materials, shaders and textures, prefabs, UI documents and animator controllers (`.prefab`,
-   `.uxml`, `.uss`, `.controller`), data (`.asset` ScriptableObjects, `.json`, `.csv`, `.txt`), other assets (models,
-   clips, sounds, fonts). The validator counts them by path and extension. A long thread confined to one method is a
-   short task in disguise.
+   file), with at least 100 code lines added plus removed (any code file of the repo: C#, `.asmdef`/`.asmref`,
+   shaders, `.uss`/`.uxml`/`.tss`, scripts such as `.ps1` or `.py`, editor steps included; not under `Dataset/`,
+   `Docs/`, `RawAssets/` or a `ThirdParty/` folder, so store packs' own code doesn't count). Status, docs and
+   `workflow.jsonl` commits don't count. Assets and binary files don't count as code lines (scenes, prefabs and
+   materials neither, even though they are YAML text).
+2. **Several systems.** The change spans at least two of: C# code (`.cs`, `.asmdef`, `.asmref`; game and editor code
+   alike), config (`ProjectSettings/`, `Packages/manifest.json` and its lock file), embedded packages
+   (`Packages/<name>/`), scenes (`.unity`), materials, shaders and textures, prefabs, UI documents and animator
+   controllers (`.prefab`, `.uxml`, `.uss`, `.controller`), data (`.asset` ScriptableObjects, `.json`, `.csv`, `.txt`),
+   other assets (models, clips, sounds, fonts). The validator counts them over the game files of item 1 (so an editor
+   step is no system), by path and extension. A long thread confined to one method is a short task in disguise.
 3. **Several outcomes.** At least 3 required outcome probes, one per issue the thread settled, so partial work earns
    partial credit (a compound ticket). A thread that settled only one observable thing is rarely long enough.
 4. **The first attempt didn't hold, or the cause is far from the symptom.** The thread had a fix that was undone,
