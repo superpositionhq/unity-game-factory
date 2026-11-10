@@ -1,28 +1,30 @@
 # Run one heavy Unity job (a batchmode editor run, a player build, the test runner, a packaged player, the editor GUI)
 # under a machine-wide limit so the parallel game sessions don't exhaust CPU/RAM. Waits for a free slot.
-#   & <root>\tools\unity-heavy.ps1 -Label "island-survival build" -- "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath C:\...\games\island-survival -executeMethod Build.Player -logFile -
+#   & <root>\tools\unity-heavy.ps1 -Label "island-survival build" -- "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath C:\...\games\island-survival -executeMethod IslandSurvival.EditorTools.BuildPlayer.BuildWindows -logFile -
 # Exit code is the job's. Waits/acquire/release are appended to <root>\.recording\_heavy-jobs.jsonl.
 # <root> is the machine root (machine/lib/ugf-root.ps1); machine/bootstrap.ps1 installs this file as
 # <root>\tools\unity-heavy.ps1 with a copy of ugf-root.ps1 next to it.
 #
-# Slot model:
+# Slot model (docs/unity-pipeline.md, "Machine-wide slots"):
 # - Slots are named mutexes, one per slot (ugf-root.ps1 Get-UGFSlotMutexes): a job killed before it releases leaves its
 #   mutex abandoned and the next job takes it over, so no slot leaks. Counts are read at every call, so a config change
 #   applies at once.
 # - The mutex names are the Unreal game-factory's (Global\ue-heavy-slot-<n>, Global\ue-gpu-slot-<n>,
 #   Global\ue-heavy-low-slot): on a machine that runs both factories, Unity and Unreal jobs draw from one set of slots,
-#   so together they never run more heavy or GPU jobs than the PC holds. Waits and recent GPU starts are read from both
-#   factories' job logs, and a recording queued by either factory holds back GPU jobs of both (Get-UGFRecordingFlags).
+#   so together they never run more heavy or GPU jobs than the PC holds. This limiter also reads the Unreal factory's
+#   job log (waiting jobs, recent GPU starts) and its recording flag (Get-UGFJobLogs, Get-UGFRecordingFlags);
+#   ue-heavy.ps1 reads neither of ours.
 # - General slots (Global\ue-heavy-slot-<n>): every job takes one. Count: "heavy_slots" in the machine config, else the
 #   hardware formula in ugf-root.ps1 Get-UGFComputedSlots (bootstrap.ps1 writes it to the config).
 # - GPU slots (Global\ue-gpu-slot-<n>): jobs that render (Unity.exe without -nographics, i.e. the editor GUI or a
 #   batchmode run that renders; a packaged player) take one together with a general slot, never one while waiting for
 #   the other. Count: "gpu_slots", else the formula.
 # - VRAM guard: a GPU job starts only while the GPU's used VRAM is under "gpu_vram_limit_mb" (default half the VRAM) and
-#   no other GPU job started in the last 60 s (a new renderer's VRAM shows only once it has loaded); otherwise it gives
-#   the slot back and looks again every 30 s (logged as vram_wait).
-# - Recordings are exclusive: the recorder takes every GPU slot, and while it waits (builds\_queue\_recording-wants-gpu
-#   fresh, in either factory's root) new GPU jobs hold back or hand their slot back.
+#   no other GPU job that still runs started in the last 60 s (a new renderer's VRAM shows only once it has loaded);
+#   otherwise it gives the slot back and looks again every 30 s (logged as vram_wait).
+# - Recordings are exclusive: a recorder takes every GPU slot (the Unreal factory's; this factory's recorder is not
+#   available yet), and while one waits (builds\_queue\_recording-wants-gpu fresh, in either factory's root) new GPU
+#   jobs hold back or hand their slot back.
 # - -Low (background work): one low job machine-wide; it takes a general slot only while no other job waits for one and
 #   another slot stays free; its process runs below normal priority.
 [CmdletBinding(PositionalBinding = $false)]
@@ -76,9 +78,10 @@ function Get-JobLogTail([int]$Lines) {
 $heavyM = Get-UGFSlotMutexes heavy $Slots
 $cmdText = $Command -join ' '
 $exeName = [IO.Path]::GetFileName($Command[0])
-# GPU: Unity.exe renders unless -nographics (the GUI editor, or a batchmode run that captures frames); a packaged
-# player (any other exe under a Build/Builds/Packaged folder, or run with -screen-* / -popupwindow) always renders.
-# dotnet / MSBuild / git / python never do.
+# GPU: Unity.exe renders unless -nographics (the GUI editor, or a batchmode run that captures frames), and so does a
+# packaged player: an exe under a Build/Builds/Packaged folder, or a command carrying a player's -screen-* /
+# -popupwindow flags (also when a launcher such as the task checker's desk.py starts the player). Anything else takes a
+# GPU slot only with -Gpu; -nographics anywhere means none.
 $isUnity = $exeName -match '(?i)^Unity\.exe$'
 $isPlayer = (-not $isUnity) -and ($Command[0] -match '(?i)[\\/](Build|Builds|Packaged)[\\/].*\.exe$' -or $cmdText -match '(?i)(^|\s)-(screen-width|screen-height|screen-fullscreen|popupwindow)(\s|$)')
 $isGpu = $Gpu -or $isUnity -or $isPlayer
@@ -93,6 +96,7 @@ function Get-VramMB([string]$What) {
 }
 if ($isGpu -and $vramLimit -le 0) { $tot = Get-VramMB 'total'; $vramLimit = if ($tot) { [int]($tot / 2) } else { 8192 } }
 $t0 = Get-Date
+# "slots":"mutex" as in ue-heavy.ps1's rows (it marks a job of the per-slot mutexes there), so both job logs read alike
 Log 'wait' @{ command = $cmdText; gpu = [bool]$isGpu; low = [bool]$Low; slots = 'mutex' }
 $flags = Get-UGFRecordingFlags
 function Test-RecordingWaits {
