@@ -74,7 +74,7 @@ namespace TaskProbe
         // brighter, so a Lit surface reads its own base colour
         const float WhiteAmbient = 1f / 0.96f;
         const int GlowSize = 128;  // pixels square, each view of a renderer
-        const int GlowBudget = 64;  // renderers rendered per frame at most (each renderer once a frame)
+        const int GlowBudget = 64;  // renderers rendered per pass at most (each renderer once a pass)
         const int UiLayer = 5;  // world-space canvases draw on it and can't be forced off: the layer is left out
 
         const string NoDevice = "rendering: the player has no graphics device (-nographics): drawn and glow as rendered have no value";
@@ -95,20 +95,21 @@ namespace TaskProbe
         static readonly Dictionary<int, Texture2D> ColourReads = new Dictionary<int, Texture2D>();
         static readonly Dictionary<int, Texture2D> FloatReads = new Dictionary<int, Texture2D>();
 
-        // ---------------------------------------------------------------- the scene's drawn renderers, once a frame
+        // ---------------------------------------------------------------- what is drawn, once a pass over the scene
 
-        static int snapFrame = -1;
+        static int snapStamp = -1;
         static readonly List<Component> SnapDrawn = new List<Component>();
         static readonly List<Bounds> SnapBounds = new List<Bounds>();
 
-        /// <summary>What a render can draw in the loaded scenes, and its world bounds, read once a frame: every renderer
-        /// that is drawn (enabled, active, not forced off, not drawing shadows only) and every terrain drawing its
-        /// heightmap (its trees and details with it), none on the UI layer.</summary>
+        /// <summary>What a render can draw in the loaded scenes, and its world bounds, read once a pass over the scene
+        /// (Probe.Stamp: the inputs before the game's scripts and the samples after them each read their own): every
+        /// renderer that is drawn (enabled, active, not forced off, not drawing shadows only) and every terrain drawing
+        /// its heightmap (its trees and details with it), none on the UI layer.</summary>
         public static void Drawn(out List<Component> drawn, out List<Bounds> bounds)
         {
-            if (snapFrame != Time.frameCount)
+            if (snapStamp != Probe.Stamp)
             {
-                snapFrame = Time.frameCount;
+                snapStamp = Probe.Stamp;
                 SnapDrawn.Clear();
                 SnapBounds.Clear();
                 foreach (var r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
@@ -624,7 +625,7 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- lit / glow as rendered
 
-        static int glowFrame = -1, glowLeft, glowRenders;
+        static int glowStamp = -1, glowLeft, glowRenders;
         static double glowMs;
         static readonly Dictionary<int, RenderedGlow> GlowSeen = new Dictionary<int, RenderedGlow>();
         static readonly List<Component> GlowShow = new List<Component>(1);
@@ -632,13 +633,14 @@ namespace TaskProbe
         static readonly List<DrawnImage> GlowImages = new List<DrawnImage>(4);
 
         /// <summary>One renderer alone with no light at all, from the four corners of a tetrahedron in its own frame
-        /// (128 x 128, orthographic, HDR). At most 64 renders a frame across every caller, each renderer once a frame;
+        /// (128 x 128, orthographic, HDR). At most 64 renders a pass over the scene (Probe.Stamp) across every caller,
+        /// each renderer once a pass, as the original renders each mesh once a sample and a select's has.lit on its own;
         /// what each costs goes to probe.log.</summary>
         public static RenderedGlow Glow(Renderer r)
         {
-            if (glowFrame != Time.frameCount)
+            if (glowStamp != Probe.Stamp)
             {
-                glowFrame = Time.frameCount;
+                glowStamp = Probe.Stamp;
                 glowLeft = GlowBudget;
                 GlowSeen.Clear();
             }
