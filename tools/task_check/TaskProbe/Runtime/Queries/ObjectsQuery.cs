@@ -109,7 +109,8 @@ namespace TaskProbe
                     return ObjectRead.Axis(box.extents, f.Substring(7));
                 case "active": return go.activeInHierarchy ? 1.0 : 0.0;
                 case "hidden": return ObjectRead.Hidden(go) ? 1.0 : 0.0;
-                case "collision": return Find.Collides(go, true) ? 1.0 : 0.0;
+                // an inactive object collides with nothing (Find.Collides finds its own colliders even then)
+                case "collision": return go.activeInHierarchy && Find.Collides(go, true) ? 1.0 : 0.0;
                 case "simulating": return go.activeInHierarchy && Find.Simulates(go) ? 1.0 : 0.0;
                 case "spread": return ObjectRead.Spread(parts);
                 case "spin": return Spin(go);
