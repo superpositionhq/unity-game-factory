@@ -243,7 +243,11 @@ function Merge-RecordingHooks($Target, $Frag) {
     return $changed
 }
 function Read-JsonOrEmpty([string]$Path) {
-    $o = if (Test-Path -LiteralPath $Path) { [IO.File]::ReadAllText($Path) | ConvertFrom-Json } else { $null }
+    $o = $null
+    if (Test-Path -LiteralPath $Path) {
+        try { $o = [IO.File]::ReadAllText($Path) | ConvertFrom-Json }
+        catch { throw "$Path is not valid JSON ($($_.Exception.Message)): nothing was written to it; fix it, then run bootstrap again" }
+    }
     if (-not $o) { $o = New-Object psobject }
     return $o
 }
