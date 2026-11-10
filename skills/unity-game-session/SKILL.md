@@ -33,11 +33,13 @@ by hand under these rules, or ask.
    `$env:UGF_ROOT`: the hooks match the command text. new-game.ps1 refuses any other -Path (typed in Git Bash, put
    each Windows path in single quotes: bash drops unquoted backslashes). Calls made before this one (reading docs,
    drafting the design) are imported from your transcript when the session is mapped (status `from_transcript`). It
-   writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text, the editor tools assembly, LFS for
-   every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row, the commit recorder hook, the first
-   commit, the first editor open (packages, URP, Input System, TextMeshPro's essential resources, player settings; a
-   second commit) when the editor is installed, and the private repo `<org>/unity-game-<slug>` (`github_org` in the
-   machine config; not pushed). When it says the first open did not run or failed (no editor, no licence), run
+   stops before it creates anything when no Unity 6.3 LTS editor is installed (or not the version the machine config
+   pins): give the person its message (install the editor through Unity Hub, with Windows Build Support (IL2CPP)) and
+   run it again once that is done. It writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text,
+   the editor tools assembly, LFS for every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row,
+   the commit recorder hook, the first commit, the first editor open (packages, URP, Input System, TextMeshPro's
+   essential resources, player settings; a second commit), and the private repo `<org>/unity-game-<slug>`
+   (`github_org` in the machine config; not pushed). When it says the first open failed (no licence, no network), run
    `Scripts/unity.ps1 setup` once that is fixed, then commit.
 3. Write the design doc + story bible in unity-game-factory `docs/games/<slug>.md` before building: systems, classes,
    ScriptableObjects, scenes, scenarios 1..n (start state + win/lose), art and audio direction, acceptance checklist.
