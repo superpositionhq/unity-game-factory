@@ -31,7 +31,8 @@
 /sysinfo.txt
 /crashlytics-build.properties
 /Assets/AssetStoreTools*
-# left behind by every test run (the performance-testing package the test framework pulls in)
+# written by every player build and left behind when one fails (the performance-testing package, which URP pulls in
+# through com.unity.collections)
 /Assets/Resources/PerformanceTestRun*
 __pycache__/
 *.pyc
@@ -41,5 +42,8 @@ __pycache__/
 /Dataset.zip
 /Dataset.pending.zip
 /.dataset/
-# the task checker's results: local only
+# the task checker's results (tools/task-check.py): local only
 /.task-checks/
+# secrets and Unity licence files, anywhere: never committed, and the WIP auto-commit stages everything not ignored
+.env
+*.ulf
