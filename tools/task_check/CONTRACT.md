@@ -303,21 +303,23 @@ original's, unchanged (`probes.py`).
   a moving, upward-facing surface at the point with, in Unity's light units (task-probes.md 2.7). The Lights on active
   objects, in hierarchy order, once a pass (`LightKit.Lights`); one counts when URP lights with it at run time
   (`LightKit.Lit`): on (`Find.LightOn`), a directional, point or spot light (area lights: task-probes.md 2.7), its light
-  not stored by a bake (`bakingOutput`), and drawn by the pipeline asset (the main light when it is lit per pixel, the
-  others when additional lights are on; without URP every Light that is on, and a `query_errors` line). Each adds the
-  luminance of its final colour (colour x intensity, the intensity linear in a linear project, x its temperature colour:
-  `LightKit.FinalColor`), a point or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl`
-  computes it (`LightQuery.Attenuation`), a directional one as it is. Where URP draws the Light's shadows (its own on,
-  of a strength above 0, and the asset's for its kind: the main light's, point and spot lights'; URP shadows no other
-  directional light), a collider on the ray from the light to the point lets only 1 - the shadow strength through
-  (`LightQuery.Shade`, `LightKit.Blocked`: the ray stops 0.01 m short of the point, a directional light's starts 2000 m
-  back along it, a collider the ray starts inside doesn't stop it, the player's and the light's own are skipped). The
-  ambient (`LightKit.Ambient`): the spherical harmonics URP lights a moving object there with, evaluated straight up,
-  the baked light probes around the point when the scene has them, else `RenderSettings.ambientProbe`, unshaded (URP
-  doesn't shade ambient light by walls at run time). `exposure` is 2^postExposure of the volume stack at the camera (as
-  `grading` finds it), 1 without one or when the camera's post-processing is off: URP has no auto-exposure, the
-  original's eye adaptation. The value also holds `local`, `directional`, `sky`, `lights` (the sources that lit it, the
-  ambient counting as one) and `point`.
+  not stored by a bake (`bakingOutput`), and drawn by the pipeline asset (the main light, `LightKit.MainLight` as URP's
+  GetMainLightIndex: the Lighting settings' sun when it is a directional light URP draws, else the brightest, when the
+  asset lights it per pixel; the others when additional lights are on). Without URP every Light that is on counts,
+  shadowed when its shadows are on and the quality settings have shadows, and one `query_errors` line says so. Each adds
+  the luminance of its final colour (colour x intensity, the intensity linear in a linear project, x its temperature
+  colour: `LightKit.FinalColor`), a point or spot light times URP's distance and cone attenuation as
+  `RealtimeLights.hlsl` computes it (`LightQuery.Attenuation`), a directional one as it is. Where URP draws the Light's
+  shadows (its own on, of a strength above 0, and the asset's for its kind: the main light's, point and spot lights';
+  URP shadows no other directional light), a collider on the ray from the light to the point lets only 1 - the shadow
+  strength through (`LightQuery.Shade`, `LightKit.Blocked`: the ray stops 0.01 m short of the point, a directional
+  light's starts 2000 m back along it, a collider the ray starts inside doesn't stop it, the player's and the light's
+  own are skipped). The ambient (`LightKit.Ambient`): the spherical harmonics URP lights a moving object there with,
+  evaluated straight up, the baked light probes around the point when the scene has them, else
+  `RenderSettings.ambientProbe`, unshaded (URP doesn't shade ambient light by walls at run time). `exposure` is
+  2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
+  post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
+  `directional`, `sky`, `lights` (the sources that lit it, the ambient counting as one) and `point`.
 - **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings of
   the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
   mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
