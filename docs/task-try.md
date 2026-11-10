@@ -53,8 +53,9 @@ check's).
    the agent's workspace.
 2. Per run, copies the game at `seed.commit` into a workspace `<drive>:\.task-try\<id>\run<N>\<game>`: every file of
    that commit without `Tasks/`, `History/`, `Dataset/` or `Dataset.zip`, in a fresh git repository with one commit.
-   The workspace is outside the machine root and the game repo, so the harness reads neither's `AGENTS.md` or
-   `CLAUDE.md`.
+   The workspace is outside the machine root, the game repo and its other worktrees, so the harness reads none of
+   their `AGENTS.md` or `CLAUDE.md`, and outside the results folder, where the start's and the reference's plays are:
+   a `--scratch` inside one of them, or with the results folder inside it, is refused with what to pass instead.
 3. Starts the harness in the workspace with the brief as its prompt: the task's instruction, the scene and arguments
    QA plays (`play_scene`, `play_args`) and where the Unity 6.3 editor is installed. Nothing of the grader's half. The
    machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, with the Unreal factory's `GF_NO_RECORDING`
@@ -95,11 +96,13 @@ it, and the brief the agent read `<task>\brief.md`; the start's and the referenc
   found the editor, or ran into a licence error or a project lock (two Unity processes on its workspace), says nothing
   about the task.
 - **`peeked` lists a folder** (the printed line: `transcript names ...: it may have read the answer`): the transcript
-  names your game repo or tasks worktree, where the history and the answer are, or the machine root or your agent's
-  own folders (`~\.claude`, `~\.codex`, `~\.agents`: its sessions, memory and skills), in any spelling a shell
-  gives them (`C:\...`, `C:/...`, `/c/...`, `~/...`, `$HOME`, `$env:USERPROFILE`, `%USERPROFILE%`). That run doesn't
-  count: the cloud agent can't reach them. Run it again, or from an account that can't read those folders. A relative
-  path or a variable the agent read isn't seen, so a run without `peeked` is no proof it stayed inside.
+  names your game repo or another of its worktrees (the tasks worktree: the history and the answer), the try's
+  results folder (the start's and the reference's plays), the machine root or your agent's own folders (`~\.claude`,
+  `~\.codex`, `~\.agents`: its sessions, memory and skills), as a whole name (`~\.claude` is not `~\.claude.json`), in
+  any spelling a shell gives them (`C:\...`, `C:/...`, `/c/...`, `~/...`, `$HOME`, `$USERPROFILE`,
+  `$env:USERPROFILE`, `%USERPROFILE%`). That run doesn't count: the cloud agent can't reach them. Run it again, or
+  from an account that can't read those folders. A relative path or a variable the agent read isn't seen, so a run
+  without `peeked` is no proof it stayed inside.
 
 The try is advice for you. The cloud's own runs and grade decide approval, difficulty and pay. Codex runs with a home
 of its own (your login, every skill off), but Claude Code also has your own harness settings, skills and memory, which
