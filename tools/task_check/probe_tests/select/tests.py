@@ -306,7 +306,8 @@ def _deep(t):
     spec.write_text('{"format": "unity-probe-play/1", "out": ' + json.dumps(str(folder)) + ', "deep": '
                     + "[" * 100000 + "]" * 100000 + "}", encoding="utf-8")
     log = folder / "play.log"
-    desk = Path(__file__).resolve().parents[2] / "desk.py"
+    from task_check import unity  # the checker's own module (run.py has loaded it): where its desk.py is
+    desk = unity.DESK
     try:
         ran = subprocess.run([sys.executable, str(desk), str(exe), "-screen-fullscreen", "0", "-screen-width", "960",
                               "-screen-height", "540", "-logFile", str(log), "-taskProbe", str(spec)], cwd=str(exe.parent),

@@ -62,7 +62,8 @@ def _start(t, name, *args, build="TaskProbe"):
     log = t.project / "Logs" / "ProbeTests" / f"core.{name}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.unlink(missing_ok=True)
-    desk = Path(__file__).resolve().parents[2] / "desk.py"
+    from task_check import unity  # the checker's own module (run.py has loaded it): where its desk.py is
+    desk = unity.DESK
     ran = subprocess.run([sys.executable, str(desk), str(exe), "-screen-fullscreen", "0", "-screen-width", "960",
                           "-screen-height", "540", "-logFile", str(log), *args], cwd=str(exe.parent), timeout=180)
     code = ran.returncode - (1 << 32) if ran.returncode >= 1 << 31 else ran.returncode
@@ -250,7 +251,6 @@ def _saves(log):
 def saves_a(t, play):
     """The game writes PlayerPrefs and a file. Its saved data is the build's own (company TaskProbe.<hash>). The same
     player started without -taskProbe is left alone: no probe, no device, nothing wiped."""
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     from task_check import seeds
 
     prefs, file, company, path = _saves(play.log)
