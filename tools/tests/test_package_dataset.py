@@ -48,7 +48,9 @@ def make_inputs(tmp):
     before, after = when[:11] + '00:00:01' + when[19:], '2099-01-01T00:00:00+00:00'
     base.write(rec, 'actions.jsonl', '\n'.join([
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S1, agent='claude', event='PostToolUse', cwd=cwd,
-            tool='Bash', tool_use_id='t1', input={'command': f'git -C {cwd} log --format=%H -1', 'session_id': S1},
+            tool='Bash', tool_use_id='t1', input={'command': f'git -C {cwd} log --format=%H -1', 'session_id': S1,
+                                                  'cut': f'C:\\Users\\{ACCOUNT}\\AppData\\Local\\Temp\\claude\\C--Users-{ACCOUNT}-UnityWork\\{S1[:16]}',
+                                                  'notes': f'C:\\Users\\{ACCOUNT}\\AppData\\Roaming\\Claude\\side-session-notes\\local_{S1}\\notes.md'},
             response=f'{ref}\nsee C:\\Users\\{ACCOUNT}\\UnityWork\\unity-game-factory\\tools ' + 'QUJD' * 100),
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
             tool='apply_patch', tool_use_id='t2', input={'command': '*** Begin Patch'}, response='ok: runs/pilot-2c-opus-siege/summary.json'),
@@ -185,6 +187,8 @@ class Package(unittest.TestCase):
         self.assertEqual(msgs[1]['text'], 'Done by Agent; Provider was not used.')
         self.assertEqual(msgs[1]['model'], 'agent-model')
         self.assertEqual(acts[0]['input']['session_id'], 'session')            # a session id inside a tool's input
+        self.assertEqual(acts[0]['input']['cut'], 'C:\\Users\\dev\\AppData\\Local\\Temp\\session')   # a session folder cut short
+        self.assertEqual(acts[0]['input']['notes'], 'C:\\Users\\dev\\AppData\\Roaming\\session\\notes\\notes.md')
         self.assertIn('<base64 omitted, 300 bytes', acts[0]['response'])
         self.assertEqual(acts[1]['response'], 'ok: runs/pilot-2c-model-siege/summary.json')   # the model's name as a segment
         m = json.loads(mem['manifest.json'])
