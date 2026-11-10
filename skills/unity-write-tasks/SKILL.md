@@ -95,10 +95,10 @@ validator count with it):
    sits in another (a HUD symptom from a ScriptableObject, a camera symptom from physics layers, a crash only in the
    player build, an intermittent or timing bug, a regression from an earlier change).
 5. **Checkable by the grader.** Every required outcome is measurable in the grader's own plays: a scenario
-   (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted keys reach it
-   (Input System control paths, mouse buttons included, but no mouse movement). The plays drive the Input System
-   only: a game that reads the old Input Manager (`Input.GetKey`) takes no keys in them. A thread no probe can
-   measure is not a task.
+   (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted inputs reach it
+   (Input System control paths, mouse buttons, mouse axes and the cursor included, widget clicks and teleports). The
+   plays drive the Input System only: a game that reads the old Input Manager (`Input.GetKey`) takes no keys in them.
+   A thread no probe can measure is not a task.
 
 **Never make a task easier (permanent).** After a task is first written, these are banned if they lower the bar:
 widening a threshold or window, making a required probe optional, removing a probe, removing a requirement from the
@@ -168,13 +168,13 @@ compile), give it a made start:
   the same time (a camera rework during a HUD pass) are separate tasks over the same commits. What never repeats is an
   issue: two tasks never test the same outcome, so dedupe against the game's existing tasks by issue (their briefs and
   required probes), not by commits. Merging still wins over splitting one thread into short tasks (section 1).
-- **Measure the thread on its own commits.** The validator measures everything from `seed.commit` to
-  `seed.reference`, so a short thread inside another thread's stretch can pass the floors on the other thread's work.
-  Which commits are the thread's own is your call; list them and count them:
-  `python <UGF_ROOT>/unity-game-factory/tools/thread-stats.py <UGF_ROOT>/games/<slug> <commit> <commit> ... --span <seed.commit>..<seed.reference>`
-  (git only, seconds). A thread whose own commits are below the floors (section 6) is too short, whatever the span
-  says: extend it, merge it with its neighbouring issues, or drop it. When you tell the person a task is ready, give
-  its own line from the tool (commits, files, code lines, systems).
+- **Measure the thread on its own commits.** The validator measures everything from `seed.commit` to `seed.reference`,
+  so a short thread inside another thread's stretch can pass the floors on the other thread's work. Which commits are
+  the thread's own is your call; list them and count them: `python <UGF_ROOT>/unity-game-factory/tools/thread-stats.py
+  <UGF_ROOT>/games/<slug> <commit> <commit> ... --span <seed.commit>..<seed.reference>` (git only, seconds). A thread
+  whose own commits are below the floors (section 6) is too short, whatever the span says: extend it, merge it with
+  its neighbouring issues, or drop it. When you tell the person a task is ready, give its own line from the tool
+  (commits, files, code lines, systems).
 - Asset-only fixes are fine (the agent can make the same change through editor steps or code); drop one only when its
   outcome cannot be seen.
 
@@ -201,16 +201,20 @@ that the issues are related. Leave out the play_scene line, which the harness ad
 
 The game's first build scene is usually a title menu that simulated keys cannot leave, so a task almost always needs
 `play_scene` and `play_args`: the scene that starts straight in the gameplay where the issue shows, and the player's
-command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`,
-`"play_args": ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the
-scene exists there and at `seed.reference`. The checker adds every scene the plays open to the build, after the
-project's own enabled build scenes, so the scene needn't be in `ProjectSettings/EditorBuildSettings.asset`. Every grader
-play opens it (boots, idle and drive, the route, the before and reference plays); a task play may open its own `scene`
-and `args` instead. Each argument matches `^-?[A-Za-z0-9_.:=,/-]{1,60}$` (at most 16): an element starting with `-` and
-a letter is a flag, anything else a value. Never Unity's or the checker's own flags (`-batchmode`, `-nographics`,
-`-quit`, `-logFile`, `-projectPath`, `-executeMethod`, `-popupwindow`, `-monitor`, `-parentHWND`,
-`-single-instance`, `-screen-*`, `-force-*`, `-taskProbe*`); the validator refuses them. Check in the task check's
-screenshots and `track` that the reference's plays really start where the issue shows.
+command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args":
+["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the scene exists
+there and at `seed.reference`. The checker adds every scene the plays open to the build, after the project's own
+enabled build scenes, so the scene needn't be in `ProjectSettings/EditorBuildSettings.asset`. Every grader play opens
+it with `play_args` (boots, idle and drive, the route, the before and reference plays); a task play may open its own
+`scene` and `args` instead (`"scene": null`: the first build scene). The probe opens `play_scene` before the game's
+first build scene has started: that scene's objects get `Awake` and `OnEnable` and are then destroyed before `Start`,
+so a singleton it makes in `Awake` with `DontDestroyOnLoad` exists, but anything it sets up in `Start` doesn't. A game
+that needs its boot scene to run is started through its own `play_args` with `play_scene` null. Each argument matches
+`^-?[A-Za-z0-9_.:=,/-]{1,60}$` (at most 16): an element starting with `-` and a letter is a flag, anything else a
+value. Never Unity's or the checker's own flags (`-batchmode`, `-nographics`, `-quit`, `-logFile`, `-projectPath`,
+`-executeMethod`, `-popupwindow`, `-monitor`, `-parentHWND`, `-single-instance`, `-screen-*`, `-force-*`,
+`-taskProbe*`); the validator refuses them. Check in the task check's screenshots and `track` that the reference's
+plays really start where the issue shows.
 
 ## 5. Milestones and checks: deterministic probes decide
 
@@ -224,7 +228,8 @@ contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 
 Each milestone is a reward group; a run that gets part of the way earns part of the reward. **A no-op scores zero
 (permanent):** the score is the weighted share of checks passed, so every check the start already passes takes
-`"weight": 0`: `builds`, `boots`, all of `still_works`, and any `log_absent` or `file_exists` true of the start. They
+`"weight": 0`: `builds`, `boots`, all of `still_works`, any `log_absent` or `file_exists` true of the start, and any
+probe the start already passes, required or not. They
 still gate: a run must pass the required ones to be solved. `validate-game.py` and the task check refuse a task a
 no-op would earn anything on. The usual order:
 
@@ -302,12 +307,14 @@ Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game
 Create `.task-checks` first if it doesn't exist. Unity fails on paths past 260 characters, so the checker refuses a
 scratch project folder longer than 90 characters; when it says so, add `'--scratch', 'C:\tc'` (a short folder on the
 repo's drive) to the arguments. Tell the person it is running, roughly how long (about 20-60 minutes a task, most of it
-importing each commit's assets, less where tasks share commits), and that they can leave it. Read
+importing each commit's assets, less where tasks share commits or a later commit starts from an earlier copy's
+import cache), and that they can leave it. Read
 `<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
 `finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
 fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
 committed yet ([docs/task-check.md](../../docs/task-check.md)). The check builds each start and reference as a Windows
-player with the probe package, plays them off-screen and writes VALID or INVALID per task with the reasons and the
+player with the probe package, plays them on a Windows desktop of their own (nothing on the person's screen, the game
+counting itself focused) and writes VALID or INVALID per task with the reasons and the
 measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common
 reasons and fixes"), never the threshold toward what the start happens to measure.
 
@@ -381,6 +388,15 @@ reaches it. So:
 | the nearest object a player can push had to be named by type | `has` with `"simulating": true` (and `"movable": true`), in a select or `teleport_to` |
 | the game reset the player's position every frame, undoing a teleport | `teleport` or `teleport_to` with `hold` (seconds) |
 | a lamp above matched together with one below it | `near` with `y_min`/`y_max` (world, or `y_relative` to the point) |
+| a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
+| `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
+| `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script) |
+| `teleport_to` a hovering target left the player in the air | the spot is at the target's own y plus `offset` (no ground snap): a negative y `offset`, or `hold` |
+| a sound played with `PlayOneShot` matched no `sound` select | one-shots have no clip name: read `level` in an audio play, or select the source by `owner` |
+| a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input then `<Mouse>/leftButton` |
+| an editor `shader:` value compared with `==` 0.2 read 0.19999995827674866 | floats come back as stored: `>=`/`<=` a little either side |
+| a readout read through the frame touched its rect's edge and read nothing | give the `ui` rect a margin of background around the text |
+| a probe that isn't required but passes at the start carried weight | the no-op rule covers every deterministic check: `"weight": 0` |
 | a menu that pages on real time (`Time.unscaledTime`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a probe that tests the reference's implementation ("spawnHeight = 0.92") | measure the outcome; another valid fix must pass |
 | the brief said "scenario 1" but not `-scenario 1` | `play_scene` and `play_args` always set and checked at the seed |

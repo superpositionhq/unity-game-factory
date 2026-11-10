@@ -52,9 +52,11 @@ argument for the harness, repeatable), `--keep` (keep the workspaces and the bui
    QA plays (`play_scene`, `play_args`) and where the Unity 6.3 editor is installed. Nothing of the grader's half. The
    machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, with the Unreal factory's `GF_NO_RECORDING`
    set too), so a try never enters a game's record.
-4. When the agent stops (or its time runs out), removes what Unity generated (`Library/`, `Temp/`, `Build/`), adds
-   the probe package as `Packages/com.taskprobe/`, builds and plays the agent's game and runs every check but judges,
-   trace probes and packaging, against the thresholds of step 1.
+4. When the agent stops (or its time runs out), removes the build outputs (`Temp/`, `Obj/`, `Logs/`, `Build/`,
+   `Builds/`) but keeps `Library/` (Unity's import cache, keyed by each asset's content and import settings, so what the
+   agent left there can't change what a build makes), adds the probe package as `Packages/com.taskprobe/`, builds and
+   plays the agent's game (on a desktop of its own, as the task check's plays) and runs every check but judges, trace
+   probes and packaging, against the thresholds of step 1.
 
 Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved` (every required check passed),
 `required_passed` of `required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness
