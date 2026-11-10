@@ -84,7 +84,8 @@ class Tasks(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, said):
                 task_with(*checks, seed=seed)
         for arg in ("-taskProbe", "-taskprobeseconds=99", "-batchmode", "-logFile", "-screen-width", "-force-d3d12",
-                    "-popupwindow", "--quit"):
+                    "-popupwindow", "--quit", "-projectPath", "-executeMethod", "-monitor", "-parentHWND",
+                    "-single-instance"):
             with self.assertRaisesRegex(ValueError, "can't set", msg=arg):
                 task_with(probe(play={"name": "fire", "seconds": 10, "args": [arg]}))
         with self.assertRaisesRegex(ValueError, "play_args can't set"):
@@ -175,6 +176,7 @@ class Queries(unittest.TestCase):
                                                sort_keys=True).encode()).hexdigest()[:10]
         self.assertEqual(probes.query_id(query), want)
         self.assertEqual(probes.query_id({**query, "fields": ["x", "count"]}), want)
+        self.assertEqual(want, "q64b05254ef", "the same in every run and every Python")
 
     def test_post_fields_are_asked_for_by_name_beside_the_colour_settings(self):
         task = task_with(probe("a", measure={"probe": "grading", "field": "post:Vignette.intensity"}),
@@ -448,6 +450,7 @@ class MoreFairReadings(unittest.TestCase):
     def test_the_new_readings_refuse_what_they_cant_read(self):
         for bad in ({"probe": "components", "select": {"component": "Light"}, "field": "lumens"},
                     {"probe": "objects", "select": {"tag": "A"}, "field": "spread_x"},
+                    {"probe": "audio", "select": {"sound": "Rain/*"}, "field": "count"},
                     {"probe": "audio", "field": "loudest"},
                     {"probe": "ground", "field": "height"},
                     {"probe": "ground", "xz": [0, 0], "box": [0, 0, 1, 1], "field": "height"},
@@ -609,7 +612,8 @@ class LitWhateverMadeTheLight(unittest.TestCase):
             task_with(probe(measure=measure, expect={"op": ">=", "start_times": 2}), seed=NO_FIX)
         for bad in ({**GLOW_LAMP, "field": "glow_sources"}, {**GLOW_LAMP, "field": "emissive"},
                     {**GLOW_BULB, "field": "glow_sources"},
-                    {**GLOW_BULB, "select": {"component": "MeshRenderer", "visible": False}, "field": "lit"}):
+                    {**GLOW_BULB, "select": {"component": "MeshRenderer", "visible": False}, "field": "lit"},
+                    {**GLOW_BULB, "select": {"component": "MeshRenderer", "mesh": "Bulb/SM_Bulb"}, "field": "lit"}):
             with self.assertRaises(ValueError, msg=json.dumps(bad)):
                 task_with(probe(measure=bad))
 
@@ -725,8 +729,8 @@ class UiWhateverDrawsIt(unittest.TestCase):
                           ({**UI_TEXT, "match": "AMMO("}, "isn't a regular expression"),
                           ({"probe": "ui", "select": {"rect": [0.5, 0, 0.2, 1]}, "field": "count"}, "x0 < x1"),
                           ({"probe": "ui", "select": {"kind": "box", "text": "x"}, "field": "count"}, "picks text"),
-                          ({"probe": "ui", "field": "source"}, ""),
-                          ({"probe": "ui", "field": "kind"}, ""),
+                          ({"probe": "ui", "field": "source"}, "allowed"),
+                          ({"probe": "ui", "field": "kind"}, "allowed"),
                           ({"probe": "ui", "select": {"kind": "line"}, "field": "count"}, ""),
                           ({"probe": "ui", "select": {"kind": "stroke"}, "field": "count"}, ""),
                           ({"probe": "ui", "select": {"source": "ugui"}, "field": "count"}, "")]:
