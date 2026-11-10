@@ -1581,19 +1581,26 @@ PLAYER = ("import json, os, sys, time\n"
           "    json.dump({'pid': os.getpid(), 'parent': os.getppid()}, f)\n"
           "os.replace(sys.argv[1] + '.tmp', sys.argv[1])\n"
           "time.sleep(float(sys.argv[2]))\n")
-# A stand-in for unity-heavy.ps1: while it waits for a slot it runs a helper of its own (the real one runs nvidia-smi),
-# then starts its job as the real one does and exits with its code; STAND_IN_EXIT: it gives up without starting it.
+# A stand-in for unity-heavy.ps1: it waits STAND_IN_WAIT seconds for a slot with a helper of its own running all the
+# while (the real one runs nvidia-smi as it waits), then starts its job as the real one does, releases its slot however
+# the job ends (STAND_IN_RELEASED: the file that says so) and exits with its code; STAND_IN_EXIT: it gives up without
+# starting its job.
 LIMITER = """[CmdletBinding(PositionalBinding = $false)]
 param([string]$Label, [switch]$Gpu, [Parameter(ValueFromRemainingArguments = $true)][string[]]$Command)
 if ($Command.Count -and $Command[0] -eq '--') { $Command = $Command[1..($Command.Count - 1)] }
-& ping -n 3 127.0.0.1 | Out-Null
+& ping -n ([int]$env:STAND_IN_WAIT + 1) 127.0.0.1 | Out-Null
 if ($env:STAND_IN_EXIT) { exit [int]$env:STAND_IN_EXIT }
-Start-Sleep -Seconds ([int]$env:STAND_IN_WAIT)
-$psi = New-Object Diagnostics.ProcessStartInfo $Command[0], ((@($Command | Select-Object -Skip 1) | ForEach-Object { '"' + $_ + '"' }) -join ' ')
-$psi.UseShellExecute = $false
-$proc = [Diagnostics.Process]::Start($psi)
-$proc.WaitForExit()
-exit $proc.ExitCode
+$code = 1
+try {
+  $psi = New-Object Diagnostics.ProcessStartInfo $Command[0], ((@($Command | Select-Object -Skip 1) | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+  $psi.UseShellExecute = $false
+  $proc = [Diagnostics.Process]::Start($psi)
+  $proc.WaitForExit()
+  $code = $proc.ExitCode
+} finally {
+  if ($env:STAND_IN_RELEASED) { Set-Content -LiteralPath $env:STAND_IN_RELEASED -Value released }
+}
+exit $code
 """
 
 
@@ -1652,10 +1659,11 @@ class Jobs(unittest.TestCase):
         return found["pid"], found["parent"]
 
     def test_the_wait_for_a_slot_isnt_the_jobs_time(self):
-        # (the job outlasts a look at the process tree, a PowerShell query of up to a few seconds on a busy machine)
+        # (any look at the process tree during the wait, a PowerShell query of up to a few seconds on a busy machine,
+        # finds the limiter's helper: taken for the job, it started the 6 s during the wait)
         with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "6"}):
-            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(6)"], self.tmp, 9)
-        self.assertEqual((found.exit_code, found.timed_out), (0, False), "its 9 s count from the job's start")
+            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(3)"], self.tmp, 6)
+        self.assertEqual((found.exit_code, found.timed_out), (0, False), "its 6 s count from the job's start")
         self.assertGreater(found.waited, 6, "the limiter's wait, its own helper's run included")
 
     def test_a_limiter_that_never_starts_its_job_still_ends(self):
@@ -1671,14 +1679,22 @@ class Jobs(unittest.TestCase):
         self.assertGreater(found.waited, 6, "the limiter's wait, though no look found the job: never its own time")
 
     def test_a_timeout_kills_the_job_and_the_player_desk_py_started(self):
+        run = unity.run
         for machine in (self.direct, self.limited):
             argv, info = self.play(60)
-            with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "0"}):
-                found = machine.job("t", argv, self.tmp, 4, gpu=True)
+            released, leaps = self.tmp / f"released{len(self.pids)}", itertools.count()
+
+            def clock():  # once the player runs, every look at the clock finds the job's time up
+                return time.monotonic() + (1000 * next(leaps) if info.exists() else 0)
+
+            with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.object(unity, "run", lambda *a, **k: run(
+                    *a, clock=clock, **k)), mock.patch.dict(os.environ, {"STAND_IN_RELEASED": str(released)}):
+                found = machine.job("t", argv, self.tmp, 60, gpu=True)
             player, desk_py = self.ran(info)
             self.assertEqual((found.exit_code, found.timed_out), (None, True))
             self.assertFalse(alive(player), "the player")
             self.assertFalse(alive(desk_py), "desk.py")
+            self.assertEqual(released.is_file(), machine is self.limited, "the limiter got its grace to release")
 
     def test_an_interrupt_kills_the_job_and_the_player_desk_py_started(self):
         run = unity.run
