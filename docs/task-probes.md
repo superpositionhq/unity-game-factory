@@ -992,17 +992,17 @@ task is void.
   the code and assets at `seed.commit` and `seed.reference`, never guessed. An instantiated prefab is named
   `<Prefab>(Clone)`, and a wildcard takes in every name it fits (`Coin*` matches `CoinSpawner` too): select the
   objects you mean, and check in the fix's play what a select reached.
-- **Count what the player sees placed.** Trees painted on a Terrain are one object and one component but many pieces:
-  count with `pieces`, so a fair build that dressed the scene another way still passes. When a fair build may also
-  combine them (many props merged into a few meshes), count the geometry drawn: `visible_triangles`, calibrated or
-  relative to the start.
-- **Off is not gone from the counts.** A lamp switched off by disabling its Light or by intensity 0 is still an active
-  object: read `lit` of the lamp, not `count` or `visible` of the object.
+- **Count what the player sees placed.** A fix that moves props onto a Terrain as painted trees has fewer objects and
+  components but as many pieces: count with `pieces`, so a fair build that dressed the scene another way still passes.
+  When a fair build may also merge them (many props combined into a few meshes, or one), count the geometry drawn:
+  `visible_triangles`, calibrated or relative to the start.
+- **Off is not hidden from the counts.** A lamp switched off by disabling its Light or by intensity 0 is still a
+  component of an active object: read `lit` of the lamp, not `count` of the objects or `visible` of its Light.
 - **A lamp need not be a Light.** A build may light a lamp with a Light, or draw it with an emissive material switched
   by a property, with no Light at all: read `lit` (and `glow`, calibrated or relative to the start), which see both.
   `on`, `intensity` and the `light` probe see Lights only.
 - **A broken object still draws.** A crate broken into pieces may keep every piece drawn and tagged, so `count` and
-  `visible` can't see it go: read `simulating` or `spread` of the crate, calibrated or relative to the start.
+  `visible` can't see it go: read `simulating` of the crate, or its `spread` calibrated or relative to the start.
 - **An object can break without physics.** A build may break it by hiding a part, or by playing an animation on its
   skinned pieces, so nothing simulates and no part moves apart: read `changed` of the object (1 when anything about it
   changed since the start), so either way of breaking it reads the same.
