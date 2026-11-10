@@ -55,7 +55,7 @@ def rules():
         ('provider', re.compile(r'(?i)\banthropic\b'), 'provider'),
         # Codex (OpenAI): the tool's own names and model ids; a bare "codex" stays (games have lore codices)
         ('agent', re.compile(r'(?i)\b(?:openai[ -])?codex[ -](?:cli|exec)\b|\bopenai codex\b'), 'agent'),
-        ('agent', re.compile(r'(?i)\bgpt-\d+(?:\.\d+)?(?:-[a-z0-9]+)*\b'), 'agent-model'),
+        ('agent', re.compile(r'(?i)\bgpt-\d+(?:\.\d+)?[a-z]*(?:-[a-z0-9]+)*\b'), 'agent-model'),   # gpt-4o too
         ('provider', re.compile(r'(?i)\bopenai\b'), 'provider'),
         # file names are not addresses: Unity names a model's animation files <model>@<clip>.fbx (with their .meta), the
         # clips and controllers made from them keep the @, and so do packs' other files; a name with another .ext after
