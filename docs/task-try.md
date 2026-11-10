@@ -42,6 +42,9 @@ check's).
 - Time: the agent gets the task's `limits.max_minutes` (Claude Code also its `max_turns`), then one build and the
   plays per run. Each workspace imports every asset when the agent first opens it, and again for the grade, which
   starts without the agent's `Library/`. A long thread can take hours per run; start it before you leave the machine.
+- Ctrl+C stops the agent, everything it started and every Unity job of the try, and deletes the try's folder (unless
+  `--keep`). A workspace kept with `--keep` stays where a later try's agent could reach it, and with `--runs` above 1
+  a later run's agent could read an earlier run's: delete kept workspaces when you are done.
 
 ## What it does
 
@@ -55,7 +58,9 @@ check's).
 3. Starts the harness in the workspace with the brief as its prompt: the task's instruction, the scene and arguments
    QA plays (`play_scene`, `play_args`) and where the Unity 6.3 editor is installed. Nothing of the grader's half. The
    machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, with the Unreal factory's `GF_NO_RECORDING`
-   set too), so a try never enters a game's record.
+   set too), so a try never enters a game's record. Its environment has no `UGF_ROOT`, `UGF_CONFIG`, `UGF_OUT` or
+   `UGF_ORG` (they point at the machine root, the deliverables and the game repos), and the settings file that turns
+   Claude Code's hooks off lies in the try's own folder, so the agent's command line names no path into the game repo.
 4. When the agent stops (or its time runs out), stops whatever it left running in the workspace (an editor or a
    player: any process whose command line names the workspace), removes the build outputs and `Library/` (`Library/`,
    `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`: besides Unity's import cache, `Library/` holds the agent's editor
@@ -88,8 +93,10 @@ its plays beside it, and the brief the agent read `<task>\brief.md`; the start's
   about the task.
 - **`peeked` lists a folder** (the printed line: `transcript names ...: it may have read the answer`): the transcript
   names your game repo or tasks worktree, where the history and the answer are, or the machine root or your agent's
-  own folders (`~\.claude`, `~\.codex`, `~\.agents`: its sessions, memory and skills). That run doesn't count: the
-  cloud agent can't reach them. Run it again, or from an account that can't read those folders.
+  own folders (`~\.claude`, `~\.codex`, `~\.agents`: its sessions, memory and skills), in any spelling a shell
+  gives them (`C:\...`, `C:/...`, `/c/...`, `~/...`, `$HOME`, `$env:USERPROFILE`, `%USERPROFILE%`). That run doesn't
+  count: the cloud agent can't reach them. Run it again, or from an account that can't read those folders. A relative
+  path or a variable the agent read isn't seen, so a run without `peeked` is no proof it stayed inside.
 
 The try is advice for you. The cloud's own runs and grade decide approval, difficulty and pay. Codex runs with a home
 of its own (your login, every skill off), but Claude Code also has your own harness settings, skills and memory, which

@@ -41,15 +41,15 @@ Everything needed to rebuild the game from the repo alone, tracked in git (binar
 | `Assets/Editor/Steps/` | every editor step that ran, unchanged after it ran |
 | `Packages/manifest.json`, `Packages/packages-lock.json` | the packages, versions locked; an embedded package `Packages/<name>/` with its `.meta` files |
 | `ProjectSettings/ProjectVersion.txt` | `m_EditorVersion: 6000.3.x` (Unity 6.3 LTS) |
-| `ProjectSettings/EditorSettings.asset` | `m_SerializationMode: 2` (Force Text) and `m_ExternalVersionControlSupport: Visible Meta Files` |
-| `ProjectSettings/ProjectSettings.asset` | `companyName` the game's own studio name (a warning when it is `DefaultCompany`) |
+| `ProjectSettings/EditorSettings.asset`, `ProjectSettings/VersionControlSettings.asset` | `m_SerializationMode: 2` (Force Text) in the first; `m_Mode: Visible Meta Files` in the second, where Unity keeps the mode since 2020.1 (`m_ExternalVersionControlSupport` in EditorSettings is the obsolete place and isn't read) |
+| `ProjectSettings/ProjectSettings.asset` | the player settings (the template sets `companyName` to the game's title) |
 | `Scripts/unity.ps1` | from the template |
 | `workflow.jsonl` | the creation record, one row per operation, written when it happened (`unity-workflow/v0` rows: ids unique, `seq` strictly increasing, every `"direction"` naming an earlier `user.direction` row) |
 | `README.md` | hero image + captioned gallery of 5-7 real gameplay stills, every image committed (no gameplay image is an error; fewer or more than 5-7 is a warning) |
 | `Docs/screenshots/` | the README's stills (JPG, LFS) |
 | `assets.manifest.json` | every external asset in `assets-manifest/v1` (below) |
 | `Docs/ThirdPartyNotices.md` | credits and licences |
-| `.gitattributes` | the template's: every binary type in Git LFS (and `LightingData`, `NavMesh*`, `TerrainData*` `.asset` files under `Assets/` by path); Unity's YAML (`.unity`, `.prefab`, `.mat`, `.meta`, `.controller`, `.anim`, ...) and C# stay plain git text. A binary type in plain git, or YAML in LFS, is an error; binary content under any other name in plain git is a warning |
+| `.gitattributes` | the template's: every binary type in Git LFS (and `LightingData`, `NavMesh*`, `TerrainData*` `.asset` files under `Assets/` by path: `ProjectSettings/NavMeshAreas.asset` is YAML); Unity's YAML (`.unity`, `.prefab`, `.mat`, `.meta`, `.controller`, `.anim`, ...) and C# stay plain git text. A binary type in plain git, or YAML in LFS (an `.asset` Unity wrote as YAML included), is an error; binary content under any other name in plain git is a warning |
 | `.gitignore` | the template's: Unity's generated folders (`Library/`, `Temp/`, `Obj/`, `Logs/`, `UserSettings/`, `Build/`, `Builds/`) and `/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/` ignored; nothing the game is made of (`Assets/` at any depth, a pack's own `Build/` or `Library/` folder included, `Packages/`, `ProjectSettings/`, `RawAssets/`, `Docs/`, `Scripts/`) |
 | `Dataset/` | the dataset minus `UnityProject/`, `Build/`, `History/` and `Tasks/` (written by the packager, which is not available yet: until it is, the folder stays as the template made it) |
 

@@ -131,12 +131,12 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       For a game that sets its player's ground position every frame, which would otherwise undo a teleport at once.
       Without `hold`, a teleport places the player once;
     - a wait in real time: `{"t": 8.0, "wait": 30}` (seconds, more than 0). Plays run on a fixed 30 fps clock as fast
-      as the machine renders, so what runs on the wall clock (a menu that pages on `Time.realtimeSinceStartup`, a timer
-      on the system clock) sees less real time than the play's seconds. At `t` the play's clock holds while the game
-      keeps running, paced to real time (each frame waits for the wall clock to catch up with the game's own time),
-      until `wait` real seconds and `wait` seconds of game time have both passed; nothing is sampled, sent or
-      screenshot meanwhile; then the play goes on from `t`. A play's waits add at most 300 s in all, and its timeout
-      grows by them; `seconds`, windows and `at` stay in play time, within 120 s.
+      as the machine renders, so what runs on the wall clock (a menu that pages on `Time.unscaledTime` or
+      `Time.realtimeSinceStartup`, a timer on the system clock) sees less real time than the play's seconds. At `t`
+      the play's clock holds while the game keeps running, paced to real time (each frame waits for the wall clock to
+      catch up with the game's own time), until `wait` real seconds and `wait` seconds of game time have both passed;
+      nothing is sampled, sent or screenshot meanwhile; then the play goes on from `t`. A play's waits add at most
+      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 120 s.
   - A play that measures audio (an `audio` measure, section 2.16) runs paced to real time, so its sounds keep time
     with the game; every other play runs as fast as the machine renders. No play is heard on the machine (section
     2.16).
@@ -159,7 +159,10 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
 - **The clock.** A play runs at a fixed 30 frames a second (`Time.captureFramerate`: play time is frames / 30, and
   every `t`, `window` and `at` is play time), as fast as the machine renders. It starts at 0 when the play's scene has
   loaded, **holds while any scene is still loading** (an async load takes real time, not game time) and during a
-  `wait`, and keeps counting when the game pauses itself (`timeScale` 0).
+  `wait`, and keeps counting when the game pauses itself (`timeScale` 0). The game's `Time.time` runs on this clock.
+  `Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the system clock follow the wall
+  clock instead: a 20 s play takes a few seconds of them, a different number every time, so whatever a game drives by
+  them hardly advances in a play and differs between two plays. Give it real time with a `wait`.
 - **Saved data.** Every play starts from clean saved data. The checker's build gives the copy's player a company name
   of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so its PlayerPrefs and
   `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts.
@@ -299,12 +302,11 @@ renderers, else its position.
     scene, a drawn mesh renderer whose material gives off light, from its material properties or else as rendered, or
     a live particle system that draws light; section 2.5); `visible: true` keeps a Renderer that is drawn, as the
     components `visible` field reads a Renderer; `near` measures from the part's own place, not the object's. At least
-    one key, and only `true` for `lit`, `visible`, `simulating` and `movable` (below). The way to select by what an
-    object does ("an object that gives light", "an object with a drawn mesh near here") rather than by the type or
-    name a build gave it. It works in every object select: these, other measures' (`owner`, `ground`), points
-    (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true`
-    (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) and `"movable": true` (the part's
-    object isn't marked Static: Unity's counterpart of Movable mobility) find an object by what it can do:
+    one key, and only `true` for `lit`, `visible` and `simulating` (below). The way to select by what an object does
+    ("an object that gives light", "an object with a drawn mesh near here") rather than by the type or name a build
+    gave it. It works in every object select: these, other measures' (`owner`, `ground`), points (section 2.13) and
+    `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true` (the part is, or
+    belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can do:
     `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
     whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
@@ -340,7 +342,8 @@ renderers, else its position.
     moved: its bones more than 0.05 m in all, in the mesh's own space, or its local bounds more than 0.01 m. So an
     object that breaks by hiding a part, or by animating its pieces in place with no physics, reads 1, as one that
     moves does; one left alone reads 0. An object animated from the start (a looping idle) reads 1 too: read it after
-    the start of the play that matters, or read `pose_change`;
+    the start of the play that matters, or read `pose_change`. Its descendants' parts count as its own: a spawner
+    with no renderer reads 1 once the things it spawns as its children appear or move;
   - `bounds_change` (m): the furthest any face of a part's world bounds moved since that first sample, the largest
     over its parts; `pose_change` (m): how far its skinned meshes' bones moved since then in their own space, summed
     over every bone (no value without a SkinnedMeshRenderer). **Their thresholds are calibrated or relative to the

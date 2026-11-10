@@ -393,10 +393,10 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a lamp lit only by particles read dark | `lit` and `glow` as they are: particle systems are sources |
 | a beam's length had no reading | `drawn` along a `line` from its source: `reach` or `length`, calibrated or relative to the start |
 | a surface's tint change (not emissive) had no reading | `drawn` `near` it: `base_r`/`base_g`/`base_b` or `base_change`, calibrated or relative to the start |
-| the nearest object a player can push had to be named by type | `has` with `"simulating": true` (and `"movable": true`), in a select or `teleport_to` |
+| the nearest object a player can push had to be named by type | `has` with `"simulating": true`, in a select or `teleport_to` |
 | the game reset the player's position every frame, undoing a teleport | `teleport` or `teleport_to` with `hold` (seconds) |
 | a lamp above matched together with one below it | `near` with `y_min`/`y_max` (world, or `y_relative` to the point) |
-| a menu that pages on real time (`Time.realtimeSinceStartup`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
+| a menu that pages on real time (`Time.unscaledTime`, `Time.realtimeSinceStartup`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script) |
