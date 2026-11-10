@@ -163,8 +163,10 @@ row ids in commit messages are fine.
 
 ## Replay-friendly work
 
-The dataset's replay scripts rebuild your game from its history, step by step, so what it cannot replay costs a
-manual workaround at release:
+The dataset's `ReplayScripts/` rebuilds your game from its history, step by step. Not available yet: the creation
+replay comes with the recording pipeline, so nothing replays your commits today; these rules are what makes your
+history replayable when it arrives, and `workflow.jsonl` already depends on them. What it cannot replay costs a manual
+workaround at release, so:
 
 - **Every editor step committed** under `Assets/Editor/Steps/` and run through
   `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."`. Never run one from a scratch or temp
@@ -190,19 +192,34 @@ manual workaround at release:
 > getting stuck; losing, timing out or wandering is fine (metadata). Fix only game bugs (crash, hang, broken scene,
 > missing art, lighting, camera); then one AutoPlay run per scenario and the recording request.
 
-- Once the first scenario is playable end to end, implement `docs/autoplay-contract.md` (Unity contract v1): the
-  player reads `-autoplay -scenario <n>`, the game supplies `StartScenario(n)` (load scenario n's scene), calls
-  `ScenarioStarted(name)` and `FinishRun(result)`, and a bot that acts **only** through Input System injection
-  (`InputSystem.QueueStateEvent` / `QueueDeltaStateEvent` on the bot's virtual devices, never `SendInput` and never by
-  calling gameplay code directly), Skill-scaled and human-like (no snapping camera, no jump spam).
-- Test once by hand per the contract's testing section with a player build through `Scripts/unity.ps1 play`, check
-  the run's files are well formed (the bot plays like a human, but its score never holds up a release). Tag
-  `milestone/autoplay-<n>` (scenarios 1..n work).
-- **Framing gate:** before asking for a recording, take 8-10 screenshots from one short bot run (open areas, narrow
-  spaces, crouched, against walls; `ScreenCapture.CaptureScreenshot` from the bot, so it needs a rendered run) and check
-  the camera rules above; send them with the request.
-- **Never queue a recording yourself.** Only the coordinator queues recordings (one GPU recording at a time). Message
-  the coordinator: commit sha, tag, scenarios ready, the run check result, screenshot paths.
+Not available yet: the AutoPlay drop-in (the `AutoPlay` class a game's code calls), the run checker, the recorder and
+the recording queue; they come with the recording pipeline (`docs/autoplay-contract.md` and `docs/unity-pipeline.md`
+hold the plan). Until the drop-in is in the repo, write no AutoPlay code, no bot and no `AutoPlay` class of your own:
+code against the drop-in does not compile without it, and a stand-in would not match it. The rules of this section
+bind the day it arrives; until then, do what each bullet says to do today.
+
+- Once the first scenario is playable end to end, make the game ready for AutoPlay (`docs/autoplay-contract.md`,
+  "Until the drop-in is here"): every scenario starts from the command line with `-scenario <n>` (1-based, the design
+  doc's numbers: what `Scripts/unity.ps1 play -Scenario <n>` passes and what a task's `play_args` use); all input is
+  read through the Input System; the game never pauses or mutes on focus loss (`Application.runInBackground`, which
+  the template sets); every action is reachable by input (hotkeys for what is otherwise UI-only). The design doc lists
+  scenarios 1..n (start state, win/lose) and its status section says AutoPlay is open. Once the drop-in is here,
+  implement `docs/autoplay-contract.md` (Unity contract v1): the drop-in stays unchanged; the game supplies
+  `StartScenario(n)` (load scenario n's scene), calls `ScenarioStarted(name)` and `FinishRun(result)`, and has a bot
+  that acts **only** through the drop-in's input calls (Input System injection), Skill-scaled and human-like (no
+  snapping camera, no jump spam).
+- With the drop-in, test once by hand per the contract's section 7 with a rendered run through `Scripts/unity.ps1
+  play`; then the run checker (not available yet) must pass (the run's files are well formed; the bot plays like a
+  human, but its score never holds up a release). Tag `milestone/autoplay-<n>` (scenarios 1..n work).
+- **Framing gate:** take 8-10 screenshots of one short rendered run (open areas, narrow spaces, crouched, against
+  walls) and check the camera rules above. Until the drop-in is here the run is not a bot run (not available yet): run
+  the built player once per scenario at most with `Scripts/unity.ps1 play -Render -Scenario <n> -Seconds <s> -Extra
+  "<flag>"`, where `<flag>` is a command-line argument of the game's own choosing that makes it save its own frames as
+  JPG (`ScreenCapture.CaptureScreenshotAsTexture` after `WaitForEndOfFrame`, then `EncodeToJPG`;
+  `ScreenCapture.CaptureScreenshot` writes PNG); no retakes for looks. They are the README's screenshots too.
+- **Never queue a recording yourself.** Only the coordinator queues recordings (one GPU recording at a time); the
+  queue is not available yet, so never request or wait for one. Message the coordinator what is ready: commit sha,
+  the scenarios that start with `-scenario <n>`, the release build's result, screenshot paths.
 
 ## Priorities (user decision)
 
@@ -217,20 +234,22 @@ no re-runs or re-recordings to improve how the bot plays. No retest loops: every
 machine and holds up delivery, so run the minimum once and report; re-run only when the user asks. Game-session work
 never blocks dataset packaging or sharing.
 
-## Dataset
+## Dataset (layout unity-dataset-layout/v1)
 
-A finished game ships as: `README.md, git.log, workflow.jsonl, Brief/, History/, UnityProject/, ReplayScripts/,
-Gameplay/<slug>_S<n>.mp4, Screenshots/, Build/, manifest.json` (docs/game-format.md). The repo's `Dataset/` folder holds
-the same minus `UnityProject/`, `Build/` and `History/`; the packager produces it and you commit it. The full dataset
-zip is `Dataset.zip` in the game folder, next to `Dataset/`: git-ignored (with `.dataset/`, the packager's scratch),
-never committed.
+A finished game ships as: `README.md, git.log, workflow.jsonl, Brief/, History/, Tasks/, UnityProject/,
+ReplayScripts/, Gameplay/<slug>_S<n>.mp4, Screenshots/, Build/, manifest.json` (docs/game-format.md). The repo's
+`Dataset/` folder holds the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`; the packager produces it and
+you commit it. The full dataset zip is `Dataset.zip` in the game folder, next to `Dataset/`: git-ignored (with
+`.dataset/`, the packager's scratch), never committed. The packager is not available yet: until it is, `Dataset/`
+stays as the template made it, nobody assembles a dataset or `Dataset.zip` by hand, and `validate-game.py`'s "not
+packaged yet" warning is expected.
 
 **README screenshots (user rule; required before the game is called content-complete).** `Docs/screenshots/` holds
 5-7 real gameplay stills (JPG, in Git LFS; from validated recordings' stills or the framing-gate screenshots, not from
-extra GPU launches; no editor views, debug overlays or placeholder art). The README shows them as a hero image plus a
-captioned gallery (one line per image saying what it shows). Every image the README links must be committed: after
-pushing, open the repo page on github.com and check that each image renders (a link to a file that was never committed
-shows as a broken image).
+extra GPU launches; until recordings exist, the framing gate's frames; no editor views, debug overlays or placeholder
+art). The README shows them as a hero image plus a captioned gallery (one line per image saying what it shows). Every
+image the README links must be committed: after pushing, open the repo page on github.com and check that each image
+renders (a link to a file that was never committed shows as a broken image).
 
 **Game format (docs/game-format.md).** Before calling the game content-complete,
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` must say VALID: required files,
@@ -254,7 +273,8 @@ session against the bar (unity-write-tasks skill, section 6); never run a task w
 
 ## Working with the coordinator
 
-- Report milestones, recording requests and blockers to the coordinator; put long findings in the shared notes folder.
+- Report milestones, what is ready for a recording ("AutoPlay and recordings" above) and blockers to the coordinator;
+  put long findings in the shared notes folder.
 - User playtest feedback arrives through the coordinator: fix it first, commit, report the sha.
 - **Every human direction is recorded before you act on it** (from the user directly, or relayed by the coordinator):
   rewrite a user message to you as a direction (what to change and why, one or two neutral sentences: no tone,
