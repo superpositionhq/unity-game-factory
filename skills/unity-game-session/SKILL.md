@@ -35,16 +35,17 @@ by hand under these rules, or ask.
    `from_transcript`). It writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text, the editor
    tools assembly, LFS for every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row, the commit
    recorder hook, the first commit, the first editor open (packages, URP, Input System, TextMeshPro's essential
-   resources, player settings; a second commit) when the editor is installed, and the private repo `<org>/unity-game-<slug>` (`github_org` in the machine
-   config; not pushed).
+   resources, player settings; a second commit) when the editor is installed, and the private repo
+   `<org>/unity-game-<slug>` (`github_org` in the machine config; not pushed). When it says the first open did not run
+   or failed (no editor, no licence), run `Scripts/unity.ps1 setup` once that is fixed, then commit.
 3. Write the design doc + story bible in unity-game-factory `docs/games/<slug>.md` before building: systems, classes,
-   ScriptableObjects, scenes, prefabs, scenarios 1..n (start state + win/lose), art and audio direction, acceptance
-   checklist. Keep its status section current. It is the only unity-game-factory file you edit.
+   ScriptableObjects, scenes, scenarios 1..n (start state + win/lose), art and audio direction, acceptance checklist.
+   Keep its status section current. It is the only unity-game-factory file you edit.
 
 ## Machine rules (shared PC, several sessions at once)
 
 - **Every heavy job goes through the limiter:** any `Unity.exe` run (batchmode steps, compiles, tests, player builds),
-  any run of a built player, any long `dotnet`/MSBuild job:
+  any run of a built player:
   `& <UGF_ROOT>\tools\unity-heavy.ps1 -Label "<slug> <what>" -- <exe> <args...>` (general slots, plus one of the
   machine-wide GPU slots for anything that renders; waits for GUI programs; returns the job's exit code). From Git Bash:
   `powershell -Command "& '<UGF_ROOT>\tools\unity-heavy.ps1' -Label '...' -- '<exe>' args; exit $LASTEXITCODE"`
@@ -52,12 +53,12 @@ by hand under these rules, or ask.
   The slots are shared with the Unreal game-factory if this machine runs both (same machine-wide mutexes).
 - **GPU:** several GPU jobs run at once (one per GPU slot, each starting only while the VRAM guard allows; the counts
   come from the machine's hardware, docs/unity-pipeline.md "Machine-wide slots"); a recording takes all of them. Keep
-  GPU runs short, prefer `-batchmode -nographics` for logic (editor steps, EditMode tests, a headless player run),
-  close the process when done, at most one Unity process of yours alive.
+  GPU runs short, prefer `-nographics` (every `unity.ps1` run without `-Render`) for logic tests, close the process
+  when done, at most one editor of yours alive. Recordings have priority (unity-heavy yields to them).
 - **One Unity process per project:** Unity locks the project (`Temp/UnityLockfile`). Never start a batchmode run while
   another Unity process (a GUI editor included) has the same project open; it fails with "another Unity instance is
   running with this project open". Never open the GUI editor on the project yourself; the person may, and then your
-  batchmode runs wait until they close it.
+  batchmode runs fail until they close it: wait, or ask them.
 - Toolchain facts: the editor needs an activated licence (Unity Hub, a Unity ID; Personal is fine) even in batchmode,
   or every run exits with a licensing error. IL2CPP player builds need the Windows Build Support (IL2CPP) module and
   Visual Studio 2022's C++ workload; Mono builds need neither. `-runTests` must not be combined with `-quit` (the test
@@ -67,7 +68,9 @@ by hand under these rules, or ask.
   the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
   Unity writes the platform's batching entry into `ProjectSettings.asset`. Commit them with the build's row; later
   builds change them only when the rendering settings change. `unity.ps1 play` exits 124 when it stops a player after
-  `-Seconds`: that is the timeout doing its job, not a crash (read the player log for exceptions).
+  `-Seconds`: that is the timeout doing its job, not a crash (read the player log for exceptions). A player can take
+  15-20 s to load its first scene on a busy machine (a 15 s headless play logged nothing past the engine's start):
+  give `-Seconds` room.
 - Unity's paths under `Library/PackageCache/` are long, and the editor fails past 260 characters even with Windows
   long paths enabled (a package then fails to import with `DirectoryNotFoundException`): keep the machine root short
   (the default `C:\Users\<you>\UnityWork` is fine) and never build a game from a deep folder.
@@ -75,12 +78,13 @@ by hand under these rules, or ask.
 
 ## Engine and content
 
-- **Unity 6.3 LTS** (`6000.3.x`, pinned in `ProjectSettings/ProjectVersion.txt`) for every game; never upgrade a
-  game's editor version without the coordinator. **URP** (Universal Render Pipeline) with the Universal Renderer,
-  Linear colour space, the **Input System** package as the only active input handling, **Cinemachine 3** for cameras.
-  The template's first open sets these up.
-- **C# for gameplay** (`Assets/Scripts/`, its own assembly definition), ScriptableObjects for tuning data, prefabs for
-  everything placed more than once. **Editor work through committed C# editor steps** (`Assets/Editor/Steps/`), run
+- **Unity 6.3 LTS** (`6000.3.x`, pinned in `ProjectSettings/ProjectVersion.txt`; the tools pick each project's editor
+  from that file) for every game; never upgrade a game's editor version without the coordinator. **URP** (Universal
+  Render Pipeline) with the Universal Renderer, Linear colour space, the **Input System** package as the only active
+  input handling, **Cinemachine 3** for cameras. The template's first open sets these up.
+- **C# for gameplay** (`Assets/Scripts/`, in its own assembly definition: a test assembly cannot reference Unity's
+  default one), ScriptableObjects for tuning data, prefabs for everything placed more than once. **Editor work through
+  committed C# editor steps** (`Assets/Editor/Steps/`), run
   headless with `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."` (Unity `-batchmode
   -executeMethod`). Never hand-edit the YAML of scenes, prefabs, materials or `.asset` files: one wrong `fileID` or
   GUID silently breaks references. Build scenes, prefabs and materials from code (`EditorSceneManager`,
@@ -108,14 +112,14 @@ by hand under these rules, or ask.
   the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
 - **Art (user rule):** premium, coherent, never primitives or flat colours in the final game. Use the bought and
   downloaded Unity Asset Store packs and the animation packs (library `<UGF_ROOT>\asset-library\`); characters and
-  creatures animated. Store content goes in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed
-  with its `.meta` files through Git LFS where binary and never git-ignored (the repo stays private;
-  unity-commit-always skill, "Store packs are committed"). Import a `.unitypackage` with an editor step
-  (`AssetDatabase.ImportPackage(path, false)`, run with `-NoQuit`: above), then adapt it (URP materials, prefab
-  variants, set dressing, lighting). Record every external asset in `assets.manifest.json` (format `assets-manifest/v1`: URL, licence,
-  version, the repo paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as a normal
-  developer would. Need more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP support, what it
-  replaces) in your design doc and message the coordinator.
+  creatures animated. Store content in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed with
+  its `.meta` files, through Git LFS where binary, and never git-ignored (the repo stays private; unity-commit-always
+  skill, "Store packs are committed"); import a `.unitypackage` with an editor step (`AssetDatabase.ImportPackage(path,
+  false)`, run with `-NoQuit`: above); adapt it (materials, kitbash, set dressing, lighting). Record every external
+  asset in `assets.manifest.json` (format `assets-manifest/v1`, docs/game-format.md: URL, licence, version, the repo
+  paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as a normal developer would. Need
+  more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP support, what it replaces) in your
+  design doc and message the coordinator.
 - **Sound:** every sound effect comes through the **unity-sound** skill (read it before writing the audio direction):
   cues listed in the design doc, clips chosen by their numbers and measured with `tools/sfx.py`, CC0 or CC BY only,
   recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep.
@@ -128,10 +132,10 @@ by hand under these rules, or ask.
   play.
 - **Camera (user rule):** gentle; the user gets motion sick. Third person: character in the lower third, never filling
   the screen, never at hip height or jammed into the body (Cinemachine's Deoccluder or Decollider in narrow spaces,
-  crouching; damping instead of snapping).
-- **Quality bar:** main menu, settings (volume through AudioMixer groups, resolution, mouse sensitivity), pause,
-  save/load where it fits, HUD, sound, clear win/lose, a Windows x64 release player build (non-development, IL2CPP
-  where the toolchain has it, else Mono, noted in the design doc). Recorded and TTS voices are allowed.
+  crouching).
+- **Quality bar:** main menu, settings (volume, resolution, mouse sensitivity), pause, save/load where it fits, HUD,
+  sound, clear win/lose, a Windows x64 release player build (non-development, IL2CPP where the toolchain has it, else
+  Mono, noted in the design doc). Recorded and TTS voices are allowed.
 
 ## Names
 
@@ -166,21 +170,19 @@ replay comes with the recording pipeline, so nothing replays your commits today;
 history replayable when it arrives, and `workflow.jsonl` already depends on them. What it cannot replay costs a manual
 workaround at release, so:
 
-- **Every editor step committed** under `Assets/Editor/Steps/` and run through
-  `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."`. Never run one from a scratch or temp
-  folder, never run an editor step by clicking a menu item, and never leave a step uncommitted after it ran.
-- **A step that ran is never edited:** write `BuildTownV2` (a new class or method, in a new file) instead, so the row's
-  `source.sha256` still matches the code that ran. Gameplay code under `Assets/Scripts/` is edited normally.
+- **Every editor step committed** under `Assets/Editor/Steps/` and run by its method through
+  `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."`. Never run a step from a scratch or temp
+  folder.
 - **Relative paths only**: steps reach files through the project (`Application.dataPath`, `"Assets/..."` asset paths,
-  `Directory.GetCurrentDirectory()` which is the project root in batchmode), never an absolute path to
-  `games\<slug>`.
+  `Directory.GetCurrentDirectory()`, which is the project root), never an absolute path to `games\<slug>` or a
+  `Directory.SetCurrentDirectory` into it.
 - **Read-only steps by name**: probes and checks are `Inspect*`, `Measure*`, `Check*`, `Analyze*`, `Scan*` or contain
   `Probe`; the replay skips them. One that writes something a later step reads is named otherwise.
 - **One workflow row per run at least**, written by the step.
-- **Edit files with the agent's own file tools** (Claude Code: Write/Edit; Codex: apply_patch), not `sed -i`,
-  `perl -i` or a Python rewrite: those hide the text at run time from the replay.
-- **No GUI-only edits for content:** anything the person does in the editor GUI is recorded only as the YAML diff; do
-  content work in an editor step.
+- **Edit scripts with the agent's own file tools** (Claude Code: Write/Edit; Codex: apply_patch), and never a step
+  that ran: write `BuildTownV2` (a new class in a new file), so its rows' `source.sha256` still match the code that
+  ran. A `sed -i`/`perl -i`/Python rewrite of a script hides its text at run time from the replay.
+- **No GUI-only edits for content** (a GUI edit leaves only its YAML diff, nothing to replay): do it in an editor step.
 - **Never amend or rebase** a commit you made.
 
 ## AutoPlay and recordings
@@ -281,6 +283,6 @@ session against the bar (unity-write-tasks skill, section 6); never run a task w
   then the work, with `"direction": "<row id>"` on each row that acts on it and `Direction: <row id> (...)` in each
   commit body (unity-commit-always skill, "workflow.jsonl"). The dataset shows the human's directions and what they
   led to.
-- Blocked (a licence, a purchase, an editor limit)? Write it in your design doc, message the coordinator once, carry
-  on with what you can.
+- Blocked (UAC, a Unity licence, a purchase, an engine limit)? Write it in your design doc, message the coordinator
+  once, carry on with what you can.
 - Push only when the coordinator says (unity-commit-always skill).
