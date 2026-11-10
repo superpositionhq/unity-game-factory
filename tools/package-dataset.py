@@ -41,7 +41,7 @@ package). Then it writes the zip and, unless --no-repo-dataset, the repo's Datas
 UnityProject/, Build/, History/ and Tasks/) for the game session to commit. Nothing is committed here, and the game
 repo's history is not changed. Scratch: <repo>/.dataset/ (git-ignored). Standard library, Python 3.10+, git, git-lfs.
 """
-import argparse, base64, getpass, hashlib, importlib.util, json, os, re, shutil, socket, subprocess, sys, time, zipfile
+import argparse, base64, getpass, hashlib, importlib.util, json, os, re, shutil, socket, stat, subprocess, sys, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -101,6 +101,16 @@ def write_text(path, text):
 def copy_file(src, dst):
     os.makedirs(lp(os.path.dirname(dst)), exist_ok=True)
     shutil.copyfile(lp(src), lp(dst))
+
+
+def remove_tree(path):
+    """shutil.rmtree that also deletes read-only files: git writes its pack files read-only, and on Windows rmtree
+    cannot delete those (the scratch's <slug>.history.git stayed behind and stopped the next run)."""
+    def writable_then_again(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+    if os.path.isdir(lp(path)):
+        shutil.rmtree(lp(path), onerror=writable_then_again)
 
 
 def files_under(root):
@@ -898,8 +908,7 @@ def package(args):
         print(f'  would write {os.path.join(out_root, "Dataset.pending.zip")} (pending: {", ".join(PENDING)})')
         return 0
     ugfroot.check_free(out_root, 'package-dataset')
-    if os.path.isdir(lp(scratch)):
-        shutil.rmtree(lp(scratch))
+    remove_tree(scratch)
     os.makedirs(lp(stage))
 
     # ---- the delivered history: rewrite, bundle, LFS objects, git.log ----
@@ -1031,7 +1040,7 @@ def package(args):
         task_rows.append({'name': stem, 'title': task.get('title', ''), 'kind': seed.get('kind', 'new game'),
                           'difficulty': task.get('difficulty', 'medium')})
     write_text(os.path.join(stage, 'Tasks', 'README.md'), tasks_readme(game, task_rows))
-    shutil.rmtree(lp(tasks_tmp))
+    remove_tree(tasks_tmp)
 
     # ---- README, then the scrub and the scan of everything ----
     ses_files = [n for n in ('messages.jsonl', 'actions.jsonl') if os.path.isfile(lp(os.path.join(hist, 'sessions', n)))]
@@ -1138,18 +1147,22 @@ def package(args):
             for n in os.listdir(ds):
                 if n != '.gitattributes':
                     p = os.path.join(ds, n)
-                    shutil.rmtree(lp(p)) if os.path.isdir(p) else os.remove(p)
+                    remove_tree(p) if os.path.isdir(p) else os.remove(p)
         for rel in files_under(stage):
             if rel.split('/')[0] in ('git.log', 'workflow.jsonl', 'Brief', 'Screenshots'):
                 copy_file(os.path.join(stage, *rel.split('/')), os.path.join(ds, *rel.split('/')))
         write_text(os.path.join(ds, 'README.md'), apply_rules(dataset_readme(ctx, True), rules, False, False))
+        # the files are committed byte for byte as manifest.json lists them: no line-ending conversion (Git for Windows'
+        # core.autocrlf with the template's "* text=auto" checks them out with CRLF, and every size and sha256 differs)
+        write_text(os.path.join(ds, '.gitattributes'), '* -text\n' + ''.join(
+            f'*.{e} filter=lfs diff=lfs merge=lfs -text\n' for e in ('mp4', 'png', 'jpg', 'jpeg', 'webp')))
         write_manifest(ds, dict(base, variant='repo-dataset', history=None, build=None, tasks=None))
         rv = validate(ds, True)
         if rv['errors']:
             for e in rv['errors'][:30]:
                 print('  x ' + e)
             raise Refused(f'{ds} is not valid ({len(rv["errors"])} error(s))')
-    shutil.rmtree(lp(bare), ignore_errors=True)
+    remove_tree(bare)
 
     sizes = {}
     for rel in files_under(stage):

@@ -180,7 +180,9 @@ class Package(unittest.TestCase):
         rep = vg.Report()
         vg.check_dataset(rep, ds, 'dataset')
         self.assertEqual(base.errors(rep), [])
-        self.assertEqual(sorted(os.listdir(ds)), ['Brief', 'README.md', 'Screenshots', 'git.log', 'manifest.json', 'workflow.jsonl'])
+        self.assertEqual(sorted(os.listdir(ds)), ['.gitattributes', 'Brief', 'README.md', 'Screenshots', 'git.log', 'manifest.json',
+                                                  'workflow.jsonl'])
+        self.assertTrue(base.read(os.path.join(ds, '.gitattributes')).startswith('* -text\n'))   # committed byte for byte
         self.assertIsNone(json.loads(base.read(os.path.join(ds, 'manifest.json')))['history'])
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.history.git')))
         self.assertEqual(base.git(self.inp['repo'], 'rev-parse', 'HEAD'), self.inp['head'])   # the game's history is not changed
@@ -214,6 +216,28 @@ class Refusals(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset')))
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+
+    def test_a_second_run(self):
+        # git writes its pack files read-only: the first run's scratch must not stop the second (on Windows it did)
+        for _ in range(2):
+            r = run(self.inp, '--no-repo-dataset')
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.history.git')))
+
+    def test_the_committed_dataset_folder_checks_out_unchanged(self):
+        # a session commits Dataset/, and a checkout with core.autocrlf (Git for Windows' default) must give back the bytes
+        # manifest.json lists
+        r = run(self.inp)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        repo = self.inp['repo']
+        base.git(repo, 'config', 'core.autocrlf', 'true')
+        base.git(repo, 'add', 'Dataset')
+        base.git(repo, 'commit', '-q', '-m', 'Commit the dataset folder')
+        shutil.rmtree(os.path.join(repo, 'Dataset'), onerror=base.onerror)
+        base.git(repo, 'checkout', '--', 'Dataset')
+        rep = vg.Report()
+        vg.check_dataset(rep, os.path.join(repo, 'Dataset'), 'dataset')
+        self.assertEqual(base.errors(rep), [])
 
     def test_a_name_in_a_binary_is_reported_and_refused_only_when_strict(self):
         base.write(self.inp['build'], 'KilnRun_Data/level0', b'\0\1\2' + b'built by unity-game-factory tools' + b'\0\1')
