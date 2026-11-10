@@ -3,7 +3,8 @@ and a full Dataset.zip) and one broken variant per rule. Fixtures are made with 
 
     python -m unittest discover -s tools/tests -p "test_validate_game.py" -v
 """
-import hashlib, importlib.util, io, json, os, re, shutil, stat, subprocess, sys, tempfile, unittest, unittest.mock, zipfile
+import hashlib, importlib.util, io, json, os, re, shutil, stat, subprocess, sys, tempfile, unittest, unittest.mock, warnings
+import zipfile
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TOOLS)
@@ -913,6 +914,20 @@ class Units(unittest.TestCase):
         self.assertNotIn('reference', agent['seed'])
         self.assertEqual(grader, {'name': t['name'], 'seed': {'reference': 'b' * 40}, 'milestones': t['milestones']})
         self.assertEqual(dict(agent, milestones=grader['milestones'], seed=dict(agent['seed'], **grader['seed'])), t)
+
+    def test_files_closed(self):
+        """Every file the validator reads is closed once read (an open one is a ResourceWarning, which the task try's
+        tests make an error): the format files it loads at import, and a repo's assets.manifest.json."""
+        tmp = tempfile.mkdtemp(prefix='ugfr')
+        self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
+        git(tmp, 'init', '-q')
+        write(tmp, 'assets.manifest.json', json.dumps({'schema': 'assets-manifest/v1', 'project': 'KilnRun', 'assets': []}))
+        git(tmp, 'add', 'assets.manifest.json')
+        with warnings.catch_warnings(record=True) as seen:
+            warnings.simplefilter('always', ResourceWarning)
+            again = load('validate_game_again', 'validate-game.py')
+            again.check_repo(again.Report(), tmp)
+        self.assertEqual([str(w.message) for w in seen if issubclass(w.category, ResourceWarning)], [])
 
     def test_cli_any_name(self):
         """The findings print whatever the console's code page: a name it lacks (Ω, not in cp1252) is printed, and the

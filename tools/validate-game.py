@@ -20,8 +20,17 @@ import argparse, io, json, os, re, shutil, subprocess, sys, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-SPEC = json.load(open(os.path.join(REPO, 'docs', 'game-format-v1.json'), encoding='utf-8'))
-SCHEMAS = {n: json.load(open(os.path.join(REPO, 'docs', 'schemas', n + '.schema.json'), encoding='utf-8'))
+
+
+def load_json(path):
+    """A JSON file's content, the file closed once read (json.load(open(...)) leaves it open for the garbage collector:
+    a ResourceWarning in the tests of every tool that imports this file)."""
+    with open(path, encoding='utf-8-sig') as f:
+        return json.load(f)
+
+
+SPEC = load_json(os.path.join(REPO, 'docs', 'game-format-v1.json'))
+SCHEMAS = {n: load_json(os.path.join(REPO, 'docs', 'schemas', n + '.schema.json'))
            for n in ('workflow-row', 'dataset-manifest', 'replay-report', 'assets-manifest', 'game-task')}
 
 
@@ -1424,7 +1433,7 @@ def check_repo(rep, repo):
     # assets.manifest.json: unified format, every listed file committed under Assets/, Packages/ or RawAssets/
     if 'assets.manifest.json' in tracked and os.path.isfile(os.path.join(repo, 'assets.manifest.json')):
         try:
-            data = json.load(open(os.path.join(repo, 'assets.manifest.json'), encoding='utf-8-sig'))
+            data = load_json(os.path.join(repo, 'assets.manifest.json'))
         except ValueError as e:
             rep.error('repo: assets.manifest.json', f'not JSON: {e}')
             data = None
