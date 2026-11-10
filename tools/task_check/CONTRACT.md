@@ -151,167 +151,240 @@ leaves out Unity's generated folders (`Library`, `Temp`, `Obj`, `Logs`, `Build`,
 
 ## 3. Measures in Unity terms
 
-Reduction (`window`, `at`, `agg`, `of`, `match`, `to_angle`, `to_axis`, rows capped at 200 with `total` and `full`) is
-the original's, unchanged.
+What each field means, for a task's author, is `docs/task-probes.md` section 2, and this section doesn't repeat it.
+It says, kind by kind, what of the original the measure maps to, where the probe reads it (the class, its constants),
+what it writes for the logs beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, `of`,
+`match`, `to_angle`, `to_axis`; every match counted past the 200 rows through the sample's `total` and `full`) is the
+original's, unchanged (`probes.py`).
 
-- **player**: `x`, `y`, `z`, `speed`, `moved`, `dist` (+ `to`), from the track.
-- **camera**: `distance`, `height` (camera y minus player y; both to the player's transform position, its pivot,
-  as the track has it), `pitch`, `yaw`, `fov` (vertical, degrees; 0 for an
-  orthographic camera) from the camera rows; `occluded` (a ray from the camera to the player's centre hits a collider;
-  triggers, the player's colliders and colliders under the camera are ignored), `player_on_screen` (the centre
-  projects inside the viewport, in front) from a `camera` query. The player's centre: the centre of its colliders'
-  bounds, else its renderers', else its position.
-- Selects match in hierarchy order (scene, the root's place in the scene's root list, sibling indices): the same in
-  every play of one build. Rows: an object row's `class` is its first script's type, else its first Behaviour or
-  Renderer, else `GameObject`; a component row's `name` and `owner` are both its object's name.
-- **objects** fields: `count`; `x`, `y`, `z`; `yaw`, `pitch`, `roll`; `scale` (mean of |lossyScale|); `extent_x|y|z`
-  (world-aligned half-size of the union of its drawn renderers' bounds, descendants included, particle and trail
-  renderers left out, a LODGroup's lower LODs counted; no value when it draws nothing); `active` (activeInHierarchy);
-  `hidden` (1 when inactive, or it has renderers and none is drawn); `collision` (any enabled non-trigger collider in
-  it); `speed` (its own velocity when not zero: a non-kinematic Rigidbody, a Dynamic Rigidbody2D, an enabled
-  CharacterController, a NavMeshAgent on its NavMesh; else how far it moved since the previous sample over that time;
-  0 on the first sample for one with a velocity source at rest, else no value the first time); `spin` (deg/s; the
-  fastest of its mesh parts, else its own transform; no value on the first sample, except a non-kinematic Rigidbody's
-  angular velocity); `simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D in it); `spread` (m; the
-  diagonal of the box around its drawn renderers' bounds centres, particle and trail renderers left out; 0 with one,
-  no value with none); `changed`, `bounds_change` (m), `pose_change` (m) against the first sample it was seen in
-  (parts: its MeshRenderers with a mesh and SkinnedMeshRenderers; changed when a part was hidden or shown, removed or
-  added drawn, a part's world bounds moved more than 0.01 m, or a skinned mesh's bones moved more than 0.05 m in all
-  in its own space or its local bounds more than 0.01 m); `lit`, `glow` (below); `prop:<Component>.<member>[.<sub>]`
-  (reflection: fields and properties, public or not; a component by type name on the object, else the first in its
-  descendants; `prop:<member>` alone reads the GameObject, else its Transform; numbers and bools as numbers, enums as
-  their value, object references 1 when set, strings through `match`; an array or list without an index gives its
-  length, `[i]` its element; `.x`/`.r` and the like of vectors and colours); `bone:<Component>.<Bone>.x|y|z` (world
-  position of a bone of a SkinnedMeshRenderer, a human bone of an Animator, or a descendant transform of that name;
-  Bone, Part and Animator parameter names as Unity has them, spaces, colons, parentheses and hyphens included:
-  `mixamorig:Hips`, `Lamp (1)`); `rel_yaw:<Part>`, `world_yaw:`/`world_pitch:`/`world_roll:<Part>`,
-  `forward:<Part>.x|y|z` (a **Part** is a descendant by its GameObject name, else the first object in it carrying a
-  component of that type name; for a Light, forward is the way its light travels); `facing_vs_velocity` (degrees
-  between its forward and its velocity; no value under 0.1 m/s); `anim:<Parameter>` (its Animator's float, int or bool
-  parameter; takes the place of `bb:`), `clip` (the name of its Animator's current clip on layer 0, through `match`).
-- **components** fields: `count`; `active` (enabled and active in the hierarchy; a ParticleSystem also playing or
-  holding particles; an AudioSource playing); `visible` (a Renderer that is enabled, active and not forced off; any
-  other component: 1 when its object is active); `x`, `y`, `z`, `speed`, `spin` (its transform's, as objects');
-  `extent_x|y|z` (a Renderer's or Collider's bounds half-size); `simulating`; `changed`, `bounds_change`,
-  `pose_change` (a Renderer); `lit`, `glow` (a Light, a mesh Renderer, a particle system; no value for anything else);
-  `intensity`, `on` (a Light: enabled, active, intensity above 0); `prop:<path>` (on the component itself).
-  `effect: true`: a ParticleSystem that is alive (playing or holding particles), a VisualEffect holding particles, an
-  enabled DecalProjector, a TrailRenderer drawing points. A components select leaves out components of inactive
-  objects unless it says `"inactive": true`; `mesh` matches a renderer's, MeshFilter's or MeshCollider's mesh.
-- **lit / glow**: a source is lit when it is (a) a Light that is on; (b) a drawn mesh Renderer whose material gives
-  off light (one that isn't drawn reads dark without being read): read from its properties for a shader named
-  `*unlit*` with `_BaseColor` or `_Color` (that colour times its main texture's mean) and for one with
-  `_EmissionColor` that declares an `_EMISSION` keyword (when the material enables it: the emission colour times the
-  mean of `_EmissionMap` when set), MaterialPropertyBlock overrides included, colours in linear space (an HDR
-  emission held as (4, 3, 2) has luminance 12.9); a Shader Graph or any other shader **as rendered**: the renderer
-  drawn alone with every light off, ambient black, reflections and fog off, orthographic from four fixed views (128 x
-  128), HDR: lit when its brightest pixel's luminance is above 0.01; (c) a live particle system, as rendered. At most
-  64 glow renders a frame; past that a source has no value that sample. `glow`: a Light's intensity in Unity's own
-  units (not candelas) times its colour's luminance (and its colour temperature when used); a mesh's emissive
-  luminance times a quarter of its local bounds' surface (m2); as rendered, the views' luminance x pixel area over the
-  seen bounds area times a quarter of the box's surface (a mesh framed by its local box, a skinned mesh by its root
-  bone's frame, particles, lines, trails and sprites by their world box). A row with either field carries
-  `glow_sources` (`light`, `emissive`, `unlit`, `effect`) and `glow_read` (`props`, `render`, `unread`: no way to read
-  it).
-- **widgets**: uGUI (`UnityEngine.UI` Graphics and Selectables, TextMeshPro) and UI Toolkit (every `UIDocument`
-  panel), world-space canvases included (projected through the player's camera). One row per GameObject or element;
-  `class` the matched component's type, else the Selectable, else the text or graphic; `component` may name a game's
-  own component. Fields: `count`, `visible`, `text` (+ `match`; rich text stripped, `maxVisibleCharacters` honoured,
-  a Selectable without text of its own reads its first child label's), `percent` (a Slider's normalizedValue, a filled
-  Image's fillAmount, a ProgressBar's share, a Scrollbar's value), `value` (a Slider's value, a Toggle's 1/0, a
-  ProgressBar's, Scrollbar's or Dropdown's value), `interactable`, `has_brush` (a sprite, texture or background image
-  is set), `brush` (its name, + `match`), `x`, `y`, `w`, `h` (viewport fractions 0-1, **y down from the top**; no value
-  for a zero-size rect).
-- **ui**: every element on screen in the frame drawn right after the sample: uGUI graphics on screen-space canvases
-  (text: `Text`, `TMP_Text`; image: an `Image`/`RawImage` with a sprite or texture; box: any other drawn graphic) and
-  UI Toolkit elements (text: a `TextElement` with text; image: a background image; box: a background colour or
-  border). Only what is on screen: active, enabled, alpha above 0.004 up the chain (CanvasGroup, colour, opacity),
-  displayed and visible (UI Toolkit), inside the frame. World-space canvases and 3D text are not UI elements. Rows
-  carry `source` (`ugui`, `uitk`, `ocr`) and `kind`. Fields `count`, `text`, `x`, `y`, `w`, `h`, `signature`,
-  `number`, `clock` (the last three computed by the checker from the rows). A select of text in a rect also reads the
-  frame as drawn inside the rect (the original's glyph reader, ported): lines it reads for sure join as `text` rows
-  of source `ocr`. This is how OnGUI, GL and custom-mesh readouts are read. A UI Toolkit Button gives a `box` and a
-  `text` row. The frame reader refuses a line whose strokes touch the rect's edge.
-- **screen**: `luminance`, `luma` of the frame as displayed (UI included: keep the rect off the HUD), over `rect`.
-- **light**: `illuminance` in Unity's own light units, not lux (sum over lights that are on: point and spot by
-  intensity x colour luminance x URP's distance and cone attenuation, directional by intensity x luminance, each with
-  a wall check that also runs for lights with shadows off and ignores triggers, the player's and the lamp's own
-  colliders; area lights skipped, URP only bakes them; ambient by the ambient probe's upward value in every mode,
-  so flat ambient ignores `ambientIntensity` and gradient ambient mixes sky, equator and ground, x the open share of
-  9 upward rays), `exposure` (2^postExposure of the volume stack at the camera; 1 without one or when the camera's
-  post-processing is off; URP has no auto-exposure), `brightness` (illuminance x exposure). Value also holds `local`,
-  `directional`, `sky`, `lights`, `point`.
-- **grading**: the volume stack at the camera, as the shader constants URP itself prepares: `color_balance` (LMS
-  coefficients, `ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral),
-  `color_filter` (linear rgb), `post_exposure` (EV), `lift`, `gamma`, `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb),
-  `tonemapping`, `sun` (`{name, color, intensity, temperature, use_temperature, lit_color}` of the strongest
-  directional light that is on) or null, `sky` (`{mode, color, intensity}`), `fog` (`{enabled, density, color}`), and
-  every `post:<Component>.<parameter>` asked for (a volume parameter's value after blending, e.g.
-  `post:Bloom.intensity`, `post:Vignette.intensity`, `post:ColorAdjustments.postExposure`). The checker computes
-  `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast` from a neutral grey 0.18 lit by the key light's hue and
-  run through URP's ColorGrade order: post exposure (2^EV, which URP applies before the grading lookup), LMS balance,
-  contrast in LogC around 0.4135884 (ACEScc mid-grey, about 0.2248 linear), colour filter, gain and lift, gamma,
-  saturation (`tools/task_check/colour.py`, the LDR order; constants from the URP package source in
-  `Library/PackageCache/com.unity.render-pipelines.*`). An untouched stack gives exactly grey 0.18 and cast 0. The
-  stack is blended by the probe for the main camera's volume trigger and layer mask at each sample (`source:
-  "camera"`), or is the camera's own when it updates by script (`camera_stack`); a camera with post-processing off
-  gives neutral constants and exposure 1. Extra value keys: `source`, `pipeline`, `post_processing`, `grading_mode`
-  (`ldr`, `hdr`), `hue_shift` (degrees), `fog.mode`. Colours are linear. A `post:` value no volume overrides reads
-  the component's default; a `post:` name that doesn't exist is null and a `query_errors` line.
-- **spawns**: objects carrying the component that appeared (became active) or went, counted every frame since the
-  play started (cumulative; the checker differences them): instantiated clones and pooled objects reused with
-  SetActive alike.
-- **pieces**: a MeshRenderer with a mesh that has triangles is 1; a SkinnedMeshRenderer is 1; a Terrain's tree
-  instances 1 each; renderers of active objects only. Under a LODGroup only LOD 0's renderers count. A tree's `mesh`
-  name is its prototype's first mesh; trees are visible when the Terrain is enabled with trees drawn.
-  `Graphics.RenderMesh*` and detail grass are no pieces. Fields `count`, `visible`, `components`,
-  `objects`, `triangles` (index count / 3 over its submeshes), `visible_triangles`.
-- **audio**: every AudioSource that is playing (and matches the select) at its **volume at the listener**: its
-  volume (0 when muted) times its distance attenuation by its rolloff (its 3D share by `spatialBlend`); mixer volumes
-  and `AudioListener.volume` left out. Fields `count`, `audible` (at 0.001 or more), `volume` (sum), `max_volume`,
-  and `level` (the RMS of the listener's mixed output since the previous sample, mixers and effects included). The
-  probe's tap on the AudioListener measures the mix and then silences it, so no play is ever heard. A play that
-  measures audio is paced to real time (30 fps); other plays run as fast as the machine renders. `level` is null for
-  the first frames and up to 4 frames after the listener changes. `PlayOneShot` sounds count but have no clip name
-  (`loudest` "", no `sound` match; `level` hears them); `PlayClipAtPoint` sounds read normally. Logarithmic rolloff
-  keeps falling past max distance (measured: 1/80 at 80 m with max 50). `AudioListener.pause` makes every source read
-  as not playing; `timeScale` 0 doesn't. A mixer group's volume changes `level`, not `volume`. Extra value keys:
-  `loudest`, `peak`, `listener`.
-- **ground**: a ray straight down from 2000 m up at `xz` (every collider but triggers and the player's; with
-  `select`, only colliders of objects it matches or their descendants, the rest traced through; the player's
-  colliders always skipped): `height` (y), `hit`; over a `box` on a
-  `grid` x `grid` lattice: `min`, `max`, `mean`, `range`, `hits`.
-- **drawn**: every drawn renderer whose bounds reach the place, rendered alone from fixed orthographic views (four
-  around a point, 64 x 64; two across a line, 128 x 128): `drawn`, `motion`, `base_r|g|b` (rendered under flat white
-  ambient light minus the render under black ambient, so emission cancels: a URP Lit surface reads its albedo, a metal
-  near black, an unlit surface 0), `base_change`, `reach`, `length`; the value always holds `pixels` and `primitives`,
-  and a field that wasn't asked for is null. How: a hidden orthographic camera of the probe's own, rendered by hand
-  through URP's single-camera render request into float textures, culling mask the chosen renderers' layers (UI layer
-  out); every other drawn renderer on those layers inside the views forced off, terrains there stop drawing; every
-  Light and reflection probe off, fog off, default reflection black, the chosen renderers' lightmaps and light probes
-  off, flat ambient (white for motion and base, black for glow); post-processing, shadows, anti-aliasing and volumes
-  off; all put back before the sample returns (the game's frames are identical with and without the queries). The far
-  plane sits at the place's far side. A renderer enclosing the place and 20 times its size is left out. Same values
-  under Forward, Forward+ and Deferred. Limits: camera callbacks see the probe's render; `OnBecameVisible` /
-  `isVisible` may fire for it; adaptive probe volumes and realtime GI lightmaps stay on; layers only a filtered URP
-  renderer draws, world-space canvases and terrain aren't read; a forward-only shader draws nothing under Deferred.
-  Cost: 5-8 ms a sample near a point, 4 ms along a line, 3 ms a glow render.
-- **log**: lines of the play's player log that match.
-- **asset** (`play: "editor"`): one batchmode editor pass. `asset` + `prop:<path>` (reflection on the main asset,
-  else a SerializedObject property path), `import:<path>` (its importer), `shader:<Property>` (a material's shader
-  property: floats, `.r|g|b|a` of colours, a texture 1 when set), `keyword:<NAME>` (1 when enabled); `scene` or
-  `prefab` + `select`: `count`, `material_default` (1 when any renderer of the object or its descendants, inactive
-  included, has a slot that is empty or missing, uses the error shader or one that doesn't compile, or is Unity's
-  built-in default material or the pipeline's default material), `material:<property>` (one row per slot),
-  `mesh_collision` (one row per mesh, 1 when it or a parent up to the object has an enabled non-trigger collider),
-  `prop:<Component>.<path>`. Exactly one of `asset`, `scene`, `prefab`. Errors, not values: `no asset|scene|prefab
-  <path>`; a select using `player` or `has` or a `near` around the player or camera (a `near` around `{"object"}`
-  resolves in the same scene or prefab); a colour or vector without a channel; an unknown shader property; `shader:` or
-  `keyword:` on a non-material; an unknown member on an asset (on a scene object: a row with no value). Also accepted
-  by the code: `.r`-`.a` as aliases of `.x`-`.w`; `import:` falling back to an AudioImporter's
-  `defaultSampleSettings`; `prop:` on a prefab asset reading it like a scene object; `material`, `materials`, `mesh` in
-  a `prop:` path read as `shared...`; `shader:name`; `material:keyword:<NAME>` and a texture's `.name` (the schema
-  allows neither). Floats come back as stored (0.2 reads 0.19999995827674866). The pass never saves.
+- **Selects and rows** (`Find`, `Reflect`, `RowSet`). Matches come in hierarchy order: by scene (its build index, then
+  its handle), then the root's place in the scene's root list (a built player reports every root's sibling index as
+  0), then sibling indices (`Find.SortByHierarchy`): the same in every play of one build. Every match is read;
+  `RowSet` keeps the first 200 as rows and sums every match's numbers into `full`. Every row has `name` and `class`,
+  for the logs: an object row's `class` is its first MonoBehaviour's type, else its first Behaviour or Renderer, else
+  its first other component (Transform and MeshFilter aside), else `GameObject` (`ObjectRead.ClassOf`); a component
+  row's `class` is its type, and its `name` and `owner` are both its object's name (a Unity component has no name of
+  its own). A field with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall
+  checks, the ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never
+  blocks one.
+- **player**, **camera** (the original's pawn and player camera manager): the checker computes every field but two from
+  the track rows `[t, x, y, z]` (the player's transform position, its pivot; `[t]` without a player) and the camera
+  rows `[t, x, y, z, pitch, yaw, fov]` of the player camera (section 1) the probe writes every sample (`probes.series`;
+  a camera row against the track row nearest in time). `fov` is the vertical field of view (Unreal's is horizontal), 0
+  for an orthographic camera. A player `dist` to an `{"object": ...}` point reads an `objects` query of that select's
+  `x`, `y`, `z`. `occluded` and `player_on_screen` come from a `camera` query (`CameraQuery`; its value repeats the
+  row's fields): a `Physics.RaycastAll` from the camera to the player's centre, the player's colliders and those under
+  the camera skipped; the centre's viewport point inside 0-1, in front of the camera. The player's centre is the bounds
+  centre of its enabled colliders that aren't triggers (its descendants' too), else of its drawn renderers, else its
+  position (`Find.Centre`; the original's: its colliding components' bounds centre).
+- **objects** (the original's `actors`; `ObjectsQuery`, `ObjectRead`):
+  - the drawn box of `extent_*` and `spread`: the renderers drawn (`Find.Drawn`: enabled, active in the hierarchy, not
+    `forceRenderingOff`) with non-empty bounds, ParticleSystemRenderers and TrailRenderers left out
+    (`ObjectRead.Geometry`); a LODGroup's lower LODs stay enabled, so they count. `spread` counts each renderer by its
+    bounds centre; the original also counts each physics body of a skeletal mesh, which Unity has no counterpart of in
+    one renderer (a ragdoll is one SkinnedMeshRenderer over its bones' Rigidbodies, so it reads one part);
+  - the mesh parts of `spin`, `changed`, `bounds_change`, `pose_change` and `lit`: MeshRenderers whose MeshFilter's
+    mesh has vertices, and SkinnedMeshRenderers with a mesh, inactive ones included (`Find.MeshParts`);
+  - `speed`: the first velocity source the object has (`ObjectRead.OwnVelocity`: a non-kinematic Rigidbody's
+    `linearVelocity`, a Dynamic, simulated Rigidbody2D's, an enabled CharacterController's `velocity`, an enabled
+    NavMeshAgent's on its NavMesh), else its displacement since the query's previous sample (`Places`);
+  - `spin`: `Spins` follows each transform a sample read, frame by frame until the next sample (`Quaternion.Angle`
+    between frames, summed), so a part turning many times a second still reads; a first sample has a non-kinematic
+    Rigidbody's angular velocity, or no value;
+  - `changed`, `bounds_change`, `pose_change`: `Changes`, each part against the first sample it was seen in, with the
+    original's thresholds in metres (`Changes.Bounds` 0.01 m, `Changes.Pose` 0.05 m);
+  - `prop:` (`Reflect.Prop`, `Reflect.ReadPath`): instance fields and properties, public or not, along the class
+    hierarchy (no statics, no indexers); `[i]` an element; a dictionary's entry by its key; a vector's `.x` and a
+    colour's `.r` by their own member names (no aliases at run time; the editor pass has them). A path that doesn't
+    resolve on the named component is tried on the GameObject, then on its Transform; `prop:<Component>` alone is 1
+    when the object has one, no value when not. The value as the checker takes it (`Reflect.Plain`): numbers and bools
+    as numbers, an enum its value, a Unity object 1 when set and 0 when not (an unset reference reads 0), a string, an
+    array, list or dictionary its count; anything else (a vector or colour without its part) no value;
+  - `bone:<Component>.<Bone>.x|y|z` (the original's `<BoneOrSocket>`; `ObjectRead.Bone`): a SkinnedMeshRenderer's bone
+    of that name, else an Animator's human bone (a `HumanBodyBones` name, any case), else a descendant transform of
+    that name under the component, then under the object;
+  - a **Part** (`rel_yaw:`, `world_yaw:`/`world_pitch:`/`world_roll:`, `forward:`; the original names a component):
+    `Reflect.Part`, a transform in the object (itself and inactive ones included) of exactly that name, else the object
+    in it that carries a component of that type name. A Light shines along its forward;
+  - `anim:<Parameter>` (the original's `bb:<Key>`, an AI blackboard Unity doesn't have) and `clip`: the first enabled
+    Animator with a controller in the object (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the heaviest
+    clip on layer 0 (`GetCurrentAnimatorClipInfo(0)`);
+  - measured: a whole-scene sample of 3000 objects takes about 20 ms.
+- **components** (`ComponentsQuery`; the original's registered components of a class): with `component`,
+  `FindObjectsByType` of that Component type (its subtypes too); with `effect` alone, of every effect type the build has
+  (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect, DecalProjector; the last two by reflection, so the
+  probe needs neither package), `effect: true` keeping the live ones (`Effects.Live`). A field reads the component as an
+  object's reads one part, with Unity's components in the original's places: `extent_*` a Renderer's, Collider's or
+  Collider2D's world bounds; `simulating` the Rigidbody or Rigidbody2D it is or is attached to (`Find.Simulates`);
+  `changed`, `bounds_change`, `pose_change` a Renderer; `intensity` and `on` a Light (`Glow.LightOn`, the `light`
+  probe's test); `active` adds a ParticleSystem's `isPlaying || particleCount > 0` and an AudioSource's `isPlaying`.
+- **lit, glow** (`Glow`, `DrawnRender.Glow`; the original reads light components, mesh components through their
+  material graphs, and particle systems):
+  - the sources: a Light that is on (`Glow.LightOn`); a drawn mesh part; a live particle system with a drawn renderer.
+    Sprites, lines and trails are no source. A Light's glow is its intensity in Unity's own units (the original's:
+    candelas) times its colour's luminance (Rec. 709, linear), times its temperature's colour when the project
+    (`GraphicsSettings.lightsUseColorTemperature`) and the Light use it;
+  - a mesh renderer is read from its material properties when every material's shader has an interface the probe
+    knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original evaluates its material
+    graphs): unlit (a name containing `unlit` in any case, with `_BaseColor` or `_Color`: that colour times the mean of
+    `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a declared `_EMISSION` keyword: with the keyword
+    enabled, the emission colour times the mean of `_EmissionMap`). A shader named `Shader Graphs/...` has neither,
+    whatever its properties. MaterialPropertyBlocks count (the slot's, then the renderer's); colours are linear in a
+    linear project; a texture's mean is read on the GPU (halved down to 16 x 16, so an unreadable texture reads too).
+    The brightest material counts over the renderer's whole local bounds: lit above a luminance of 0.01 (`Glow.Floor`,
+    the original's), glow that luminance times a quarter of the surface of its local bounds, scaled (m2);
+  - any other shader, and every particle system: as rendered (`DrawnRender.Glow`, the `drawn` render below; the
+    original's scene capture): the renderer alone with every Light off and a black ambient, from the four corners of a
+    tetrahedron in its own frame (a mesh's local box turned and scaled with it, a skinned mesh's in its root bone's
+    frame, a particle system's world box), orthographic, 128 x 128, HDR. Lit when its brightest pixel's luminance is
+    above 0.01; glow the views' luminance x pixel area summed, over the area of the box they see, times a quarter of
+    the box's surface. At most 64 such renders a frame across every query (`DrawnRender.GlowBudget`), each renderer
+    once a frame; past that a source has no value that sample;
+  - a row with `lit` or `glow` carries `glow_sources` (the kinds lit: `light`, `emissive`, `unlit`, `effect`) and
+    `glow_read` (`props`, `render`, or `unread`: no way to read one; the original's `graph`, `render`, `bound`);
+  - measured: about 3 ms a glow render.
+- **widgets** (the original's UMG widgets; `WidgetsQuery`, `UiScan`): uGUI (`UnityEngine.UI` Graphics and Selectables,
+  TextMeshPro) on every canvas of the loaded scenes, world-space ones included (their rect projected through the
+  player camera), and every element of every `UIDocument`'s panel (UI Toolkit). One row per GameObject or element:
+  `class` the matched component's type, else the object's Selectable, else its text or graphic (an element: its type).
+  `component` matches by `Reflect.IsA`, so `Button` takes uGUI and UI Toolkit buttons alike. A rect is in viewport
+  fractions, y down from the top, whatever render mode or panel scale placed it. On screen (`visible`, and `ui` below)
+  means active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way up (`UiScan.AlphaFloor`:
+  CanvasGroups, the graphic's colour, its CanvasRenderer), not culled by a RectMask2D, at least partly inside the
+  frame; for a UI Toolkit element, displayed, visible and of an opacity above 0.004 up the chain. Text is read without
+  rich text tags, TextMeshPro's `maxVisibleCharacters` honoured. No `slate` select: Unity has no lower-level widget
+  tree under the UI to walk.
+- **ui** (`UiQuery`, `UiScan`, `UiOcr`; the original's Slate tree, HUD canvas and paint elements): the elements on
+  screen in the frame drawn right after the sample (`FrameNeed`: the sample is completed once that frame is drawn; one
+  whose frame never came has no `rows` key). uGUI graphics on screen-space canvases (Overlay or Camera; text: `Text`,
+  `TMP_Text`; image: an `Image` with a sprite or a `RawImage` with a texture; box: any other drawn graphic) and UI
+  Toolkit elements of screen panels (text: a `TextElement` with text; image: an `Image` element's image or a background
+  image; box: a background colour or a border). World-space canvases and 3D text are no elements. Rows carry `source`
+  (`ugui`, `uitk`, `ocr`; the original's `umg`, `slate`, `canvas`, `paint`, `ocr`) and `kind`; there is no `line`
+  kind, since Unity keeps no list of what `GL`, `OnGUI` or a mesh draws. A select of text in a rect also reads the
+  frame's pixels inside the rect (`UiOcr`, the original's glyph reader ported with its constants and decisions; only
+  such a query has the frame read back): each line it reads for sure, where no element already reads text, joins as a
+  `text` row of source `ocr`, named `ScreenText`. This is the only reading of an `OnGUI`, `GL` or custom-mesh readout.
+  `signature`, `number` and `clock` are computed by the checker from the rows (`probes.ui_signature`, `ui_number`,
+  `ui_clock`), as in the original.
+- **screen** (`ScreenQuery`; the original's frame had the HUD canvas on it but not the UMG and Slate UI): the frame as
+  displayed, read back once it is drawn, every UI on it included (Screen Space - Overlay too), over `rect`. The value
+  also holds `pixels` and `size`.
+- **light** (`LightQuery`, `LightKit`; the original's lux from the renderer's lights and the sky light):
+  `illuminance` is in Unity's own light units, not lux. Each Light that is on (`LightKit.On`) adds the luminance of
+  its final colour (colour x intensity, the intensity linear in a linear project, x its temperature colour), a point
+  or spot light times URP's distance and cone attenuation as `RealtimeLights.hlsl` computes it
+  (`LightQuery.Attenuation`), a directional one as it is; each passes a wall check (`LightKit.Blocked`: from the light
+  to the point, stopping 0.01 m short of it; from the point toward a directional light, 2000 m) that runs for lights
+  with shadows off too and skips the player's colliders and the light's own (on its object or under it). Area lights
+  are skipped (URP only bakes them). The ambient: `RenderSettings.ambientProbe` evaluated straight up, in every
+  ambient mode, times the open share of 9 upward rays (straight up and 8 at 45 degrees, 2000 m each). `exposure` is
+  2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
+  post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
+  `directional`, `sky`, `lights` (the sources that lit it, the ambient counting as one) and `point`.
+- **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings
+  of the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and
+  layer mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when
+  it updates by script (`camera_stack`); read as the constants URP's ColorGradingLutPass prepares: `color_balance`
+  (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral), `color_filter` (linear
+  rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`, `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb),
+  `tonemapping` (its mode's name). A camera with post-processing off gives neutral constants. The value also holds
+  `sun` (`{name, color, intensity, temperature, use_temperature, lit_color}` of the strongest directional light that
+  is on, or null), `sky` (`{mode, color, intensity}`), `fog` (`{enabled, density, color, mode}`), `source`,
+  `pipeline`, `post_processing`, `grading_mode` (`ldr`, `hdr`); colours are linear. A `post:<Component>.<parameter>`
+  asked for is the parameter's value after blending (one no volume overrides reads the component's default): the
+  component by its type's name among `VolumeManager.baseComponentTypeArray` (any case as a fallback), the parameter a
+  field of that name, a third part a member of its value (`.r`-`.a` of a colour, `.x`-`.w` of a vector); a name that
+  doesn't resolve, or a colour or vector without its part, is null and a `query_errors` line. The checker computes
+  `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast` (`colour.colour`) from a neutral grey 0.18 lit by the key
+  light's hue (the sun's `lit_color`, else its colour, else the sky's), run through URP's ColorGrade order: post
+  exposure (2^EV, which URP applies before the grading lookup) and LDR grading's saturate, LMS balance, contrast in
+  LogC around 0.4135884 (ACEScc mid-grey, about 0.2248 linear), colour filter, gain and lift, gamma, hue shift,
+  saturation and the lookup's saturate (the LDR order; the tonemapper is left out, a tonemapping change is read through
+  `post:Tonemapping.mode`; constants from the URP package source in
+  `Library/PackageCache/com.unity.render-pipelines.*`). An untouched stack gives exactly grey 0.18, and cast 0 under a
+  white key light.
+- **spawns** (`SpawnsQuery`; the original counts actors of a class spawned and destroyed): every frame of the play's
+  clock, a wait's frames included, the objects carrying the component type (active ones; subtypes too) are compared
+  with the frame before: one there now and not then is spawned (instantiated, activated, or in a scene loaded during
+  the play), one gone is destroyed (destroyed or deactivated), so a pooled object reused with SetActive counts each
+  time. The counts are cumulative from the clock's start (what is there then isn't counted) and the checker
+  differences them per sample (`probes.series`).
+- **pieces** (`PiecesQuery`; the original counts instanced meshes (ISM, HISM, foliage) one per instance and procedural
+  mesh sections): a MeshRenderer whose mesh has triangles is 1, a SkinnedMeshRenderer with a mesh is 1, a Terrain's
+  tree instances 1 each (Unity's counterpart of instanced meshes; detail grass and `Graphics.RenderMesh*` draws aren't
+  renderers and count 0); renderers of active objects only; under a LODGroup only LOD 0's renderers. Triangles: index
+  count / 3 over the triangle submeshes (cached per mesh); a tree's, its prototype prefab's at full detail (its LOD 0,
+  else every mesh renderer in it), and its `mesh` name the prototype's first mesh's. Counted over every piece, never
+  cut at the rows cap.
+- **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled
+  and playing (and matching the select) at its volume at the listener (the first enabled AudioListener on an active
+  object): its `volume` (0 when muted) x ((1 - `spatialBlend`) + `spatialBlend` x its rolloff at the listener's
+  distance: logarithmic min distance / distance, linear down to 0 at max distance, or its custom curve over distance /
+  max distance). Mixer group volumes and `AudioListener.volume` are left out (the original multiplies its sound
+  classes' and mixes' volumes in). `level` has no counterpart in the original: the RMS of the listener's mixed output
+  since the previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on the enabled listener
+  (it looks again every 4 frames), which sums the final mix (mixers and effects applied) and then zeroes it, in every
+  play, so no play is ever heard. A play that measures audio is paced to real time at 30 fps (the play spec's
+  `sound`); every other play runs as fast as the machine renders. The value also holds `loudest` (the loudest source's
+  own clip's name, "" when it has none), `peak` and `listener` (its object's name). What was measured of Unity's audio
+  (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer volumes) is in `docs/task-probes.md`
+  section 2.16.
+- **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from
+  y = 2000 m (4000 m long) at `xz`, or at each point of a `grid` x `grid` lattice over `box` (2-32, default 8, corners
+  and edges included), takes the first collider it meets, the player's always skipped; with `select`, only colliders
+  of the matched objects or their descendants are ground, the rest traced through. The value also holds `points`
+  (grid x grid).
+- **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game whose world
+  bounds reach the place, at most 1024, but one that encloses the whole place and is at least 20 times its size,
+  rendered alone from fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two
+  square to a line (128 x 128), the cameras 0.5 m outside the place, the far plane at its far side.
+  - How: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through
+    URP's `SingleCameraRequest` (else the pipeline's `StandardRequest`, else `Camera.Render`) into float textures
+    (ARGBFloat); the depth from a second render, copied into a float texture by the package's own shader
+    (`Runtime/Resources/TaskProbeDepthCopy.shader`). Its culling mask is the chosen renderers' layers. For the render,
+    every other drawn renderer on those layers inside the views is forced off (`forceRenderingOff`: a layer change
+    would refilter a collider's physics contacts), terrains on those layers stop drawing, every Light and reflection
+    probe is off, fog off, the default reflection a black cubemap, the chosen renderers' lightmaps and light probes off,
+    the ambient flat (white for motion and base colour, 1 / 0.96 so a URP Lit surface reads its own albedo; black for
+    glow), and post-processing, shadows, anti-aliasing, volumes, render scale and renderer features (but RenderObjects)
+    off, HDR on. All of it is put back before the sample returns: the game's frames are identical with and without the
+    query.
+  - Where the original lights the place with direct lights and the sky light and reads the base colour from the
+    GBuffer, the port takes the base colour as the render under the white ambient less the render under black, so
+    emission cancels. A pixel is in the place when its depth puts it there, or when it shows colour with nothing
+    opaque behind it and its ray crosses the place (translucent particles). `motion`: a pixel changed when it came in
+    or went out, or a channel of its colour c / (1 + c) moved more than 1/255 (the original's); `length` counts up to
+    128 steps along the line, none finer than a pixel.
+  - The value always holds `pixels` and `primitives` (the renderers rendered); the base colour is null unless a
+    `base_` field is asked for (`motion`, `reach`, `length` are always computed). Its limits, as measured, are in
+    `docs/task-probes.md` section 2.19.
+  - Measured: 5 to 8 ms a sample near a point, 4 ms along a line.
+- **log**: the lines of the play's player log (`-logFile`, kept as `play.log`) that match, read by the checker as the
+  original reads its game log.
+- **asset** (`play: "editor"`; `AssetPass`, `AssetValues`, `SceneRows`; the original runs a Python script in its
+  headless editor): one batchmode editor pass per side over the project as saved (section 5). An `asset` is loaded
+  with `AssetDatabase.LoadMainAssetAtPath`, a `scene` opened alone (`OpenSceneMode.Single`), a `prefab` loaded with
+  `PrefabUtility.LoadPrefabContents` and unloaded unsaved; each scene and prefab once for every measure on it. The
+  pass never saves.
+  - A select is the run time's (`Sel`, `Find.Matches`) over the scene's or prefab's objects in hierarchy order:
+    `player`, `has`, and a `near` around the player or the camera are errors (a scene as saved has none of them); a
+    `near` around `{"object": ...}` resolves in the same scene or prefab.
+  - `prop:` reads by reflection (`Reflect.ReadPath`), else as a SerializedObject property path (`waves[2].count` read
+    as `waves.Array.data[2].count`); on a prefab asset and on a scene object, as a run time `prop:` reads an object,
+    with `material`, `materials` and `mesh` read as their `shared...` versions (the plain getters would copy the asset
+    into the scene). `import:` reads the importer, falling back to an AudioImporter's `defaultSampleSettings`.
+  - `shader:` and `material:` read a material as `AssetValues.MaterialValue` does: a float, range or int as it is; a
+    colour's or vector's channel in either spelling (`.r` or `.x` ... `.a` or `.w`); a texture 1 when set, its name
+    with `.name`; `shader:name` and `material:shader` the shader's name; `keyword:<NAME>` and
+    `material:keyword:<NAME>` 1 when enabled. `material_default` finds a renderer with no slot, an empty or missing
+    slot, the error shader or one that doesn't compile (`ShaderUtil.ShaderHasError`), or Unity's built-in default
+    material or the pipeline's (`AssetValues.IsDefault`). Rows of `material:` are named `<object>/<renderer's object>`,
+    of `mesh_collision` `<object>/<mesh's object>`.
+  - A missing asset, scene or prefab is an error (`no asset <path>`, `no scene <path>`, `no prefab <path>`). An
+    unknown member, an unknown shader property, a colour or vector without its channel, or `shader:` / `keyword:` on
+    something that isn't a material is an error for an `asset`, and a row with no value on a scene's or prefab's
+    objects (`SceneRows` keeps the row). Every message is in `docs/task-probes.md` section 2.11.
 
 ## 4. Plays and inputs
 
