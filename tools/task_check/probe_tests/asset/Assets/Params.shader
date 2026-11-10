@@ -1,4 +1,5 @@
-Shader "AssetTest/Params"
+// The asset family's own shader: a Vector, an Integer and a Color property that URP never rewrites on import.
+Shader "ProbeTests/AssetParams"
 {
     Properties
     {

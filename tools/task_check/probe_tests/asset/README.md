@@ -1,52 +1,54 @@
-# asset: the editor pass (`TaskProbe.EditorTools.AssetPass.Run`)
+# asset: the editor pass and the checker's build
 
-Files:
-- `BuildAssetTest.cs` (goes in `proj/Assets/Editor/AssetTest/`): `Run` builds `Assets/AssetTest/`: `Road.mat` (URP Lit,
-  base colour (0.2, 0.4, 0.6), smoothness 0.75, metallic 0.25, `_BaseMap` = Grass, emission (1, 0.5, 0) with
-  `_EMISSION`), `Glow.mat` (URP Unlit, alpha 0.5, cutoff 0.3, `_ALPHATEST_ON`), `Fx.mat` (the test's own
-  `Params.shader`: a Vector `_Wind` (1, 2, 3, 4), an Integer `_Steps` 5), `Broken.mat` (the error shader), `Grass.png`
-  (readable, uncompressed, max 256), `Beep.wav` (force to mono, streaming), `Box.obj` (global scale 2, no animation),
-  `Waves.asset` (a `WaveSet` ScriptableObject), `Lamp.prefab` (Pole with a collider, Bulb without, Base with a
-  disabled collider and the default material, a Light of intensity 3, a `Spinner` of speed 90 on the root) and
-  `AssetLevel.unity` (tagged `Terrace` cubes A-D: A on Road with a collider, B on the default material without one, C
-  inactive, D with slots [Road, empty]; a Group with Wall1 (collider) > Trim, Wall2 (none), Wall3 (trigger); a Lamp
-  instance on layer Water; Broken; FanObj with a `Spinner` and FxQuad). `RunDirty` opens a dirty untitled scene first,
-  then runs the pass.
-- `WaveSet.cs`, `Spinner.cs` (go in `proj/Assets/Scripts/AssetTest/`), `Params.shader` (in `Assets/AssetTest/Shaders/`).
-- `make_request.py` writes `request.json` (107 measures: every field form and every error case) and `expected.json`.
-- `check.py` compares the result file with `expected.json` (numbers to 1e-5, errors by substring).
+Two parts of the package that run in the editor, not in a play: the editor pass that reads `asset` measures from the
+project as saved (`TaskProbe.EditorTools.AssetPass`), and the player build the checker makes of a scratch copy
+(`TaskProbe.EditorTools.Build`).
 
-Run:
+## What the builder makes
 
-```
-python C:\ugf-smoke\probe.py exec C:\ugf-c5\proj AssetTestEditor.BuildAssetTest.Run
-python C:\ugf-smoke\probe.py exec C:\ugf-c5\proj TaskProbe.EditorTools.AssetPass.Run -- -taskProbeAssets <this folder>\request.json
-python check.py
-python C:\ugf-smoke\probe.py exec C:\ugf-c5\proj AssetTestEditor.BuildAssetTest.RunDirty -- -taskProbeAssets <this folder>\request.json
-python check.py
-```
+`AssetScenes.Build` writes everything under `Assets/ProbeTests/asset/Made/`:
 
-Results (Unity 6000.3.28f1, URP 17.3): both runs 107/107 as expected, exit code 0, the `TASK_PROBES {...}` line in the
-log, and the SHA-256 of every file under `Assets/` and `ProjectSettings/` the same before and after each pass (nothing
-saved). Floats come back as stored (`_BaseColor.r` of 0.2 reads 0.19999995827674866).
+- assets: a texture (readable, uncompressed, at most 256), a sound (forced to mono, streamed), a model (global scale
+  2, no animation), URP Lit and Unlit materials, a material on the family's own shader (`Assets/Params.shader`: a
+  Vector, an Integer and a Colour property), one on the error shader, two at paths with a space, parentheses and
+  letters outside ASCII, a ScriptableObject (`AssetWaveSet`: every plain kind of field, a list of structs, references
+  set and not set, NaN, infinity, an AnimationCurve, a private field, an enum whose values aren't its indexes), an
+  animator controller with two parameters, and a mesh of two parts;
+- prefabs: a lamp (`AssetSpinner` on its root; a pole with a collider, a bulb without, a base whose collider is off
+  and whose material is the pipeline's default, a light), a variant of it that overrides the spinner, a post with the
+  lamp nested in it, and one whose component marks itself changed whenever it loads (`AssetDirtier`);
+- `Level.unity`: tagged cubes (one inactive, one with an empty slot), a group of walls (a collider, a parent's
+  collider, none, a trigger), the lamp on layer Water, a cube on the error shader, a spinner with a quad on the
+  family's shader, the mesh of two parts with one material, the variant, the post, an object that marks itself changed
+  when it loads, an instance of a prefab that was deleted, a cube whose material was deleted and a cube whose
+  collider is a 2D one;
+- `Other.unity`: two cubes, so that measures of two scenes run in one pass;
+- `Big.unity`: 5,051 objects (50 rows of 100 cells, and a marker that logs each time the scene loads);
+- `Facts.unity`, the scene the play opens: a URP camera and a uGUI image (scripts of packages), two cubes marked
+  static that share a material, `AssetFacts` (what the game sees of its player when the scene wakes), and references
+  to a material and a sound that were deleted;
+- `Deleted.txt`: the deleted assets and their GUIDs.
 
-What it proves, by field:
-- `shader:` floats, ranges, Integer, colour channels (`.r/.b/.a`, `.g` of a colour), vector channels (`.x-.w` and
-  `.r` alias), textures set/unset, `.name` of a texture, `shader:name`; a colour or vector without a channel, an unknown
-  property and a non-material are errors.
-- `keyword:` on (`_EMISSION`, `_ALPHATEST_ON`) and off.
-- `import:` TextureImporter (`isReadable`, `textureCompression`, `maxTextureSize`), AudioImporter (`forceToMono`,
-  `loadType` through `defaultSampleSettings`), ModelImporter (`globalScale`, `animationType`, serialized
-  `m_GlobalScale`); an unknown setting is an error.
-- `prop:` on a ScriptableObject (int, float, string, bool, enum, list length, `[i].member`, colour channel, set/unset
-  reference, private field, `m_Name` and `waves.Array.size` through SerializedObject), on a material
-  (`renderQueue`, `m_Shader`), on a prefab asset (`Spinner.speed`, `Light.intensity` from a child, `m_Name`).
-- `no asset`, `no scene`, `no prefab`, unknown fields, a measure without asset/scene/prefab.
-- scene selects: tag, tag + inactive, name wildcard, layer, component, near `xyz` with and without `y_min`, near an
-  object point with offset, an unknown tag (no rows); `player`, `has` and a player point are errors.
-- `count`, `material_default` (default material, empty slot, error shader, a child's default material, clean ones),
-  `material:<prop>` (per slot, per descendant renderer, `<object>/<renderer object>` names, null for an empty slot,
-  `material:shader`, `material:keyword:`), `mesh_collision` (own collider, ancestor's collider, none, a trigger, a
-  disabled collider), `prop:` (public, private, list length and element, string, vector channel,
-  `MeshRenderer.material.name` read as `sharedMaterial`, serialized `m_Materials.Array.size`, `Transform.position.x`,
-  an unknown member as null) in a scene and in a prefab. Rows are in hierarchy order.
+It also sets the project's own player settings to a new project's least helpful ones: another company, a splash
+screen, full screen 1920x1080 and resizable, not running in the background, one instance only, no player log,
+IL2CPP, static batching on, code stripping High, a development build.
+
+## The editor pass (`measures.json`, checked by `saved`)
+
+Every field of an `asset` measure on every kind of asset above (`shader:`, `keyword:`, `import:`, `prop:`), every
+field of a `scene` or `prefab` measure (`count`, `material_default`, `material:`, `mesh_collision`, `prop:`), every
+error the docs list, word for word, and paths that aren't the project's (`..`, backslashes, an absolute path), which
+are refused. It also proves that the pass opens each scene once for all of its measures (the marker's lines in the
+pass's log) and that assets which mark themselves changed when they load are loaded (their lines in the log) while
+the runner finds no file changed. Two more passes on requests the checker never writes show a result that can't be
+written arriving through the log's `TASK_PROBES` line, a number as the nonce echoed, and a request without a
+`measures` object refused with exit code 2.
+
+## The build (play `facts`)
+
+The play reads, from the game's side, what the checker's build promises whatever the project's own settings are: the
+company name the checker deletes saved data by, no splash screen, the Mono backend, not a development build, a
+960x540 window, a member that only reflection reads kept through code stripping, and static cubes that keep their own
+mesh. The check also reads the build's result (its keys; the played scene's references to assets that are gone, and
+no script of a package among them), the project's settings after the build (still its own), and plays two players of
+the build at once (both run to their end).

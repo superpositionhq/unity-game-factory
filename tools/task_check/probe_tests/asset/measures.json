@@ -1,0 +1,1594 @@
+{
+ "a.road.smoothness": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_Smoothness"
+ },
+ "a.road.metallic": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_Metallic"
+ },
+ "a.road.base_r": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseColor.r"
+ },
+ "a.road.base_b": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseColor.b"
+ },
+ "a.road.base_x": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseColor.x"
+ },
+ "a.road.emission_g": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_EmissionColor.g"
+ },
+ "a.road.base_map": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseMap"
+ },
+ "a.road.base_map_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseMap.name"
+ },
+ "a.road.shader": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:name"
+ },
+ "a.road.emission": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "keyword:_EMISSION"
+ },
+ "a.road.alpha_test": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "keyword:_ALPHATEST_ON"
+ },
+ "a.road.no_keyword": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "keyword:_NO_SUCH_KEYWORD"
+ },
+ "a.road.base_whole": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseColor"
+ },
+ "a.road.no_property": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_Nope"
+ },
+ "a.road.float_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_Smoothness.name"
+ },
+ "a.road.texture_channel": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_BaseMap.r"
+ },
+ "a.road.queue": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "prop:renderQueue"
+ },
+ "a.road.shader_ref": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "prop:m_Shader"
+ },
+ "a.road.shader_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "prop:shader.name"
+ },
+ "a.road.importer": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "import:userData"
+ },
+ "a.glow.alpha": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "shader:_BaseColor.a"
+ },
+ "a.glow.cutoff": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "shader:_Cutoff"
+ },
+ "a.glow.base_map": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "shader:_BaseMap"
+ },
+ "a.glow.base_map_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "shader:_BaseMap.name"
+ },
+ "a.glow.alpha_test": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "keyword:_ALPHATEST_ON"
+ },
+ "a.glow.shader": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Glow.mat",
+  "field": "shader:name"
+ },
+ "a.fx.wind_z": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Wind.z"
+ },
+ "a.fx.wind_w": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Wind.w"
+ },
+ "a.fx.wind_r": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Wind.r"
+ },
+ "a.fx.steps": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Steps"
+ },
+ "a.fx.tint_g": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Tint.g"
+ },
+ "a.fx.shader": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:name"
+ },
+ "a.fx.wind_whole": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Fx.mat",
+  "field": "shader:_Wind"
+ },
+ "a.broken.shader": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Broken.mat",
+  "field": "shader:name"
+ },
+ "a.broken.base": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Broken.mat",
+  "field": "shader:_BaseColor.r"
+ },
+ "a.spaces.smoothness": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Sub Dir/Road (2).mat",
+  "field": "shader:_Smoothness"
+ },
+ "a.unicode.smoothness": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Sub Dir/Märkt Ünï.mat",
+  "field": "shader:_Smoothness"
+ },
+ "a.package.shader": {
+  "probe": "asset",
+  "asset": "Packages/com.unity.render-pipelines.universal/Runtime/Materials/Lit.mat",
+  "field": "shader:name"
+ },
+ "a.tex.readable": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "import:isReadable"
+ },
+ "a.tex.compression": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "import:textureCompression"
+ },
+ "a.tex.max_size": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "import:maxTextureSize"
+ },
+ "a.tex.serialized": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "import:m_IsReadable"
+ },
+ "a.tex.no_setting": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "import:nope"
+ },
+ "a.tex.width": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "prop:width"
+ },
+ "a.tex.shader": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "shader:_BaseColor.r"
+ },
+ "a.tex.keyword": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "keyword:_EMISSION"
+ },
+ "a.tex.bogus": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Grass.png",
+  "field": "bogus:x"
+ },
+ "a.wav.mono": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Beep.wav",
+  "field": "import:forceToMono"
+ },
+ "a.wav.load_type": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Beep.wav",
+  "field": "import:loadType"
+ },
+ "a.wav.load_type_path": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Beep.wav",
+  "field": "import:defaultSampleSettings.loadType"
+ },
+ "a.wav.length": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Beep.wav",
+  "field": "prop:length"
+ },
+ "a.wav.channels": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Beep.wav",
+  "field": "prop:channels"
+ },
+ "a.obj.scale": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Box.obj",
+  "field": "import:globalScale"
+ },
+ "a.obj.animation": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Box.obj",
+  "field": "import:animationType"
+ },
+ "a.obj.scale_serialized": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Box.obj",
+  "field": "import:m_GlobalScale"
+ },
+ "a.obj.name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Box.obj",
+  "field": "prop:name"
+ },
+ "a.waves.level": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:level"
+ },
+ "a.waves.speed": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:speed"
+ },
+ "a.waves.title": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:title"
+ },
+ "a.waves.boss": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:boss"
+ },
+ "a.waves.difficulty": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:difficulty"
+ },
+ "a.waves.waves": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves"
+ },
+ "a.waves.third_count": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves[2].count"
+ },
+ "a.waves.third_delay": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves[2].delay"
+ },
+ "a.waves.tint_g": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:tint.g"
+ },
+ "a.waves.tint": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:tint"
+ },
+ "a.waves.skin": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:skin"
+ },
+ "a.waves.skin_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:skin.name"
+ },
+ "a.waves.none": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:none"
+ },
+ "a.waves.secret": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:secret"
+ },
+ "a.waves.name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:m_Name"
+ },
+ "a.waves.array_size": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves.Array.size"
+ },
+ "a.waves.nan": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:nan"
+ },
+ "a.waves.inf": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:inf"
+ },
+ "a.waves.curve": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:curve"
+ },
+ "a.waves.curve_keys": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:curve.length"
+ },
+ "a.waves.past_unset": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:none.name"
+ },
+ "a.waves.past_end": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves[9].count"
+ },
+ "a.waves.unknown": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:nothing"
+ },
+ "a.waves.unknown_deeper": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:waves[1].nothing"
+ },
+ "a.waves.index_of_number": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Waves.asset",
+  "field": "prop:speed[0]"
+ },
+ "a.anim.parameters": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Anim.controller",
+  "field": "prop:parameters"
+ },
+ "a.anim.second": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Anim.controller",
+  "field": "prop:parameters[1].name"
+ },
+ "a.anim.layer": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Anim.controller",
+  "field": "prop:layers[0].name"
+ },
+ "a.lamp.speed": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:AssetSpinner.speed"
+ },
+ "a.lamp.light": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:Light.intensity"
+ },
+ "a.lamp.name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:m_Name"
+ },
+ "a.lamp.material": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:MeshRenderer.material.name"
+ },
+ "a.lamp.mesh": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:MeshFilter.mesh.name"
+ },
+ "a.lamp.position": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:Transform.position"
+ },
+ "a.lamp.unknown": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:AssetSpinner.nothing"
+ },
+ "a.lamp.target_name": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:AssetSpinner.target.name"
+ },
+ "a.variant.speed": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/LampVariant.prefab",
+  "field": "prop:AssetSpinner.speed"
+ },
+ "a.dirty.loads": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Dirty.prefab",
+  "field": "prop:AssetDirtier.loads"
+ },
+ "a.missing": {
+  "probe": "asset",
+  "asset": "Assets/ProbeTests/asset/Made/Missing.mat",
+  "field": "shader:_BaseColor.r"
+ },
+ "a.guard.settings": {
+  "probe": "asset",
+  "asset": "Assets/../ProjectSettings/ProjectSettings.asset",
+  "field": "prop:companyName"
+ },
+ "a.guard.inside": {
+  "probe": "asset",
+  "asset": "Packages/../Assets/ProbeTests/asset/Made/Road.mat",
+  "field": "shader:_Smoothness"
+ },
+ "a.guard.backslash": {
+  "probe": "asset",
+  "asset": "Assets\\ProbeTests\\asset\\Made\\Road.mat",
+  "field": "shader:_Smoothness"
+ },
+ "a.guard.absolute": {
+  "probe": "asset",
+  "asset": "C:/Windows/win.ini",
+  "field": "prop:name"
+ },
+ "a.not_object": "a measure that is a string",
+ "a.no_target": {
+  "probe": "asset",
+  "field": "count"
+ },
+ "s.tag": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "s.tag_inactive": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "tag": "Terrace",
+   "inactive": true
+  }
+ },
+ "s.name_wild": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "name": "Terrace_*"
+  }
+ },
+ "s.name_case": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "name": "terrace_a"
+  }
+ },
+ "s.inactive_out": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "name": "Terrace_C"
+  }
+ },
+ "s.inactive_in": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "name": "Terrace_C",
+   "inactive": true
+  }
+ },
+ "s.unknown_tag": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "tag": "NoSuchTag"
+  }
+ },
+ "s.layer": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "layer": "Water"
+  }
+ },
+ "s.component": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "component": "Light"
+  }
+ },
+ "s.spinners": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.speed",
+  "select": {
+   "component": "AssetSpinner"
+  }
+ },
+ "s.near": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      0,
+      0
+     ]
+    },
+    "radius": 6
+   }
+  }
+ },
+ "s.near_high": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      0,
+      0
+     ]
+    },
+    "radius": 6,
+    "y_min": 1.5
+   }
+  }
+ },
+ "s.near_band": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "xyz": [
+      3,
+      1,
+      3
+     ]
+    },
+    "radius": 3,
+    "y_min": 0.5
+   }
+  }
+ },
+ "s.near_relative": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "xyz": [
+      3,
+      1,
+      3
+     ]
+    },
+    "radius": 3,
+    "y_min": 0.5,
+    "y_relative": true
+   }
+  }
+ },
+ "s.near_object": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "object": {
+      "name": "FanObj"
+     },
+     "offset": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 0.5
+   }
+  }
+ },
+ "s.near_nothing": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "object": {
+      "name": "NoSuchObject"
+     }
+    },
+    "radius": 5
+   }
+  }
+ },
+ "s.default_terraces": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "tag": "Terrace",
+   "inactive": true
+  }
+ },
+ "s.default_broken": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "Broken"
+  }
+ },
+ "s.default_lamps": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "Lamp"
+  }
+ },
+ "s.default_poles": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "Pole"
+  }
+ },
+ "s.default_group": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "Group"
+  }
+ },
+ "s.default_two_parts": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "TwoParts"
+  }
+ },
+ "s.default_lost": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material_default",
+  "select": {
+   "name": "Lost"
+  }
+ },
+ "s.material_base_r": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:_BaseColor.r",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.material_map_name": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:_BaseMap.name",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.material_keyword": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:keyword:_EMISSION",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.material_shader_d": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:shader",
+  "select": {
+   "name": "Terrace_D"
+  }
+ },
+ "s.material_shader_b": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:shader",
+  "select": {
+   "name": "Terrace_B"
+  }
+ },
+ "s.material_group": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:_Smoothness",
+  "select": {
+   "name": "Group"
+  }
+ },
+ "s.material_variant": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:shader",
+  "select": {
+   "name": "Variant"
+  }
+ },
+ "s.material_nope": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:_Nope",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.material_whole": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "material:_BaseColor",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.collision_group": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "mesh_collision",
+  "select": {
+   "name": "Group"
+  }
+ },
+ "s.collision_b": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "mesh_collision",
+  "select": {
+   "name": "Terrace_B"
+  }
+ },
+ "s.collision_variant": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "mesh_collision",
+  "select": {
+   "name": "Variant"
+  }
+ },
+ "s.collision_quad": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "mesh_collision",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.collision_2d": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "mesh_collision",
+  "select": {
+   "name": "Flat"
+  }
+ },
+ "s.prop_steps": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.steps",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_step": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.steps[3]",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_label": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.label",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_hidden": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.hiddenCount",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_axis": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.axis.y",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_target": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.target",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_target_name": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.target.name",
+  "select": {
+   "name": "FanObj"
+  }
+ },
+ "s.prop_material": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:MeshRenderer.material.name",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.prop_materials": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:MeshRenderer.materials",
+  "select": {
+   "name": "Terrace_D"
+  }
+ },
+ "s.prop_serialized": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:MeshRenderer.m_Materials.Array.size",
+  "select": {
+   "name": "Terrace_D"
+  }
+ },
+ "s.prop_x": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:Transform.position.x",
+  "select": {
+   "name": "Terrace_D"
+  }
+ },
+ "s.prop_nothing": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:MeshRenderer.nothing",
+  "select": {
+   "name": "Terrace_D"
+  }
+ },
+ "s.prop_first_below": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:BoxCollider.isTrigger",
+  "select": {
+   "name": "Group"
+  }
+ },
+ "s.prop_mesh": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:MeshFilter.mesh.name",
+  "select": {
+   "name": "TwoParts"
+  }
+ },
+ "s.prop_variant": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:AssetSpinner.speed",
+  "select": {
+   "name": "Variant"
+  }
+ },
+ "s.prop_name": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "prop:m_Name",
+  "select": {
+   "name": "Terrace_A"
+  }
+ },
+ "s.gone": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "name": "Gone*"
+  }
+ },
+ "s.player": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "player": true
+  }
+ },
+ "s.has": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "has": {
+    "component": "Light"
+   }
+  }
+ },
+ "s.near_player": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "player": true
+    },
+    "radius": 3
+   }
+  }
+ },
+ "s.near_camera": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "near": {
+    "point": {
+     "camera": true,
+     "forward": 2
+    },
+    "radius": 3
+   }
+  }
+ },
+ "s.bad_field": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "bogus",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "s.no_field": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Level.unity",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "s.missing": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Nowhere.unity",
+  "field": "count",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "s.guard": {
+  "probe": "asset",
+  "scene": "Assets/../Assets/ProbeTests/asset/Made/Level.unity",
+  "field": "count",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "o.tag": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Other.unity",
+  "field": "count",
+  "select": {
+   "tag": "Terrace"
+  }
+ },
+ "o.all": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Other.unity",
+  "field": "count"
+ },
+ "b.row_00": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_00"
+  }
+ },
+ "b.row_01": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_01"
+  }
+ },
+ "b.row_02": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_02"
+  }
+ },
+ "b.row_03": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_03"
+  }
+ },
+ "b.row_04": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_04"
+  }
+ },
+ "b.row_05": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_05"
+  }
+ },
+ "b.row_06": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_06"
+  }
+ },
+ "b.row_07": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_07"
+  }
+ },
+ "b.row_08": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_08"
+  }
+ },
+ "b.row_09": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_09"
+  }
+ },
+ "b.row_10": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_10"
+  }
+ },
+ "b.row_11": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_11"
+  }
+ },
+ "b.row_12": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_12"
+  }
+ },
+ "b.row_13": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_13"
+  }
+ },
+ "b.row_14": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_14"
+  }
+ },
+ "b.row_15": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_15"
+  }
+ },
+ "b.row_16": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_16"
+  }
+ },
+ "b.row_17": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_17"
+  }
+ },
+ "b.row_18": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_18"
+  }
+ },
+ "b.row_19": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_19"
+  }
+ },
+ "b.row_20": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_20"
+  }
+ },
+ "b.row_21": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_21"
+  }
+ },
+ "b.row_22": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_22"
+  }
+ },
+ "b.row_23": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_23"
+  }
+ },
+ "b.row_24": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_24"
+  }
+ },
+ "b.row_25": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_25"
+  }
+ },
+ "b.row_26": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_26"
+  }
+ },
+ "b.row_27": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_27"
+  }
+ },
+ "b.row_28": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_28"
+  }
+ },
+ "b.row_29": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_29"
+  }
+ },
+ "b.row_30": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_30"
+  }
+ },
+ "b.row_31": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_31"
+  }
+ },
+ "b.row_32": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_32"
+  }
+ },
+ "b.row_33": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_33"
+  }
+ },
+ "b.row_34": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_34"
+  }
+ },
+ "b.row_35": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_35"
+  }
+ },
+ "b.row_36": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_36"
+  }
+ },
+ "b.row_37": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_37"
+  }
+ },
+ "b.row_38": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_38"
+  }
+ },
+ "b.row_39": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_39"
+  }
+ },
+ "b.row_40": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_40"
+  }
+ },
+ "b.row_41": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_41"
+  }
+ },
+ "b.row_42": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_42"
+  }
+ },
+ "b.row_43": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_43"
+  }
+ },
+ "b.row_44": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_44"
+  }
+ },
+ "b.row_45": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_45"
+  }
+ },
+ "b.row_46": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_46"
+  }
+ },
+ "b.row_47": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_47"
+  }
+ },
+ "b.row_48": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_48"
+  }
+ },
+ "b.row_49": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Row_49"
+  }
+ },
+ "b.cells": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count",
+  "select": {
+   "name": "Cell_042"
+  }
+ },
+ "b.all": {
+  "probe": "asset",
+  "scene": "Assets/ProbeTests/asset/Made/Big.unity",
+  "field": "count"
+ },
+ "p.lamp.all": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "count"
+ },
+ "p.lamp.default": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "material_default",
+  "select": {
+   "name": "Lamp"
+  }
+ },
+ "p.lamp.pole_default": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "material_default",
+  "select": {
+   "name": "Pole"
+  }
+ },
+ "p.lamp.collision": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "mesh_collision",
+  "select": {
+   "name": "Lamp"
+  }
+ },
+ "p.lamp.light": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:Light.intensity",
+  "select": {
+   "component": "Light"
+  }
+ },
+ "p.lamp.light_type": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:Light.m_Type",
+  "select": {
+   "component": "Light"
+  }
+ },
+ "p.lamp.bulb_shader": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "material:shader",
+  "select": {
+   "name": "Bulb"
+  }
+ },
+ "p.lamp.speed": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "prop:AssetSpinner.speed",
+  "select": {
+   "name": "Lamp"
+  }
+ },
+ "p.variant.all": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/LampVariant.prefab",
+  "field": "count"
+ },
+ "p.variant.speed": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/LampVariant.prefab",
+  "field": "prop:AssetSpinner.speed",
+  "select": {
+   "name": "LampVariant"
+  }
+ },
+ "p.post.all": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Post.prefab",
+  "field": "count"
+ },
+ "p.dirty.all": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Dirty.prefab",
+  "field": "count"
+ },
+ "p.missing": {
+  "probe": "asset",
+  "prefab": "Assets/ProbeTests/asset/Made/Nowhere.prefab",
+  "field": "count",
+  "select": {}
+ },
+ "p.guard": {
+  "probe": "asset",
+  "prefab": "Packages/../Assets/ProbeTests/asset/Made/Lamp.prefab",
+  "field": "count",
+  "select": {}
+ }
+}

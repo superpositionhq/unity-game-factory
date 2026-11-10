@@ -1,0 +1,22 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/asset/Made/Facts.unity",
+ "queries": [
+  {
+   "id": "facts",
+   "kind": "objects",
+   "select": {"name": "Facts"},
+   "fields": ["prop:AssetFacts.company", "prop:AssetFacts.splashDone", "prop:AssetFacts.backend",
+              "prop:AssetFacts.development", "prop:AssetFacts.mode", "prop:AssetFacts.width",
+              "prop:AssetFacts.height", "prop:AssetFacts.Unread"]
+  },
+  {
+   "id": "statics",
+   "kind": "objects",
+   "select": {"name": "Static_*"},
+   "fields": ["prop:MeshFilter.sharedMesh.name", "prop:MeshRenderer.isPartOfStaticBatch"]
+  }
+ ]
+}
