@@ -44,6 +44,8 @@ __pycache__/
 /.dataset/
 # the task checker's results (tools/task-check.py): local only
 /.task-checks/
+# tools/scrub-workflow-rows.py writes this and swaps it in; a scrub killed between the two leaves it behind
+/workflow.jsonl.tmp
 # secrets and Unity licence files, anywhere: never committed, and the WIP auto-commit stages everything not ignored
 .env
 *.ulf
