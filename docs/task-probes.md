@@ -811,15 +811,16 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
 - `select` (optional; none: every source playing): `sound` a wildcard on the AudioClip's name, `sound_class` a
   wildcard on the name of the AudioMixerGroup the source outputs to (that group's own name: a parent group's doesn't
   match), `owner` an object select the source's object is in.
-- Each source reads its **volume at the listener** (the first enabled AudioListener on an active object): its volume
-  (0 when muted) times its distance attenuation by its rolloff, for its 3D share by `spatialBlend`; mixer volumes and
-  `AudioListener.volume` are left out (a mixer group's volume changes `level`, never `volume`). Logarithmic rolloff is
-  min distance / distance and keeps falling past max distance, whatever Unity's documentation says (measured: 1/80 at
-  80 m with max 50); linear falls to 0 at max distance; a custom curve runs over distance / max distance.
+- Each source reads its **volume at the listener** (the first enabled AudioListener on an active object, in hierarchy
+  order): its volume (0 when muted) times its distance attenuation by its rolloff, for its 3D share by
+  `spatialBlend`; mixer volumes and `AudioListener.volume` are left out (a mixer group's volume changes `level`, never
+  `volume`). Logarithmic rolloff is min distance / distance and keeps falling past max distance, whatever Unity's
+  documentation says (measured: 1/80 at 80 m with max 50); linear falls to 0 at max distance; a custom curve runs over
+  distance / max distance.
 - `field`: `count` (how many sources), `audible` (how many at 0.001, -60 dB, or louder), `volume` (their volumes'
   sum), `max_volume` (the loudest), and `level` (the RMS of the listener's mixed output since the previous sample,
-  mixers and effects included: everything the player would hear, whatever plays it). The probe puts its tap on the
-  listener from its first frame, and on a new listener in the frame it comes on; a sample before which no sound
+  mixers and effects included: everything the player would hear, whatever plays it). The probe puts its tap on every
+  enabled listener from its first frame, and on a new one in the frame it comes on; a sample before which no sound
   reached the tap (a play's first sample can be one) has no `level`. No listener: no value at all.
 - While `AudioListener.pause` is on, every source reads as not playing (`count` and `level` 0); with `timeScale` 0
   sounds keep playing.
@@ -828,7 +829,7 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
 - **A `volume`, `max_volume` or `level` threshold is calibrated or relative to the start, never a literal value**: how
   loud depends on the sounds a build chose. `count` and `audible` take a literal. Compare places by their own plays or
   windows: teleport into each zone (section 1.1) and read the zone's sound there.
-- Every play runs with its sound on, and in every play the probe's tap on the enabled AudioListener measures the mix
+- Every play runs with its sound on, and in every play the probe's tap on each enabled AudioListener measures the mix
   and then silences it, so nothing is heard on the machine. A play with an `audio` measure is paced to real time
   (still 30 fps), so a sound lasts as long in play time as on a clock. Every other play runs as fast as the machine
   renders, often many times faster than real time, and a sound, which plays in real time, then lasts many times longer
