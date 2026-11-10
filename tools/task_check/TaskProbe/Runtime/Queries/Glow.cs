@@ -2,10 +2,13 @@
 // build makes light (a Light, a mesh drawn with an emissive or unlit material, a live particle system), so a lamp lit by
 // a Light and a lamp drawn by a glowing material read the same.
 //
-// A mesh renderer is read from its material properties when every material it draws with has a shader with the
-// standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`),
-// MaterialPropertyBlock overrides included; else as rendered (DrawnRender.Glow). A live particle system is always
-// read as rendered. One that couldn't be rendered reads no value and says "unread".
+// A mesh renderer is read from its materials' properties when every material it draws with has a shader with the
+// standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`)
+// and no texture multiplies the colour read, MaterialPropertyBlock overrides included; else (a texture, a Shader Graph
+// or a custom shader) it is rendered alone (DrawnRender.Glow), as the original renders a mesh whose material graph it
+// can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot. A live particle
+// system is always read as rendered. Past the render budget a mesh reads the bound its properties give (a texture
+// taken as white: "bound"); a particle system then has no value ("unread").
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -17,7 +20,7 @@ namespace TaskProbe
     public struct GlowReading
     {
         public const int KindLight = 1, KindEmissive = 2, KindUnlit = 4, KindEffect = 8;
-        public const int ReadProps = 1, ReadRender = 2, ReadUnread = 4;
+        public const int ReadProps = 1, ReadRender = 2, ReadBound = 4, ReadUnread = 8;
 
         public bool Read;   // it was read (else lit and glow have no value)
         public bool Lit;
@@ -45,13 +48,14 @@ namespace TaskProbe
             return string.Join(",", parts);
         }
 
-        /// <summary>"props,render,unread": how its renderers were read, for logs; null with no renderer read.</summary>
+        /// <summary>"props,render,bound,unread": how its renderers were read, for logs; null with no renderer read.</summary>
         public string ReadAs()
         {
             if (Reads == 0) return null;
             var parts = new List<string>();
             if ((Reads & ReadProps) != 0) parts.Add("props");
             if ((Reads & ReadRender) != 0) parts.Add("render");
+            if ((Reads & ReadBound) != 0) parts.Add("bound");
             if ((Reads & ReadUnread) != 0) parts.Add("unread");
             return string.Join(",", parts);
         }
@@ -70,8 +74,7 @@ namespace TaskProbe
 
     public static class Glow
     {
-        /// <summary>lit: an emissive surface brighter than this (linear luminance), or a rendered pixel.</summary>
-        public const double Floor = 0.01;
+        const double Floor = 0.01;  // lit: a surface brighter than this (linear luminance), or a rendered pixel
 
         enum Face { None, Emissive, Unlit }
 
@@ -82,12 +85,11 @@ namespace TaskProbe
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
         static readonly int MainTex = Shader.PropertyToID("_MainTex");
 
-        static readonly Dictionary<int, Face> Faces = new Dictionary<int, Face>();
-        static readonly Dictionary<int, KeyValuePair<uint, Color>> Means = new Dictionary<int, KeyValuePair<uint, Color>>();
+        static readonly ShaderTagId GraphTag = new ShaderTagId("ShaderGraphShader");
+        static readonly Dictionary<int, Face> Faces = new Dictionary<int, Face>();  // by shader: its interface never changes
         static readonly Dictionary<int, GlowReading> Frame = new Dictionary<int, GlowReading>();
         static int frameOf = -1;
         static MaterialPropertyBlock blockAll, blockOne;
-        static Texture2D readBack;
 
         static double Luminance(Color c) => Find.Luminance(c.r, c.g, c.b);
 
@@ -126,8 +128,8 @@ namespace TaskProbe
         }
 
         /// <summary>A Light: glow its intensity times its colour's luminance (its colour temperature included when the
-        /// project uses it).</summary>
-        public static void AddLight(ref GlowReading r, Light light)
+        /// project uses it, as URP lights with it).</summary>
+        static void AddLight(ref GlowReading r, Light light)
         {
             r.Read = true;
             if (!Find.LightOn(light)) return;
@@ -141,9 +143,9 @@ namespace TaskProbe
             r.Kinds |= GlowReading.KindLight;
         }
 
-        /// <summary>A mesh renderer; false when it couldn't be read (its shader needs rendering and there is no
-        /// renderer). Read once a frame (a select's has.lit and the fields share it).</summary>
-        public static bool AddMesh(ref GlowReading total, Renderer renderer)
+        /// <summary>A mesh renderer, read once a frame (a select's has.lit and the fields share it); false when it
+        /// couldn't be read.</summary>
+        static bool AddMesh(ref GlowReading total, Renderer renderer)
         {
             if (frameOf != Time.frameCount)
             {
@@ -151,35 +153,38 @@ namespace TaskProbe
                 Frame.Clear();
             }
             var id = renderer.GetInstanceID();
-            if (!Frame.TryGetValue(id, out var r))
-            {
-                r = ReadMesh(renderer, out var ok);
-                if (!ok) r.Reads |= GlowReading.ReadUnread;
-                Frame[id] = r;
-            }
+            if (!Frame.TryGetValue(id, out var r)) Frame[id] = r = ReadMesh(renderer);
             total.Add(r);
             return r.Read;
         }
 
-        static GlowReading ReadMesh(Renderer renderer, out bool ok)
+        /// <summary>A mesh as a source, lit when it is drawn and its light is above the floor; glow that light times a
+        /// quarter of the surface of its own bounds box (m2), what a lamp that size gives every way. Every material reads
+        /// exactly by its properties: the brightest material's luminance, as if it covered the whole mesh. Else (a
+        /// texture, another shader) rendered alone without light: lit by its brightest pixel, glow by its luminance over
+        /// the box summed and averaged over four views, which is the same amount for a box lit all over and less where
+        /// only part of it glows. Past the render budget, the bound its properties give.</summary>
+        static GlowReading ReadMesh(Renderer renderer)
         {
-            ok = true;
             var r = new GlowReading();
-            // a renderer that isn't drawn gives no light, whatever its materials
+            // a mesh that isn't drawn gives no light, whatever its materials
             if (!Find.Drawn(renderer)) { r.Read = true; return r; }
             var materials = renderer.sharedMaterials;
+            var read = materials.Length == 0;  // a material said how bright it can be
+            var allRead = true;  // every material did
+            var exact = true;    // and with no texture: the value, not a bound
+            var allUnlit = materials.Length > 0;
             var best = 0.0;
             var bestUnlit = false;
-            var allUnlit = materials.Length > 0;
-            var render = false;
             var blocks = renderer.HasPropertyBlock();
             for (var i = 0; i < materials.Length; i++)
             {
                 var m = materials[i];
-                if (m == null || m.shader == null) { allUnlit = false; continue; }
+                if (m == null || m.shader == null) { read = true; continue; }  // an empty slot draws nothing
                 var face = FaceOf(m.shader);
-                if (face == Face.None) { render = true; allUnlit = false; continue; }
                 allUnlit &= face == Face.Unlit;
+                if (face == Face.None) { exact = allRead = false; continue; }
+                read = true;
                 MaterialPropertyBlock one = null, all = null;
                 if (blocks)
                 {
@@ -190,46 +195,41 @@ namespace TaskProbe
                     one = blockOne.isEmpty ? null : blockOne;
                     all = blockAll.isEmpty ? null : blockAll;
                 }
-                double l;
-                if (face == Face.Emissive)
+                var l = MaterialLight(m, face, one, all, out var textured);
+                exact &= !textured;
+                if (l > best)
                 {
-                    // emission off (no _EMISSION keyword) draws none, whatever its colour
-                    if (!m.IsKeywordEnabled("_EMISSION")) continue;
-                    var c = Find.Linear(ColourOf(m, one, all, EmissionColor, EmissionColor));
-                    var tex = TextureOf(m, one, all, EmissionMap, EmissionMap);
-                    l = Luminance(tex != null ? c * Mean(tex) : c);
+                    best = l;
+                    bestUnlit = face == Face.Unlit;
                 }
-                else
-                {
-                    var c = Find.Linear(ColourOf(m, one, all, BaseColor, ColorId));
-                    var tex = TextureOf(m, one, all, BaseMap, MainTex);
-                    l = Luminance(tex != null ? c * Mean(tex) : c);
-                }
-                if (l > best) { best = l; bestUnlit = face == Face.Unlit; }
             }
-            if (render)
+            // a bound at or under the floor is dark whatever its textures are: nothing to render
+            if (!exact && !(allRead && best <= Floor))
             {
-                // a shader without the interface: as rendered, the whole renderer
-                RenderedGlow seen;
-                try { seen = DrawnRender.Glow(renderer); }
-                catch (Exception e) { Probe.Active?.Error("glow render of " + renderer.name + ": " + e.Message); ok = false; return r; }
-                if (!seen.Ok) { ok = false; return r; }
-                r.Read = true;
-                r.Reads |= GlowReading.ReadRender;
-                if (seen.Brightest > Floor)
+                var seen = Render(renderer);
+                if (seen.Ok)
                 {
-                    r.Lit = true;
-                    r.Glow += seen.Glow;
-                    r.Kinds |= allUnlit ? GlowReading.KindUnlit : GlowReading.KindEmissive;
+                    r.Read = true;
+                    r.Reads |= GlowReading.ReadRender;
+                    if (seen.Brightest > Floor)
+                    {
+                        r.Lit = true;
+                        r.Glow = seen.Glow;
+                        r.Kinds |= allUnlit ? GlowReading.KindUnlit : GlowReading.KindEmissive;
+                    }
+                    return r;
                 }
+            }
+            if (!read)
+            {
+                r.Reads |= GlowReading.ReadUnread;
                 return r;
             }
             r.Read = true;
-            r.Reads |= GlowReading.ReadProps;
+            r.Reads |= exact ? GlowReading.ReadProps : GlowReading.ReadBound;
             if (best <= Floor) return r;
             r.Lit = true;
-            // the brightest material over its whole local bounds: the candelas a lamp that size gives every way
-            r.Glow += best * QuarterSurface(renderer);
+            r.Glow = best * QuarterSurface(renderer);
             r.Kinds |= bestUnlit ? GlowReading.KindUnlit : GlowReading.KindEmissive;
             return r;
         }
@@ -237,13 +237,11 @@ namespace TaskProbe
 #if TASKPROBE_PARTICLES
         /// <summary>A particle system: dark unless it is live and its renderer drawn; then as rendered. False when it
         /// couldn't be read.</summary>
-        public static bool AddEffect(ref GlowReading total, ParticleSystem ps)
+        static bool AddEffect(ref GlowReading total, ParticleSystem ps)
         {
             var renderer = ps.GetComponent<ParticleSystemRenderer>();
             if (renderer == null || !Find.Drawn(renderer) || !Effects.Live(ps)) { total.Read = true; return true; }
-            RenderedGlow seen;
-            try { seen = DrawnRender.Glow(renderer); }
-            catch (Exception e) { Probe.Active?.Error("glow render of " + ps.name + ": " + e.Message); total.Reads |= GlowReading.ReadUnread; return false; }
+            var seen = Render(renderer);
             if (!seen.Ok) { total.Reads |= GlowReading.ReadUnread; return false; }
             total.Read = true;
             total.Reads |= GlowReading.ReadRender;
@@ -257,11 +255,25 @@ namespace TaskProbe
         }
 #endif
 
-        /// <summary>A quarter of the surface of a renderer's local bounds, scaled (m2).</summary>
-        public static double QuarterSurface(Renderer renderer)
+        static RenderedGlow Render(Renderer renderer)
         {
-            var s = Vector3.Scale(renderer.localBounds.size, renderer.transform.lossyScale);
-            double x = Mathf.Abs(s.x), y = Mathf.Abs(s.y), z = Mathf.Abs(s.z);
+            try { return DrawnRender.Glow(renderer); }
+            catch (Exception e)
+            {
+                // the same line whichever renderer it was; which one, and the exception, in probe.log
+                Probe.Active?.Error("lit/glow: a render failed (the exception is in probe.log)");
+                Probe.Log("lit/glow: rendering " + renderer.name + " failed: " + e);
+                return new RenderedGlow();
+            }
+        }
+
+        /// <summary>A quarter of the surface of a mesh's own bounds box (m2): its local bounds scaled with it, a skinned
+        /// mesh's in its root bone's frame (where its local bounds are, as the render frames it).</summary>
+        static double QuarterSurface(Renderer renderer)
+        {
+            var space = renderer is SkinnedMeshRenderer s && s.rootBone != null ? s.rootBone : renderer.transform;
+            var size = Vector3.Scale(renderer.localBounds.size, space.lossyScale);
+            double x = Mathf.Abs(size.x), y = Mathf.Abs(size.y), z = Mathf.Abs(size.z);
             return 2.0 * (x * y + y * z + z * x) / 4.0;
         }
 
@@ -276,8 +288,10 @@ namespace TaskProbe
             if (Faces.TryGetValue(id, out var face)) return face;
             face = Face.None;
             var name = shader.name ?? "";
-            // a Shader Graph's properties are its author's: _BaseColor there says nothing of what it draws
-            var graph = name.StartsWith("Shader Graphs/", StringComparison.Ordinal);
+            // a Shader Graph's properties are its author's: _BaseColor there says nothing of what it draws. Its name is
+            // whatever path its author gave it ("Unlit/Lamp"), so it is known by the tag Shader Graph writes
+            var graph = name.StartsWith("Shader Graphs/", StringComparison.Ordinal) ||
+                        (shader.subshaderCount > 0 && shader.FindSubshaderTagValue(0, GraphTag).name == "true");
             if (!graph && name.IndexOf("unlit", StringComparison.OrdinalIgnoreCase) >= 0 &&
                 (shader.FindPropertyIndex("_BaseColor") >= 0 || shader.FindPropertyIndex("_Color") >= 0))
                 face = Face.Unlit;
@@ -285,6 +299,22 @@ namespace TaskProbe
                 face = Face.Emissive;
             Faces[id] = face;
             return face;
+        }
+
+        /// <summary>The luminance a material gives off by its properties, in linear (as the shader gets the colour);
+        /// `textured`: a texture multiplies it, so it is a bound (the texture taken as white).</summary>
+        static double MaterialLight(Material m, Face face, MaterialPropertyBlock one, MaterialPropertyBlock all, out bool textured)
+        {
+            textured = false;
+            if (face == Face.Emissive)
+            {
+                // emission off (no _EMISSION keyword) draws none, whatever its colour or map
+                if (!m.IsKeywordEnabled("_EMISSION")) return 0.0;
+                textured = TextureOf(m, one, all, EmissionMap, EmissionMap) != null;
+                return Luminance(Find.Linear(ColourOf(m, one, all, EmissionColor, EmissionColor)));
+            }
+            textured = TextureOf(m, one, all, BaseMap, MainTex) != null;
+            return Luminance(Find.Linear(ColourOf(m, one, all, BaseColor, ColorId)));
         }
 
         static Color ColourOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, int fallback)
@@ -312,63 +342,6 @@ namespace TaskProbe
             if (m.HasProperty(id) && m.GetTexture(id) != null) return m.GetTexture(id);
             if (id != fallback && m.HasProperty(fallback)) return m.GetTexture(fallback);
             return null;
-        }
-
-        /// <summary>A texture's mean linear colour, by halving it on the GPU down to 16 x 16 and reading that back, so a
-        /// texture that isn't readable reads too. Cached by the texture and its update count.</summary>
-        public static Color Mean(Texture tex)
-        {
-            if (tex == null) return Color.white;
-            var id = tex.GetInstanceID();
-            var version = tex.updateCount;
-            if (Means.TryGetValue(id, out var cached) && cached.Key == version) return cached.Value;
-            var mean = Color.white;
-            if (tex.dimension == TextureDimension.Tex2D)
-            {
-                try { mean = Halve(tex); }
-                catch (Exception e) { Probe.Active?.Error("the mean of texture " + tex.name + " couldn't be read: " + e.Message); }
-            }
-            Means[id] = new KeyValuePair<uint, Color>(version, mean);
-            return mean;
-        }
-
-        static Color Halve(Texture tex)
-        {
-            const int Side = 16;
-            Texture source = tex;
-            RenderTexture held = null;
-            int w = tex.width, h = tex.height;
-            // each halving's bilinear tap averages a 2 x 2 block exactly, so the mean survives a texture without mips
-            while (w > Side || h > Side)
-            {
-                w = Math.Max(Side, (w + 1) / 2);
-                h = Math.Max(Side, (h + 1) / 2);
-                var next = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                next.filterMode = FilterMode.Bilinear;
-                Graphics.Blit(source, next);
-                if (held != null) RenderTexture.ReleaseTemporary(held);
-                held = next;
-                source = next;
-            }
-            if (held == null)
-            {
-                held = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                Graphics.Blit(source, held);
-            }
-            if (readBack == null || readBack.width != held.width || readBack.height != held.height)
-            {
-                if (readBack != null) UnityEngine.Object.Destroy(readBack);
-                readBack = new Texture2D(held.width, held.height, TextureFormat.RGBAHalf, false, true);
-            }
-            var before = RenderTexture.active;
-            RenderTexture.active = held;
-            readBack.ReadPixels(new Rect(0, 0, held.width, held.height), 0, 0, false);
-            RenderTexture.active = before;
-            RenderTexture.ReleaseTemporary(held);
-            var pixels = readBack.GetPixels();
-            var sum = Color.clear;
-            foreach (var p in pixels) sum += p;
-            return pixels.Length > 0 ? sum / pixels.Length : Color.white;
         }
     }
 
