@@ -201,7 +201,7 @@ Try-Check 'Memory' {
 }
 Try-Check 'Long paths' {
     $v = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -ErrorAction SilentlyContinue).LongPathsEnabled
-    if ($v -eq 1) { Add-Result PASS 'Long paths' 'LongPathsEnabled=1' } else { Add-Result WARN 'Long paths' 'LongPathsEnabled is off' 'optional: Asset Store packs and Library\PackageCache nest deeply; keep the root short or enable long paths as admin' }
+    if ($v -eq 1) { Add-Result PASS 'Long paths' 'LongPathsEnabled=1' } else { Add-Result WARN 'Long paths' 'LongPathsEnabled is off' 'optional: Asset Store packs and Library\PackageCache nest deeply; keep the root short (e.g. C:\UnityWork) or enable long paths as admin' }
 }
 
 # --- pinned ffmpeg ---------------------------------------------------------------------------------------------------
