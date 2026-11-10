@@ -638,7 +638,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   - `prop:<path>`: the main asset's member by reflection, else a SerializedObject property path (a ScriptableObject's
     field `prop:waves[2].count`; `prop:waves`, a list, is its length; `prop:m_Name`). On a prefab asset it reads the
     prefab's root as a scene object's `prop:` does (`prop:Light.intensity`, the first Light in it). `material`,
-    `materials` and `mesh` in a path are read as their `shared...` versions (the plain getters would copy the asset);
+    `materials` and `mesh` in a path are read as their `shared...` versions (the plain getters would copy the asset).
+    A path that stops at an unset reference or past the end of a list has no value; one naming a member the asset
+    doesn't have is an error (below);
   - `import:<path>`: its importer's setting (`import:maxTextureSize`, `import:textureCompression`), falling back to
     an AudioImporter's `defaultSampleSettings` (so `import:loadType` works);
   - `shader:<Property>`: a material's shader property: a float, range or int as it is (`shader:_Smoothness`); a
@@ -652,9 +654,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   rows, and `of` combines them (default `count`: how many rows have a value other than 0):
   - `count`: how many objects match (`of` ignored);
   - `material_default`: one row per object, 1 when any renderer of it or its descendants (inactive ones included)
-    has no material slot, a slot that is empty or missing, a material with the error shader (or one that doesn't
-    compile), or Unity's built-in default material or the render pipeline's default material (what a new primitive
-    gets in URP);
+    has no material slot, a slot that is empty or missing (fewer slots than its mesh has parts), a material with the
+    error shader (or one that doesn't compile), or Unity's built-in default material or the render pipeline's default
+    material (what a new primitive gets in URP);
   - `material:<property>`: one row per material slot of every renderer of the object and its descendants (inactive
     ones included; rows named `<object>/<renderer's object>`), the slot's material read as `shader:` reads it
     (`material:_BaseColor.r`, `material:_BaseMap.name`, `material:shader` for the shader's name), or
@@ -671,10 +673,11 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   resolved in the same scene or prefab; when nothing there matches it, nothing is near it).
 - Errors: the probe fails with "the editor couldn't measure it: " and the editor's message, one of these (`<...>` stands
   for the names in question):
-  - `no asset <path>`, `no scene <path>`, `no prefab <path>`;
+  - `no asset <path>`, `no scene <path>`, `no prefab <path>` (also for a path that isn't `Assets/...` or
+    `Packages/...` with forward slashes, or that has a `.` or `..` part);
   - `the scene <path> couldn't be opened: <type>: <message>`, `the prefab <path> couldn't be loaded: <type>:
     <message>` (the file is there, but Unity can't open it);
-  - `no property <path> on <asset type> <asset path>` (a `prop:` of an asset);
+  - `no property <path> on <asset type> <asset path>` (a `prop:` of an asset naming a member it doesn't have);
   - `no import setting <path> on <importer type> <asset path>`, `no importer for <asset path>`;
   - `<asset path> is not a material (<asset type>)` (`shader:` or `keyword:` on another asset);
   - `no shader property <name> on <shader> (<material>)`;
