@@ -330,22 +330,24 @@ renderers, else its position.
 - `field`:
   - `count`: the selection's size (`of` ignored);
   - `x`, `y`, `z` (m), `yaw`, `pitch`, `roll` (degrees), `scale` (the mean of the absolute lossy scale's axes);
-  - `extent_x`, `extent_y`, `extent_z`: **the object's drawn renderers' world-aligned half-size** (m). The box is the
-    union of the bounds of the renderers in the object and its descendants that are drawn (enabled, active, not
-    forced off). Colliders, lights, audio, particle and trail renderers (they span where their particles went) and
-    renderers with empty bounds (a MeshRenderer without a mesh) don't count; no value when the object draws nothing.
-    A LODGroup's lower LODs stay enabled, so their renderers count here (and in `spread` and `hidden`) too.
-    World-aligned, so a rotated object's extent mixes its own axes (an object turned 90 degrees reports its width as
-    `extent_z`);
+  - `extent_x`, `extent_y`, `extent_z`: **the object's drawn parts' world-aligned half-size** (m). Its parts are the
+    renderers in the object and its descendants that draw a shape and have something to draw: a MeshRenderer whose
+    mesh has vertices, a SkinnedMeshRenderer with a mesh, a SpriteRenderer with a sprite, a LineRenderer, a
+    TilemapRenderer and the like. The box is the union of the bounds of the parts that are drawn (enabled, active, not
+    forced off) and not empty. Colliders, lights, audio, effects (particle systems, trails, visual effects: they span
+    where their particles went), sprite masks and a MeshRenderer without a mesh don't count; no value when the object
+    draws nothing. A LODGroup's lower LODs stay enabled, so their renderers count here (and in `spread` and `hidden`)
+    too. World-aligned, so a rotated object's extent mixes its own axes (an object turned 90 degrees reports its width
+    as `extent_z`);
   - `active` (active in the hierarchy); `hidden` (1 when it is inactive, or it has renderers and none is drawn);
     `collision` (it or a descendant has an enabled collider that isn't a trigger); `speed` (m/s): its own velocity
     when it reports one that isn't zero (the first of these it has: a non-kinematic Rigidbody, a Dynamic Rigidbody2D,
     an enabled CharacterController, a NavMeshAgent on its NavMesh), else how far it moved since the previous sample
     over that time. One with such a velocity source at rest reads 0 on its first sample; one without has no value the
     first time it is seen;
-  - `spin` (deg/s): how fast the object turns, the fastest of its mesh parts (its MeshRenderers with a mesh and its
-    SkinnedMeshRenderers, in it and its descendants, drawn or not; none: its own transform), each read as a
-    component's `spin` (section 2.5). **Its threshold is calibrated or relative to the start, never a literal value**;
+  - `spin` (deg/s): how fast the object turns, the fastest of its parts (as `extent_*` counts them, drawn or not; none:
+    its own transform), each read as a component's `spin` (section 2.5). **Its threshold is calibrated or relative to
+    the start, never a literal value**;
   - `simulating`: 1 when the object or a descendant has a non-kinematic Rigidbody or a Dynamic Rigidbody2D (pieces
     that broke loose, a ragdoll);
   - `spread` (m): how far apart the object's parts are, the diagonal of the world-aligned box around their centres:
@@ -353,7 +355,7 @@ renderers, else its position.
     crate reads its pieces' own layout; one broken into pieces that fell apart reads more, though its pieces stay
     drawn and tagged. **Its threshold is calibrated or relative to the start, never a literal value**;
   - `changed`: 1 when the object differs from the first sample it was seen in (the play's first sample, for an object
-    there from the start), else 0. Its parts are its mesh parts, as `spin` counts them, drawn or not. It reads 1 when
+    there from the start), else 0. Its parts are those `extent_*` counts, drawn or not. It reads 1 when
     a part was hidden or shown (drawn: enabled, active, not forced off), a part drawn then is gone or a part drawn now
     was not there, a part's world bounds moved more than 0.01 m (moved, turned, scaled), or a skinned mesh's pose
     moved: its bones more than 0.05 m in all, in the mesh's own space, or its local bounds more than 0.01 m. So an
