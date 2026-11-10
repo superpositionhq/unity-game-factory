@@ -2,9 +2,9 @@
 
 import unittest
 
-from helpers import NO_FIX, SEED, checked, first_check, probe, record, task_with
+from helpers import NO_FIX, SEED, FakeProject, checked, first_check, measuring, probe, record, side, task_with
 
-from task_check import verdict
+from task_check import check, verdict
 
 
 def broken_start_task(*checks, seed=SEED):
@@ -179,6 +179,24 @@ class Verdict(unittest.TestCase):
                  "was measured)), and the threshold is relative to it"
         self.assertFalse(verdict.verdict(task, None, record(checked("roofs", "probe", False),
                                                             checked("hud_shown", "probe", False, unread)))[0])
+
+    def test_the_start_rows_are_read_as_the_checker_words_them(self):
+        """The still-works excuse and the start-only rule read the start's rows in the words check.py and
+        probes.measured write them: a start whose play crashed excuses its still-works probe, one that ran and found no
+        player doesn't, and either leaves a threshold relative to it unset."""
+        task = task_with(milestones=[{"name": "done", "checks": [probe("roofs"), probe(
+                             "climbs", expect={"op": ">=", "start_plus": 5})]},
+                                     {"name": "still_works", "checks": [probe("hud_shown", weight=0)]}], seed=NO_FIX)
+
+        def nobody(seconds, shots, queries):  # the play ran to its end and never found a player
+            return {"format": "unity-probe/1", "ended": "time", "seconds": seconds + 0.5,
+                    "track": [[i / 2] for i in range(2 * seconds + 2)], "camera": [], "measures": {}}, ""
+
+        for answer, reasons in ((measuring(0, crash=True), ["climbs has no threshold"]),
+                                (nobody, ["start fails still-works hud_shown", "climbs has no threshold"])):
+            start = check.Grade(task, "start", side("start", FakeProject(answer), task), None, {}).run()
+            valid, why, _ = verdict.verdict(task, None, start)
+            self.assertEqual((valid, [w.split(":")[0] for w in why]), (False, reasons), why)
 
     def test_a_still_works_probe_counts_with_a_reference_too(self):
         task = task_with(milestones=[{"name": "fixed", "checks": [probe("fixed")]},
