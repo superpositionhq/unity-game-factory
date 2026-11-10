@@ -351,9 +351,10 @@ renderers, else its position.
   - `simulating`: 1 when the object or a descendant has a non-kinematic Rigidbody or a Dynamic Rigidbody2D (pieces
     that broke loose, a ragdoll);
   - `spread` (m): how far apart the object's parts are, the diagonal of the world-aligned box around their centres:
-    each renderer `extent_*` counts by its bounds centre; 0 with one part, no value when it draws nothing. A whole
-    crate reads its pieces' own layout; one broken into pieces that fell apart reads more, though its pieces stay
-    drawn and tagged. **Its threshold is calibrated or relative to the start, never a literal value**;
+    each part `extent_*` counts by its bounds centre, a skinned mesh whose bones carry several Rigidbodies (a ragdoll)
+    by each body's place; 0 with one part, no value when it draws nothing. A whole crate reads its pieces' own layout;
+    one broken into pieces that fell apart reads more, though its pieces stay drawn and tagged. **Its threshold is
+    calibrated or relative to the start, never a literal value**;
   - `changed`: 1 when the object differs from the first sample it was seen in (the play's first sample, for an object
     there from the start), else 0. Its parts are those `extent_*` counts, drawn or not. It reads 1 when
     a part was hidden or shown (drawn: enabled, active, not forced off), a part drawn then is gone or a part drawn now
