@@ -521,9 +521,10 @@ One batchmode editor pass per side, over the project as saved. A measure names e
     read as their `shared...` versions (the plain getters would copy the asset);
   - `import:<path>`: its importer's setting (`import:maxTextureSize`, `import:textureCompression`), falling back to
     an AudioImporter's `defaultSampleSettings` (so `import:loadType` works);
-  - `shader:<Property>`: a material's shader property (floats and ints as they are, `.r`, `.g`, `.b`, `.a` of colours
-    and of vectors, where they stand for `.x` to `.w`; a texture 1 when set): `shader:_BaseColor.r`,
-    `shader:_EmissionColor.g`, `shader:_BaseMap`; `shader:name` is the shader's name (with `match`);
+  - `shader:<Property>`: a material's shader property (floats and ints as they are; `.r`, `.g`, `.b`, `.a` of a colour
+    and `.x`, `.y`, `.z`, `.w` of a vector, either spelling for either; a texture 1 when set, and its name with
+    `.name` and `match`): `shader:_BaseColor.r`, `shader:_EmissionColor.g`, `shader:_BaseMap`, `shader:_BaseMap.name`;
+    `shader:name` is the shader's name (with `match`);
   - `keyword:<NAME>`: a material's shader keyword, 1 when enabled (`keyword:_EMISSION`).
 - `scene` (or `prefab`) + `select` (as for `objects`): objects in that scene or prefab as saved. A select using
   `player` or `has`, or a `near` around the player or the camera, is an error for that measure, not empty rows; a
@@ -534,8 +535,10 @@ One batchmode editor pass per side, over the project as saved. A measure names e
     that is empty or missing, uses the error shader (or one that doesn't compile), or holds Unity's built-in default
     material or the render pipeline's default material (what a new primitive gets in URP);
   - `material:<property>`: one row per material slot of every renderer of the object and its descendants (inactive
-    ones included), a float or int property as it is, a texture 1 when set. A colour or vector property has no value
-    here (a `material:` field names no channel): read a colour with `shader:` on the material asset;
+    ones included), read as `shader:` reads it: a float or int property as it is, a colour's or vector's channel
+    (`material:_BaseColor.r`), a texture 1 when set (`.name` for its name), `material:shader` the shader's name; and
+    `material:keyword:<NAME>`, 1 when that slot's material has the keyword enabled. A colour or vector without a
+    channel has no value;
   - `mesh_collision`: one row per mesh (MeshFilter with a mesh) in the object, 1 when it or a parent up to the object
     has an enabled collider that isn't a trigger;
   - `prop:<Component>.<path>`.
