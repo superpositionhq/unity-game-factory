@@ -105,6 +105,12 @@ def answered(argv, cwd, prompt, transcript, minutes, env_extra=None):
     return {"exit_code": 0, "seconds": 60.0, "timed_out": False}
 
 
+def stopped(timeout, scenes=()):
+    """A build that stopped twice with no compiler error and no result saying why (unity.Project.build's `stopped`)."""
+    return unity.Result(1, "Scripts have compiler errors.", 2.0,
+                        stopped="Unity stopped twice (exit 1) with no compiler error and no result saying why")
+
+
 def write(folder, *names, text="x"):
     for name in names:
         (Path(folder) / name).parent.mkdir(parents=True, exist_ok=True)
@@ -502,6 +508,54 @@ class Whole(unittest.TestCase):
             self.assertEqual(result["status"], "DONE", result["reasons"])
             self.assertEqual([(r["solved"], r["required"]) for r in result["runs"]], [(False, None), (False, None)])
             self.assertIn("6000.3.99f1", result["runs"][0]["why"])
+
+    def test_a_run_whose_build_stops_with_no_word_fails_alone_and_the_machines_faults_stop_the_try(self):
+        """A build stopped with no compiler error and no result (unity.BuildStopped) is no verdict on the start or the
+        reference, but in a run the agent may be why (a broken Packages/manifest.json logs no compiler error either):
+        that run fails with the reason and the next is tried. The machine's own faults stay the try's error."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            with faked(answered) as projects:
+                projects["run1"].build = stopped
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", runs=2, log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual([(r["solved"], r["required"]) for r in result["runs"]], [(False, None), (True, 1)])
+            kept = Path(tmp) / "out" / "probe-task" / "run1" / "build" / "build.log"
+            self.assertTrue(result["runs"][0]["why"].startswith("the agent's game (run1) didn't build: Unity stopped "
+                                                                "twice"), result["runs"][0]["why"])
+            self.assertIn(str(kept), result["runs"][0]["why"])
+            self.assertTrue(kept.is_file(), "the log its reason names")
+
+            def unlicensed(timeout, scenes=()):
+                raise unity.Unlicensed('Unity has no active licence (exit 198, "No valid Unity Editor license")')
+
+            with faked(answered) as projects:
+                projects["run1"].build = unlicensed
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch2", Path(tmp) / "out", "claude",
+                                        "claude", runs=2, log=lambda *a: None)
+            self.assertEqual((result["status"], result["runs"]), ("ERROR", []))
+            self.assertIn("Unlicensed", result["reasons"][0])
+
+    def test_a_start_or_reference_whose_build_stops_with_no_word_is_the_trys_error_naming_its_log(self):
+        for which, game in (("start", "the game as the task started"), ("reference", "the reference game")):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo, task = tried(tmp)
+                agents = []
+
+                def agent(*args, **kwargs):
+                    agents.append(args)
+                    return answered(*args, **kwargs)
+
+                with faked(agent) as projects:
+                    projects[which].build = stopped
+                    result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                            "claude", log=lambda *a: None)
+                self.assertEqual((result["status"], result["runs"], agents), ("ERROR", [], []), which)
+                kept = Path(tmp) / "out" / "probe-task" / which / "build" / "build.log"
+                self.assertIn(f"BuildStopped: {game} didn't build: Unity stopped twice", result["reasons"][0])
+                self.assertIn(str(kept), result["reasons"][0])
+                self.assertTrue(kept.is_file(), "the log the reason names is there after the try")
 
 
 class LongEnough(unittest.TestCase):

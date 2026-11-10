@@ -393,11 +393,15 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                     raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
                 clear(folder, BUILT)
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
+                grade = check.Grade(task, "reference", start, reference, thresholds, side=tried).run()
             except (seeds.WrongEngine, FileNotFoundError, RuntimeError) as exc:  # Unity version or project changed
+                if isinstance(exc, unity.MachineError) and not isinstance(exc, unity.BuildStopped):
+                    raise  # the machine can't run Unity (its licence, its job limiter): the try's error
+                # A build that stopped with no word about the game is no verdict on the start or the reference, but
+                # here the agent may be why (a broken Packages/manifest.json logs no compiler error either): its run's.
                 row.update(solved=False, score=0.0, required_passed=0, required=None, milestones={}, checks=[],
                            why=str(exc))
             else:
-                grade = check.Grade(task, "reference", start, reference, thresholds, side=tried).run()
                 row.update(score(task, grade), checks=grade["checks"])
             log(f"  {label}: {'SOLVED' if row['solved'] else 'not solved'} "
                 f"({row['required_passed']}/{row['required'] or '?'} required checks)")
