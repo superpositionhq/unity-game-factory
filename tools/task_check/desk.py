@@ -2,6 +2,9 @@
 
     python desk.py <exe> [args...]      exits with the program's exit code
 
+(From Git Bash, an argument that starts with a slash reaches it rewritten as a path, `cmd /c` as `cmd C:/`, and that
+cmd then waits for input on a desktop nobody sees: set MSYS_NO_PATHCONV=1 first. PowerShell passes it as it is.)
+
 A play is a real windowed player (Unity doesn't draw the screen in batchmode). On the user's desktop it would take the
 keyboard focus when it starts, and a game that locks the mouse cursor would grab the real one (measured: the cursor
 was moved and clipped for the whole play). A window on another desktop of the same window station shows nothing on
