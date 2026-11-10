@@ -85,38 +85,34 @@ by hand under these rules, or ask.
   -executeMethod`). Never hand-edit the YAML of scenes, prefabs, materials or `.asset` files: one wrong `fileID` or
   GUID silently breaks references. Build scenes, prefabs and materials from code (`EditorSceneManager`,
   `PrefabUtility`, `AssetDatabase`, `SerializedObject` for private fields).
-- Unity gotchas already hit elsewhere:
-  - `new Color(255, 0, 0)` is not red: `Color` takes 0..1 floats (255 is a blinding HDR value); use `Color32` for bytes.
-  - A model imported with the wrong rig type plays its clips as a T-pose or a crumpled mesh: a Humanoid clip needs a
-    Humanoid avatar on the model, a Generic clip the same skeleton. Check `ModelImporter.animationType` and the avatar
-    before blaming the controller; root motion only with `Animator.applyRootMotion` and a matching clip setting.
-  - Built-in render pipeline materials from a store pack render magenta under URP: convert them (the Render Pipeline
-    Converter, or an editor step that swaps the shader to `Universal Render Pipeline/Lit` and maps the texture slots),
-    and check every material of a pack after import.
-  - An asset loaded by path at runtime must be in `Resources/` or an Addressables group; `AssetDatabase` does not
-    exist in a player build (it compiles in the editor and fails the player build).
-  - Everything a player build needs must be referenced from a scene in the build list (`EditorBuildSettings.scenes`)
-    or loaded through Resources/Addressables, or it is stripped.
-  - `Time.timeScale = 0` pauses `Update` motion but not `Time.unscaledDeltaTime`, UI or audio; pause menus and
-    AutoPlay timers must use the right clock.
-  - Opening a scene in an editor step (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets loaded before
-    it: a reference assigned from an asset you loaded or created earlier saves as empty, with no warning (it cost
-    one game three commits: its camera and HUD never got their data assets). Open the scene first, then load the
-    assets you assign (`AssetDatabase.LoadAssetAtPath` after the open), and prove the saved references with a
-    read-only `Inspect*` step.
-  - `AssetDatabase.ImportPackage` (a `.unitypackage`) doesn't finish inside the method that starts it: run that
-    step with `unity.ps1 step ... -NoQuit`, subscribe to `AssetDatabase.importPackageCompleted` and
-    `importPackageFailed`, and call `EditorApplication.Exit` from there (the template's
-    `ProjectSetup.ImportTextEssentials` is the pattern). With `-quit` the editor leaves before anything is imported.
-  - Every MonoBehaviour in its own file named after its class: several in one file compile, but a player build can
-    fail to load the scene that uses them.
+- `new Color(255, 0, 0)` is not red: `Color` takes 0..1 floats, and 255 is a blinding HDR value (light colours,
+  tints). Use 0..1 floats, or `Color32` for bytes.
+- A clip on a model of the wrong rig type never plays as made: a Humanoid clip needs a Humanoid avatar on the model, a
+  Generic clip the same skeleton, or the mesh stays in a T-pose or crumples. Check `ModelImporter.animationType` and
+  the avatar before blaming the controller.
+- Built-in render pipeline materials from a store pack render magenta under URP: convert them (the Render Pipeline
+  Converter, or an editor step that swaps the shader to `Universal Render Pipeline/Lit` and maps the texture slots),
+  and check every material of a pack after import.
+- Opening a scene in Single mode in an editor step (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets
+  loaded or created before it: one of them assigned afterwards through `SerializedObject` (`objectReferenceValue`)
+  reads back null at once and saves as `{fileID: 0}`, with no warning (one game's camera and HUD never got their data
+  assets: three commits). Open the scene first, then load the assets you assign (`AssetDatabase.LoadAssetAtPath` after
+  the open), and read each reference back before saving.
+- `AssetDatabase.ImportPackage` (a `.unitypackage`) imports nothing inside the method that calls it: right after it,
+  even after `AssetDatabase.Refresh`, no file is there, and with `-quit` the editor leaves with nothing imported (one
+  game's first import step logged a failure and imported nothing). Run that step with `unity.ps1 step ... -NoQuit`,
+  subscribe to `AssetDatabase.importPackageCompleted` and `importPackageFailed`, and call `EditorApplication.Exit` from
+  there and after a time limit: a run without `-quit` ends only when the step exits (the template's
+  `ProjectSetup.ImportTextEssentials` is the pattern).
+- Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
+  the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
 - **Art (user rule):** premium, coherent, never primitives or flat colours in the final game. Use the bought and
   downloaded Unity Asset Store packs and the animation packs (library `<UGF_ROOT>\asset-library\`); characters and
   creatures animated. Store content goes in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed
   with its `.meta` files through Git LFS where binary and never git-ignored (the repo stays private;
   unity-commit-always skill, "Store packs are committed"). Import a `.unitypackage` with an editor step
-  (`AssetDatabase.ImportPackage(path, false)`, run with `-NoQuit`: see the gotchas above), then adapt it (URP materials, prefab variants, set dressing,
-  lighting). Record every external asset in `assets.manifest.json` (format `assets-manifest/v1`: URL, licence,
+  (`AssetDatabase.ImportPackage(path, false)`, run with `-NoQuit`: above), then adapt it (URP materials, prefab
+  variants, set dressing, lighting). Record every external asset in `assets.manifest.json` (format `assets-manifest/v1`: URL, licence,
   version, the repo paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as a normal
   developer would. Need more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP support, what it
   replaces) in your design doc and message the coordinator.
