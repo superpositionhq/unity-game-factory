@@ -8,7 +8,8 @@ Unity locks a project while it has it open, so a scratch copy runs one job at a 
   -executeMethod TaskProbe.EditorTools.Build.Player -taskProbeBuild <request>: a Windows x64 Mono player of the copy
   in Build/TaskProbe with the scenes the task plays added after the project's own enabled build scenes; its result
   file says whether it built and which assets the played scenes name that the project lacks (`missing`). It passed
-  when the exit code is 0 and the result says `ok`;
+  when the exit code is 0 and the result says `ok`. One that fails with no word about the game, neither a compiler
+  error in its log nor a result saying it failed (Unity or one of its tools stopped), is tried once more: see build;
 - play: python desk.py <copy>/Build/TaskProbe/Game.exe -screen-fullscreen 0 -screen-width 960 -screen-height 540
   -logFile <copy>/Logs/TaskProbe/play.log -taskProbe <spec> <play args>, run in the build folder in one of the
   limiter's GPU slots: one spec file (unity-probe-play/1) says everything about the play (seconds, screenshots,
@@ -52,6 +53,9 @@ FATAL = r"Crash!!!|OUTPUTTING STACK TRACE|Fatal error|Out of memory"
 # Error" lines: every log on a licensed machine has some.
 UNLICENSED = "No valid Unity Editor license"
 UNLICENSED_EXIT = 198
+# A C# compiler error as Unity logs it: a build that failed with one failed on the game's code. Not "Scripts have
+# compiler errors.": Unity says that too when an IL post-processor stopped without a word.
+COMPILER_ERROR = r"\berror CS\d+\b"
 
 
 @dataclass
@@ -63,6 +67,7 @@ class Result:
     waited: float = 0.0  # of `seconds`, waiting for a unity-heavy.ps1 slot before the job started
     report: dict | None = None  # a build's result file (ok, exe, scenes, missing, ...); None when it wrote none
     cause: str | None = None  # a failed build's first cause, one line (_cause)
+    stopped: str | None = None  # a failed build with no word about the game: how it stopped (Project.build)
 
 
 @dataclass
@@ -191,6 +196,11 @@ class Unlicensed(MachineError):
     """Unity has no active licence."""
 
 
+class BuildStopped(MachineError):
+    """A build with no word about the game: stopped twice with neither a compiler error nor a result saying it failed,
+    or stopped at its time limit."""
+
+
 def _licensed(found, log):
     """Raises Unlicensed when the batchmode Unity job `found` (`log`: its output and log) stopped for want of a
     licence."""
@@ -264,7 +274,7 @@ def _cause(report, log):
     `## Script Compilation Error for:` line (an assembly a post-processor failed on), else None."""
     error = report.get("error") if isinstance(report, dict) else None
     found = error.strip() if isinstance(error, str) and error.strip() else None
-    for pattern in (r"^.*\berror CS\d+\b.*$", r"^## Script Compilation Error for:.*$"):
+    for pattern in (rf"^.*{COMPILER_ERROR}.*$", r"^## Script Compilation Error for:.*$"):
         line = None if found else re.search(pattern, log, re.M)
         found = found or (line.group(0).strip() if line else None)
     return found if found is None or len(found) <= CAUSE_CHARS else found[:CAUSE_CHARS - 3] + "..."
@@ -299,27 +309,51 @@ class Project:
     def build(self, timeout, scenes=()):
         """The player build, `scenes` (the scenes the task's plays open, project paths) added after the project's own
         enabled build scenes. A Result whose `report` is the build's result file; it passed when Unity exited 0 and
-        the result says `ok` (anything else has a non-zero exit code); `output` holds the build log."""
+        the result says `ok` (anything else has a non-zero exit code); `output` holds the build log. A failure with a
+        word about the game, a compiler error in its log (read whole: the output keeps only its ends) or a result that
+        says it failed, comes back as it is. One with neither is no evidence about the game (an IL post-processor of a
+        URP package's assembly exited 1 without a message, and the same commit built on a rerun): it is tried once
+        more, and says so in its output; stopped again, or stopped at its time limit (never tried again: a second
+        hour proves nothing), its `stopped` says how, and no verdict rests on it (check.Side.build)."""
         logs = self.logs()
-        result, log = _fresh(logs / "build.json"), _fresh(logs / "build.log")
-        seeds.remove(self.folder / BUILD_DIR)  # a fresh build: never an older player to play
-        request = _fresh(logs / "build_request.json")
-        request.write_text(json.dumps({"out": (self.folder / BUILD_DIR).as_posix(), "scenes": list(scenes),
-                                       "result": result.as_posix()}, indent=2), encoding="utf-8")
-        argv = self._batch(log) + ["-executeMethod", BUILD_METHOD, "-taskProbeBuild", request]
-        found = self.machine.job(f"task-check build {self.label}", argv, self.folder, timeout)
-        output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
-        _licensed(found, output)
-        report = _read_json(result)
-        code, said = found.exit_code, ""
-        if report is not None and report.get("ok") is not True:  # some failures are in the result file alone
-            said = f"[task-check] the build's result says it failed: {report.get('error')}\n"
-        elif report is None and code == 0:
-            said = "[task-check] Unity exited 0 but the build wrote no result\n"
-        if code == 0 and said:
-            code = 1
-        return Result(code, cut(said + output), found.seconds, found.timed_out, found.waited, report,
-                      _cause(report, output) if code not in (0, None) else None)
+        retried, spent = "", (0.0, 0.0)
+        while True:
+            result, log = _fresh(logs / "build.json"), _fresh(logs / "build.log")
+            seeds.remove(self.folder / BUILD_DIR)  # a fresh build: never an older player to play
+            request = _fresh(logs / "build_request.json")
+            request.write_text(json.dumps({"out": (self.folder / BUILD_DIR).as_posix(), "scenes": list(scenes),
+                                           "result": result.as_posix()}, indent=2), encoding="utf-8")
+            argv = self._batch(log) + ["-executeMethod", BUILD_METHOD, "-taskProbeBuild", request]
+            found = self.machine.job(f"task-check build {self.label}", argv, self.folder, timeout)
+            output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
+            _licensed(found, output)
+            report = _read_json(result)
+            refused = report is not None and report.get("ok") is not True  # the build ran and said no
+            code, said = found.exit_code, ""
+            if refused:  # some failures are in the result file alone
+                said = f"[task-check] the build's result says it failed: {report.get('error')}\n"
+            elif report is None and code == 0:
+                said = "[task-check] Unity exited 0 but the build wrote no result\n"
+            if code == 0 and said:
+                code = 1
+            cause = _cause(report, output) if code not in (0, None) else None
+            silent = code != 0 and not refused and not re.search(COMPILER_ERROR, output)
+            if not silent or found.timed_out or retried:
+                break
+            retried = (f"its first try stopped (exit {code}) with no compiler error and no result saying why"
+                       + (f": {cause}" if cause else ""))
+            spent = (found.seconds, found.waited)
+            print(f"  {self.label}: build stopped (exit {code}) with no compiler error and no result saying why, "
+                  "retry 1", file=sys.stderr, flush=True)
+        stopped = None
+        if silent:
+            stopped = (f"Unity was stopped at the build's time limit ({timeout} s) with no compiler error and no "
+                       "result saying why: a limit of the run's own, no evidence about the game" if found.timed_out
+                       else f"Unity stopped twice (exit {code}) with no compiler error and no result saying why: the "
+                       "editor or the machine, no evidence about the game")
+        head = f"[task-check] build retried once: {retried}\n" if retried else ""
+        return Result(code, cut(head + said + output), round(found.seconds + spent[0], 3), found.timed_out,
+                      round(found.waited + spent[1], 3), report, cause, stopped)
 
     def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
         """The built player for `seconds` of game time through the probe: windowed at 960x540 on its own desktop, a fixed

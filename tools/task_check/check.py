@@ -4,7 +4,9 @@
    materialized into a scratch folder outside the repo, each with the TaskProbe package (seeds.py).
 2. The start is built first (a player build with the scenes the task plays). A start that doesn't build makes the task
    INVALID, unless a build check says it doesn't (`fails_at_start`): then not building is the start failing the task,
-   and the start is never played.
+   and the start is never played. A build of either side that stops with no word about the game (unity.Project.build:
+   twice with neither a compiler error nor a result saying it failed, or at its time limit) is the run's ERROR, never
+   a verdict (Side.build).
 3. With a reference, the reference is checked as a solution would be: its checks in the task's order (a check whose
    `needs` failed isn't run and fails), build, boot, log_absent, file_exists and every probe against its threshold. A
    calibrated or start-relative threshold measures the start (its plays, played once) and, calibrated, the reference.
@@ -208,27 +210,38 @@ class Side:
     # -- the build ---------------------------------------------------------------------------------------------------
 
     def build(self):
+        """The side's build. One with no word about the game (its `stopped`) raises unity.BuildStopped, each time it is
+        asked, naming the log kept as evidence: no verdict rests on it."""
         if self._build is None:
             again = getattr(self.project, "has_built", lambda *a: False)(self.scenes)
             if not again:
                 self.log(f"  {self.name}: building")
             self._build = self.project.build(self.build_timeout, self.scenes)
             waited = getattr(self._build, "waited", 0.0)
-            self.log(f"  {self.name}: {'built' if self._build.exit_code == 0 else 'build FAILED'} "
-                     f"({self._build.seconds:.0f} s{', built earlier in this run' if again else ''}"
+            done = "built" if self._build.exit_code == 0 else \
+                "build STOPPED" if getattr(self._build, "stopped", None) else "build FAILED"
+            self.log(f"  {self.name}: {done} ({self._build.seconds:.0f} s"
+                     f"{', built earlier in this run' if again else ''}"
                      f"{f', {waited:.0f} s of it waiting for a machine slot' if waited >= 1 and not again else ''})")
             if self.evidence is not None and self._build.exit_code != 0:
                 self._keep("build", {"build.log": self._build.output.encode("utf-8")})
+        stopped = getattr(self._build, "stopped", None)
+        if stopped:
+            kept = Path(self.evidence) / self.name / "build" / "build.log" if self.evidence is not None else None
+            raise unity.BuildStopped(f"{self.game()} didn't build: {stopped}" + (f"; its log: {kept}" if kept else "")
+                                     + (f"; {self._build.cause}" if self._build.cause else ""))
         return self._build
 
     def built(self):
         return self.build().exit_code == 0
 
+    def game(self):
+        return {"start": "the game as the task started", "reference": "the reference game"}.get(
+            self.name, f"the agent's game ({self.name})")
+
     def why_unbuilt(self):
         r = self.build()
-        what = {"start": "the game as the task started", "reference": "the reference game"}.get(
-            self.name, f"the agent's game ({self.name})")
-        return f"{what} didn't build ({failed(r)})"
+        return f"{self.game()} didn't build ({failed(r)})"
 
     def missing_assets(self):
         """{scene: {"missing": [asset GUIDs], "names": how many it names}} of the scenes this task plays that name

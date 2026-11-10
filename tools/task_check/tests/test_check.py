@@ -459,6 +459,35 @@ class Whole(unittest.TestCase):
                 self.assertEqual(result["verdict"], "ERROR", (side_, job))
                 self.assertIn("exit 198", result["reasons"][0])
 
+    def test_a_build_with_no_word_about_the_game_is_an_error_never_a_verdict(self):
+        """Stopped twice with no compiler error and no result, or killed at its time limit: a fails_at_start start too
+        (it counts as not building only on the game's own failure), and the reason names the log it kept."""
+        plain = task_with({"kind": "build", "name": "player_builds"}, probe())
+        by_design = task_with(milestones=[{"name": "builds", "checks": [{"kind": "build", "name": "player_builds",
+                                                                         "fails_at_start": True}]},
+                                          {"name": "graded", "checks": [probe(needs=["player_builds"])]}])
+        for task, which, answer in ((plain, "start", (1, STOPPED, None)), (plain, "reference", (1, STOPPED, None)),
+                                    (by_design, "start", (1, STOPPED, None)), (by_design, "start", (None, "", None))):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo, start, fix, _ = make_game(tmp)
+                task = {**task, "seed": {**task["seed"], "commit": start, "reference": fix}}
+                machines = {start[:12]: unity_answers([(0, BUILT, {"ok": True})]),
+                            fix[:12]: unity_answers([(0, BUILT, {"ok": True})])}
+                machines[{"start": start, "reference": fix}[which][:12]] = unity_answers([answer])
+                with mock.patch.object(unity, "Project", lambda folder, machine, label, real=unity.Project: real(
+                        folder, machines[Path(folder).name], label)), \
+                        mock.patch.object(unity.Machine, "for_project",
+                                          classmethod(lambda cls, p, d=False: cls(Path(p), None))), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    result = check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
+                                              Path(tmp) / "out", log=lambda *a: None)
+                why = result["reasons"][0]
+                self.assertEqual(result["verdict"], "ERROR", (which, answer[0], why))
+                self.assertIn("BuildStopped", why)
+                kept = Path(tmp) / "out" / "probe-task" / which / "build" / "build.log"
+                self.assertIn(str(kept), why)
+                self.assertTrue(kept.is_file(), "the log the reason names is there after the run")
+
     def test_the_scenes_a_task_plays_are_built_and_the_assets_they_lack_are_noted(self):
         with tempfile.TemporaryDirectory() as tmp:
             play = {"name": "arena", "seconds": 8, "scene": "Assets/Scenes/Arena.unity"}
@@ -710,7 +739,8 @@ class IdlePlay(unittest.TestCase):
 
 
 class FakeMachine:
-    """Records each job and answers it with `answer(argv, cwd)` (writing what Unity would), exit code `code`."""
+    """Records each job and answers it with `answer(argv, cwd)` (writing what Unity would), exit code `code` (None:
+    killed at its timeout)."""
 
     def __init__(self, editor="C:/Unity/6000.3.26f1/Editor/Unity.exe", answer=None, code=0):
         self.editor, self.answer, self.code, self.jobs = Path(editor), answer, code, []
@@ -719,11 +749,60 @@ class FakeMachine:
         argv = [str(a) for a in argv]
         self.jobs.append({"label": label, "argv": argv, "cwd": Path(cwd), "timeout": timeout, "gpu": gpu})
         output = self.answer(argv, Path(cwd)) if self.answer else ""
-        return unity.Result(self.code, output or "", 1.0)
+        return unity.Result(self.code, output or "", 1.0, self.code is None)
 
 
 def after(argv, flag):
     return argv[argv.index(flag) + 1]
+
+
+# A real reference build's log, trimmed: an IL post-processor for a URP package's assembly exited 1 without a word, and
+# Unity said its scripts had compiler errors and exited 1. No compiler error anywhere; the same commit built on an
+# unchanged rerun.
+STOPPED = ("Aborting batchmode due to failure:\nScripts have compiler errors.\n"
+           "*** Tundra build failed (119.78 seconds - 0:01:59), 739 items updated, 798 evaluated\n"
+           "## Script Compilation Error for: ILPostProcess Library/Bee/artifacts/1900b0aE.dag/post-processed/"
+           "Unity.RenderPipelines.Core.Editor.Shared.dll (+pdb)\n"
+           "## CmdLine: \"C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.28f1\\Editor\\Data\\Tools\\BuildPipeline\\"
+           "Compilation\\Unity.ILPP.Trigger\\Unity.ILPP.Trigger.exe\" @\"Library\\Bee\\artifacts\\rsp\\"
+           "17296387151066238333.rsp\"\n## Output:\n"
+           "Processing assembly Library/Bee/artifacts/1900b0aE.dag/Unity.RenderPipelines.Core.Editor.Shared.dll, "
+           "with 137 defines and 272 references\n"
+           "processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor\n"
+           "running zzzUnity.Burst.CodeGen.BurstILPostProcessor\n"
+           "AssetDatabase: script compilation time: 123.877942s\nScripts have compiler errors.\n"
+           "Exiting without the bug reporter. Application will terminate with return code 1\n")
+ILPP = STOPPED.splitlines()[3]
+COMPILED = ("[ScriptCompilation] Requested script compilation\n"
+            "Assets/Scripts/Coin.cs(12,24): error CS0103: The name 'coins' does not exist in the current context\n"
+            "Scripts have compiler errors.\n"
+            "Exiting without the bug reporter. Application will terminate with return code 1\n")
+BUILT = "Build Finished, Result: Success.\n"
+
+
+def unity_answers(answers):
+    """A FakeMachine whose Unity answers each try from `answers`, a list of (exit code (None: killed at its timeout),
+    its log, its result file or None), repeating the last."""
+    answers = list(answers)
+
+    def answer(argv, cwd):
+        machine.code, log, result = answers.pop(0) if len(answers) > 1 else answers[0]
+        Path(after(argv, "-logFile")).write_text(log, encoding="utf-8")
+        if result is not None:
+            request = json.loads(Path(after(argv, "-taskProbeBuild")).read_text(encoding="utf-8"))
+            Path(request["result"]).write_text(json.dumps(result), encoding="utf-8")
+        return ""
+
+    machine = FakeMachine(answer=answer)
+    return machine
+
+
+def building(answers, folder):
+    """(the build's Result, its machine, what it printed) for those answers."""
+    machine = unity_answers(answers)
+    with contextlib.redirect_stderr(io.StringIO()) as printed:
+        found = unity.Project(folder, machine, "game start").build(60, [])
+    return found, machine, printed.getvalue()
 
 
 class Plays(unittest.TestCase):
@@ -892,12 +971,14 @@ class Plays(unittest.TestCase):
             self.assertEqual(failed.exit_code, 1)
             self.assertIn("the build's result says it failed: 3 compiler errors", failed.output)
             result = None
-            silent = project.build(60, [])
+            with contextlib.redirect_stderr(io.StringIO()):  # (no word about the game, so each is tried twice: Retries)
+                silent = project.build(60, [])
+                machine.code, result = 3, {"ok": True}
+                odd = project.build(60, [])
             self.assertEqual((silent.exit_code, silent.report), (1, None), "no result from an earlier build is read")
             self.assertIn("wrote no result", silent.output)
-            machine.code = 3
-            result = {"ok": True}
-            self.assertEqual(project.build(60, []).exit_code, 3)
+            self.assertEqual(odd.exit_code, 3)
+            self.assertTrue(silent.stopped and odd.stopped)
             machine.code = 1
             result = {"ok": False, "error": "no scene to build: the project lists no enabled build scene and the task "
                                             "plays none"}
@@ -908,17 +989,12 @@ class Plays(unittest.TestCase):
 
     def test_a_failed_builds_reason_names_its_first_cause(self):
         compiled = "Assets/Scripts/Coin.cs(12,24): error CS0103: The name 'coins' does not exist in the current context"
-        ilpp = ("## Script Compilation Error for: ILPostProcess Library/Bee/artifacts/1900b0aE.dag/post-processed/"
-                "Unity.RenderPipelines.Core.Editor.Shared.dll (+pdb)")
         unbuilt = "no scene to build: the project lists no enabled build scene and the task plays none"
-        cases = [  # (the build's result file, its log, the cause its reason names)
+        cases = [  # (the build's result file, its log, the cause its reason names); a build with neither: Retries
             ({"ok": False, "error": unbuilt}, "Build Finished, Result: Failure.\n", unbuilt),
             (None, f"[ScriptCompilation] Requested script compilation\n{compiled}\n"
                    "Assets/Scripts/Coin.cs(30,9): error CS1002: ; expected\nScripts have compiler errors.\n", compiled),
-            (None, "*** Tundra build failed (119.78 seconds - 0:01:59), 739 items updated, 798 evaluated\n"
-                   f"{ilpp}\n## CmdLine: \"Unity.ILPP.Trigger.exe\" @\"Library\\Bee\\artifacts\\rsp\\1729.rsp\"\n"
-                   "Scripts have compiler errors.\n", ilpp),
-            (None, "Aborting batchmode due to failure:\nExecuting method failed\n", None),
+            ({"ok": False}, "Build Finished, Result: Failure.\n", None),
         ]
         with tempfile.TemporaryDirectory() as tmp:
             def answer(argv, cwd):
@@ -1035,6 +1111,72 @@ class Plays(unittest.TestCase):
                 self.assertEqual((found.editor, found.heavy), (Path("C:/U/Unity.exe"),
                                                                Path(tmp) / "tools" / "unity-heavy.ps1"))
                 self.assertIsNone(unity.Machine.for_project(".", direct=True).heavy)
+
+
+class Retries(unittest.TestCase):
+    """A build that fails with no word about the game, neither a compiler error in its log nor a result saying it
+    failed, is tried once more; stopped again, or at its time limit, it is the run's error, never a verdict on the
+    game."""
+
+    def test_a_clean_build_runs_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            found, machine, printed = building([(0, BUILT, {"ok": True})], tmp)
+        self.assertEqual((found.exit_code, found.stopped, len(machine.jobs), printed), (0, None, 1, ""))
+
+    def test_a_build_stopped_without_a_word_tries_again_and_isnt_a_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            found, machine, printed = building([(1, STOPPED, None), (0, BUILT, {"ok": True})], tmp)
+        self.assertEqual((found.exit_code, found.stopped, len(machine.jobs)), (0, None, 2))
+        self.assertEqual(printed, "  game start: build stopped (exit 1) with no compiler error and no result saying "
+                                  "why, retry 1\n")
+        head = found.output.splitlines()[0]
+        self.assertTrue(head.startswith("[task-check] build retried once: its first try stopped (exit 1)"), head)
+        self.assertTrue(head.endswith(ILPP), "with the line that says what stopped")
+
+    def test_a_failure_by_the_game_counts_at_once(self):
+        long = "Loaded asset\n" * 2000 + COMPILED + "Refreshing native plugins\n" * 2000
+        self.assertNotIn("error CS", unity.cut(long), "a compiler error the kept output leaves out")
+        for answers in ([(1, COMPILED, None)], [(1, long, None)],
+                        [(1, BUILT, {"ok": False, "error": "the player build failed: Building Player failed"})],
+                        [(0, BUILT, {"ok": False, "error": "no scene to build: the project lists none"})]):
+            with tempfile.TemporaryDirectory() as tmp:
+                found, machine, printed = building(answers + [(0, BUILT, {"ok": True})], tmp)
+            self.assertEqual((found.exit_code, found.stopped, len(machine.jobs), printed), (1, None, 1, ""),
+                             answers[0][2] or answers[0][1][:40])
+
+    def test_a_failure_by_the_game_after_a_retry_counts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            found, machine, _ = building([(1, STOPPED, None), (1, COMPILED, None)], tmp)
+        self.assertEqual((found.exit_code, found.stopped, len(machine.jobs)), (1, None, 2))
+        self.assertIn("error CS0103", found.cause)
+        self.assertTrue(found.output.startswith("[task-check] build retried once"))
+
+    def test_it_gives_up_after_one_retry_and_its_side_is_no_verdict(self):
+        task = task_with({"kind": "build", "name": "player_builds"}, probe())
+        with tempfile.TemporaryDirectory() as tmp:
+            machine, said = unity_answers([(1, STOPPED, None)]), []
+            evidence = Path(tmp) / "out" / "probe-task"
+            reference = check.Side("reference", unity.Project(Path(tmp) / "copy", machine, "game reference"), task,
+                                   60, 60, evidence, said.append)
+            with self.assertRaises(unity.BuildStopped) as raised, contextlib.redirect_stderr(io.StringIO()):
+                reference.built()
+            why, kept = str(raised.exception), evidence / "reference" / "build" / "build.log"
+            self.assertTrue(why.startswith("the reference game didn't build: Unity stopped twice (exit 1)"), why)
+            self.assertIn("no evidence about the game", why)
+            self.assertIn(f"its log: {kept}", why)
+            self.assertIn(ILPP, why)
+            self.assertIn(ILPP, kept.read_text(encoding="utf-8"), "kept before the error leaves")
+            self.assertIn("  reference: build STOPPED (2 s)", said, "both tries' time")
+            with self.assertRaises(unity.BuildStopped):  # a later check of the same side: the same error, no new try
+                reference.why_unbuilt()
+            self.assertEqual(len(machine.jobs), 2)
+        self.assertTrue(issubclass(unity.BuildStopped, unity.MachineError))
+
+    def test_a_build_killed_at_its_timeout_isnt_tried_again_and_is_no_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            found, machine, printed = building([(None, "Importing assets\n", None)], tmp)
+        self.assertEqual((found.exit_code, found.timed_out, len(machine.jobs), printed), (None, True, 1, ""))
+        self.assertTrue(found.stopped.startswith("Unity was stopped at the build's time limit (60 s)"), found.stopped)
 
 
 class Cli(unittest.TestCase):
