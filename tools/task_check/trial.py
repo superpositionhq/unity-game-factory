@@ -166,7 +166,9 @@ def kill_left_behind(folder):
     line. Their pids. Windows only: elsewhere nothing is stopped."""
     if os.name != "nt":
         return []
-    needle = os.path.realpath(folder).lower()
+    # The path as the try made it (and gave it to the agent), never through a link the agent made there: that would
+    # stop processes of the folder the link points at.
+    needle = os.path.abspath(folder).lower()
     script = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | ForEach-Object "
               "{ \"$($_.ProcessId)`t$($_.CommandLine)\" }")
     out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
@@ -241,6 +243,17 @@ def score(task, grade):
     return {"solved": all(r["passed"] for r in required), "score": round(earned / total, 3) if total else 0.0,
             "required_passed": sum(r["passed"] for r in required),
             "required": len(required), "milestones": {g: all(v) for g, v in groups.items()}}
+
+
+def clear(folder, names):
+    """The folders `names` of the agent's `folder` deleted. One the agent made a link (a symlink or a junction) goes as
+    a link: never what it points at, and never left for the grade's Unity to write through."""
+    for name in names:
+        path = Path(folder) / name
+        if os.path.islink(path) or os.path.isjunction(path):
+            os.unlink(path)
+        elif path.is_dir():
+            seeds.remove(path)
 
 
 def discard(folder, log):
@@ -334,9 +347,10 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                 log(f"  {label}: stopped {len(left)} process(es) the agent left running")
             log(f"  {label}: {agent} stopped after {ran['seconds'] / 60:.0f} min"
                 + (" (timed out)" if ran["timed_out"] else f" (exit {ran['exit_code']})"))
-            for d in BUILT:
-                seeds.remove(folder / d)
             try:
+                if outside(folder, [scratch]):  # the agent swapped its folder for a link: nothing there is the try's
+                    raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
+                clear(folder, BUILT)
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
             except (seeds.WrongEngine, FileNotFoundError) as exc:  # the agent changed the Unity version or the project
                 row.update(solved=False, score=0.0, required_passed=0, required=None, milestones={}, checks=[],

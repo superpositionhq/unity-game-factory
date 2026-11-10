@@ -4,6 +4,11 @@ readers and a run's score."""
 import contextlib
 import json
 import os
+
+try:
+    import _winapi  # junctions, as an agent can make them without the right to make symlinks
+except ImportError:
+    _winapi = None
 import shutil
 import subprocess
 import sys
@@ -412,6 +417,67 @@ class CleanUp(unittest.TestCase):
             finally:
                 for f in held:
                     f.close()
+
+    @unittest.skipUnless(hasattr(_winapi, "CreateJunction"), "junctions")
+    def test_a_link_in_place_of_a_build_output_goes_as_a_link_never_followed(self):
+        """An agent may link Temp or Build elsewhere (or leave a junction inside them): the grade removes the link,
+        never what it points at, and its Unity never writes through it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            outside = {d: Path(tmp) / "elsewhere" / d for d in ("temp", "deep")}
+            for folder in outside.values():
+                folder.mkdir(parents=True)
+                (folder / "keep.txt").write_text("x")
+            at_grade = {}
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                _winapi.CreateJunction(str(outside["temp"]), str(Path(cwd) / "Temp"))
+                (Path(cwd) / "Build").mkdir()
+                _winapi.CreateJunction(str(outside["deep"]), str(Path(cwd) / "Build" / "cache"))
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            def graded(name, folder, *rest):
+                if name.startswith("run"):
+                    at_grade.update(temp=os.path.lexists(Path(folder) / "Temp"), build=(Path(folder) / "Build").exists())
+                return original(name, folder, *rest)
+
+            original = trial.side
+            with faked(agent), mock.patch.object(trial, "side", graded):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual(at_grade, {"temp": False, "build": False}, "no link left for the grade to write through")
+            self.assertTrue(all((f / "keep.txt").is_file() for f in outside.values()), "nothing outside is deleted")
+
+    @unittest.skipUnless(hasattr(_winapi, "CreateJunction"), "junctions")
+    def test_a_workspace_swapped_for_a_link_is_neither_cleaned_nor_graded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            elsewhere = Path(tmp) / "elsewhere"
+            (elsewhere / "Temp").mkdir(parents=True)
+            (elsewhere / "Temp" / "keep.txt").write_text("x")
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                Path(cwd).rename(Path(cwd).with_name("moved"))
+                _winapi.CreateJunction(str(elsewhere), str(cwd))
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            # someone else's process at work in the other folder
+            bystander = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", str(elsewhere / "x")],
+                                         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+            try:
+                with faked(agent):
+                    result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                            "claude", log=lambda *a: None)
+                self.assertTrue(alive(bystander.pid), "the try stops only what runs in its own folder")
+            finally:
+                bystander.kill()
+                bystander.wait(timeout=30)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertFalse(result["runs"][0]["solved"])
+            self.assertIn("link", result["runs"][0]["why"])
+            self.assertTrue((elsewhere / "Temp" / "keep.txt").is_file(), "the other folder's files stay")
+            self.assertFalse((elsewhere / "Packages").exists(), "nothing is added to it either")
 
     def test_a_try_never_deletes_a_folder_it_did_not_make(self):
         with tempfile.TemporaryDirectory() as tmp:
