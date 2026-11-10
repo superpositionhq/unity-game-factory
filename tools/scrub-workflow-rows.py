@@ -30,11 +30,12 @@ SEP = r'(?:\\\\|\\|/)+'          # a path separator in row text: \, \\ (JSON-esc
 
 
 def path_rx(path):
-    """A regex for an absolute Windows path in any spelling (C:\\a\\b, C:/a/b, /c/a/b, JSON-escaped)."""
+    """A regex for an absolute Windows path in any spelling (C:\\a\\b, C:/a/b, /c/a/b, /mnt/c/a/b, JSON-escaped)."""
     p = os.path.abspath(path).replace('\\', '/').rstrip('/')
     drive, rest = (p[0], p[2:].strip('/')) if re.match(r'^[A-Za-z]:', p) else ('', p.strip('/'))
     parts = [re.escape(x) for x in rest.split('/') if x]
-    head = r'(?:%s:%s|/%s/)' % (drive, SEP, drive.lower()) if drive else SEP
+    # the drive must start a path (not follow a letter, digit, dot or hyphen): D:/backup/c/a/b is not C:\a\b
+    head = r'(?<![\w.-])(?:%s:%s|/%s/|/mnt/%s/)' % (drive, SEP, drive.lower(), drive.lower()) if drive else SEP
     return re.compile(r'(?i)' + head + SEP.join(parts) + r'(?![A-Za-z0-9_.-])')
 
 
