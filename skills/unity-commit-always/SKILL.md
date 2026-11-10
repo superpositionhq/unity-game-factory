@@ -1,6 +1,6 @@
 ---
 name: unity-commit-always
-description: Commit discipline for every unity-game-factory session (game builders, helpers, coordinator). Use whenever you change files in a Unity game repo or in unity-game-factory, before ending any turn, and when deciding what may be committed or pushed. Covers commit cadence, messages, workflow.jsonl rows, .meta files, LFS, what never to commit, push policy and the WIP auto-commit hook.
+description: 'Commit discipline for every unity-game-factory session (game builders, helpers, coordinator). Use whenever you change files in a Unity game repo or in unity-game-factory, before ending any turn, and when deciding what may be committed or pushed. Covers commit cadence, messages, workflow.jsonl rows, .meta files, LFS, what never to commit, push policy and the WIP auto-commit hook.'
 ---
 
 # Commit always

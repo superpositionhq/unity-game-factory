@@ -145,7 +145,17 @@ if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; recording falls ba
 # --- 2. software -----------------------------------------------------------------------------------------------------
 Write-Host "2. software (winget)"
 function Test-Python { foreach ($c in @('py -3.12', 'python')) { $r = Quiet { Invoke-Expression "$c -c `"import sys; print(sys.version_info[1])`"" }; if ($r.code -eq 0 -and $r.out -match '^\d+$' -and [int]$r.out -ge 10) { return $true } }; return $false }
-function Get-UnityHubExe { @("$env:ProgramFiles\Unity Hub\Unity Hub.exe", "${env:LOCALAPPDATA}\Programs\Unity Hub\Unity Hub.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+# winget and the Microsoft Store install Hub as an MSIX package (WindowsApps\UnityTechnologies.UnityHub_*\app\), the
+# classic installer in Program Files (the same lookup as lib\ugf-root.ps1 Get-UGFUnityHub; setup runs before the clone)
+function Get-UnityHubExe {
+    $hub = @("$env:ProgramFiles\Unity Hub\Unity Hub.exe", "${env:LOCALAPPDATA}\Programs\Unity Hub\Unity Hub.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($hub) { return $hub }
+    try {
+        $pkg = Get-AppxPackage -Name 'UnityTechnologies.UnityHub' -ErrorAction Stop | Sort-Object Version -Descending | Select-Object -First 1
+        if ($pkg) { $exe = Join-Path $pkg.InstallLocation 'app\Unity Hub.exe'; if (Test-Path -LiteralPath $exe) { return $exe } }
+    } catch { }
+    return $null
+}
 $packages = @(
     @{ id = 'Git.Git'; name = 'Git'; test = { Has git } },
     @{ id = 'GitHub.GitLFS'; name = 'Git LFS'; test = { (Has git) -and (Quiet { git lfs version }).code -eq 0 } },

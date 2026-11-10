@@ -131,6 +131,20 @@ function Get-UGFInstalledUnity($Cfg = (Get-UGFConfig)) {
     @($found.Keys | Sort-Object { ConvertTo-UGFVersionKey $_ } -Descending | ForEach-Object { [pscustomobject]@{ Version = $_; Path = $found[$_] } })
 }
 
+# Unity Hub's exe, or $null. winget and the Microsoft Store install Hub as an MSIX package under
+# C:\Program Files\WindowsApps\UnityTechnologies.UnityHub_<version>_x64__...\app\ (no folder in Program Files, no
+# uninstall registry entry); the classic installer puts it in Program Files\Unity Hub.
+function Get-UGFUnityHub {
+    $hub = @("$env:ProgramFiles\Unity Hub\Unity Hub.exe", "${env:LOCALAPPDATA}\Programs\Unity Hub\Unity Hub.exe") |
+        Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($hub) { return $hub }
+    try {
+        $pkg = Get-AppxPackage -Name 'UnityTechnologies.UnityHub' -ErrorAction Stop | Sort-Object Version -Descending | Select-Object -First 1
+        if ($pkg) { $exe = Join-Path $pkg.InstallLocation 'app\Unity Hub.exe'; if (Test-Path -LiteralPath $exe) { return $exe } }
+    } catch { }
+    return $null
+}
+
 # Sort key for a Unity version ("6000.3.26f1" -> 6000.0003.0026.f.01): stream letters order a < b < f < p.
 function ConvertTo-UGFVersionKey([string]$Version) {
     if ($Version -match '^(\d+)\.(\d+)\.(\d+)([abfp])(\d+)') {

@@ -1,6 +1,6 @@
 ---
 name: unity-game-session
-description: Rules for a session that builds one Unity 6.3 LTS game for unity-game-factory (repo %UGF_ROOT%\games\<slug>, pushed to the private <org>/unity-game-<slug>, <org> = the config's github_org). Use at the start of every Unity game-building session and whenever deciding about art, UI, story, naming, heavy/GPU jobs, editor steps, recording (workflow.jsonl, AutoPlay, framing screenshots), or what to send the coordinator. Pair it with the unity-commit-always skill.
+description: 'Rules for a session that builds one Unity 6.3 LTS game for unity-game-factory (repo %UGF_ROOT%\games\<slug>, pushed to the private <org>/unity-game-<slug>, <org> = the config''s github_org). Use at the start of every Unity game-building session and whenever deciding about art, UI, story, naming, heavy/GPU jobs, editor steps, recording (workflow.jsonl, AutoPlay, framing screenshots), or what to send the coordinator. Pair it with the unity-commit-always skill.'
 ---
 
 # Game session (Unity)

@@ -1,6 +1,6 @@
 ---
 name: unity-sound
-description: Find, choose and bring in sound effects for a unity-game-factory Unity game (Freesound through tools/sfx.py), using download counts, ratings, uploader descriptions, measurements and licences, since an agent cannot hear a clip. Use whenever a Unity game needs sound: writing the audio direction in the design doc, adding or replacing any UI, player, combat, world or ambience sound, and the sound pass of the quality bar.
+description: 'Find, choose and bring in sound effects for a unity-game-factory Unity game (Freesound through tools/sfx.py), using download counts, ratings, uploader descriptions, measurements and licences, since an agent cannot hear a clip. Use whenever a Unity game needs sound: writing the audio direction in the design doc, adding or replacing any UI, player, combat, world or ambience sound, and the sound pass of the quality bar.'
 ---
 
 # Sound (Unity)

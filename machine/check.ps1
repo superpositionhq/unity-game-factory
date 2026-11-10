@@ -59,7 +59,7 @@ function Run([string]$Exe, [string[]]$ArgList) {
 
 # --- toolchain ------------------------------------------------------------------------------------------------------
 Try-Check 'Unity Hub' {
-    $hub = @("$env:ProgramFiles\Unity Hub\Unity Hub.exe", "${env:LOCALAPPDATA}\Programs\Unity Hub\Unity Hub.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $hub = Get-UGFUnityHub
     if ($hub) { Add-Result PASS 'Unity Hub' "$hub; sign-in and licence are not detectable here: Hub > Preferences > Licenses must show an active licence" }
     else { Add-Result FAIL 'Unity Hub' 'not installed' 'winget install -e --id Unity.UnityHub, then sign in with a Unity ID and activate a licence (Personal is fine)' }
 }
