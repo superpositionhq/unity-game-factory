@@ -468,8 +468,8 @@ the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has n
 
 The original passes its plugin a flag for each setting (`-TaskProbeOut`, `-TaskProbeSeconds`, `-TaskProbeInputs`
 ...) and runs its editor pass as a Python script in its headless editor. The port hands the player one play spec and
-runs an editor method, so those requests are its own formats; `probe.json` is the original's `game-probe/1` with
-`scene` in place of `map` and `player` added, and the editor pass's result is the original's. The checker's files of a
+runs an editor method, so those requests are its own formats; `probe.json` is the original's `game-probe/1` under the
+name `unity-probe/1`, with `scene` in place of `map` and `player` added, and the editor pass's result is the original's. The checker's files of a
 copy are under `<copy>/Logs/TaskProbe/` (`unity.LOGS`; a game never keeps anything in Unity's `Logs/`), each made
 fresh before its job. The examples below are of the sample game's task `lamp-keeper-fix-lamps-hud-camera`, its
 reference commit's copy written as a run with `--scratch C:\tc` places it (`C:\tc\38e8bcd7\ff49e5194fe4`): the
