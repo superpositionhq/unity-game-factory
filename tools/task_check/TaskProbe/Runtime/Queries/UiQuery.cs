@@ -1,9 +1,10 @@
 // ui: what the UI shows on screen, whatever draws it (contract section 3). Every element on screen in the frame drawn
 // right after the sample: uGUI graphics on screen-space canvases (text: Text, TMP_Text; image: an Image or RawImage
-// with a sprite or texture; box: any other drawn graphic) and UI Toolkit elements (text: a TextElement with text;
-// image: an image or background image; box: a background colour or a border). A select of text in a rect also reads
-// the frame's pixels inside the rect (UiOcr): each line read for sure, where no element already reads text, joins as
-// a text row of source "ocr". The select alone decides, so every measure on it counts and reads the same elements.
+// with a sprite or texture; box: any other drawn graphic) and UI Toolkit elements (text: a TextElement with text, or
+// an empty field's placeholder; image: an image or background image; box: a background colour or a border). A select
+// of text in a rect also reads the frame's pixels inside the rect (UiOcr): each line read for sure, where no element
+// already reads text, joins as a text row of source "ocr". The select alone decides, so every measure on it counts and
+// reads the same elements.
 // "rows": [{"name", "class", "source", "kind", <field>: value}] (fields count, text, x, y, w, h); a sample whose frame
 // was never drawn (the play ended first) has no "rows" key.
 using System;

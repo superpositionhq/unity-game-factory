@@ -173,22 +173,22 @@ namespace TaskProbe
 #if TASKPROBE_TMP
             return g is TMPro.TMP_SubMeshUI;
 #else
-            return g.GetType().Name == "TMP_SubMeshUI";
+            return false;
 #endif
         }
 
-        /// <summary>A Text's or TextMeshPro's text as shown; null when the graphic isn't text.</summary>
+        /// <summary>A Text's or TextMeshPro's text as shown: rich text tags left out, a TextMeshPro typewriter
+        /// (maxVisibleCharacters) applied. The text as set, not as TextMeshPro last laid it out: that is a frame old
+        /// until the frame is drawn, and never laid out again while the text is hidden. Null when not text.</summary>
         public static string GraphicText(Graphic g)
         {
             if (g is Text t) return t.supportRichText ? Plain(t.text) : t.text;
 #if TASKPROBE_TMP
             if (g is TMPro.TMP_Text tmp)
             {
-                string shown = null;
-                try { shown = tmp.GetParsedText(); } catch { }
-                if (string.IsNullOrEmpty(shown)) shown = tmp.richText ? Plain(tmp.text) : tmp.text;
-                if (shown != null && tmp.maxVisibleCharacters >= 0 && tmp.maxVisibleCharacters < shown.Length) shown = shown.Substring(0, tmp.maxVisibleCharacters);  // a typewriter reveal
-                return shown ?? "";
+                // a TextMeshPro input field puts a zero-width space after the typed text to place its caret
+                var shown = ((tmp.richText ? Plain(tmp.text) : tmp.text) ?? "").Replace("\u200B", "");
+                return tmp.maxVisibleCharacters >= 0 && tmp.maxVisibleCharacters < shown.Length ? shown.Substring(0, tmp.maxVisibleCharacters) : shown;
             }
 #endif
             return null;
@@ -328,10 +328,13 @@ namespace TaskProbe
             return BackgroundAsset(e.resolvedStyle.backgroundImage);
         }
 
+        /// <summary>An element's text as shown: a field's string value (a TextField's, a DropdownField's caption), a
+        /// Toggle's text, a TextElement's text with its rich text tags left out; null when it has none.</summary>
         public static string UitkText(UIE.VisualElement e)
         {
-            if (e is UIE.TextField field) return field.value;
-            if (e is UIE.TextElement t) return t.text;
+            if (e is UIE.BaseField<string> field) return field.value;
+            if (e is UIE.Toggle toggle) return Plain(toggle.text);
+            if (e is UIE.TextElement t) return t.enableRichText ? Plain(t.text) : t.text;
             return null;
         }
 
@@ -359,9 +362,13 @@ namespace TaskProbe
                         paint = "box";
                     if (paint != null)
                         output.Add(new UiElement { Name = name, Class = cls, Source = "uitk", Kind = paint, HasRect = true, X = x, Y = y, W = w, H = h });
-                    // a TextElement with text is also a text element (a uGUI button is a box and a text too)
-                    if (e is UIE.TextElement te && !string.IsNullOrEmpty(te.text) && te.text.Trim().Length > 0 && s.color.a > AlphaFloor)
-                        output.Add(new UiElement { Name = name, Class = cls, Source = "uitk", Kind = "text", Text = te.enableRichText ? Plain(te.text) : te.text, HasRect = true, X = x, Y = y, W = w, H = h });
+                    // a TextElement with text is also a text element (a uGUI button is a box and a text too); an empty
+                    // field shows its placeholder
+                    if (!(e is UIE.TextElement te) || !(s.color.a > AlphaFloor)) continue;
+                    var text = te.enableRichText ? Plain(te.text) : te.text;
+                    if (string.IsNullOrEmpty(text)) text = ((UIE.ITextEdition)te).placeholder;
+                    if (!string.IsNullOrEmpty(text) && text.Trim().Length > 0)
+                        output.Add(new UiElement { Name = name, Class = cls, Source = "uitk", Kind = "text", Text = text, HasRect = true, X = x, Y = y, W = w, H = h });
                 }
             }
         }
@@ -433,6 +440,14 @@ namespace TaskProbe
             }
         }
 
+        /// <summary>Whether everything from `t` up to (not including) `top` is active itself: shown whenever `top` is.</summary>
+        static bool ActiveBelow(Transform t, Transform top)
+        {
+            for (var p = t; p != null && p != top; p = p.parent)
+                if (!p.gameObject.activeSelf) return false;
+            return true;
+        }
+
         sealed class UguiWidget : UiWidget
         {
             readonly GameObject go;
@@ -467,11 +482,16 @@ namespace TaskProbe
             {
                 var own = graphic != null ? GraphicText(graphic) : null;
                 if (own != null) return own;
+                // an input field's text is what was typed (its placeholder is a label of its own)
+                if (selectable is InputField field) return field.text;
+#if TASKPROBE_TMP
+                if (selectable is TMPro.TMP_InputField tmpField) return tmpField.text;
+#endif
                 if (selectable == null) return null;
-                // a button's or toggle's label: its first text below it
+                // a button's or toggle's label: the first text below it that shows with it (enabled, active below it)
                 foreach (var g in go.GetComponentsInChildren<Graphic>(true))
                 {
-                    if (g.gameObject == go) continue;
+                    if (g.gameObject == go || !g.enabled || !ActiveBelow(g.transform, go.transform)) continue;
                     var label = GraphicText(g);
                     if (label != null) return label;
                 }
@@ -576,6 +596,7 @@ namespace TaskProbe
                         if (e is UIE.Toggle t) return t.value ? 1.0 : 0.0;
                         if (e is UIE.AbstractProgressBar bar) return (double)bar.value;
                         if (e is UIE.Scroller scr) return (double)scr.value;
+                        if (e is UIE.DropdownField dd) return (double)dd.index;
                         return null;
                     case "interactable": return e.enabledInHierarchy ? 1.0 : 0.0;
                     case "has_brush": return UitkBrush(e) != null ? 1.0 : 0.0;
