@@ -15,10 +15,10 @@
      written to the config): the recording hooks into the hooks dir (config "hooks_dir", default
      ~\.unity-game-factory\hooks), their entries merged into each agent's settings (Claude Code:
      <ClaudeDir>\settings.json; Codex: <CodexDir>\hooks.json plus the trust entries in config.toml; a backup
-     .bak-<time> first; other settings and hooks are kept, including the Unreal game-factory's own recording hooks, which
-     record only their own root; before adding or changing them it prints what they record and asks, -Yes skips the
-     question, a non-interactive run without -Yes leaves them out), the repo's skills (skills\unity-*) into each agent's
-     personal skills folder (<ClaudeDir>\skills\, ~\.agents\skills\; other skill folders are never touched), and the
+     .bak-<time> first; other settings and hooks are kept, including the Unreal game-factory's own recording hooks;
+     before adding or changing them it prints what they record and asks, -Yes skips the question, a non-interactive run
+     without -Yes leaves them out), the repo's skills (skills\, all unity-*) into each agent's personal skills folder
+     (<ClaudeDir>\skills\, ~\.agents\skills\; other skill folders are never touched), and the
      root instructions (Claude Code: <root>\CLAUDE.md importing unity-game-factory\CLAUDE.md; Codex: <root>\AGENTS.md
      naming unity-game-factory\AGENTS.md; sessions start in the root).
   4. Git: git-lfs filters (git lfs install --skip-repo), gh login check, the commit recorder in every
@@ -323,16 +323,14 @@ if ($codexTrustChanged) {
 
 # Skills: one source (<repo>\skills\<name>\SKILL.md), copied to where each agent looks for personal skills
 # (Claude Code: ~\.claude\skills; Codex: ~\.agents\skills). Copies, not links: links need Developer Mode on Windows.
-# Only the repo's own skill folders (unity-*) are written: every other skill there (the Unreal game-factory's
-# commit-always, game-session, sound, write-tasks, the person's own) is left alone.
+# Only the repo's own skill folders are written (all named unity-*, so they sit beside the Unreal game-factory's
+# commit-always, game-session, sound and write-tasks); every other skill there is left alone.
 $skillsSrc = Join-Path $repo 'skills'
 $skillDirs = @()
 if ($Agents -contains 'claude') { $skillDirs += , @('Claude Code', (Join-Path $ClaudeDir 'skills')) }
 if ($Agents -contains 'codex') { $skillDirs += , @('Codex', $AgentsSkillsDir) }
-$ourSkills = @(Get-ChildItem -LiteralPath $skillsSrc -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'unity-*' })
-if (-not $ourSkills.Count) { Note warn 'skills' "no unity-* skill folders in $skillsSrc" }
 foreach ($sd in $skillDirs) {
-    foreach ($s in $ourSkills) {
+    foreach ($s in Get-ChildItem -LiteralPath $skillsSrc -Directory) {
         Sync-Dir $s.FullName (Join-Path $sd[1] $s.Name) (Join-Path $sd[1] "_backup\$stamp\$($s.Name)") "$($sd[0]) skills\$($s.Name)"
     }
 }
@@ -351,7 +349,6 @@ function Set-RootFile([string]$Path, [string]$Line, [string]$NewText) {
         Note changed "$Path" "appended $Line (backup .bak-$stamp)"
     }
 }
-$skillNames = (@($ourSkills | ForEach-Object Name) -join ', ')
 if ($Agents -contains 'claude') {
     $importPath = if ($inRoot) { 'unity-game-factory/CLAUDE.md' } else { ($repo -replace '\\', '/') + '/CLAUDE.md' }
     Set-RootFile (Join-Path $Root 'CLAUDE.md') "@$importPath" "# UnityWork root`n`nEvery session in this folder follows the unity-game-factory rules and skills:`n`n@$importPath`n"
@@ -360,7 +357,7 @@ if ($Agents -contains 'codex') {
     $agentsPath = Join-Path $repo 'AGENTS.md'
     $line = "Before anything else, read $agentsPath and follow it (rules, skills, priorities)."
     Set-RootFile (Join-Path $Root 'AGENTS.md') $line ("# UnityWork root`n`nEvery session in this folder follows the unity-game-factory rules and skills.`n$line`n" +
-        "The skills it names ($skillNames) are installed in $AgentsSkillsDir.`n")
+        "The skills it names (unity-commit-always, unity-game-session, unity-sound, unity-write-tasks) are installed in $AgentsSkillsDir.`n")
 }
 
 # --- 4. git, LFS, gh, game repos --------------------------------------------------------------------------------------

@@ -300,8 +300,7 @@ if ($Agents -contains 'codex') {
     }
 }
 Try-Check 'Skills' {
-    $names = @(Get-ChildItem (Join-Path $repo 'skills') -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'unity-*' } | Select-Object -ExpandProperty Name)
-    if (-not $names) { Add-Result FAIL 'Skills' "no unity-* skills in $(Join-Path $repo 'skills')" 'pull unity-game-factory'; return }
+    $names = @(Get-ChildItem (Join-Path $repo 'skills') -Directory | Select-Object -ExpandProperty Name)
     $where = @()
     if ($Agents -contains 'claude') { $where += , @('Claude Code', (Join-Path $ClaudeDir 'skills')) }
     if ($Agents -contains 'codex') { $where += , @('Codex', $AgentsSkillsDir) }
