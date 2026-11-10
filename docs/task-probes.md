@@ -71,8 +71,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
               {"t": 6.2, "key": "<Mouse>/leftButton", "press": false},
               {"t": 8.0, "widget": "RetryButton", "click": true}]}
   ```
-  - `name`: not `look`, `drive`, `editor` or `trace`. Plays with the same name in one task must be identical.
-  - `seconds`: 5-120. No input at or after the end.
+  - `name`: lowercase letters, digits and `_`, at most 32, and not `look`, `drive`, `editor` or `trace`. Plays with
+    the same name in one task must be identical.
+  - `seconds`: a whole number, 5-120. No input at or after the end.
   - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
@@ -85,21 +86,21 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`, `single-instance`, any
     flag starting with `screen-` or `force-`, nor the probe's own (any flag starting with `taskprobe`);
     `tools/validate-game.py` lists what it refuses.
-  - `inputs`, each at time `t` (seconds of play). Keys, buttons and axes go through the **Input System**, on the
-    probe's own virtual Keyboard, Mouse and Gamepad: a game that reads the old Input Manager (`UnityEngine.Input`)
-    sees none of them (section 5). One sent at `t` is queued before the game's scripts run and processed by the Input
-    System at the next frame's start, so the game reads it one frame (1/30 s) after `t`. The Gamepad is added only
-    when an input names `<Gamepad>` (a gamepad switches many games' button prompts).
+  - `inputs` (at most 400), each at time `t` (seconds of play, 0-120). Keys, buttons and axes go through the **Input
+    System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game that reads the old Input Manager
+    (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued before the game's scripts run and
+    processed by the Input System at the next frame's start, so the game reads it one frame (1/30 s) after `t`. The
+    Gamepad is added only when an input names `<Gamepad>` (a gamepad switches many games' button prompts).
     - a key: `{"t": 1.0, "key": "<Keyboard>/w", "press": true}` and later `"press": false`. `key` is an Input System
       control path, `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`: any key of `<Keyboard>/` by its Input System
       name (`w`, `space`, `leftShift`, `f2`, `escape`); on `<Mouse>/`, `leftButton`, `rightButton`, `middleButton`,
       `forwardButton`, `backButton`; on `<Gamepad>/`, `buttonSouth`, `buttonEast`, `buttonWest`, `buttonNorth`,
       `leftShoulder`, `rightShoulder`, `start`, `select`, `leftStickPress`, `rightStickPress`, `dpad/up`, `dpad/down`,
       `dpad/left`, `dpad/right`. Any other control is a line in the play's `query_errors`, and nothing is pressed;
-    - an axis event: `{"t": 2.0, "key": "<Mouse>/delta/x", "axis": 40.0}`, on `<Mouse>/` `delta/x`, `delta/y`,
-      `scroll/x`, `scroll/y` or `<Gamepad>/` `leftStick/x`, `leftStick/y`, `rightStick/x`, `rightStick/y`,
-      `leftTrigger`, `rightTrigger`. The mouse's delta and scroll are one-frame impulses; a stick or a trigger keeps
-      its value until set again (see the lessons on mouse axes in section 5);
+    - an axis event: `{"t": 2.0, "key": "<Mouse>/delta/x", "axis": 40.0}` (`axis` -1000 to 1000), on `<Mouse>/`
+      `delta/x`, `delta/y`, `scroll/x`, `scroll/y` or `<Gamepad>/` `leftStick/x`, `leftStick/y`, `rightStick/x`,
+      `rightStick/y`, `leftTrigger`, `rightTrigger`. The mouse's delta and scroll are one-frame impulses; a stick or a
+      trigger keeps its value until set again (see the lessons on mouse axes in section 5);
     - a widget click: `{"t": 6.0, "widget": "RetryButton", "click": true}` clicks the first visible, interactable uGUI
       Selectable or UI Toolkit Button whose name (a wildcard) or type matches, as a player's click fires it: a uGUI
       Selectable gets the pointer events of a click at its centre (enter, down, up, click), a UI Toolkit Button a
