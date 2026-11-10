@@ -60,21 +60,18 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
   characters), so `--scratch` may be at most 68 characters long: when it says so, pass a short folder on the repo's
   drive (`--scratch C:\tc`).
 - Disk: each task needs up to two copies of the game plus their `Library/` folders (the imported assets, often larger
-  than the project; a copy seeded from another's import cache holds its own copy of it) and their builds, deleted
-  after the last task of the run that needs them. The copies go on the repo's own drive (its resolved path,
-  junctions followed), so LFS files are hardlinks of the repo's own objects and cost no disk; `--scratch` on another
-  drive makes them copies. It refuses to start below the machine's free-space floor (`min_free_gb` in the machine
-  config, else 50 GB; the environment variable `UGF_MIN_FREE_GB` overrides both), and a run that falls below it stops
-  once it has deleted every copy the current task doesn't need.
+  than the project) and their builds, deleted after the last task of the run that needs them. The copies go on the
+  repo's own drive (its resolved path, junctions followed), so LFS files are hardlinks of the repo's own objects and
+  cost no disk; `--scratch` on another drive makes them copies. It refuses to start below the machine's free-space
+  floor (`min_free_gb` in the machine config, else 50 GB; the environment variable `UGF_MIN_FREE_GB` overrides both),
+  and a run that falls below it stops once it has deleted every copy the current task doesn't need.
 - **One Unity process per project.** Unity locks a project folder while it has it open (`Temp/UnityLockfile`). The
   checker opens only its own scratch copies, one job at a time, never your checkout, so an editor open on the game
   doesn't stop it.
 - Time: two builds and a few plays per task: 7 minutes for a near-empty URP project, 18 and 31 for the two tasks of a
   small game (the factory's sample) on the machine this was measured on, longer for a real game with many or large
   assets. Half of it or more is the builds (2 to 13 minutes each in those runs): a scratch copy's first build imports
-  every asset into the copy's own `Library/`. Within one run, a later copy starts from the import cache (`Library/`) of
-  a copy already built; Unity's cache is keyed by each asset's content and import settings and is never part of the
-  game, so both copies stay exactly as committed. A commit shared by several tasks of one run is built once.
+  every asset into the copy's own `Library/`. A commit shared by several tasks of one run is built once.
   A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
   build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
   `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
@@ -146,8 +143,8 @@ it waited for a machine slot (`unity-heavy.ps1`).
 - `{"op": ">=", "value": 1}`: a literal.
 - `{"op": ">=", "calibrate": 0.5}`: `s + 0.5 * (r - s)` between the start's measure `s` and the reference's `r`.
   If the start measured nothing (its play crashed: often the bug itself), the threshold is `r` moved a quarter of
-  `|r|` toward the start's side. If the reference measured nothing, or both sides measure the same, the probe fails as
-  **uncalibrated**.
+  `|r|` toward the start's side (an `r` of 0 gives no margin: uncalibrated). If the reference measured nothing, or
+  both sides measure the same, the probe fails as **uncalibrated**.
 - `{"op": ">=", "start_times": 1.3}` / `{"op": ">=", "start_plus": 5}`: `s * 1.3` / `s + 5` from the start (for a
   task with no reference). A start that measured nothing leaves no threshold (uncalibrated).
 
@@ -160,20 +157,23 @@ A task is **VALID** when all of this holds:
 - the start fails every required probe outside `still_works` (or doesn't build by design): each is one issue of the
   thread, and one the start already passes rewards no work;
 - every required probe in the `still_works` milestone already passes at the start. What must keep working has to work
-  before the change, or the probe is broken and would fail every correct solution. A still-works probe that has no
-  samples at the start (its play crashed, which is often the task's own bug) doesn't count against it;
+  before the change, or the probe is broken and would fail every correct solution. A still-works probe the start has
+  no samples for (its play crashed or ended early, which is often the task's own bug) doesn't count against it; one
+  that finds nothing to measure in a start that ran does;
 - a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
-  `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other probe the start
-  already passes, a `"required": false` one too (the task check measures that). Judges and trace probes aren't
-  measured here, so their weights aren't covered by this rule.
+  `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other check true of the
+  start: a `log_absent` or `file_exists` check (nothing measures those at the start, so their weight is yours to set)
+  or a probe, a `"required": false` one too (the task check measures that). Judges and trace probes aren't measured
+  here, so their weights aren't covered by this rule.
 
 Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
 `file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID.
 
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
-`still_works` (thresholds relative to the start, or literals), and pass its still-works probes. Every shipped task has
-a reference (unity-write-tasks section 1; `tools/validate-game.py` rejects one without), so this is for drafts only.
+`still_works` (thresholds relative to the start, or literals; a relative one the start measured nothing for has no
+threshold, and no solution could pass it), and pass its still-works probes. Every shipped task has a reference
+(unity-write-tasks section 1; `tools/validate-game.py` rejects one without), so this is for drafts only.
 
 ## Results
 
@@ -234,8 +234,9 @@ The bug doesn't show in what the probes measure.
 nothing to put a threshold between: the probe doesn't see the change. Measure something the fix changes (a
 different field, window or play), or use a literal value when the fact is a count or a boolean. A probe that isn't
 required and can't be calibrated fails as a note, never as a reason for INVALID. `uncalibrated: X: the reference
-measured nothing (...)` (or, for a threshold relative to the start, `the start measured nothing (...)`): read the
-reason in brackets as below.
+measured nothing (...)` (or `the start measured nothing (...)`, for a threshold relative to the start or with a
+reference that measured 0): read the reason in brackets as below. In a task with no reference, a required probe the
+start leaves uncalibrated reads **`X has no threshold: uncalibrated: ...`**: no solution could pass it.
 
 **`no samples in the window (the play ended at X s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
@@ -243,15 +244,17 @@ never got to play (a crash at load: see the play's `play.log` and `output.txt`).
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
-has that field. `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an instantiated
-prefab's object is named `<Prefab>(Clone)`, so select it by `name` with a wildcard (`Projectile*`); only objects active
-in the hierarchy match unless the select says `"inactive": true`; a component's member is
-`prop:<Component>.<member>`. `; the probe said: ...` quotes the first line of the play's `query_errors` (what the probe
-couldn't read), which may come from another probe of the same play: each line starts with its query's kind
-(`spawns: no component type Coin`). The `rows` in the play's `probe.json` show what was found, and `probe.log` beside
-it what the probe did (a `teleport_to` that found nothing, a widget click that matched no button). Some fields have no
-value at first by design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of
-its own then too, audio `level` in the play's first frames.
+has that field. `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an object
+instantiated at run time is named `<Prefab>(Clone)` (`Projectile(Clone)`), and a `name` wildcard takes every whole name
+it fits (`Projectile*` takes a `ProjectileSpawner` too), so select the things themselves by their own component or
+their full name (task-probes.md, section 2.4); only objects active in the hierarchy match unless the select says
+`"inactive": true`; a component's member is `prop:<Component>.<member>`. `; the probe said: ...` quotes the line of
+the play's `query_errors` about this measure's own query (what the probe couldn't read; it starts with the query's
+kind: `spawns: no component type Coin`); with two queries of one kind in a play, it can be the other one's. The `rows`
+in the play's `probe.json` show what was found, and `probe.log` beside it what the probe did (a `teleport_to` that
+found nothing, a widget click that matched no button). Some fields have no value at first by design: `spin` on the
+first sample an object is seen in, `speed` of an object with no velocity of its own then too, audio `level` in the
+play's first frames.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,
@@ -300,9 +303,10 @@ see "Results") tells which: its screenshots, the `track` in `probe.json`, and `p
 teleport put the player and what each click hit. A `teleport_to` goes next to the match nearest the player, so a
 select that also matches another object can take the player there instead:
 `6.00 [6.5 s] teleported next to CoinSpawner: asked (0.00, 0.00, 0.30) yaw 180.0, now at (0.00, 0.00, 0.30)` is a
-`{"name": "Coin*"}` that found the spawner, not a coin (select by `component`, or narrow the name); `teleport_to
-skipped (no object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a
-plain boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
+`{"name": "Coin*"}` that found the spawner, not a coin (select the coins by their own component,
+`"component": "Coin"`, or their full name, `Coin(Clone)`: task-probes.md, section 2.4); `teleport_to skipped (no
+object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain boot
+(`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
 
 **`start: Assets/Scenes/X.unity names N of its M assets that the commit doesn't have`** (a note). The scene refers to
 asset GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`;
