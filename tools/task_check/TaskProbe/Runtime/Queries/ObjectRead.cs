@@ -240,17 +240,17 @@ namespace TaskProbe
         }
     }
 
-    /// <summary>speed by places: where each thing was at this query's previous sample.</summary>
+    /// <summary>speed by places: where each thing was at this query's previous sample, and the game time since then
+    /// (the frames counted as they run, so the frames of a wait count: the play's clock holds while the game runs).</summary>
     public sealed class Places
     {
         Dictionary<int, Vector3> before = new Dictionary<int, Vector3>(), now = new Dictionary<int, Vector3>();
-        double lastT = double.NaN, t;
+        double since;
 
-        public void Begin(double time)
-        {
-            t = time;
-            now.Clear();
-        }
+        /// <summary>Every frame of the play, its clock running or held.</summary>
+        public void Frame(float dt) => since += dt;
+
+        public void Begin() => now.Clear();
 
         /// <summary>The speed of one thing at `place`: its own velocity when it reports one that isn't zero, else how far
         /// it moved since the previous sample over that time; with no own velocity and no previous place, null.
@@ -260,9 +260,9 @@ namespace TaskProbe
             now[key] = place;
             velocity = own;
             if (hasOwn && own.sqrMagnitude > 1e-8f) return own.magnitude;
-            if (before.TryGetValue(key, out var was) && t > lastT)
+            if (before.TryGetValue(key, out var was) && since > 0.0)
             {
-                velocity = (place - was) / (float)(t - lastT);
+                velocity = (place - was) / (float)since;
                 return velocity.magnitude;
             }
             return hasOwn ? 0.0 : (double?)null;
@@ -273,7 +273,7 @@ namespace TaskProbe
             var swap = before;
             before = now;
             now = swap;
-            lastT = t;
+            since = 0.0;
         }
     }
 

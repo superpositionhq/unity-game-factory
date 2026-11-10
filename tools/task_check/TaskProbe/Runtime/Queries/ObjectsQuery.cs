@@ -32,12 +32,16 @@ namespace TaskProbe
             glow = Reads("lit") || Reads("glow");
         }
 
-        public override void Frame(float dt) => spins.Frame(dt);
+        public override void Frame(float dt)
+        {
+            spins.Frame(dt);
+            places.Frame(dt);
+        }
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
             var rows = new RowSet(Fields);
-            places.Begin(t);
+            places.Begin();
             foreach (var go in Find.Objects(sel, int.MaxValue, out _))
                 rows.Add(Row(go));
             places.End();

@@ -56,12 +56,16 @@ namespace TaskProbe
             }
         }
 
-        public override void Frame(float dt) => spins.Frame(dt);
+        public override void Frame(float dt)
+        {
+            spins.Frame(dt);
+            places.Frame(dt);
+        }
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
             var rows = new RowSet(Fields);
-            places.Begin(t);
+            places.Begin();
             if (!broken) Match();
             foreach (var c in matched) rows.Add(Row(c));
             matched.Clear();
