@@ -340,9 +340,9 @@ def _nearest(rows, t, key=lambda r: r[0]):
     return best if best is not None and abs(key(best) - t) <= NEAR else None
 
 
-def _rows(probe, name, width):
+def _rows(probe, name, *widths):
     return [[float(v) for v in row] for row in (probe or {}).get(name) or []
-            if isinstance(row, list) and len(row) == width and all(isinstance(v, int | float) for v in row)]
+            if isinstance(row, list) and len(row) in widths and all(isinstance(v, int | float) for v in row)]
 
 
 def _samples(probe, qid):
@@ -387,27 +387,35 @@ def point_at(point, t, probe):
 def series(measure, probe):
     """[(t, value or None)] of a runtime measure, one per sample of its play."""
     probe_kind, field = measure["probe"], measure["field"]
-    if probe_kind == "player":
-        track = _rows(probe, "track", 4)
-        out = []
-        for i, row in enumerate(track):
+    if probe_kind == "player":  # a sample that found no player is a track row [t]: no value there
+        out, first, last = [], None, None
+        for row in _rows(probe, "track", 1, 4):
             t, here = row[0], row[1:4]
-            if field in ("x", "y", "z"):
+            if not here:
+                value = None
+            elif field in ("x", "y", "z"):
                 value = here["xyz".index(field)]
             elif field == "speed":
-                dt = t - track[i - 1][0] if i else 0.0
-                value = _distance(here, track[i - 1][1:4]) / dt if i and dt > 0 else None
+                dt = t - last[0] if last else 0.0
+                value = _distance(here, last[1:4]) / dt if last and dt > 0 else None
             elif field == "moved":
-                value = _distance(here, track[0][1:4])
+                value = _distance(here, (first or row)[1:4])
             else:  # dist
                 there = point_at(measure["to"], t, probe)
                 value = None if there is None else _distance(here, there)
+            if here:
+                first, last = first or row, row
             out.append((t, value))
         return out
     if probe_kind == "camera" and field not in ("occluded", "player_on_screen"):
+        # every sample has a track row; one with no camera row found no camera: no value there
         track, out = _rows(probe, "track", 4), []
-        for row in _rows(probe, "camera", 7):
-            t = row[0]
+        cameras = {row[0]: row for row in _rows(probe, "camera", 7)}
+        for t in sorted({row[0] for row in _rows(probe, "track", 1, 4)} | set(cameras)):
+            row = cameras.get(t)
+            if row is None:
+                out.append((t, None))
+                continue
             if field in ("pitch", "yaw", "fov"):
                 out.append((t, angled(measure, row[{"pitch": 4, "yaw": 5, "fov": 6}[field]])))
                 continue
@@ -473,7 +481,7 @@ def reduce(measure, probe, log=""):
 
 def ended(probe):
     """When a play's samples end (s): the probe's own seconds, else its last track or camera row."""
-    found = [r[0] for r in _rows(probe, "track", 4) + _rows(probe, "camera", 7)]
+    found = [r[0] for r in _rows(probe, "track", 1, 4) + _rows(probe, "camera", 7)]
     seconds = (probe or {}).get("seconds")
     if isinstance(seconds, int | float) and not isinstance(seconds, bool):
         return float(seconds)

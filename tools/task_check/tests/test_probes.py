@@ -316,6 +316,23 @@ class Reducers(unittest.TestCase):
         self.assertEqual(probes.measured(empty, objects_play(empty, [[]])),
                          (None, "no value in the window (nothing it selects was measured)"))
 
+    def test_a_play_that_ran_without_a_player_or_a_camera_has_samples_with_no_value(self):
+        """A sample that found no player is a track row [t], one that found no camera has no camera row: the play
+        ran, so its measures have no value there, never "no samples"."""
+        nobody = {"seconds": 20.5, "track": [[0.0333], [0.5], [1.0], [20.5]], "camera": []}
+        nothing = (None, "no value in the window (nothing it selects was measured)")
+        for measure in (m(probe="player", field="moved"), m(probe="player", field="y"),
+                        m(probe="player", field="dist", to={"camera": True, "forward": 2}),
+                        m(probe="camera", field="pitch"), m(probe="camera", field="height")):
+            self.assertEqual(probes.measured(measure, nobody), nothing, measure["field"])
+        self.assertEqual(probes.ended({"track": [[0.5], [1.0], [1.5]]}), 1.5, "a sample without a player is a sample")
+        gaps = {"track": [[0.0, 0, 1, 0], [0.5], [1.0, 0.6, 1, 0.8]],
+                "camera": [[0.0, 0, 3, 0, 10.0, 0.0, 60.0], [1.0, 0, 3, 0, 20.0, 0.0, 60.0]]}
+        self.assertIsNone(probes.reduce(m(probe="player", field="x", at=[0.5]), gaps))
+        self.assertAlmostEqual(probes.reduce(m(probe="player", field="speed"), gaps), 1.0, msg="over the gap")
+        self.assertIsNone(probes.reduce(m(probe="camera", field="pitch", at=[0.5]), gaps))
+        self.assertEqual(probes.reduce(m(probe="camera", field="pitch", agg="max"), gaps), 20.0)
+
     def test_a_probe_with_no_value_says_what_the_probe_could_not_read(self):
         """Its own query's error only: one naming the query's kind and id, else one naming its kind alone (the probe
         writes a select's own errors so), never another query's or the play's."""
