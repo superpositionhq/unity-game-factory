@@ -527,7 +527,7 @@ task play `scenario_two`, with its queries as `probes.plan` makes them (the ids 
   defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries. The window's size is
   not the spec's: the command line's `-screen-width 960 -screen-height 540` and the build's settings set it (below).
 - The probe reads `out` (default: `persistentDataPath/TaskProbe`), `seconds` (clamped to 1-600; default 20), `every`
-  (0.1-1.0; 0.5), `shots` (0-64; 0), `scene`, `sound`, `player` (its own `player` key ignored), `inputs` and
+  (0.1-1.0; 0.5), `shots` (0-64; 4), `scene`, `sound`, `player` (its own `player` key ignored), `inputs` and
   `queries.queries`; the queries' `format` and `every` ride along unread. A play without queries has an empty list.
 - A query holds `id`, `kind`, its kind's keys and `fields`: `objects`, `components`, `widgets`, `ui` take `select` and
   `fields`; `camera` `fields`; `light` `point`; `grading` `fields` (the `post:` names asked for); `spawns`
@@ -561,10 +561,10 @@ first two track and camera rows (of 18) and the first sample of each query:
 ```
 
 - `ended`: `time` (the clock passed its seconds + 0.5) or `shutdown` (the game quit first: `Application.quitting`).
-  `seconds`: the play time at the end, its seconds + 0.5 plus the frames (at most 5) a last sample that reads the
-  drawn frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
-  `screenshots`: 960x540 PNGs of the frame as displayed, UI included, taken at the middle of each of `shots` equal
-  parts of the play.
+  `seconds`: the play time at the end, its seconds + 0.5 plus the frames (at most 5) a last sample that reads the drawn
+  frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
+  `screenshots`: 960x540 PNGs of the frame as displayed, UI included, without alpha, taken at the middle of each of
+  `shots` equal parts of the play (none in a project without the ImageConversion module: a `query_errors` line says so).
 - Samples fall on frames: the first at 1/30 s (the clock's first frame), then every `every` s, on the frame that
   reaches it. Every sample adds a `track` row, `[t, x, y, z]` (the player's transform position) or `[t]` while there
   is no player (no value there for the checker), and a `camera` row `[t, x, y, z, pitch, yaw, fov]` when there is a
@@ -574,17 +574,23 @@ first two track and camera rows (of 18) and the first sample of each query:
   how many, and `full`, for each field its `n`, `nonzero`, `sum`, `min` and `max` over every match's numeric value), or
   `value`, an object or null, for the others. A `ui` sample whose frame never came has no `rows`; a `screen` sample's
   value is then null.
-- `query_errors` (only when there was one): each line once, at most 50: `<kind> <id>: <message>` (or `<kind> <id>
-  (frame): ...`) for a query's own error, `<kind>: <message>` for a select's (`spawns: no component type Coin`),
-  and the loop's own (`a query has no id or kind`, `no query kind <kind>`, `the play's scene <scene> isn't in the build:
-  the game's own first scene is played`, `inputs: ...`).
+- `query_errors` (only when there was one): each line once, at most 50, then `<n> more in probe.log`. A query's own:
+  `<kind> <id>: <message>` (its definition's and its select's too: `components q3c1d2e4f5a: no component type Lantren`;
+  `spawns` still writes `spawns: no component type Coin`), and an exception out of it `<kind> <id>: <ExceptionType> in
+  Load|Frame|Sample|FrameDrawn (the exception is in probe.log)` (`Probe.Failed`; the exception and its stack go to
+  probe.log). The loop's own, the original's: `queries format '<f>' is not game-probe-queries/1`, `the queries have no
+  queries array`, `a query is not an object`, `a query has a missing or repeated id '<id>'`, `more than 256 queries:
+  '<id>' and later ones dropped`, `query '<id>': unknown kind '<kind>' (null values)` (such a query, and one whose
+  `Load` threw, is sampled with a null `value`); and `the play's scene <scene> isn't in the build: the game's own first
+  scene is played`, `the play's scene <scene> didn't become the active scene: playing <path>`, `inputs: ...`.
 - Numbers: whole ones without a fraction, the rest in their round-trip form; NaN and infinities are written null
   (`Json.Write`).
 
 **probe.log** (beside it in `out`): the probe's own lines, each with the play time and the real time since the player
 started (`Probe.Log`): the start, the clock's start, waits, teleports, holds, clicks, cursor moves, errors (`error:
-...`), `drawn`'s cost every 10 samples, and the end. The game's own log is `play.log`. The real one of the task play
-`reach_lamp` (it measures audio, so it ran paced to real time):
+...`) and the exceptions behind them, a load that held the clock too long, saved data kept, `drawn`'s cost at its first
+sample and every 10th, a glow render's at the first and every 100th, and the end. The game's own log is `play.log`. The
+real one of the task play `reach_lamp` (it measures audio, so it ran paced to real time):
 
 ```
 0.00 [0.2 s] play: 10.0 s, every 0.25 s, 2 shot(s), 7 query(ies), scene Assets/Scenes/Yard.unity, on its own desktop
@@ -605,10 +611,12 @@ python tools\task_check\desk.py <copy>\Build\TaskProbe\Game.exe -screen-fullscre
 It runs with the checker's own Python and the player `Build/TaskProbe/Game.exe`, where the build was asked to put it
 (never a path the build's result names: the game's own editor code runs during the build and could write any), through
 `unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
-timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player
-on a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
-everything it started when `desk.py` goes, and exits with the player's exit code. What the play wrote into `out` is
-read back, then the folder deleted.
+timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player on
+a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
+everything it started when `desk.py` goes, and exits with the player's exit code: 0 when the play ended (a game that
+refuses to quit is ended a few frames later, one whose shutdown hangs after 5 s, with 0 too), 2 when the play spec can't
+be read (missing, not a JSON object, another `format`: `TaskProbe: the play spec <file> couldn't be read: <why>` in
+`play.log`). What the play wrote into `out` is read back, then the folder deleted.
 
 **The build** (`unity.Project.build`, `TaskProbe.EditorTools.Build.Player`; one command, in the copy):
 
