@@ -842,11 +842,11 @@ percent, a sprite).
   custom mesh, with a texture or as segments reads there too. **This is how a readout that is no uGUI or UI Toolkit
   element is read**: Unity keeps no list of what `OnGUI`, `GL` or a mesh draws, so such a readout is no element, and
   only its text, through this reader, is seen. Each line it can read for sure joins the text elements as one `text`
-  element (`source` `ocr`, named `ScreenText`), so `match` and `of` read it like any other; a line another element
-  already reads as text is left to that element, so nothing reads twice. It reads digits 0-9, capital letters A-Z and
-  `%`, `/`, `.`, `-`, `:`, in the shapes line-drawn and segment fonts give them (plain strokes, cut or rounded corners,
-  seven segments, a slashed 0, diagonals in 1, 4 and 7). Only such a select reads the frame's pixels; any other select
-  reads the elements alone.
+  element (`source` `ocr`, named `ScreenText`; glyphs two and a half capital heights apart or more are two elements),
+  so `match` and `of` read it like any other; a line another element already reads as text is left to that element,
+  so nothing reads twice. It reads digits 0-9, capital letters A-Z and `%`, `/`, `.`, `-`, `:`, in the shapes
+  line-drawn and segment fonts give them (plain strokes, cut or rounded corners, seven segments, a slashed 0, diagonals
+  in 1, 4 and 7). Only such a select reads the frame's pixels; any other select reads the elements alone.
   - It reads nothing rather than guess: text that doesn't stand out in one colour from an even background behind it;
     a line that runs out of the rect or that another mark crosses; a glyph two characters fit (an unslashed 0 and O,
     a 5 and S or an 8 and B drawn as segments, a plain bar for 1 and I); a lone character; lower case; slanted
