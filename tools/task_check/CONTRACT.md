@@ -372,16 +372,19 @@ original's, unchanged (`probes.py`).
   through `post:Tonemapping.mode`; constants from the URP package source in
   `Library/PackageCache/com.unity.render-pipelines.*`). What an untouched stack reads: task-probes.md 2.8.
 - **spawns** (`SpawnsQuery`; the original counts actors of a class spawned and destroyed): every frame of the play's
-  clock, a wait's frames included, the objects carrying the component type (active ones; subtypes too) are compared
-  with the frame before: one there now and not then is spawned (instantiated, activated, or in a scene loaded during
-  the play), one gone is destroyed (destroyed or deactivated), so a pooled object reused with SetActive counts each
-  time. The counts are cumulative from the clock's start (what is there then isn't counted) and the checker
-  differences them per sample (`probes.series`).
+  clock, a wait's frames included, the objects carrying a component of the type (active ones; found as an object
+  select's components are, `Find.Components`: its subtypes, and the components implementing it when it is an interface)
+  are compared with the frame before: one there now and not then is spawned (instantiated, activated, or in a scene
+  loaded during the play), one gone is destroyed (destroyed or deactivated), so a pooled object reused with SetActive
+  counts each time, and an object given the component counts as spawned; one that comes and goes within one frame isn't
+  seen. The counts are cumulative from the clock's start (what is there then isn't counted) and the checker differences
+  them per sample (`probes.series`).
 - **pieces** (`PiecesQuery`; the original counts instanced meshes (ISM, HISM, foliage) one per instance and procedural
-  mesh sections): a MeshRenderer whose mesh has triangles is 1, a SkinnedMeshRenderer with a mesh is 1, a Terrain's
-  tree instances 1 each (Unity's counterpart of instanced meshes; detail grass and `Graphics.RenderMesh*` draws aren't
-  renderers and count 0); which renderers count, and a piece's triangles: task-probes.md 2.14 (`PiecesQuery` caches
-  each mesh's triangle count; trees are read from their prototypes).
+  mesh sections): a MeshRenderer or a SkinnedMeshRenderer whose mesh has triangles is 1, a Terrain's tree instances 1
+  each (Unity's counterpart of instanced meshes; detail grass and `Graphics.RenderMesh*` draws aren't renderers and
+  count 0); which renderers count, and a piece's triangles: task-probes.md 2.14 (`PiecesQuery` reads each mesh's
+  triangle count once a sample; trees are read from their prototypes; an `owner` is resolved once a sample into a set,
+  `Find.Owners`, so one whose point doesn't resolve owns nothing and reads 0).
 - **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled and
   playing (and matching the select), in hierarchy order, at its volume at the listener (the first enabled AudioListener
   on an active object, in hierarchy order: `AudioTap.Listener`): its `volume` (0 when muted) x ((1 - `spatialBlend`) +
@@ -396,27 +399,32 @@ original's, unchanged (`probes.py`).
   other play runs as fast as the machine renders but for its waits and scene loads (section 4). The value's other keys,
   and what was measured of Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer
   volumes), are in `docs/task-probes.md` section 2.16.
-- **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from
-  y = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
-  (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept); which colliders count, the
-  lattice and the value's keys: task-probes.md 2.17.
+- **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from y
+  = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
+  (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept; a 3D ray, so 2D colliders are
+  never met; without the physics module nothing is); `box` takes exactly 4 numbers (its corners in either order) and
+  `xz` 2, `grid` rounded and clamped to 2-32, as the original's (the select, when set, resolved once a sample into a
+  set, `Find.Owners`); which colliders count, the lattice and the value's keys: task-probes.md 2.17.
 - **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game (not drawing
   shadows only) and every terrain whose world bounds reach the place, at most 1024 (the first in hierarchy order), but
   one that encloses the whole place and is at least 20 times its size, and none on the UI layer, rendered alone from
   fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two square to a line
   (128 x 128), the cameras 0.5 m outside the place, the far plane at its far side.
-  - How: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through URP's
+  - w: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through URP's
     `SingleCameraRequest` with the Universal Renderer the player's camera draws with (without URP, under another URP
     renderer or with no graphics device: no value and one `rendering: ...` line) into float textures (ARGBFloat); the
     depth from a second render, copied into a float texture by the package's own shader
     (`Runtime/Resources/TaskProbeDepthCopy.shader`). Its culling mask is the chosen renderers' layers, never the UI
     layer (world-space canvases draw on it and can't be forced off). For the render, every other drawn renderer on those
     layers inside the views is forced off (`forceRenderingOff`: a layer change would refilter a collider's physics
-    contacts), terrains on those layers stop drawing, every Light and reflection probe is off, fog off, the default
-    reflection a black cubemap, the chosen renderers' lightmaps and light probes off, the ambient flat (white for motion
-    and base colour, 1 / 0.96 so a URP Lit surface reads its own albedo; black for glow), and post-processing, shadows,
-    anti-aliasing, volumes, render scale and renderer features (but RenderObjects) off, HDR on. All of it is put back
-    before the sample returns: the game's frames are identical with and without the query.
+    contacts), terrains on those layers stop drawing, every Light is off, every reflection probe's intensity and the
+    default reflection's are 0, fog off, the chosen renderers' and terrains' lightmaps and light probes off, the ambient
+    probe itself a flat white for motion and base colour (1 / 0.96, so a URP Lit surface reads its own albedo) or
+    nothing for glow, and post-processing, shadows, anti-aliasing, volumes, render scale and renderer features (but
+    RenderObjects) off, HDR on. Only values change, never a source or a mode (an ambient or a default reflection
+    switched to another mode, or a reflection probe turned off and on, had the engine rebuild the environment after the
+    sample, and the game's later frames came out darker), and each setting and object is recorded before it changes and
+    put back, in a finally, before the sample returns.
   - Where the original lights the place with direct lights and the sky light and reads the base colour from the
     GBuffer, the port takes the base colour as the render under the white ambient less the render under black, so
     emission cancels. A pixel is in the place when its depth puts it there, or when it shows colour with nothing
