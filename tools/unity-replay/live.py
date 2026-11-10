@@ -306,6 +306,12 @@ def ledger_findings(cfg, led, wins):
     seen = set()
     for i in wins:
         w = led["windows"][i]
+        for c in w.get("reconstruction", []):
+            if c.get("reconstructed") and not c.get("match"):
+                out.append(finding("warn", "step_text_mismatch", "the recorded writes and edits of %s do not make the text "
+                                   "commit %s has: it was changed in a way the recording does not hold (an editor or "
+                                   "tool outside the agent's file tools); edit code with the agent's file tools only"
+                                   % (c["path"], w["sha"][:8]), window=i, script=c["path"]))
         for r in w["runs"]:
             if r.get("not_run") or r.get("readonly"):
                 continue   # never replayed: nothing to fix
@@ -473,9 +479,12 @@ def structure_check(cfg, led, wins, head, lst):
         res["assets_result"] = a["total"]
         bad = [d for d in a["diffs"] if d["result"] != "extra" or d["asset"] in assets]
         if bad:
-            out.append(finding("warn", "assets_differ", "%d of %d touched asset(s) differ from commit %s after the replay: %s" % (
-                len(bad), len(assets), head[:8], "; ".join("%s %s%s" % (d["asset"], d["result"], (" " + ",".join(map(str, d.get("keys", [])[:4]))) if d.get("keys") else "")
-                                                       for d in bad[:6]))))
+            out.append(finding("warn", "assets_differ", "%d of %d touched asset(s) differ from commit %s after the replay, "
+                               "so a change to them was made outside the replayed steps (a hand edit of a serialized file, "
+                               "a change in the editor GUI, a step that is not recorded): make such changes in an editor "
+                               "step. %s" % (len(bad), len(assets), head[:8], "; ".join(
+                                   "%s %s%s" % (d["asset"], d["result"], (" (" + ", ".join(map(str, d.get("keys", [])[:3])) + ")") if d.get("keys") else "")
+                                   for d in bad[:6]))))
     res["scenes_result"] = {}
     for s in scenes:
         fn = s.replace("/", "__") + ".json"

@@ -44,7 +44,6 @@ DEFAULTS = {
     # headless: a general slot of the limiter, never a GPU slot (-quit is added per run unless the step ran -NoQuit)
     "editor_args": ["-batchmode", "-nographics"],
     "reason_env": "UNITY_RUN_REASON",
-    "steps_dir": "Assets/Editor/Steps",
     # steps that only look (class names): listed, not replayed
     "readonly_patterns": ["Inspect*", "Measure*", "Check*", "Analyze*", "Scan*", "*Probe*"],
     "not_readonly": [],

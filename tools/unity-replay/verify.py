@@ -56,6 +56,13 @@ def diff_keys(a, b, prefix=""):
             elif not close(a[k], b[k]):
                 if isinstance(a[k], dict) and isinstance(b[k], dict):
                     out += diff_keys(a[k], b[k], prefix + k + ".")
+                elif (isinstance(a[k], list) and isinstance(b[k], list) and len(a[k]) == len(b[k])
+                      and any(isinstance(x, dict) for x in a[k])):
+                    # objects of an asset: the element and the field inside it
+                    for i, (x, y) in enumerate(zip(a[k], b[k])):
+                        if not close(x, y):
+                            out += diff_keys(x, y, "%s%s[%d]." % (prefix, k, i)) if isinstance(x, dict) and isinstance(y, dict) \
+                                else ["%s%s[%d]" % (prefix, k, i)]
                 else:
                     out.append(prefix + k)
     elif not close(a, b):
@@ -204,6 +211,22 @@ def asset_view(x):
     return {k: x.get(k) for k in ("type", "importer", "importer_settings", "source_sha256", "objects")}
 
 
+def name_pairs(view, keys):
+    """A key into a name/value pair array (a material's m_SavedProperties: data[i].first is the name, .second the
+    value) with the pair's name: '...data[23].second (_Smoothness)'."""
+    out = []
+    for k in keys:
+        m = re.match(r"objects\[(\d+)\]\.props\.(.+\.Array\.data\[\d+\])\.second$", k)
+        name = None
+        if m:
+            try:
+                name = view["objects"][int(m.group(1))]["props"].get(m.group(2) + ".first")
+            except (IndexError, KeyError, TypeError, AttributeError):
+                name = None
+        out.append("%s (%s)" % (k, name) if isinstance(name, str) else k)
+    return out
+
+
 def verify_assets(rep, tru, counts=None):
     counts = counts if counts is not None else collections.Counter()
     a = {x["path"]: x for x in rep["assets"]}
@@ -228,7 +251,7 @@ def verify_assets(rep, tru, counts=None):
                 counts["asset_load_error_both"] += 1
                 load_err.append({"asset": k, "type": cls, "error": t.get("error")})
         else:
-            dk = tolerant_diff(asset_view(r), asset_view(t), counts)
+            dk = name_pairs(asset_view(t), tolerant_diff(asset_view(r), asset_view(t), counts))
             if "hierarchy" in t or "hierarchy" in r:
                 hv = verify_objects(r.get("hierarchy") or [], t.get("hierarchy") or [], counts)
                 if hv["differs"] or hv["missing"] or hv["extra"]:
@@ -451,6 +474,21 @@ def deviations(ctx, report):
         [{"run": x.get("run"), "method": x.get("method"), "retries": x["retried_after_editor_crash"]} for x in log if x.get("retried_after_editor_crash")])
     add("runs_timed_out", "runs stopped at the run time limit (settings run_timeout_s)",
         [{"run": x.get("run"), "method": x.get("method"), "seconds": x.get("seconds")} for x in log if x.get("timed_out")])
+    add("reconstruction_mismatch", "code the recorded writes and edits rebuild to another text than the commit has (an "
+        "edit the recording does not hold, or a recording that does not match the history): the runs used the rebuilt "
+        "text, the window ended with the commit's",
+        [{"window": w["index"], "commit": w["sha"][:10], "path": c["path"]} for w in led["windows"]
+         for c in w.get("reconstruction", []) if c.get("reconstructed") and not c.get("match")])
+    events = []
+    ev_path = os.path.join(ctx.work, "live", "events.jsonl")
+    if os.path.exists(ev_path):
+        with open(ev_path, encoding="utf-8") as f:
+            events = [json.loads(l) for l in f if l.strip()]
+    add("replay_restarted_from_commit", "the replay project put back to a commit's tree (the commit's files, not the "
+        "replay's) because history was rewritten or the settings or the recording changed an earlier window; the "
+        "windows after it were replayed again",
+        [{"window": e.get("window"), "commit": (e.get("commit") or "")[:10], "reason": e.get("reason"), "time": e.get("time")}
+         for e in events if e.get("kind") == "replay_restarted_from_commit"])
     wins = report.get("windows") or []
     add("content_from_commit", "content files the commit added or changed that no replayed step produced, taken from the "
         "commit at the window's end (a GUI edit, a hand edit of a serialized file, a step that is not recorded)",
