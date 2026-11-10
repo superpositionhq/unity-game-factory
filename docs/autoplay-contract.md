@@ -173,10 +173,12 @@ Not available yet: the drop-in writes these files; today no run writes them.
 
 All JSON is UTF-8; `*.jsonl` has one object per line. Every row carries the same stamp:
 
-- `qpc`: `System.Diagnostics.Stopwatch.GetTimestamp()` (= `QueryPerformanceCounter` on Windows, the clock the
-  pipeline and the recorder use);
-- `t_ns`: `qpc * 1e9 / qpc_frequency` (absolute QPC time in ns, not relative to the run), computed as
-  `(qpc / f) * 1e9 + (qpc % f) * 1e9 / f` with `f = Stopwatch.Frequency`, because `qpc * 1e9` overflows 64 bits;
+- `qpc`: `QueryPerformanceCounter`, read through P/Invoke, the clock the pipeline and the recorder use. Not
+  `Stopwatch.GetTimestamp()`: under IL2CPP that is the counter rescaled to 100 ns ticks (libil2cpp's Windows
+  `Time.cpp`: counter x 10,000,000 / its frequency), the same number only on a PC whose counter runs at 10 MHz;
+- `t_ns`: `qpc * 1e9 / qpc_frequency` (absolute QPC time in ns, not relative to the run; `qpc_frequency` from
+  `QueryPerformanceFrequency`), computed as `(qpc / f) * 1e9 + (qpc % f) * 1e9 / f` with `f = qpc_frequency`, because
+  `qpc * 1e9` overflows 64 bits;
 - `frame`: `Time.frameCount`.
 
 ### `inputs.jsonl` (written by the drop-in)
