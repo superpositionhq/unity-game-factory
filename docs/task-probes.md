@@ -163,7 +163,8 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   every `t`, `window` and `at` is play time), as fast as the machine renders. It starts at 0 when the play's scene has
   loaded, **holds while any scene is still loading** (an async load takes real time, not game time; for one load at
   most 300 frames, about 10 s of real time, since a load the game parks never finishes: then the clock goes on and
-  `probe.log` says so) and during a `wait`, and keeps counting when the game pauses itself (`timeScale` 0). The game's
+  `probe.log` says `a scene has been loading for 300 frames (a load the game parks never finishes): the play's clock
+  goes on`) and during a `wait`, and keeps counting when the game pauses itself (`timeScale` 0). The game's
   `Time.time` runs on this clock. `Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the
   system clock follow the wall clock instead: a 20 s play takes a few seconds of them, a different number every time,
   so whatever a game drives by them hardly advances in a play and differs between two plays. Give it real time with a
