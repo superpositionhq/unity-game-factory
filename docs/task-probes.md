@@ -196,6 +196,31 @@ that measure the same, fails as `uncalibrated` on every side; one that isn't req
 
 ## 2. Measures
 
+Which measure answers which question (each section has its fields, defaults and limits):
+
+| To check | Measure |
+|---|---|
+| where the player is, how far it moved, how fast | `player` (2.2) |
+| where the camera sits, whether the player is in view or hidden from it | `camera` (2.3) |
+| an object: there or not, where, its state (`prop:`, `anim:`), whether it moved or broke, whether it gives light (`lit`: a lamp, whatever lights it) | `objects` (2.4) |
+| one part of an object: a Light that is on, a live effect, a renderer, a part that spins | `components` (2.5) |
+| one UI widget's own state: a slider's value, a toggle, a sprite | `widgets` (2.6) |
+| how much light reaches a point | `light` (2.7) |
+| the colour grade, a post-processing setting | `grading` (2.8) |
+| how many objects appeared or went | `spawns` (2.9) |
+| a line in the player log | `log` (2.10) |
+| an asset, a material, a prefab or a scene as saved | `asset` (2.11) |
+| how the agent worked (never gating) | `trace` (2.12) |
+| how many meshes are placed, and their triangles | `pieces` (2.14) |
+| how bright the frame looks on screen | `screen` (2.15) |
+| what plays, and how loud at the listener | `audio` (2.16) |
+| the height of the ground, its relief | `ground` (2.17) |
+| what the HUD or a menu shows, whatever draws it: text, a number, a clock, whether it updates | `ui` (2.18) |
+| what is drawn at a spot or along a line: motion, colour, a beam's reach | `drawn` (2.19) |
+
+How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or calibrated: section 1.2. Points and
+`near`: section 2.13. Why a probe has no value: section 3.
+
 ### 2.1 Common fields
 
 - `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (the sample nearest each time, when
