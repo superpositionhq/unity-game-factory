@@ -322,9 +322,9 @@ select that also matches another object can take the player there instead:
 `"component": "Coin"`, or their full name, `Coin(Clone)`: task-probes.md, section 2.4); `teleport_to skipped (no
 object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain boot
 (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
-`reference fails X: build failed (exit N: ...)` (or `(timed out)`: it ran past `--build-timeout`) means the reference
-doesn't build as committed; every check that `needs` it then fails `not run: needs X`, and so on down the chain. The
-reason names the first cause and `reference\build\build.log` holds the rest, as for `start doesn't build` below.
+`reference fails X: build failed (exit N: ...)` means the reference doesn't build as committed; every check that
+`needs` it then fails `not run: needs X`, and so on down the chain. The reason names the first cause and
+`reference\build\build.log` holds the rest, as for `start doesn't build` below.
 
 **`start: Assets/Scenes/X.unity names N of its M assets that the commit doesn't have`** (a note). The scene refers to
 asset GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`;
@@ -337,9 +337,11 @@ fails. The reason itself names the first cause after the exit code (`didn't buil
 most 200 characters: the build's own error, else the log's first compiler error (`<file>(<line>,<column>): error
 CS<n>: ...`), else its first `## Script Compilation Error for:` line (an assembly a post-processor failed on).
 `start\build\build.log` starts with the build's own reason when it gave one (`[task-check] the build's result says it
-failed: ...`), then Unity's log: read its `error CS` lines first. `didn't build (timed out)` is a build that ran past
-`--build-timeout`. Pick a start that builds, or, when making it build is the task, set
-`"fails_at_start": true` on the build check (then no threshold may be relative to the start).
+failed: ...`), then Unity's log: read its `error CS` lines first. Pick a start that builds, or, when making it build
+is the task, set `"fails_at_start": true` on the build check (then no threshold may be relative to the start).
+`didn't build (timed out)` is a build that said why it failed (a compiler error, or its result) and then ran past
+`--build-timeout`. A build that stops with no word about the game is no verdict: see the ERROR entry `... didn't
+build: Unity stopped twice ...` below.
 
 **`start: ProjectSettings/ProjectVersion.txt names Unity ...: a task's commits must be Unity 6000.3 projects as
 committed`** (or `reference: ...`). That commit was made on another Unity, and the checker never upgrades a project.
@@ -350,8 +352,18 @@ Pick a start and a reference from the part of the game's history made on 6000.3.
 
 **`ERROR   <task>: the checker couldn't check it: ...`.** The checker itself failed on that task, so the line says
 nothing about the task; the run goes on with the next one, and the exit code is 1. The rest of the line says why: a
-missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a disk error.
-Fix that and run again. One check's row reading `the checker failed (...)` is the same for that check alone.
+missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a build that
+stopped (next entry), a disk error. Fix that and run again. One check's row reading `the checker failed (...)` is the
+same for that check alone.
+
+**`... didn't build: Unity stopped twice (exit N) with no compiler error and no result saying why: ...`** (or **`Unity
+was stopped at the build's time limit (N s) ...`**; an ERROR line). The build failed without a word about the game:
+neither a compiler error in its log nor a build result saying it failed, so Unity or one of its tools stopped, or the
+build ran into `--build-timeout`. The checker tries a build that stops this way once more (the progress line `build
+stopped (exit N) with no compiler error and no result saying why, retry 1`); stopped again, or stopped at the time
+limit (never tried again), it is the machine's failure, not the game's, and the task has no verdict. The line names
+the kept log (`<side>\build\build.log`). Run the check again; when it stops the same way every time, read that log
+for what stopped (its first `## Script Compilation Error for:` line names the assembly a post-processor failed on).
 
 **A Python traceback that ends the run.** The checker met a fault of its own that it doesn't turn into an ERROR line.
 The tasks it finished keep their results, `progress.txt` names the one it was checking, and the scratch copies are
