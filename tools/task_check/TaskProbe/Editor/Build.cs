@@ -7,8 +7,12 @@
 // no splash screen, several instances allowed, no static batching (so a renderer keeps its own mesh for the `mesh`
 // selects and triangle counts; it draws the same) and no code stripping (the probe reads by reflection members of the
 // engine that the game never calls, which the linker removes: measured at High). The play's command line makes the
-// window and names the log. Every setting is put back after the build, and the project's files are left as they were
-// (a build that kept them, run in a game's own folder, had its company name committed into the game).
+// window and names the log.
+// BuildPlayer saves the changed settings into ProjectSettings/ProjectSettings.asset before it builds; when the build
+// ends they are put back, and the file gets back its own bytes, read before the first change: the project's files are
+// as they were (a build that kept its settings, run in a game's own folder, had its company name committed into the
+// game). An editor killed in mid-build leaves the build's settings in that file: the checker deletes its copy, and
+// another project gets the file back from its version control.
 // Scripts that don't compile stop Unity before this method runs: no result file, exit code 1.
 using System;
 using System.Collections.Generic;
@@ -128,9 +132,12 @@ namespace TaskProbe.EditorTools
             return false;
         }
 
-        /// <summary>The player settings the build changes, as the project has them, and putting them back.</summary>
+        /// <summary>The player settings the build changes, as the project has them and as its file holds them, and
+        /// putting them back.</summary>
         sealed class Kept
         {
+            const string Settings = "ProjectSettings/ProjectSettings.asset";  // the editor's working folder is the project's
+            readonly byte[] saved = File.ReadAllBytes(Settings);
             readonly string company = PlayerSettings.companyName;
             readonly bool splash = PlayerSettings.SplashScreen.show;
             readonly bool single = PlayerSettings.forceSingleInstance;
@@ -146,9 +153,11 @@ namespace TaskProbe.EditorTools
                 PlayerSettings.SetScriptingBackend(Target, backend);
                 PlayerSettings.SetStaticBatchingForPlatform(Windows, batching);
                 PlayerSettings.SetManagedStrippingLevel(Target, stripping);
-                // the values are back, but Unity still writes changed settings when it exits, with an entry for each
-                // default a new project leaves out (measured): nothing is to be written
+                // BuildPlayer has written the changed settings: the file gets its own bytes back, and Unity writes
+                // nothing more when it exits (it would write the values put back with an entry for each default a new
+                // project leaves out: measured)
                 EditorUtility.ClearDirty(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
+                if (!File.ReadAllBytes(Settings).SequenceEqual(saved)) File.WriteAllBytes(Settings, saved);
             }
         }
 
