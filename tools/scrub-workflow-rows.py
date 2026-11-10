@@ -128,6 +128,8 @@ def main():
             except ValueError:
                 how = 'is not a JSON row'   # cut short by a crash, or typed by hand
             sys.exit('line %d %s (%s): nothing written' % (i + 1, how, e))
+        if not isinstance(row, dict):   # a number, a string or a list typed on a line of its own
+            sys.exit('line %d is not a JSON row (not an object): nothing written' % (i + 1))
         last = row
         if counts:
             lines[i] = new
