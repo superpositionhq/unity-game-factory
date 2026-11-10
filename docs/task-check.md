@@ -233,7 +233,7 @@ The bug doesn't show in what the probes measure.
   before that scene's `Start` runs (only its `Awake` and `OnEnable` do), so what it sets up there is missing. Start
   such a game through its own `play_args` with `play_scene` null (task-probes.md, section 1.1).
 
-**`uncalibrated: ... the start and the reference both measure X`.** The measures are equal on both sides, so there is
+**`uncalibrated: ... the start and the reference both measure N`.** The measures are equal on both sides, so there is
 nothing to put a threshold between: the probe doesn't see the change. Measure something the fix changes (a
 different field, window or play), or use a literal value when the fact is a count or a boolean. A probe that isn't
 required and can't be calibrated fails as a note, never as a reason for INVALID. `uncalibrated: X: the reference
@@ -241,24 +241,24 @@ measured nothing (...)` (or `the start measured nothing (...)`, for a threshold 
 reference that measured 0): read the reason in brackets as below. In a task with no reference, a required probe the
 start leaves uncalibrated reads **`X has no threshold: uncalibrated: ...`**: no solution could pass it.
 
-**`no samples in the window (the play ended at X s)`.** The play ended before the window: the window or `at` lies past
+**`no samples in the window (the play ended at N s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
 never got to play (a crash at load: see the play's `play.log` and `output.txt`). A scene the commit doesn't have
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
 has that field, or a `player` or `camera` measure's play never found the player or the camera (name the player with
-the task's `player` select: task-probes.md, "Words used here"). `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an object
-instantiated at run time is named `<Prefab>(Clone)` (`Projectile(Clone)`), and a `name` wildcard takes every whole name
-it fits (`Projectile*` takes a `ProjectileSpawner` too), so select the things themselves by their own component or
-their full name (task-probes.md, section 2.4); only objects active in the hierarchy match unless the select says
-`"inactive": true`; a component's member is `prop:<Component>.<member>`. `; the probe said: ...` quotes the line of
-the play's `query_errors` about this measure's own query (what the probe couldn't read; it starts with the query's
-kind: `spawns: no component type Coin`); with two queries of one kind in a play, it can be the other one's. The `rows`
-in the play's `probe.json` show what was found, and `probe.log` beside it what the probe did (a `teleport_to` that
-found nothing, a widget click that matched no button). Some fields have no value at first by design: `spin` on the
-first sample an object is seen in, `speed` of an object with no velocity of its own then too, audio `level` in the
-play's first frames.
+the task's `player` select: task-probes.md, "Words used here"). `component` is the C# type name (`Projectile`) or its
+full name (`MyGame.Projectile`); an object instantiated at run time is named `<Prefab>(Clone)` (`Projectile(Clone)`),
+and a `name` wildcard takes every whole name it fits (`Projectile*` takes a `ProjectileSpawner` too), so select the
+things themselves by their own component or their full name (task-probes.md, section 2.4); only objects active in the
+hierarchy match unless the select says `"inactive": true`; a component's member is `prop:<Component>.<member>`.
+`; the probe said: ...` quotes the line of the play's `query_errors` about this measure's own query (what the probe
+couldn't read; it starts with the query's kind: `spawns: no component type Coin`); with two queries of one kind in a
+play, it can be the other one's. The `rows` in the play's `probe.json` show what was found, and `probe.log` beside it
+what the probe did (a `teleport_to` that found nothing, a widget click that matched no button). Some fields have no
+value at first by design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of
+its own then too, audio `level` in the play's first frames.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,
