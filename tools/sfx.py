@@ -168,7 +168,11 @@ def db(v):
 def measure(a):
     print('file\tseconds\tchannels\trate\tpeak_db\trms_db\tattack_ms\ttail_ms')
     for name in a.files:
-        with wave.open(name, 'rb') as w:
+        try:
+            w = wave.open(name, 'rb')
+        except (OSError, EOFError, wave.Error) as e:  # a missing or broken file, not the network
+            sys.exit(f'{name}: {e}')
+        with w:
             if w.getsampwidth() != 2:
                 sys.exit(f'{name}: expected 16-bit PCM')
             ch, rate = w.getnchannels(), w.getframerate()
