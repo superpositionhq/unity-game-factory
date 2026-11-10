@@ -5,16 +5,17 @@
 // single-camera render request with the renderer the player's camera draws with, seeing only the layers of the chosen
 // renderers (and terrains) and never the UI layer (world-space canvases aren't renderers and can't be forced off: a
 // renderer on that layer isn't drawn either). Every other drawn renderer on those layers inside the views is forced
-// off for the render, and every other terrain there stops drawing. The light is the probe's: every Light and
-// reflection probe off, a flat ambient (white, or black for the glow), fog off, the default reflection black, the
-// chosen renderers' and terrains' lightmaps and light probes off (so the flat ambient is all that lights them), no
-// post-processing, shadows, MSAA, render scale or renderer features but RenderObjects (it may be how a layer is drawn
-// at all). Depth: a second render of the same view into a depth
-// texture, copied into a float texture by a shader of the package (Resources/TaskProbeDepthCopy) and read back.
+// off for the render, and every other terrain there stops drawing. The light is the probe's: every Light off, every
+// reflection probe and the default reflection at intensity 0, the ambient probe a flat white (or nothing, for the
+// glow), fog off, the chosen renderers' and terrains' lightmaps and light probes off (so the flat ambient is all that
+// lights them), no post-processing, shadows, MSAA, render scale or renderer features but RenderObjects (it may be how a
+// layer is drawn at all). Depth: a second render of the same view into a depth texture, copied into a float texture by
+// a shader of the package (Resources/TaskProbeDepthCopy) and read back.
 //
-// Each setting is saved before anything changes and each object recorded as it is changed, and all of it is put back
-// in a finally, whatever throws (a game's camera callback, a destroyed renderer). No game script runs in between but
-// RenderPipelineManager callbacks, which see the probe's camera render like any other camera's.
+// Each setting is saved before anything changes and each object recorded before it is changed, and all of it is put
+// back in a finally, whatever throws (a game's camera callback, a destroyed renderer). Only values change, never a
+// source or a mode, so nothing outlasts the sample. No game script runs in between but RenderPipelineManager
+// callbacks, which see the probe's camera render like any other camera's.
 //
 // Why not move the chosen renderers to a spare layer: a layer change on an object with a collider refilters its
 // physics contacts (a resting body could lose and regain its contacts: OnCollisionEnter again). forceRenderingOff
@@ -87,7 +88,6 @@ namespace TaskProbe
         static GameObject rig;
         static Camera cam;
         static Material depthCopy;
-        static Cubemap black;
         static bool listening;
         static readonly Dictionary<int, RenderTexture> ColourTargets = new Dictionary<int, RenderTexture>();
         static readonly Dictionary<int, RenderTexture> DepthTargets = new Dictionary<int, RenderTexture>();
@@ -150,12 +150,6 @@ namespace TaskProbe
                 var shader = Resources.Load<Shader>("TaskProbeDepthCopy");
                 if (shader == null || !shader.isSupported) return Refuse(NoDepthShader);
                 depthCopy = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-            }
-            if (black == null)
-            {
-                black = new Cubemap(1, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave };
-                for (var f = 0; f < 6; f++) black.SetPixel((CubemapFace)f, 0, 0, Color.black);
-                black.Apply(false, true);
             }
             if (rig == null || cam == null)
             {
@@ -396,15 +390,14 @@ namespace TaskProbe
         static readonly List<Renderer> Tuned = new List<Renderer>();
         static readonly List<int> TunedLightmap = new List<int>();
         static readonly List<LightProbeUsage> TunedProbes = new List<LightProbeUsage>();
-        static readonly List<ReflectionProbeUsage> TunedReflections = new List<ReflectionProbeUsage>();
         static readonly List<Light> LightsOff = new List<Light>();
-        static readonly List<ReflectionProbe> ProbesOff = new List<ReflectionProbe>();
+        static readonly List<ReflectionProbe> ProbesDimmed = new List<ReflectionProbe>();
+        static readonly List<float> ProbeIntensities = new List<float>();
 #if TASKPROBE_TERRAIN
         static readonly List<Terrain> TerrainsOff = new List<Terrain>();
         static readonly List<bool> TerrainTrees = new List<bool>();
         static readonly List<Terrain> TunedTerrains = new List<Terrain>();
         static readonly List<int> TunedTerrainLightmap = new List<int>();
-        static readonly List<ReflectionProbeUsage> TunedTerrainReflections = new List<ReflectionProbeUsage>();
 #endif
 #if TASKPROBE_URP
         static readonly List<ScriptableRendererFeature> FeaturesOff = new List<ScriptableRendererFeature>();
@@ -413,30 +406,18 @@ namespace TaskProbe
 #endif
         static bool settingsSaved, activeSaved;
         static RenderTexture activeBefore;
-        static AmbientMode ambientMode;
-        static Color ambientLight, ambientSky, ambientEquator, ambientGround;
         static SphericalHarmonicsL2 ambientProbe;
-        static float ambientIntensity, reflectionIntensity;
+        static float reflectionIntensity;
         static bool fog;
-        static DefaultReflectionMode reflectionMode;
-        static Texture customReflection;
 
         static void Isolate(IList<Component> show, int mask, Bounds volume, DrawnLight light)
         {
             // first everything a change could leave behind, saved before anything changes
             activeBefore = RenderTexture.active;
             activeSaved = true;
-            ambientMode = RenderSettings.ambientMode;
-            ambientLight = RenderSettings.ambientLight;
-            ambientSky = RenderSettings.ambientSkyColor;
-            ambientEquator = RenderSettings.ambientEquatorColor;
-            ambientGround = RenderSettings.ambientGroundColor;
             ambientProbe = RenderSettings.ambientProbe;
-            ambientIntensity = RenderSettings.ambientIntensity;
             reflectionIntensity = RenderSettings.reflectionIntensity;
             fog = RenderSettings.fog;
-            reflectionMode = RenderSettings.defaultReflectionMode;
-            customReflection = RenderSettings.customReflectionTexture;
             settingsSaved = true;
 #if TASKPROBE_URP
             var asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
@@ -447,22 +428,14 @@ namespace TaskProbe
             }
 #endif
 
-            // the probe's light: a flat ambient alone. The ambient colour is gamma-encoded in a linear-space project
-            // (the engine linearises it for the shaders): the white is set so that the shaders get WhiteAmbient
-            var ambient = light == DrawnLight.White ? new Color(WhiteAmbient, WhiteAmbient, WhiteAmbient, 1f) : Color.black;
-            if (QualitySettings.activeColorSpace == ColorSpace.Linear) ambient = ambient.gamma;
-            RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = ambient;
-            RenderSettings.ambientSkyColor = ambient;
-            RenderSettings.ambientEquatorColor = ambient;
-            RenderSettings.ambientGroundColor = ambient;
-            RenderSettings.ambientIntensity = 1f;
+            // the probe's light: the ambient probe alone, a flat white or nothing, with no fog and no reflection. Values
+            // only, never a source: switching the ambient or the default reflection to another mode, or a reflection
+            // probe off and on, made the engine build the environment again after the sample, and the game's own frames
+            // were no longer the same (play drawn.main against drawn.plain)
             var sh = new SphericalHarmonicsL2();
             if (light == DrawnLight.White) sh.AddAmbientLight(new Color(WhiteAmbient, WhiteAmbient, WhiteAmbient, 1f));
             RenderSettings.ambientProbe = sh;
             RenderSettings.fog = false;
-            RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
-            RenderSettings.customReflectionTexture = black;
             RenderSettings.reflectionIntensity = 0f;
 
             // then each object, recorded before it is changed (Restore puts back exactly what is recorded)
@@ -489,13 +462,15 @@ namespace TaskProbe
                     LightsOff.Add(l);
                     l.enabled = false;
                 }
-            foreach (var p in UnityEngine.Object.FindObjectsByType<ReflectionProbe>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                if (p.enabled)
+            // a reflection probe gives nothing at intensity 0, and stays as it is (a realtime one keeps its picture)
+            foreach (var r in UnityEngine.Object.FindObjectsByType<ReflectionProbe>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (r.enabled && r.intensity != 0f)
                 {
-                    ProbesOff.Add(p);
-                    p.enabled = false;
+                    ProbesDimmed.Add(r);
+                    ProbeIntensities.Add(r.intensity);
+                    r.intensity = 0f;
                 }
-            // the chosen renderers and terrains: lit by the flat ambient alone, no reflection probe
+            // the chosen renderers and terrains: lit by the ambient probe alone (no lightmap, no light probes)
             foreach (var c in show)
             {
                 if (c is Renderer r && r != null)
@@ -503,19 +478,15 @@ namespace TaskProbe
                     Tuned.Add(r);
                     TunedLightmap.Add(r.lightmapIndex);
                     TunedProbes.Add(r.lightProbeUsage);
-                    TunedReflections.Add(r.reflectionProbeUsage);
                     if (r.lightmapIndex >= 0 && r.lightmapIndex < 0xFFFE) r.lightmapIndex = -1;
                     if (r.lightProbeUsage != LightProbeUsage.Off) r.lightProbeUsage = LightProbeUsage.Off;
-                    if (r.reflectionProbeUsage != ReflectionProbeUsage.Off) r.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 }
 #if TASKPROBE_TERRAIN
                 else if (c is Terrain t && t != null)
                 {
                     TunedTerrains.Add(t);
                     TunedTerrainLightmap.Add(t.lightmapIndex);
-                    TunedTerrainReflections.Add(t.reflectionProbeUsage);
                     if (t.lightmapIndex >= 0 && t.lightmapIndex < 0xFFFE) t.lightmapIndex = -1;
-                    if (t.reflectionProbeUsage != ReflectionProbeUsage.Off) t.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 }
 #endif
             }
@@ -544,51 +515,18 @@ namespace TaskProbe
             }
         }
 
-        /// <summary>Puts back what Isolate changed, in reverse, and only what it saved; each list is emptied as it is
-        /// put back. Nothing here can throw: every object is checked before it is touched.</summary>
+        /// <summary>Puts back what Isolate changed and only what it saved, the settings first (an object put back may read
+        /// them at once); each list is emptied as it is put back. Nothing here can throw: every object is checked before
+        /// it is touched.</summary>
         static void Restore()
         {
-            foreach (var r in ForcedOff)
-                if (r != null) r.forceRenderingOff = false;
-            ForcedOff.Clear();
-            for (var i = 0; i < Tuned.Count; i++)
+            if (settingsSaved)
             {
-                var r = Tuned[i];
-                if (r == null) continue;
-                if (r.lightmapIndex != TunedLightmap[i]) r.lightmapIndex = TunedLightmap[i];
-                if (r.lightProbeUsage != TunedProbes[i]) r.lightProbeUsage = TunedProbes[i];
-                if (r.reflectionProbeUsage != TunedReflections[i]) r.reflectionProbeUsage = TunedReflections[i];
+                RenderSettings.ambientProbe = ambientProbe;
+                RenderSettings.fog = fog;
+                RenderSettings.reflectionIntensity = reflectionIntensity;
+                settingsSaved = false;
             }
-            Tuned.Clear();
-            TunedLightmap.Clear();
-            TunedProbes.Clear();
-            TunedReflections.Clear();
-#if TASKPROBE_TERRAIN
-            for (var i = 0; i < TunedTerrains.Count; i++)
-            {
-                var t = TunedTerrains[i];
-                if (t == null) continue;
-                if (t.lightmapIndex != TunedTerrainLightmap[i]) t.lightmapIndex = TunedTerrainLightmap[i];
-                if (t.reflectionProbeUsage != TunedTerrainReflections[i]) t.reflectionProbeUsage = TunedTerrainReflections[i];
-            }
-            TunedTerrains.Clear();
-            TunedTerrainLightmap.Clear();
-            TunedTerrainReflections.Clear();
-            for (var i = 0; i < TerrainsOff.Count; i++)
-            {
-                if (TerrainsOff[i] == null) continue;
-                TerrainsOff[i].drawHeightmap = true;
-                TerrainsOff[i].drawTreesAndFoliage = TerrainTrees[i];
-            }
-            TerrainsOff.Clear();
-            TerrainTrees.Clear();
-#endif
-            foreach (var p in ProbesOff)
-                if (p != null) p.enabled = true;
-            ProbesOff.Clear();
-            foreach (var l in LightsOff)
-                if (l != null) l.enabled = true;
-            LightsOff.Clear();
 #if TASKPROBE_URP
             foreach (var f in FeaturesOff)
                 if (f != null) f.SetActive(true);
@@ -599,21 +537,40 @@ namespace TaskProbe
                 urpAsset = null;
             }
 #endif
-            if (settingsSaved)
+            foreach (var l in LightsOff)
+                if (l != null) l.enabled = true;
+            LightsOff.Clear();
+            for (var i = 0; i < ProbesDimmed.Count; i++)
+                if (ProbesDimmed[i] != null) ProbesDimmed[i].intensity = ProbeIntensities[i];
+            ProbesDimmed.Clear();
+            ProbeIntensities.Clear();
+            for (var i = 0; i < Tuned.Count; i++)
             {
-                RenderSettings.ambientMode = ambientMode;
-                RenderSettings.ambientLight = ambientLight;
-                RenderSettings.ambientSkyColor = ambientSky;
-                RenderSettings.ambientEquatorColor = ambientEquator;
-                RenderSettings.ambientGroundColor = ambientGround;
-                RenderSettings.ambientIntensity = ambientIntensity;
-                RenderSettings.ambientProbe = ambientProbe;
-                RenderSettings.fog = fog;
-                RenderSettings.defaultReflectionMode = reflectionMode;
-                RenderSettings.customReflectionTexture = customReflection;
-                RenderSettings.reflectionIntensity = reflectionIntensity;
-                settingsSaved = false;
+                var r = Tuned[i];
+                if (r == null) continue;
+                if (r.lightmapIndex != TunedLightmap[i]) r.lightmapIndex = TunedLightmap[i];
+                if (r.lightProbeUsage != TunedProbes[i]) r.lightProbeUsage = TunedProbes[i];
             }
+            Tuned.Clear();
+            TunedLightmap.Clear();
+            TunedProbes.Clear();
+#if TASKPROBE_TERRAIN
+            for (var i = 0; i < TunedTerrains.Count; i++)
+                if (TunedTerrains[i] != null && TunedTerrains[i].lightmapIndex != TunedTerrainLightmap[i]) TunedTerrains[i].lightmapIndex = TunedTerrainLightmap[i];
+            TunedTerrains.Clear();
+            TunedTerrainLightmap.Clear();
+            for (var i = 0; i < TerrainsOff.Count; i++)
+            {
+                if (TerrainsOff[i] == null) continue;
+                TerrainsOff[i].drawHeightmap = true;
+                TerrainsOff[i].drawTreesAndFoliage = TerrainTrees[i];
+            }
+            TerrainsOff.Clear();
+            TerrainTrees.Clear();
+#endif
+            foreach (var r in ForcedOff)
+                if (r != null) r.forceRenderingOff = false;
+            ForcedOff.Clear();
             if (cam != null) cam.targetTexture = null;
             if (activeSaved)
             {
