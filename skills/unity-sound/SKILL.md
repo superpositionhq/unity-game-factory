@@ -88,10 +88,14 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
 - Every sound goes through an AudioMixer group (at least UI, SFX, Ambience), so the settings menu's volume controls it:
   each `AudioSource.outputAudioMixerGroup` set, each group's volume an exposed parameter the menu sets with
   `AudioMixer.SetFloat` in decibels (`Mathf.Log10(Mathf.Max(slider, 0.0001f)) * 20`). Unity has no public API for
-  making a mixer: the step reaches the internal `UnityEditor.Audio.AudioMixerController` by reflection
-  (`CreateMixerControllerAtPath`; `CreateNewGroup` and `AddChildToParent` under `masterGroup`; `AddExposedParameter`
-  with an `AudioGroupParameterPath` of the group's `GetGUIDForVolume()`) and names each exposed parameter by that
-  GUID, never by its index in `exposedParameters` (not creation order: by index, UI's slider got the Ambience volume).
+  making a mixer: the step reaches the internal `UnityEditor.Audio.AudioMixerController` (in `UnityEditor.CoreModule`)
+  by reflection (`CreateMixerControllerAtPath(path)`; `CreateNewGroup(name, false)` and
+  `AddChildToParent(group, masterGroup)`; `AddExposedParameter` with an
+  `AudioGroupParameterPath(group, group.GetGUIDForVolume())`), names each exposed parameter by that GUID, never by its
+  index in `exposedParameters` (not creation order: by index, UI's slider got the Ambience volume; the array holds
+  structs: set the `name` of the one whose `guid` matches, then assign the array back), and saves the asset.
+  `SetFloat` returns false in an editor step even on a good mixer: check the volumes in a play, where each name moves
+  only its own group.
 
 ## 6. Record and ask
 
