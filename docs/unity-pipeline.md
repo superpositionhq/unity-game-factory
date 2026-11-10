@@ -376,17 +376,12 @@ three records, all kept today:
 | `workflow.jsonl` | what each editor step run did (rows with `source.script`, `source.sha256`, time, `status`, params such as piece counts) |
 | `.recording\<slug>\actions.jsonl` | the agent's tool calls in order: every editor step run (with the command line and its output), every `Write`/`Edit` (`apply_patch` under Codex) of a file, every shell copy |
 
-What makes that work, and what sessions do today (unity-game-session skill, "Replay-friendly work"): every editor step
-committed under `Assets/Editor/Steps/` and run through `Scripts/unity.ps1 step -Method <Ns.Class.Method>`; a step that
-ran is never edited (a new step instead), so a row's `source.sha256` matches the code that ran; relative paths only;
-read-only steps named `Inspect*`, `Measure*`, `Check*`, `Analyze*`, `Scan*` or containing `Probe` (skipped); at least
-one workflow row per run; files edited with the agent's own file tools, so the text of a step at the moment it ran can
-be rebuilt; no content made by hand in the editor GUI; no amend or rebase. Content is never copied from a commit when
-the replay produced it, so errors accumulate visibly instead of being reset. Every editor run of the replay goes
-through the limiter, headless (a general slot, never a GPU slot); the live replay, started by each game's post-commit
-hook after every commit and checking the new commits against them at low priority (`-Low`), reports what keeps the
-history from replaying at the session's next commit. Each commit replays on the editor its
-`ProjectSettings/ProjectVersion.txt` names.
+What makes that work is what sessions do today: the unity-game-session skill's "Replay-friendly work" rules. Content
+will never be copied from a commit when the replay produced it, so errors accumulate visibly instead of being reset.
+Every editor run of the replay will go through the limiter, headless (a general slot, never a GPU slot); the live
+replay, which each game's post-commit hook will start after every commit to check the new commits at low priority
+(`-Low`), will report what keeps the history from replaying at the session's next commit. Each commit will replay on
+the editor its `ProjectSettings/ProjectVersion.txt` names.
 
 ## Dataset packager
 
