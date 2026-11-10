@@ -622,11 +622,12 @@ first two track and camera rows (of 18) and the first sample of each query:
   reaches it. Every sample adds a `track` row, `[t, x, y, z]` (the player's transform position) or `[t]` while there
   is no player (no value there for the checker), and a `camera` row `[t, x, y, z, pitch, yaw, fov]` when there is a
   player camera (a sample without one has no value for the camera's fields).
-- `measures` (only when the spec has queries): each query's id and its samples, one per sample time, each with its
-  `t`: `rows` for `objects`, `components`, `widgets` and `ui` (`RowSet`: at most 200; when more matched, also `total`,
-  how many, and `full`, for each field its `n`, `nonzero`, `sum`, `min` and `max` over every match's numeric value), or
-  `value`, an object or null, for the others. A `ui` sample whose frame never came has no `rows`; a `screen` sample's
-  value is then null.
+- `measures` (only when the spec has queries): each query's id and its samples, one per sample time, each with its `t`:
+  `rows` for `objects`, `components`, `widgets` and `ui` (`RowSet`: at most 200; when more matched, also `total`, how
+  many, and `full`, an entry for every field asked for, in the order asked: its `n`, `nonzero`, `sum`, `min` and `max`
+  over every match's number, `n` 0 and `min` and `max` null for a field no match has a number for), or `value`, an
+  object or null, for the others. A `ui` sample whose frame never came has no `rows`; a `screen` sample's value is then
+  null.
 - `query_errors` (only when there was one): each line once, at most 50, then `<n> more in probe.log`. A query's own:
   `<kind> <id>: <message>` (its definition's and its select's too: `components q3c1d2e4f5a: no component type Lantren`;
   `spawns` still writes `spawns: no component type Coin`), and an exception out of it `<kind> <id>: <ExceptionType> in
@@ -636,8 +637,9 @@ first two track and camera rows (of 18) and the first sample of each query:
   '<id>' and later ones dropped`, `query '<id>': unknown kind '<kind>' (null values)` (such a query, and one whose
   `Load` threw, is sampled with a null `value`); and `the play's scene <scene> isn't in the build: the game's own first
   scene is played`, `the play's scene <scene> didn't become the active scene: playing <path>`, `inputs: ...`.
-- Numbers: whole ones without a fraction, the rest in their round-trip form; NaN and infinities are written null
-  (`Json.Write`).
+- Numbers: whole ones (below 1e15) without a fraction, the rest in the round-trip form (`R`), or with 17 digits (`G17`)
+  where Mono's `R` gives 15 that read back as another number; NaN and infinities are written null (`Json.Write`). The
+  probe reads JSON nested at most 512 deep (`Json.Parse`): a deeper play spec can't be read (exit 2).
 
 **probe.log** (beside it in `out`): the probe's own lines, each with the play time and the real time since the player
 started (`Probe.Log`): the start, the clock's start, waits, teleports, holds, clicks, cursor moves, errors (`error:
