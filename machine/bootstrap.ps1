@@ -274,9 +274,10 @@ function Read-JsonOrEmpty([string]$Path) {
     if (Test-Path -LiteralPath $Path) {
         try { $text = [IO.File]::ReadAllText($Path); $o = $text | ConvertFrom-Json }
         catch { throw "$Path could not be read as JSON ($($_.Exception.Message)): nothing was written to it; fix it, then run bootstrap again" }
-        # Windows PowerShell's JSON reader turns these into other values (a date without its offset, U+FFFD), which
-        # would be written back changed
-        if ($text -match '\\/Date\(-?\d+[+-]\d{4}\)\\/|\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f])|(?<!\\ud[89ab][0-9a-f]{2})\\ud[c-f]') {
+        # Windows PowerShell's JSON reader turns these into other values (a "\/Date(ms+hhmm)\/" string into a date
+        # without its offset or letter, an escaped lone surrogate into U+FFFD), which would be written back changed.
+        # Only a real escape counts: after an escaped backslash, "ud..." is text (C:\\Users\\Udell stopped bootstrap).
+        if ($text -match '(?<=(?:^|[^\\])(?:\\\\)*)(?:"\\/Date\(-?\d+(?:[+-]\d{4}|[a-z])\)\\/"|\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f])|(?<!\\ud[89ab][0-9a-f]{2})\\ud[c-f])') {
             throw "$Path holds $($Matches[0]), which this script cannot write back unchanged: nothing was written to it; change it, then run bootstrap again"
         }
     }
