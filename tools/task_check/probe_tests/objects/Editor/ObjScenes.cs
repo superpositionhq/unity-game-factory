@@ -584,6 +584,9 @@ namespace ProbeTests.Objects
             Prim(PrimitiveType.Cube, "Turner", new Vector3(20f, 0.5f, -20f), new Vector3(2f, 0.2f, 0.2f), plain, false).AddComponent<ObjSpinner>();
             // a component of a type and nothing else: its object's class is that type
             new GameObject("OnlyCollider").AddComponent<BoxCollider>().transform.position = new Vector3(30f, 0.5f, -20f);
+            // the scene's listener on an object of its own: the probe puts its AudioTap (a script) there, which is no
+            // class of the game's
+            new GameObject("Ears").AddComponent<AudioListener>();
 
             Watch(GameObject.Find("AtlasWhite"), GameObject.Find("AtlasBlack"), forced, GameObject.Find("LampStandard"), GameObject.Find("TubeLit"),
                 GameObject.Find("SpriteLamp"), GameObject.Find("TubeCustom"));

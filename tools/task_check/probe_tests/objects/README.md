@@ -30,7 +30,8 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
   one with the custom shader); a VisualEffect when the project has the VFX Graph package; 2D physics (a box that
   falls, a kinematic body, a body spun at 90 deg/s); a NavMeshAgent on a NavMesh of its own; a humanoid stick figure
   whose head bone is named `Skull`; a ragdoll (three bodies on the bones of one skinned mesh) kicked apart at 1 s; an
-  object moved by its transform alone and a spinner; an object with nothing but a BoxCollider.
+  object moved by its transform alone and a spinner; an object with nothing but a BoxCollider; the scene's
+  AudioListener on an object of its own (where the probe puts its AudioTap).
 - **ObjBudget**: 80 cubes drawn with the custom shader, then 4 with an emission map: more renders than one sample may
   make.
 - **ObjStress**: 3000 boxes with colliders (every third emissive, every thirtieth spinning, every hundredth with a

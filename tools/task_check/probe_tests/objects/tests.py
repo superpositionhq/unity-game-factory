@@ -571,6 +571,7 @@ def more(t, play):
 
     classes = {r["name"]: r["class"] for r in play.rows("m_class", 1.0)}
     t.eq("class of an object with a BoxCollider alone", classes.get("OnlyCollider"), "BoxCollider")
+    t.eq("class of the listener's object: AudioListener, not the probe's AudioTap on it", classes.get("Ears"), "AudioListener")
     t.eq("class of the humanoid", classes.get("Human"), "Animator")
     t.eq("class of the ragdoll", classes.get("Ragdoll"), "SkinnedMeshRenderer")
     t.near("speed of an object moved by its transform alone", field(play, "m_slider", 2.0, "Slider", "speed"), 2.0, 1e-3)
