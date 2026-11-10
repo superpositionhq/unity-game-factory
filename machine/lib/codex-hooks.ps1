@@ -113,7 +113,14 @@ function Set-UGFCodexTrustState([string]$ConfigToml, $Entries) {
                 if ($keys.ContainsKey($k)) { $skip = $true; continue }
             }
         }
-        if (-not $skip -and $line -ne $script:CodexTrustMarker) { $out.Add($line) }
+        if (-not $skip -and $line -ne $script:CodexTrustMarker) {
+            # A key of ours outside a [hooks.state."<key>"] header (a dotted key, an inline table): adding its table
+            # again would make the whole file invalid, and Codex then starts without its config.
+            foreach ($k in $keys.Keys) {
+                if ($line.Contains($k) -or $line.Contains($k.Replace('\', '\\'))) { throw "$ConfigToml holds the trust entry $k in a form this script does not edit: nothing was written to it; trust the hooks with /hooks in Codex" }
+            }
+            $out.Add($line)
+        }
     }
     while ($out.Count -and -not $out[$out.Count - 1].Trim()) { $out.RemoveAt($out.Count - 1) }
     $out.Add('')
