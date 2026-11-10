@@ -123,7 +123,7 @@ namespace __PROJECT__.EditorTools
             PlayerSettings.productName = "__TITLE__";
             PlayerSettings.colorSpace = ColorSpace.Linear;
             // The game never pauses or goes quiet when its window loses focus: a play behind another window keeps
-            // running (and so will AutoPlay runs and recordings, not available yet).
+            // running (and so do AutoPlay runs and recordings).
             PlayerSettings.runInBackground = true;
             PlayerSettings.visibleInBackground = true;
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;

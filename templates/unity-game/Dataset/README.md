@@ -13,7 +13,8 @@ Until the packager's first run, leave this folder as the template made it (nobod
 | `Screenshots/` | the README images |
 | `manifest.json` | path, bytes and sha256 of every file |
 
-Not packed yet, and listed as pending in `manifest.json` until they can be made:
+Not packed yet (the recorder and the creation replay make them, but the packager does not take them yet), and listed
+as pending in `manifest.json` until it does:
 
 | Path | What |
 |---|---|

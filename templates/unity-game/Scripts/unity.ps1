@@ -11,8 +11,8 @@
 # screen, the keyboard and cursor left alone, the sound muted unless -Audible); the run's files go to
 # Logs/autoplay/<time>_s<n>/, and a summary of them is printed.
 # `step` runs one editor step (a static method under Assets/Editor/Steps/) with -batchmode -executeMethod. Keep this call
-# shape: the creation replay (not available yet) will recognise "unity.ps1 step -Method <Ns.Class.Method>" in the
-# recorded command. The step logs its own workflow.jsonl rows; -Reason reaches it as $env:UNITY_RUN_REASON. -Render
+# shape: the creation replay recognises "unity.ps1 step -Method <Ns.Class.Method>" in the recorded command. The step
+# logs its own workflow.jsonl rows; -Reason reaches it as $env:UNITY_RUN_REASON. -Render
 # drops -nographics (the job then holds a GPU slot): only for steps that need the GPU (lightmap bakes, screenshots,
 # shader warm-up).
 # Editor: $env:UNITY_EDITOR, else the version in ProjectSettings/ProjectVersion.txt (<root>\tools\ugf-root.ps1

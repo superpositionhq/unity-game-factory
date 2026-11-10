@@ -10,8 +10,10 @@ powershell -ExecutionPolicy Bypass -File templates/new-game.ps1 -Slug island-sur
 
 It copies `unity-game/`, replacing `__PROJECT__` (PascalCase C# namespace and assembly prefix, also the exe name;
 default from the slug), `__SLUG__`, `__TITLE__`, `__DESCRIPTION__` and `__UNITY_VERSION__` in names and contents;
-writes the first `workflow.jsonl` row (`project.create`); runs `git init -b main` + `git lfs install --local`; adds the
-commit recorder to `post-commit` (`machine/install-git-hook.ps1`); makes the first commit; runs the first editor open
+copies the AutoPlay drop-in (`tools/unity-pipeline/autoplay/AutoPlay/`, unchanged, with its `.meta` files) into
+`Assets/AutoPlay/`; writes the first `workflow.jsonl` row (`project.create`); runs `git init -b main` +
+`git lfs install --local`; adds the commit recorder and the live creation replay to `post-commit`
+(`machine/install-git-hook.ps1`); makes the first commit; runs the first editor open
 (`Scripts/unity.ps1 setup`) and commits what it made, when the editor is installed (`-NoSetup` skips it); and creates
 the private GitHub repo `<org>/unity-game-<slug>` (`github_org` in the machine config, or `-Org`) as `origin` without
 pushing (`-NoGitHub` skips that; an existing repo of that name is never linked: it may be another game's, or public).
@@ -32,15 +34,17 @@ What the skeleton carries, and why:
 | `Assets/Editor/Tools/` (`<P>.EditorTools` assembly) | `WorkflowLog.cs` (a step's `workflow.jsonl` row, with the step's own file and the sha256 of it as committed), `ProjectSetup.cs` (packages; TextMeshPro's essential resources into `Assets/TextMesh Pro`; player and editor settings), `BuildPlayer.cs` (Windows x64 player, IL2CPP release / Mono development, the backend setting put back afterwards; after a failed build, the performance-testing package's leftovers in `Assets/Resources` removed) |
 | `Assets/Editor/Tools/Urp/` (`<P>.EditorTools.Urp`) | `UrpSetup.cs`: the URP renderer and pipeline asset, made the default and assigned to every quality level; compiled only once URP is installed (`defineConstraints` `HAS_URP`), so the project compiles before the packages are added |
 | `Assets/Editor/Steps/README.md` | where editor steps go and the rules that keep them replayable |
-| `Scripts/unity.ps1` | `setup`, `compile`, `step`, `test`, `build`, `play`: headless Unity and player runs through the machine's job limiter, logs in `Logs/unity-ps1/` |
+| `Assets/Scripts/Scenarios.cs` | the scenario list: scenario n's scene and name, loaded from `-scenario <n>` and from AutoPlay's `StartScenario` (docs/autoplay-contract.md, section 6) |
+| `Scripts/unity.ps1` | `setup`, `compile`, `step`, `test`, `build`, `play`, `autoplay`: headless Unity and player runs through the machine's job limiter, logs in `Logs/unity-ps1/`; `autoplay` is the AutoPlay hand test (docs/autoplay-contract.md, section 7) |
+| `ReplayConfig.json` | the creation replay's settings for the game (`"live": true`: replayed after every commit; docs/unity-replay.md, section 5) |
 | `.gitignore` | root-anchored Unity output only (`/Library/`, `/Temp/`, `/Logs/`, `/UserSettings/`, `/Build/`, generated `*.csproj`/`*.sln`, ...), local results, and secrets and licence files anywhere (`.env`, `*.ulf`): everything else is committed |
 | `.gitattributes` | `* text=auto`, Unity YAML and C# as LF text, every binary type in LFS case-insensitively, and the Unity `.asset` files under `Assets/` that stay binary (lighting, NavMesh, terrain data) |
 | `Docs/ThirdPartyNotices.md`, `assets.manifest.json`, `Docs/screenshots/` | third-party credits; the asset manifest (`assets-manifest/v1`); README images |
 | `Dataset/` | the dataset placeholder (`Gameplay/`, `Screenshots/`, `ReplayScripts/`, README) |
 
-Not in the skeleton: the AutoPlay drop-in and the replay configuration, which are not available yet (they come with
-the recording pipeline and the creation replay); until then a game starts each scenario from the command line with
-`-scenario <n>` and reads all input through the Input System (docs/autoplay-contract.md).
+Not in this folder but in every new game: `Assets/AutoPlay/`, the AutoPlay drop-in, which `new-game.ps1` copies
+unchanged from `tools/unity-pipeline/autoplay/AutoPlay/` so every game has the same one; a game made before it gets it
+with `tools/unity-pipeline/autoplay/install.ps1` (docs/autoplay-contract.md, "Getting the drop-in").
 
 `workflow.jsonl` conventions (schema `unity-workflow/v0`, one row per operation at the moment it happens, id prefix
 per game, row ids in commit messages) are in the unity-commit-always and unity-game-session skills (`skills/`).

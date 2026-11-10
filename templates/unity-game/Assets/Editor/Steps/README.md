@@ -9,14 +9,17 @@ prefabs, materials, import settings or data assets, run headless with
 run, unchanged: write a new one (`BuildHarborV2.cs`) instead of editing one that already ran, so each `workflow.jsonl`
 row's `source.script` and `source.sha256` still point at the real code.
 
-The creation replay (not available yet) will run these steps again to rebuild the project from its history, and each
-`workflow.jsonl` row already points at the step that wrote it, so, from the first step on:
+The creation replay runs these steps again to rebuild the project from its history (in the background after every
+commit, and at release), and each `workflow.jsonl` row points at the step that wrote it, so, from the first step on:
 
 - commit every step you run, here, together with what it changed (and every new asset's `.meta`);
 - reach files through the project: asset paths (`"Assets/Scenes/Harbor.unity"`), `Application.dataPath`, or the
   current directory (the project root in batchmode); never an absolute path to this folder;
 - steps that only look (probes, checks) are named `Inspect*`, `Measure*`, `Check*`, `Analyze*`, `Scan*` or contain
-  `Probe`; one that also writes something later work reads is named otherwise;
+  `Probe`; one that also writes something later work reads is named otherwise (or listed in `ReplayConfig.json`
+  `not_readonly`);
+- import a `.unitypackage` in a step (below), never from the command line (`-importPackage`): the replay redoes steps
+  only;
 - every run logs at least one row: `WorkflowLog.Row(op, target, parameters)` (`Assets/Editor/Tools/WorkflowLog.cs`);
 - a step that fails calls `EditorApplication.Exit(1)` after logging a `"failed"` row, so the run's exit code says so;
 - build content from code (`EditorSceneManager`, `PrefabUtility`, `AssetDatabase`, `SerializedObject` for private
