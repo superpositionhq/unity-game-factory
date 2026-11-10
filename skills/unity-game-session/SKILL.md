@@ -48,9 +48,12 @@ by hand under these rules, or ask.
   any run of a built player:
   `& <UGF_ROOT>\tools\unity-heavy.ps1 -Label "<slug> <what>" -- <exe> <args...>` (general slots, plus one of the
   machine-wide GPU slots for anything that renders; waits for GUI programs; returns the job's exit code). From Git Bash:
-  `powershell -Command "& '<UGF_ROOT>\tools\unity-heavy.ps1' -Label '...' -- '<exe>' args; exit $LASTEXITCODE"`
-  (`powershell -File ... --` misparses `--`). The game's `Scripts/unity.ps1` already calls it for you; use that.
-  The slots are shared with the Unreal game-factory if this machine runs both (same machine-wide mutexes).
+  `powershell -ExecutionPolicy Bypass -Command "& '<UGF_ROOT>\tools\unity-heavy.ps1' -Label '...' -- '<exe>' args; exit $LASTEXITCODE"`
+  (`powershell -File ... --` misparses `--`; without `-ExecutionPolicy Bypass`, Windows' default policy refuses the
+  script and the call still returns 0). The game's `Scripts/unity.ps1` already calls it for you; use that
+  (`powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 <mode> ...` from the project folder; the modes are
+  listed at the top of the file). The slots are shared with the Unreal game-factory if this machine runs both (same
+  machine-wide mutexes).
 - **GPU:** several GPU jobs run at once (one per GPU slot, each starting only while the VRAM guard allows; the counts
   come from the machine's hardware, docs/unity-pipeline.md "Machine-wide slots"); a recording takes all of them. Keep
   GPU runs short, prefer `-nographics` (every `unity.ps1` run without `-Render`) for logic tests, close the process
