@@ -762,22 +762,20 @@ def task_semantic_errors(t):
     return errs
 
 
-# The bar every task meets: only long threads of multiple edits qualify (unity-write-tasks sections 1, 6)
-MIN_OUTCOME_PROBES = 3      # required probes outside still_works: one per issue the thread settled
-MIN_THREAD_FILES = 5        # game files the reference changes against the start
-MIN_THREAD_COMMITS = 4      # commits from seed.commit to seed.reference that change the game (a seed on main)
-MIN_THREAD_CODE_LINES = 100   # code lines added plus removed from start to reference
-MIN_THREAD_SYSTEMS = 2        # systems the change crosses, as thread_system counts them
-CODE_FILE = re.compile(r'\.(cs|shader|hlsl|cginc|compute|uss|uxml|asmdef|asmref|py|ps1|bat|cmd|sh|js)$', re.I)
+# The bar every task meets (owner, 2026-11-02): only long threads of multiple edits qualify (unity-write-tasks sections
+# 1, 6)
+MIN_OUTCOME_PROBES = 3     # required probes outside still_works: one per issue the thread settled
+MIN_THREAD_FILES = 5       # game files the reference changes against the start
+MIN_THREAD_COMMITS = 4     # commits from seed.commit to seed.reference that change the game (a seed on main)
+MIN_THREAD_CODE_LINES = 100   # code lines added plus removed from start to reference (owner, 2026-11-09; was 300)
+MIN_THREAD_SYSTEMS = 2        # systems the change crosses, as thread_size counts them (owner, 2026-11-04)
+CODE_FILE = re.compile(r'\.(cs|asmdef|asmref|shader|hlsl|cginc|compute|uss|uxml|tss|cpp|h|hpp|c|cc|inl|py|ps1|bat|cmd|sh|'
+                       r'js)$', re.I)
 NOT_CODE_DIR = re.compile(r'^(Dataset|Docs|RawAssets)/|/ThirdParty/')   # store packs' own code is not the thread's
-# The game itself: Assets/ (scripts, scenes, prefabs, data, art), Packages/ (manifest, lock, embedded packages) and
-# ProjectSettings/. A .meta file only follows its asset (GUID, import settings), so it never counts as a file of its
-# own; its asset does.
-GAME_FILE = re.compile(r'^(Assets|Packages|ProjectSettings)/(?!.*\.meta$)')
-GAME_PATHS = ('Assets', 'Packages', 'ProjectSettings', ':(exclude)*.meta')   # git pathspecs
-MATERIAL_EXT = ('.mat', '.shadergraph', '.shadersubgraph', '.png', '.jpg', '.jpeg', '.tga', '.psd', '.exr', '.hdr',
-                '.tif', '.tiff')
-ANIM_EXT = ('.anim', '.controller', '.overridecontroller', '.mask', '.playable', '.signal')
+# the game itself, not its records or docs: the editor steps are the creation's record (as Scripts/ in an Unreal
+# game), and a .meta follows its asset (its GUID and import settings)
+GAME_FILE = re.compile(r'^(?!Assets/Editor/Steps/)(Assets|Packages|ProjectSettings)/(?!.*\.meta$)')
+GAME_PATHS = ('Assets', 'Packages', 'ProjectSettings', ':(exclude)Assets/Editor/Steps', ':(exclude)*.meta')
 
 
 def thread_errors(t, outcomes):
@@ -815,28 +813,25 @@ def noop_errors(t):
 
 
 def thread_system(path):
-    """Which system a changed game file belongs to, by its folder and extension."""
+    """Which system a changed game file belongs to, by its path and extension: the Unreal factory's systems in Unity
+    terms (C# for C++, an embedded package for a plugin, a scene for a level; shaders and textures are materials, as
+    material graphs and T_ textures are; UI documents and animator controllers are prefabs, as Widget and Animation
+    Blueprints are Blueprints)."""
     low = path.lower()
-    name = low.rsplit('/', 1)[-1]
-    if low.startswith(('projectsettings/', 'packages/')):
+    if low.startswith('projectsettings/') or low in ('packages/manifest.json', 'packages/packages-lock.json'):
         return 'config'
+    if low.startswith('packages/'):
+        return 'package'
     if low.endswith(('.cs', '.asmdef', '.asmref')):
-        return 'editor-code' if '/editor/' in low else 'code'
-    if low.endswith(('.shader', '.hlsl', '.cginc', '.compute')):
-        return 'shader'
+        return 'code'
     if low.endswith('.unity'):
         return 'scene'
-    if low.endswith('.prefab'):
-        return 'prefab'
-    if low.endswith(MATERIAL_EXT):
+    if low.endswith(('.mat', '.shader', '.hlsl', '.cginc', '.compute', '.shadergraph', '.shadersubgraph', '.png', '.jpg',
+                     '.jpeg', '.tga', '.psd', '.exr', '.hdr', '.tif', '.tiff')):
         return 'material'
-    if low.endswith(ANIM_EXT):
-        return 'animation'
-    if low.endswith(('.uxml', '.uss', '.tss')) or '/ui/' in low or name.startswith('ui_'):
-        return 'ui'
-    if low.endswith(('.mixer', '.wav', '.ogg', '.mp3', '.aif', '.aiff', '.flac')):
-        return 'audio'
-    if low.endswith(('.asset', '.json', '.txt', '.csv')):
+    if low.endswith(('.prefab', '.controller', '.overridecontroller', '.uxml', '.uss', '.tss')):
+        return 'prefab'
+    if low.endswith(('.asset', '.json', '.csv', '.txt')):
         return 'data'
     return 'asset'
 
@@ -858,8 +853,7 @@ def thread_size(numstat):
 
 
 def thread_span_errors(repo, seed, on_main):
-    """Why the span from seed.commit to seed.reference is too short: game files changed (a .meta never counts on its
-    own), and on main the commits."""
+    """Why the span from seed.commit to seed.reference is too short: game files changed, and on main the commits."""
     start, ref = seed.get('commit'), seed.get('reference')
     if not (start and ref):
         return []
