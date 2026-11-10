@@ -103,9 +103,10 @@ by hand under these rules, or ask.
 - A clip on a model of the wrong rig type never plays as made: a Humanoid clip needs a Humanoid avatar on the model, a
   Generic clip the same skeleton, or the mesh stays in a T-pose or crumples. Check `ModelImporter.animationType` and
   the avatar before blaming the controller.
-- Built-in render pipeline materials from a store pack render magenta under URP: convert them (the Render Pipeline
-  Converter, or an editor step that swaps the shader to `Universal Render Pipeline/Lit` and maps the texture slots),
-  and check every material of a pack after import.
+- Built-in render pipeline materials from a store pack render magenta under URP in the editor and in development
+  builds, and not at all in a release build (only their shadows show): convert them (the Render Pipeline Converter, or
+  an editor step that swaps the shader to `Universal Render Pipeline/Lit` and maps the texture slots), and check every
+  material of a pack after import.
 - Opening a scene in Single mode in an editor step (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets
   loaded or created before it: one of them assigned afterwards through `SerializedObject` (`objectReferenceValue`)
   reads back null at once and saves as `{fileID: 0}`, with no warning (one game's camera and HUD never got their data
