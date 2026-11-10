@@ -1,0 +1,389 @@
+# What the original reader (TaskProbeQueries.cpp OcrRead and UiOcr, Unreal Engine 5.7, compiled from its own lines)
+# read in each reading of frames.py: <name>: | <text> <x>,<y>,<w>,<h> (the element's box in pixels of the frame) ...
+tab000_sq:
+tab000_rd:
+tab001_sq:
+tab001_rd:
+tab002_sq:
+tab002_rd:
+tab003_sq:
+tab003_rd: | 00 12,12,37,22
+tab004_sq: | 00 13,13,48,29
+tab004_rd: | 00 12,12,37,22
+tab005_sq: | 00 14,14,46,27
+tab005_rd: | 00 12,12,37,22
+tab006_sq: | 00 13,13,48,29
+tab006_rd: | 00 12,12,37,22
+tab007_sq:
+tab007_rd:
+tab008_sq:
+tab008_rd:
+tab009_sq:
+tab009_rd:
+tab010_sq:
+tab010_rd:
+tab011_sq:
+tab011_rd:
+tab012_sq:
+tab012_rd:
+tab013_sq:
+tab013_rd:
+tab014_sq:
+tab014_rd:
+tab015_sq:
+tab015_rd:
+tab016_sq: | 11 15,13,38,28
+tab016_rd:
+tab017_sq: | 11 17,13,39,28
+tab017_rd:
+tab018_sq:
+tab018_rd:
+tab019_sq: | II 18,14,38,27
+tab019_rd: | II 15,12,31,22
+tab020_sq:
+tab020_rd:
+tab021_sq: | 22 13,13,48,28
+tab021_rd: | 22 12,12,37,22
+tab022_sq: | 22 14,14,46,27
+tab022_rd: | 22 12,12,37,22
+tab023_sq: | 22 13,13,48,28
+tab023_rd: | 22 12,12,37,22
+tab024_sq:
+tab024_rd: | 22 12,12,37,22
+tab025_sq: | ZZ 14,14,46,27
+tab025_rd: | ZZ 12,12,37,22
+tab026_sq:
+tab026_rd:
+tab027_sq: | 33 14,14,46,27
+tab027_rd: | 33 12,12,37,22
+tab028_sq: | 33 13,13,48,29
+tab028_rd: | 33 12,12,37,22
+tab029_sq: | 33 13,13,48,29
+tab029_rd: | 33 12,12,37,22
+tab030_sq:
+tab030_rd: | 33 12,12,37,22
+tab031_sq: | 33 14,14,47,28
+tab031_rd: | 33 12,12,37,22
+tab032_sq: | 44 14,14,46,27
+tab032_rd: | 44 12,12,37,22
+tab033_sq: | 44 14,14,46,27
+tab033_rd: | 44 12,12,37,22
+tab034_sq: | 44 14,14,46,27
+tab034_rd: | 44 12,12,37,22
+tab035_sq: | 44 14,14,46,27
+tab035_rd: | 44 12,12,37,22
+tab036_sq: | 44 14,14,46,27
+tab036_rd: | 44 12,12,37,22
+tab037_sq:
+tab037_rd:
+tab038_sq:
+tab038_rd:
+tab039_sq:
+tab039_rd: | 55 12,12,37,22
+tab040_sq:
+tab040_rd:
+tab041_sq:
+tab041_rd:
+tab042_sq:
+tab042_rd:
+tab043_sq: | SS 13,13,48,29
+tab043_rd:
+tab044_sq:
+tab044_rd:
+tab045_sq:
+tab045_rd:
+tab046_sq: | SS 13,13,48,29
+tab046_rd:
+tab047_sq:
+tab047_rd:
+tab048_sq: | 66 14,14,46,27
+tab048_rd: | 66 12,12,37,22
+tab049_sq: | 66 13,13,48,29
+tab049_rd: | 66 12,12,37,22
+tab050_sq: | 66 13,13,48,29
+tab050_rd: | 66 12,12,37,22
+tab051_sq: | 66 13,13,48,29
+tab051_rd: | 66 12,12,37,22
+tab052_sq: | 66 13,13,48,29
+tab052_rd: | 66 12,12,37,22
+tab053_sq:
+tab053_rd: | GG 12,12,37,22
+tab054_sq:
+tab054_rd: | GG 12,12,37,22
+tab055_sq:
+tab055_rd: | GG 12,12,37,22
+tab056_sq: | 77 14,14,46,27
+tab056_rd: | 77 12,12,37,22
+tab057_sq: | 77 14,14,46,27
+tab057_rd: | 77 12,12,37,22
+tab058_sq: | 77 14,14,46,27
+tab058_rd: | 77 12,12,37,22
+tab059_sq: | 77 14,14,46,27
+tab059_rd: | 77 12,12,37,22
+tab060_sq: | 77 14,14,46,27
+tab060_rd: | 77 12,12,37,22
+tab061_sq: | 77 14,14,46,27
+tab061_rd: | 77 12,12,37,22
+tab062_sq:
+tab062_rd: | 88 12,12,37,22
+tab063_sq:
+tab063_rd:
+tab064_sq: | 88 13,13,48,29
+tab064_rd: | 88 12,12,37,22
+tab065_sq:
+tab065_rd:
+tab066_sq:
+tab066_rd:
+tab067_sq:
+tab067_rd:
+tab068_sq: | 99 14,14,46,27
+tab068_rd: | 99 12,12,37,22
+tab069_sq: | 99 14,14,46,27
+tab069_rd: | 99 12,12,37,22
+tab070_sq: | 99 13,13,48,29
+tab070_rd: | 99 12,12,37,22
+tab071_sq: | 99 13,13,48,28
+tab071_rd: | 99 12,12,37,22
+tab072_sq: | 99 13,13,48,29
+tab072_rd: | 99 12,12,37,22
+tab073_sq: | 99 13,13,48,29
+tab073_rd: | 99 12,12,37,22
+tab074_sq: | AA 14,14,46,27
+tab074_rd: | AA 12,12,37,22
+tab075_sq: | AA 13,13,48,28
+tab075_rd: | AA 12,12,37,22
+tab076_sq:
+tab076_rd:
+tab077_sq: | AA 13,13,48,28
+tab077_rd: | AA 12,12,37,22
+tab078_sq: | AA 14,14,46,27
+tab078_rd: | AA 12,12,37,22
+tab079_sq: | CC 13,13,47,29
+tab079_rd: | CC 12,12,37,22
+tab080_sq: | CC 14,14,46,27
+tab080_rd: | CC 12,12,37,22
+tab081_sq: | CC 13,13,48,29
+tab081_rd: | CC 12,12,37,22
+tab082_sq: | EE 14,14,46,27
+tab082_rd: | EE 12,12,37,22
+tab083_sq: | EE 14,14,46,27
+tab083_rd: | EE 12,12,37,22
+tab084_sq: | FF 14,14,46,27
+tab084_rd: | FF 12,12,37,22
+tab085_sq: | FF 14,14,46,27
+tab085_rd: | FF 12,12,37,22
+tab086_sq: | HH 14,14,46,27
+tab086_rd: | HH 12,12,37,22
+tab087_sq: | JJ 13,14,48,28
+tab087_rd: | JJ 12,12,37,22
+tab088_sq: | JJ 14,14,46,27
+tab088_rd: | JJ 12,12,37,22
+tab089_sq: | JJ 13,14,47,28
+tab089_rd: | JJ 12,12,37,22
+tab090_sq:
+tab090_rd: | KK 12,12,37,22
+tab091_sq: | KK 14,14,46,27
+tab091_rd: | KK 12,12,37,22
+tab092_sq: | KK 14,14,46,27
+tab092_rd: | KK 12,12,37,22
+tab093_sq: | LL 14,14,46,27
+tab093_rd: | LL 12,12,37,22
+tab094_sq: | MM 14,14,46,27
+tab094_rd: | MM 12,12,37,22
+tab095_sq: | MM 14,14,46,27
+tab095_rd: | MM 12,12,37,22
+tab096_sq: | MM 13,13,48,28
+tab096_rd: | MM 12,12,37,22
+tab097_sq: | MM 14,14,46,27
+tab097_rd: | MM 12,12,37,22
+tab098_sq: | MM 14,14,46,27
+tab098_rd: | MM 12,12,37,22
+tab099_sq: | NN 14,14,46,27
+tab099_rd: | NN 12,12,37,22
+tab100_sq: | PP 14,13,47,28
+tab100_rd: | PP 12,12,37,22
+tab101_sq: | PP 14,14,46,27
+tab101_rd: | PP 12,12,37,22
+tab102_sq: | RR 14,13,47,28
+tab102_rd: | RR 12,12,37,22
+tab103_sq: | RR 14,14,46,27
+tab103_rd: | RR 12,12,37,22
+tab104_sq:
+tab104_rd:
+tab105_sq: | RR 14,13,47,29
+tab105_rd: | RR 12,12,37,22
+tab106_sq: | TT 14,14,46,27
+tab106_rd: | TT 12,12,37,22
+tab107_sq:
+tab107_rd: | UU 12,12,37,22
+tab108_sq: | UU 14,14,46,27
+tab108_rd: | UU 12,12,37,22
+tab109_sq: | VV 14,14,46,27
+tab109_rd: | VV 12,12,37,22
+tab110_sq: | VV 14,14,46,27
+tab110_rd: | VV 12,12,37,22
+tab111_sq: | WW 14,14,46,27
+tab111_rd: | WW 12,12,37,22
+tab112_sq: | WW 14,14,46,27
+tab112_rd: | WW 12,12,37,22
+tab113_sq: | WW 14,14,46,27
+tab113_rd: | WW 12,12,37,22
+tab114_sq: | WW 13,14,48,28
+tab114_rd: | WW 12,12,37,22
+tab115_sq: | XX 14,14,46,27
+tab115_rd: | XX 12,12,37,22
+tab116_sq: | YY 14,14,46,27
+tab116_rd: | YY 12,12,37,22
+tab117_sq: | YY 14,14,46,27
+tab117_rd:
+tab118_sq: | 4% 14,14,46,27
+tab118_rd: | 4% 12,12,37,22
+tab119_sq: | 4% 14,13,47,29
+tab119_rd: | 4% 12,12,37,22
+tab120_sq: | 4/4 14,14,73,27
+tab120_rd: | 4/4 12,12,59,22
+hud_TIME_1_23_4_12_sq:
+hud_TIME_1_23_4_12_rd:
+hud_TIME_1_23_4_16_sq:
+hud_TIME_1_23_4_16_rd:
+hud_TIME_1_23_4_24_sq: | TIME 1:23.4 14,14,245,26
+hud_TIME_1_23_4_24_rd:
+hud_TIME_1_23_4_36_sq:
+hud_TIME_1_23_4_36_rd: | TIME 1:23.4 21,21,367,39
+hud_TIME_1_23_4_48_sq: | TIME 1:23.4 28,27,489,53
+hud_TIME_1_23_4_48_rd: | TIME 1:23.4 28,28,489,52
+hud_HP_97__12_sq: | HP 97% 7,7,73,13
+hud_HP_97__12_rd:
+hud_HP_97__16_sq: | HP 97% 9,9,96,17
+hud_HP_97__16_rd: | HP 97% 9,9,96,17
+hud_HP_97__24_sq: | HP 97% 14,14,146,26
+hud_HP_97__24_rd: | HP 97% 14,14,146,26
+hud_HP_97__36_sq: | HP 97% 21,20,219,40
+hud_HP_97__36_rd: | HP 97% 21,21,219,39
+hud_HP_97__48_sq: | HP 97% 28,27,292,54
+hud_HP_97__48_rd: | HP 97% 28,28,292,52
+hud_LAP_2_3_12_sq: | LAP 2/3 7,7,86,13
+hud_LAP_2_3_12_rd:
+hud_LAP_2_3_16_sq: | LAP 2/3 9,9,113,17
+hud_LAP_2_3_16_rd: | LAP 2/3 9,9,113,17
+hud_LAP_2_3_24_sq: | LAP 2/3 14,14,172,26
+hud_LAP_2_3_24_rd: | LAP 2/3 14,14,172,26
+hud_LAP_2_3_36_sq:
+hud_LAP_2_3_36_rd: | LAP 2/3 21,21,258,39
+hud_LAP_2_3_48_sq:
+hud_LAP_2_3_48_rd:
+hud_PTS_4096_12_sq: | PTS 4096 7,7,99,13
+hud_PTS_4096_12_rd:
+hud_PTS_4096_16_sq:
+hud_PTS_4096_16_rd:
+hud_PTS_4096_24_sq: | PTS 4096 14,14,198,26
+hud_PTS_4096_24_rd:
+hud_PTS_4096_36_sq:
+hud_PTS_4096_36_rd: | PTS 4096 21,21,297,39
+hud_PTS_4096_48_sq:
+hud_PTS_4096_48_rd: | PTS 4096 28,28,395,52
+hud__42_12_sq: | -42 7,7,31,13
+hud__42_12_rd:
+hud__42_16_sq: | -42 9,9,40,17
+hud__42_16_rd:
+hud__42_24_sq: | -42 15,14,60,26
+hud__42_24_rd: | -42 15,14,61,26
+hud__42_36_sq: | -42 22,20,92,40
+hud__42_36_rd: | -42 22,21,92,39
+hud__42_48_sq: | -42 30,27,121,53
+hud__42_48_rd: | -42 30,28,121,52
+hud_0123456789_12_sq:
+hud_0123456789_12_rd:
+hud_0123456789_16_sq:
+hud_0123456789_16_rd:
+hud_0123456789_24_sq: | 0123456789 14,14,251,26
+hud_0123456789_24_rd:
+hud_0123456789_36_sq:
+hud_0123456789_36_rd: | 0123456789 21,21,377,39
+hud_0123456789_48_sq:
+hud_0123456789_48_rd: | 0123456789 28,28,503,52
+hud_ACEFGHJKLMNPRTUVWXYZ_12_sq:
+hud_ACEFGHJKLMNPRTUVWXYZ_12_rd:
+hud_ACEFGHJKLMNPRTUVWXYZ_16_sq: | ACEFGHJKLMNPRTUVWXYZ 9,9,334,17
+hud_ACEFGHJKLMNPRTUVWXYZ_16_rd:
+hud_ACEFGHJKLMNPRTUVWXYZ_24_sq: | ACEFGHJKLMNPRTUVWXYZ 14,14,511,26
+hud_ACEFGHJKLMNPRTUVWXYZ_24_rd:
+hud_ACEFGHJKLMNPRTUVWXYZ_36_sq: | ACEFGHJKLMNPRTUVWXYZ 21,20,766,41
+hud_ACEFGHJKLMNPRTUVWXYZ_36_rd:
+hud_ACEFGHJKLMNPRTUVWXYZ_48_sq:
+hud_ACEFGHJKLMNPRTUVWXYZ_48_rd: | ACEFGHJKLMNPRTUVWXYZ 28,28,1021,52
+hooked3_24_2_square: | HP 3 14,14,94,26
+hooked3_24_2_round: | HP 3 14,14,94,26
+hooked3_24_2_butt: | HP 3 14,14,94,26
+hooked3_36_2_square: | HP 3 21,21,138,38
+hooked3_36_2_round: | HP 3 21,21,138,38
+hooked3_36_2_butt: | HP 3 21,21,138,38
+hooked3_36_4_square:
+hooked3_36_4_round:
+hooked3_36_4_butt:
+hooked3_48_4_square:
+hooked3_48_4_round:
+hooked3_48_4_butt:
+col_255_0_1:
+col_255_0_4:
+col_30_250_1:
+col_30_250_4:
+col_128_0_1:
+col_128_0_4:
+col_10_90_1:
+col_10_90_4:
+col_40_60_1:
+col_40_60_4:
+edge_0_square:
+edge_0_round:
+edge_1_square:
+edge_1_round:
+edge_2_square: | LAP 2/3 2,2,178,28
+edge_2_round:
+edge_3_square: | LAP 2/3 3,3,178,28
+edge_3_round:
+edge_4_square: | LAP 2/3 4,4,178,28
+edge_4_round:
+gap_0.5:
+gap_1:
+gap_2:
+gap_4:
+gap_8:
+gap_16:
+space_6:
+space_10:
+space_14:
+space_20:
+space_30:
+space_60:
+space_70:
+slanted_0.1:
+slanted_0.2:
+slanted_0.3:
+lone_55:
+lone_65:
+lone_37:
+bold_6_1:
+bold_7_1:
+bold_8_1:
+bold_9_1:
+bold_8_2:
+bold_12_3:
+bold_16_4:
+bold_20_5:
+bold_24_6:
+bold_28_7:
+boxed: | TIME 1:42 28,402,320,41 | HP 81% 28,462,224,42
+boxed_swapped: | TIME 1:42 28,402,320,41 | HP 81% 28,462,224,42
+boxed_cut:
+boxed_zero:
+boxed_out:
+boxed_before:
+boxed_whole:
+boxed_far:
+ruled: | HP 81% 28,462,224,42
+framed:
+shaded: | TIME 1:42 28,402,320,41
+specks: | HP 81% 28,462,224,42
+items: | 12 31,403,65,40 | 34 258,402,68,41
+tie:
