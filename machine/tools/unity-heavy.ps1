@@ -195,12 +195,14 @@ Log 'start' @{ waited_s = [int]((Get-Date) - $t0).TotalSeconds; gpu = [bool]$isG
 $t1 = Get-Date
 # Start the process directly and wait for it: `& exe` returns at once for GUI-subsystem programs (Unity.exe, a packaged
 # player), which would release the slot while the job still runs. Arguments with spaces are quoted; -Key=value tokens
-# keep the quotes after '=' so the program reads the whole value.
+# keep the quotes after '=' so the program reads the whole value. Windows' own rules (CommandLineToArgvW, the C
+# runtime): an empty argument is "" (unquoted, it vanished), and backslashes before a quote or the closing quote are
+# doubled (a quoted path ending in \ swallowed the arguments after it).
 function Quote-Arg([string]$a) {
-  if ($a -notmatch '[\s"]') { return $a }
+  if ($a -and $a -notmatch '[\s"]') { return $a }
   $m = [regex]::Match($a, '^(-?[^=\s"]+=)(.*)$')
-  if ($m.Success) { return $m.Groups[1].Value + '"' + $m.Groups[2].Value.Replace('"', '\"') + '"' }
-  return '"' + $a.Replace('"', '\"') + '"'
+  $pre, $v = if ($m.Success) { $m.Groups[1].Value, $m.Groups[2].Value } else { '', $a }
+  return $pre + '"' + (($v -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
 }
 $code = $null
 try {
