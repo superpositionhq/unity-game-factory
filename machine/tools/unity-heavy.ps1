@@ -80,7 +80,7 @@ $exeName = [IO.Path]::GetFileName($Command[0])
 # player (any other exe under a Build/Builds/Packaged folder, or run with -screen-* / -popupwindow) always renders.
 # dotnet / MSBuild / git / python never do.
 $isUnity = $exeName -match '(?i)^Unity\.exe$'
-$isPlayer = (-not $isUnity) -and ($Command[0] -match '(?i)\\(Build|Builds|Packaged)\\.*\.exe$' -or $cmdText -match '(?i)(^|\s)-(screen-width|screen-height|screen-fullscreen|popupwindow)(\s|$)')
+$isPlayer = (-not $isUnity) -and ($Command[0] -match '(?i)[\\/](Build|Builds|Packaged)[\\/].*\.exe$' -or $cmdText -match '(?i)(^|\s)-(screen-width|screen-height|screen-fullscreen|popupwindow)(\s|$)')
 $isGpu = $Gpu -or $isUnity -or $isPlayer
 if ($cmdText -match '(?i)(^|\s)-nographics(\s|$)') { $isGpu = $false }
 $gpuSlots = [math]::Min(8, [int]$plan.gpu_slots)
