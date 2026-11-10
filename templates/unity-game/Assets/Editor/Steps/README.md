@@ -36,12 +36,17 @@ What the editor does that a step must allow for:
   game's first import step logged a failure and imported nothing). Run that step with `-NoQuit`, subscribe to
   `AssetDatabase.importPackageCompleted` and `importPackageFailed`, and call `EditorApplication.Exit` from there and
   after a time limit: a run without `-quit` ends only when the step exits (`ProjectSetup.ImportTextEssentials` in
-  `Assets/Editor/Tools/` is the pattern).
+  `Assets/Editor/Tools/` is the pattern);
+- `EditorSceneManager.SaveScene` makes no folder: into a missing one it saves nothing, returns false and only logs an
+  error, and a step that goes on to log its row records a scene that is not there (the template's first example step
+  did). Create the folder first (`Directory.CreateDirectory`, as `UrpSetup` in `Assets/Editor/Tools/Urp/` does) and
+  check what `SaveScene` returns.
 
 A step looks like this, run with `Scripts/unity.ps1 step -Method __PROJECT__.EditorSteps.BuildHarbor.Run -Reason "..."`:
 
 ```csharp
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -56,7 +61,15 @@ namespace __PROJECT__.EditorSteps
             // the scene first: opening it unloads the assets loaded before it
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             // ... then load or create the assets, place prefabs, set up lighting ...
-            EditorSceneManager.SaveScene(scene, "Assets/Scenes/Harbor.unity");
+            // SaveScene makes no folder: into a missing one it saves nothing and only logs an error
+            Directory.CreateDirectory("Assets/Scenes");
+            if (!EditorSceneManager.SaveScene(scene, "Assets/Scenes/Harbor.unity"))
+            {
+                WorkflowLog.Row("scene.build", "Assets/Scenes/Harbor.unity",
+                    new Dictionary<string, object> { ["error"] = "the scene was not saved" }, status: "failed");
+                EditorApplication.Exit(1);
+                return;
+            }
             WorkflowLog.Row("scene.build", "Assets/Scenes/Harbor.unity", new Dictionary<string, object> { ["piers"] = 4 });
         }
     }
