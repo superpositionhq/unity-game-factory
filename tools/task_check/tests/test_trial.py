@@ -688,6 +688,42 @@ class CleanUp(unittest.TestCase):
             self.assertTrue((elsewhere / "Temp" / "keep.txt").is_file(), "the other folder's files stay")
             self.assertFalse((elsewhere / "Packages").exists(), "nothing is added to it either")
 
+    def test_a_name_that_would_climb_out_of_the_try_removes_nothing(self):
+        """The task's name and its game's name make the paths the try deletes (<out>\\<name>, <scratch>\\run1\\<game>):
+        the task's schema refuses them before anything is removed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            write(tmp, "keep.txt")
+            for bad in (dict(task, name=".."), dict(task, seed={**task["seed"], "game": ".."})):
+                with faked(answered):
+                    result = trial.try_task(repo, bad, b"{}", Path(tmp) / "out" / "scratch", Path(tmp) / "out",
+                                            "claude", "claude", log=lambda *a: None)
+                self.assertEqual(result["status"], "ERROR")
+                self.assertIn("doesn't validate", result["reasons"][0])
+                self.assertTrue((Path(tmp) / "keep.txt").is_file())
+
+    def test_a_try_in_a_folder_with_spaces_runs_its_agent_there_and_deletes_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            scratch, seen = Path(tmp) / "my tries" / "try 1", {}
+            script = ("import json, os; open('agent was here.txt', 'w').write(os.getcwd()); "
+                      "print(json.dumps({'type': 'result', 'num_turns': 3}))")
+
+            def graded(name, folder, *rest):
+                if name.startswith("run"):
+                    seen["cwd"] = (Path(folder) / "agent was here.txt").read_text()
+                return original(name, folder, *rest)
+
+            original = trial.side
+            with faked(trial.run_agent), mock.patch.object(trial, "side", graded), \
+                    mock.patch.object(trial, "agent_argv", lambda *a: [sys.executable, "-c", script]):
+                result = trial.try_task(repo, task, b"{}", scratch, Path(tmp) / "out", "claude", "claude",
+                                        log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual((result["runs"][0]["exit_code"], result["runs"][0]["turns"]), (0, 3))
+            self.assertEqual(seen["cwd"].lower(), str(scratch / "run1" / "metro-runner").lower())
+            self.assertFalse(scratch.exists())
+
     def test_a_try_never_deletes_a_folder_it_did_not_make(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
