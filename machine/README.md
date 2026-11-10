@@ -7,9 +7,10 @@ setup, including the manual sign-ins: [../docs/new-machine.md](../docs/new-machi
 
 All machine paths hang off one root, the "UnityWork" folder that holds `unity-game-factory\`, `games\`, `tasks\`,
 `builds\`, `recordings\`, `.recording\`, `deliverables\`, `asset-library\` and `tools\`. Docs write it as `%UGF_ROOT%`.
-`builds\`, `recordings\` and `deliverables\` are for the recording queue and its recorder, which are not available
-yet: bootstrap.ps1 creates them empty, and nothing writes there today (the dataset packager, `tools/package-dataset.py`,
-writes into the game repo's own folder).
+`builds\` and `recordings\` are the recording pipeline's (`tools/unity-pipeline/`,
+[../docs/unity-pipeline.md](../docs/unity-pipeline.md)): release builds, the queue and the gameplay bundles. Nothing
+writes to `deliverables\` yet (the dataset packager, `tools/package-dataset.py`, writes into the game repo's own
+folder).
 `lib/ugf-root.ps1` (PowerShell, dot-source it) and `lib/ugfroot.py` (Python: `sys.path.insert(0, <repo>/machine/lib)`,
 `ugfroot.root()`) resolve it in this order:
 
@@ -17,7 +18,9 @@ writes into the game repo's own folder).
 2. `root` in the config file: env `UGF_CONFIG`, else `%USERPROFILE%\.unity-game-factory\config.json` (bootstrap writes it);
 3. `%USERPROFILE%\UnityWork`.
 
-The config also holds `unity_hub_editors` (default `C:\Program Files\Unity\Hub\Editor`: where Unity Hub installs
+The config also holds `ugb` (default `C:\UGB`: the release builds' private clones and build temp, outside the user
+profile so the user name is not compiled into a player; `bootstrap.ps1 -Ugb` sets it and creates `<ugb>\src` and
+`<ugb>\tmp`), `unity_hub_editors` (default `C:\Program Files\Unity\Hub\Editor`: where Unity Hub installs
 editors), `unity_version` (default `6000.3`, Unity 6.3 LTS: new games use its newest installed patch; an exact version
 such as `6000.3.28f1` pins them to it), optional `unity_editors`
 (`{"6000.3.28f1": "D:\\Unity\\6000.3.28f1\\Editor\\Unity.exe"}`: editors installed elsewhere, which then count as
@@ -55,7 +58,7 @@ source (config set by hand, config from bootstrap, or computed at run time). The
 `lib/ugf-root.ps1` (`Get-UGFComputedSlots`) and `lib/ugfroot.py` (`computed_slots`).
 
 ```json
-{ "root": "C:\\Users\\<name>\\UnityWork", "unity_hub_editors": "C:\\Program Files\\Unity\\Hub\\Editor", "unity_version": "6000.3",
+{ "root": "C:\\Users\\<name>\\UnityWork", "ugb": "C:\\UGB", "unity_hub_editors": "C:\\Program Files\\Unity\\Hub\\Editor", "unity_version": "6000.3",
   "github_org": "<org>", "record_extra_projects": [], "agents": ["claude"], "hooks_dir": "C:\\Users\\<name>\\.unity-game-factory\\hooks",
   "heavy_slots": 3, "gpu_slots": 2, "slots_auto": { "heavy_slots": 3, "gpu_slots": 2, "basis": "<hardware>" } }
 ```
@@ -103,8 +106,9 @@ The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks
 and never overwrites it. The hook keeps two more state files there: `recording-backfill.json` (the sessions whose
 earlier tool calls were imported) and `recording-messages.json` (transcript file -> bytes read, for `messages.jsonl`).
 
-Not available yet (they come with the recording pipeline; docs/unity-pipeline.md holds the plan): the per-commit live
-creation replay (its post-commit line) and the recording queue with its recorder. The task checker is here
+Not available yet (docs/unity-pipeline.md holds the plan): the per-commit live creation replay (its post-commit line).
+The recording pipeline is here (`tools/unity-pipeline/`, [../docs/unity-pipeline.md](../docs/unity-pipeline.md)): its
+builds and recordings go through `unity-heavy.ps1`'s slots like every other heavy job. The task checker is here
 (`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its builds and plays go through
 `unity-heavy.ps1` like every other heavy job. So is the dataset packager (`tools/package-dataset.py`,
 [../docs/unity-pipeline.md](../docs/unity-pipeline.md#dataset-packager)), which reads a game's `actions.jsonl` and

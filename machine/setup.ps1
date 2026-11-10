@@ -24,8 +24,8 @@
 
   Minimums: Windows 11; 8 logical cores and 16 GB RAM (32 GB recommended: job slots scale with RAM); 200 GB free on
   the root's drive (100 GB at the very least; game repos with their store packs and each project's Library\ cache are
-  several GB each, builds and the asset library grow); a DirectX 11/12 GPU for the editor. Recording gameplay (the
-  recorder is not available yet) wants an NVIDIA GPU (8 GB+ VRAM, driver 610+, NVENC); without one it falls back to
+  several GB each, builds and the asset library grow); a DirectX 11/12 GPU for the editor. Recording gameplay
+  (tools/unity-pipeline/record.ps1) wants an NVIDIA GPU (8 GB+ VRAM, driver 610+, NVENC); without one it falls back to
   slower encoders.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>
@@ -151,7 +151,7 @@ else { Item TODO 'Free disk' "$free GB on ${drive}:" "free space or pick a roomi
 $gpus = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual' })
 $nv = @($gpus | Where-Object { $_.Name -match 'NVIDIA' })
 Item $(if ($gpus) { 'PASS' } else { 'TODO' }) 'GPU' $(if ($gpus) { ($gpus.Name -join ', ') } else { 'no display adapter found' }) 'a DirectX 11/12 GPU for the Unity editor'
-if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; the recorder, which is not available yet, will fall back to slower encoders' }
+if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; recording falls back to slower encoders (AMF, then the CPU)' }
 
 # --- 2. software -----------------------------------------------------------------------------------------------------
 Write-Host "2. software (winget)"
@@ -338,7 +338,7 @@ else {
 if ($nv) {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     $drv = if ($smi) { [double](((Quiet { & $smi.Source --query-gpu=driver_version --format=csv,noheader }).out -split "`n")[0] -replace '[^\d.]', '') } else { 0 }
-    if ($drv -ge 610) { Item PASS 'NVIDIA driver' "$drv" } else { Item INFO 'NVIDIA driver' $(if ($drv) { "$drv" } else { 'nvidia-smi not found' }) 'only for the recorder, which is not available yet: install the current Game Ready or Studio driver (610 or newer) from nvidia.com/drivers or the NVIDIA app' }
+    if ($drv -ge 610) { Item PASS 'NVIDIA driver' "$drv" } else { Item INFO 'NVIDIA driver' $(if ($drv) { "$drv" } else { 'nvidia-smi not found' }) 'only for recording (NVENC with the pinned ffmpeg): install the current Game Ready or Studio driver (610 or newer) from nvidia.com/drivers or the NVIDIA app' }
 }
 Item INFO 'Asset Store' 'only to download store packs for a NEW game: sign in to the Unity Asset Store with the account that owns them (Package Manager > My Assets); cloned games already carry their packs'
 if ($useClaude) { Item INFO 'Claude Code sign-in' 'run claude once (or open the desktop app) and sign in with your account; not detectable' }

@@ -3,8 +3,9 @@
   Check one AutoPlay outputDir against docs/autoplay-contract.md (no video needed). For game sessions testing by hand.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File validate-run.ps1 C:\Users\<you>\UnityWork\games\harbor-run\Logs\autoplay\run1
-  (the folder given to the player with -outputDir; without one the drop-in writes to <persistentDataPath>\AutoPlay\<timestamp>)
+  powershell -ExecutionPolicy Bypass -File validate-run.ps1 C:\Users\<you>\UnityWork\games\harbor-run\Logs\autoplay\20261110-161353_s1
+  (Scripts/unity.ps1 autoplay writes there; otherwise the folder given to the player with -outputDir, and without one
+  the drop-in's <persistentDataPath>\AutoPlay\<timestamp>)
 #>
 param([Parameter(Mandatory = $true, Position = 0)][string]$Dir)
 

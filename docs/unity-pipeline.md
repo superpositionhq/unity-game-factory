@@ -1,20 +1,34 @@
 # Unity editor, build and recording pipeline
 
-How heavy Unity work runs on the shared machine today, and the plan for the pipeline that builds a game's release
-player, records AutoPlay runs (an in-game bot playing through the Input System, see
-[autoplay-contract.md](autoplay-contract.md)) as gameplay bundles ([Bundle](#bundle)), replays the creation and packages
-the dataset.
+How heavy Unity work runs on the shared machine, and the pipeline that builds a game's Windows release player from a
+commit, records AutoPlay runs of it (an in-game bot playing through the Input System, see
+[autoplay-contract.md](autoplay-contract.md)) as gameplay bundles ([Bundle](#bundle)) and queues this per game; then
+the plan for the creation replay, and the dataset packager. The pipeline's scripts are `tools/unity-pipeline/`
+(Windows PowerShell 5.1).
 
-> **Not available yet: the recording pipeline (the release build from a commit, the recorder, the queue, the run
-> checker, stills and gameplay videos) and the creation replay.** The sections that say so are the
-> plan, with the rules earlier failures taught; nothing in them can be run
-> today. Until they are here, a session never queues, requests or waits for a recording and reports to the coordinator
-> what is ready (the commit sha, the scenarios that start with `-scenario <n>`, the release build's result); every
-> dataset is pending, without `Gameplay/` and `ReplayScripts/`, and nobody assembles a dataset by hand; the
-> replay-friendly rules of the unity-game-session skill keep a game's history ready for the replay. What runs today: a
-> game's `Scripts/unity.ps1`, the machine-wide job limiter and the dataset packager
-> ([Dataset packager](#dataset-packager)). The task checker's own builds and plays (a scratch copy's player, started
-> on a Windows desktop of its own) are in [task-check.md](task-check.md).
+> **Not available yet: the creation replay.** Its section is the plan, with the rules earlier failures taught; nothing
+> in it can be run today, and the replay-friendly rules of the unity-game-session skill keep a game's history ready for
+> it. Every dataset is pending, without `Gameplay/` and `ReplayScripts/`, and nobody assembles a dataset by hand. What
+> runs today: a game's `Scripts/unity.ps1`, the machine-wide job limiter, the recording pipeline below and the dataset
+> packager ([Dataset packager](#dataset-packager)). A game is recorded once it has the AutoPlay drop-in and its own
+> scenario wiring and bot ([autoplay-contract.md](autoplay-contract.md)); only the coordinator queues recordings
+> ([Queue](#queue)). The task checker's own builds and plays (a scratch copy's player, started on a Windows desktop of
+> its own) are in [task-check.md](task-check.md).
+
+| Script | Does |
+|---|---|
+| `build.ps1 <game> [-Commit rev] [-Backend il2cpp\|mono] [-Force]` | the Windows release player of a commit, from a private clone; row in `builds.jsonl` |
+| `record.ps1 <game> -Build <dir\|latest> [-Scenario n] [-Runs k] [-Skill s] [-Seed s] [-MaxSeconds n]` | launch, capture, validate, bundle; a row per run in `runs.jsonl` |
+| `pipeline.ps1 <game> [-Runs k] [-Scenarios 1,2] [-Commit rev] [-MaxSeconds "1=300,3=900"] [-Backend mono]` | release build, then k recorded runs per scenario; row in `pipeline.jsonl` |
+| `pipeline.ps1 -DrainQueue` | the requests `enqueue.ps1` wrote, one at a time |
+| `enqueue.ps1 <game> -RequestedBy coordinator [-Runs k] [-Scenarios ..] [-MaxSeconds ..] [-Backend mono]` | queue a pipeline run and return at once (the coordinator's tool) |
+| `validate-run.ps1 <outputDir>` | contract check of one run's files, no video (for game sessions testing by hand) |
+| `mark-invalid.ps1 <game> -Commit sha \| -RunId id -Reason text` | exclude bundles from the dataset (INVALID file, validation status `invalid`); files kept |
+| `leak-scan.ps1 <dir> [-Patterns ..]` | byte search (ASCII + UTF-16) for the user name or other strings that must not ship |
+| `gameplay-mp4.ps1 <game> [-Commit sha..] [-RunId id] [-Force]` | a run's `gameplay.mp4` again (updates metadata/manifest) |
+| `stills.ps1 <game> [-RunId id] [-Count n] [-Force]` | a run's README stills again (updates metadata/manifest) |
+| `sync-check.ps1 <bundle>` | measures video/audio lag against sync markers that a pipeline test game emits |
+| `autoplay/` | the AutoPlay drop-in every game copies unchanged; `autoplay/install.ps1 -Game <game>` installs or updates it in a game ([autoplay-contract.md](autoplay-contract.md)) |
 
 ## Paths
 
@@ -22,7 +36,8 @@ the dataset.
 (written by `machine/bootstrap.ps1`), else `%USERPROFILE%\UnityWork`; `machine/lib/ugf-root.ps1` resolves it, and the
 same file gives each project's editor: exactly the version its `ProjectSettings/ProjectVersion.txt` names
 (`Get-UGFUnity`; Unity Hub's folder `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe`, config
-`unity_hub_editors`, or `unity_editors` for an editor installed elsewhere). See
+`unity_hub_editors`, or `unity_editors` for an editor installed elsewhere) and `ugb` (default `C:\UGB`: the release
+builds' private clones and their temp folder, outside the user profile). See
 [../machine/README.md](../machine/README.md).
 
 ```
@@ -32,23 +47,23 @@ same file gives each project's editor: exactly the version its `ProjectSettings/
   tasks\<slug>\                     a game's orphan tasks branch, checked out as a worktree
   tools\unity-heavy.ps1             the job limiter (+ ugf-root.ps1 beside it); its log .recording\_heavy-jobs.jsonl
   tools\ffmpeg-8.1.2\               the pinned ffmpeg (machine/get-ffmpeg.ps1)
-  .recording\<slug>\actions.jsonl   the recording hooks' rows (machine/README.md); the pipeline never touches them
-  .recording\<slug>\messages.jsonl  the same hooks' rows for every prompt and every reply of a session
-  .recording\<slug>\commits.jsonl   one row per commit (the post-commit hook)
-```
-
-Not available yet, for the pipeline (bootstrap already creates the folders):
-
-```
-  builds\<slug>\<short-sha>\        release build: the player, build_info.json, logs\
+  builds\<slug>\<short-sha>\        release build: Windows\<Project>.exe, build_info.json, logs\
+  builds\<slug>\_run\               the copy the recorder launches (a fixed path per game)
   builds\_pipeline-<slug>.lock      per-game build/record lock (holder in the .json beside it)
   builds\_queue\                    queued requests; done\ has results
   builds\_logs\                     transcripts of queue runs
   recordings\<slug>\<run-id>\       bundles
-  .recording\<slug>\builds.jsonl    one row per build
+  recordings\<slug>\_stills\        every bundle's stills, <run-id>_NN.jpg
+  .recording\<slug>\actions.jsonl   the recording hooks' rows (machine/README.md); the pipeline never touches them
+  .recording\<slug>\messages.jsonl  the same hooks' rows for every prompt and every reply of a session
+  .recording\<slug>\commits.jsonl   one row per commit (the post-commit hook)
+  .recording\<slug>\builds.jsonl    one row per build.ps1 run
   .recording\<slug>\runs.jsonl      one row per recorded run
   .recording\<slug>\pipeline.jsonl  one row per pipeline run per game
   deliverables\                     packages and replay packages (config "out", env UGF_OUT)
+<ugb>\src\<slug>\                   private clone the pipeline builds from (never the game's working copy); outside
+                                    C:\Users so the user name isn't compiled into the player
+<ugb>\tmp\                          TEMP and TMP of the build
 ```
 
 ## A game's Unity runs: `Scripts/unity.ps1`
@@ -66,6 +81,7 @@ matter (compile errors, exceptions, licence errors, `[workflow]` rows) and the e
 | `test [-Platform EditMode\|PlayMode] [-Filter <name>]` | Unity Test Framework (`-runTests`, results XML summarized) | no |
 | `build [-Development] [-Backend mono\|il2cpp] [-Reason "..."]` | `BuildPlayer.BuildWindows`: the Windows x64 player in `Build/Windows/` (a release build is IL2CPP unless `-Backend mono`, a development build Mono) | no |
 | `play [-Scenario <n>] [-Render] [-Seconds 60] [-Extra "..."] [-Tag <name>]` | the built player, headless (`-batchmode -nographics`) or rendered windowed at 1280x720, with `-scenario <n>` when `-Scenario` is given; stopped after `-Seconds` | only with `-Render` |
+| `autoplay [-Scenario <n>] [-MaxSeconds 120] [-Seed 0] [-Skill 1] [-Audible] [-Extra "..."]` | the built player as a recording runs it (the AutoPlay drop-in): the bot plays scenario n for at most `-MaxSeconds`, starting at once, on a Windows desktop of its own (nothing on the screen; muted unless `-Audible`); the run's files go to `Logs/autoplay/<time>_s<n>/`, which `tools/unity-pipeline/validate-run.ps1 <folder>` checks | yes |
 
 Keep the call shape `Scripts/unity.ps1 step -Method <Ns.Class.Method>`: the creation replay (not available yet) will
 find each editor step's runs by it in the recorded commands.
@@ -86,13 +102,13 @@ Facts that cost time before:
 
 ## One heavy job at a time
 
-Not available yet, the pipeline's own lock: its build and its recording of a game will take an exclusive per-game
-lock on `builds\_pipeline-<slug>.lock` (an open file handle: released by the OS if the process dies, visible across
-sessions and Task Scheduler) for the whole build or the whole run, and wait for it otherwise (the holder is printed): a
-build and a recording of the same game share its clone, build folder and `_run` copy. Different games only share the
-machine, which the general and GPU slots below ration, so a rebuild of one game can run while another game records.
-Builds will run at below-normal priority so the game sessions' own editors stay responsive; the game and ffmpeg at
-above-normal priority during a recording.
+`build.ps1` and `record.ps1` take an exclusive per-game lock on `builds\_pipeline-<slug>.lock` (an open file handle:
+released by the OS if the process dies, visible across sessions and Task Scheduler) for the whole build or the whole
+run, and wait for it otherwise (the holder is printed): a build and a recording of the same game share its clone, build
+folder and `_run` copy. Different games only share the machine, which the general and GPU slots below ration, so a
+rebuild of one game can run while another game records (watch the recording's fps warnings). Builds run at
+below-normal priority so the game sessions' own editors stay responsive; the game and ffmpeg run at above-normal
+priority during a recording.
 
 ### Machine-wide slots
 
@@ -104,7 +120,8 @@ the limiter's own failures have a code no job uses.
 From Git Bash, wrap it in `powershell -ExecutionPolicy Bypass -Command "& '<path>' ... ; exit \$LASTEXITCODE"`
 (`powershell -File ... --` misparses `--`; without `-ExecutionPolicy Bypass` Windows' default policy refuses the
 script, and with the dollar sign unescaped bash expands `$LASTEXITCODE` to nothing: either way the call returns 0
-whatever the job did).
+whatever the job did). `build.ps1` runs its editor through this checkout's copy of the limiter
+(`machine/tools/unity-heavy.ps1`, the same slots), so the pipeline and the limiter are always the same version.
 
 Each slot is a named mutex (`machine/lib/ugf-root.ps1` `Get-UGFSlotMutexes`, `Enter-UGFSlot`). A job that is killed
 before it releases its slot (a cancelled tool call, a killed editor) leaves the mutex abandoned, and the next job takes
@@ -115,7 +132,7 @@ applies at once.
 | Slots | Named mutexes | Taken by | Count |
 |---|---|---|---|
 | general | `Global\ue-heavy-slot-<n>` | every job: batchmode editor runs, player builds, tests, players, and GPU jobs too | config `heavy_slots`, else the formula |
-| GPU | `Global\ue-gpu-slot-<n>` | jobs that render (`Unity.exe` without `-nographics`, a player under a `Build`, `Builds` or `Packaged` folder or started with `-screen-*` / `-popupwindow`, anything run with `-Gpu`; `-nographics` in a command means no GPU slot, even with `-Gpu`), together with a general slot: a GPU job never holds one while waiting for the other | config `gpu_slots`, else the formula |
+| GPU | `Global\ue-gpu-slot-<n>` | jobs that render (`Unity.exe` without `-nographics`, a player under a `Build`, `Builds` or `Packaged` folder or started with `-screen-*` / `-popupwindow`, anything run with `-Gpu`; `-nographics` in a command means no GPU slot, even with `-Gpu`), together with a general slot: a GPU job never holds one while waiting for the other; a recording takes all of them | config `gpu_slots`, else the formula |
 
 **The mutex names are another factory's on purpose:** a machine that runs both factories has one set of slots,
 so the builds of the two never overcommit the same RAM and GPU. A recording waiting in either factory holds
@@ -136,11 +153,17 @@ Dynamic guards on top of the counts:
   and no other GPU job that still runs started in the last 60 s (a new renderer's VRAM shows only once it has loaded;
   one that has ended holds none, and Unity plays last seconds); otherwise it hands its slot back and looks again every
   30 s (`vram_wait` rows).
-- **Recordings have priority:** while a recorder waits for the GPU it keeps `builds\_queue\_recording-wants-gpu` fresh
-  in its factory's root (rewritten every minute, removed once it holds the slots); `unity-heavy.ps1` holds back new GPU
-  jobs while that file exists in either factory's root and is under 20 min old. A recording then takes every GPU slot,
-  so a capture has the GPU to itself. Today only another factory's recorder can write the flag; ours is not available
-  yet.
+- **Recordings have priority:** while a recorder waits for the GPU (`record.ps1`, a run) it keeps
+  `builds\_queue\_recording-wants-gpu` fresh in its factory's root (rewritten every minute, removed once it holds the
+  slots and in `finally`); `unity-heavy.ps1` holds back new GPU jobs while that file exists in either factory's root and
+  is under 20 min old. A recording then takes every GPU slot (`common.ps1` `Enter-GpuSlot -Recording`), so a capture
+  has the GPU to itself. The queue drainer holds the same flag for each whole job (from its first build step to the
+  end of its last run, and across the gap to the next job; a timer rewrites it every 60 s) and removes it when the
+  queue is empty. Before launching, `record.ps1` also waits while more than `-MaxVramInUseMB` (default 4096; 0 = half
+  the GPU's VRAM) MB of VRAM is in use (nvidia-smi total; per-process numbers are N/A under WDDM), logging the
+  GPU-heavy processes every 5 min; after 120 min the run fails. If the user returns while it waits for the slots, it
+  gives them back and waits for idle again. Its waits, starts and ends go to `.recording\_heavy-jobs.jsonl` with
+  `gpu: true`, like the limiter's.
 - **`-Low`** (background work, such as the live creation replay will be): one low job machine-wide; it takes a general
   slot only while no other job waits for one and another slot stays free, at below-normal priority.
 
@@ -148,93 +171,132 @@ Dynamic guards on top of the counts:
 
 ## Recording pipeline
 
-Not available yet: nothing in this section can be run; it is what the pipeline will do. Until it is here, a session
-reports to the coordinator what is ready and never queues, requests or waits for a recording.
-
 ### Build
 
-Not available yet (a session builds its own player with `Scripts/unity.ps1 build` meanwhile).
+`build.ps1 <game> [-Commit rev] [-Backend il2cpp|mono] [-Force]`:
 
-1. Resolve the commit (default `HEAD`); output goes to `builds\<slug>\<first 8 of sha>\`. A build that already
-   succeeded for that sha is reused unless forced.
-2. Source: a private clone of the game repo outside the user profile, never the game's working copy, updated to the
-   commit (`fetch`, `checkout --force <sha>`, `clean -ffd`; its `Library/` stays, so later builds import only what
-   changed). LFS files are checked out as pointers and copied from the game repo's own `.git\lfs\objects` store, so
-   nothing is downloaded and the game repo is only read. Uncommitted work is not built.
-3. The Windows x64 release player (`BuildPlayer.BuildWindows`, as `Scripts/unity.ps1 build` runs it), through the
-   limiter.
-4. Leak scan of the build folder: a case-insensitive byte search (ASCII and UTF-16LE) for the Windows user name inside
-   paths (`\<name>\`, `/<name>/`) and for superposition / game-factory / game_factory / gamefactory / claude /
-   anthropic; hits are warned about and recorded (a build with hits can still be recorded but must not be handed out).
-   The clone sits outside `C:\Users` so the user name is not built in (source paths in macros and debug
-   symbols can carry it into the exe).
-5. A `builds.jsonl` row: `commit`, `short_sha`, `commit_subject`, `command`, `start`/`end`/`duration_s`, `status`,
-   `exit_code`, `error_excerpt` (first matching error lines of the failing log), `log_path`, `output_path`,
-   `exe_path`, `autoplay_version`, `leak_scan`, and `steps[]` (each with its exact command line, times, exit code,
-   log).
+1. Resolve `-Commit` (default `HEAD`) in the game repo; output goes to `builds\<slug>\<first 8 of sha>\`. A build that
+   already succeeded for that sha (and backend, when one is asked) is reused unless `-Force`; a rebuild deletes the old
+   `build_info.json` first, so a failed one never leaves an "ok" next to a player that is gone.
+2. Source: `git clone --local --no-checkout` of the game repo into `<ugb>\src\<slug>` once (`--no-hardlinks` when the
+   two are on different drives), then `fetch` + `checkout --force <sha>` + `clean -ffd` (its `Library\` is kept by
+   name, whatever the game's `.gitignore` at that commit says, so later builds import only what changed). LFS files are
+   checked out as pointers (`GIT_LFS_SKIP_SMUDGE=1`) and copied (never hard-linked: an import that rewrote a file in the
+   clone would change the game's object) from the game repo's own store (`lfs.storage`, else `.git\lfs\objects`), so
+   nothing is downloaded and the game repo is only read; an object missing from the store fails the build and names
+   the `git lfs fetch` to run. Uncommitted work is not built.
+3. The player as the commit builds it: the game's own `Assets/Editor/Tools/BuildPlayer.cs` names the method
+   (`<Project>.EditorTools.BuildPlayer.BuildWindows`) and the exe (`<Project>.exe`), and the editor is the one its
+   `ProjectSettings/ProjectVersion.txt` names (`Get-UGFUnity`; not installed: the build fails and says which).
+   `Unity.exe -batchmode -nographics -quit -logFile <logs>\<stamp>-player.log -projectPath <clone> -executeMethod
+   <method> -buildOut builds\<slug>\<sha8>\Windows [-backend il2cpp|mono]` runs through the limiter, at below-normal
+   priority, with `TEMP` and `TMP` in `<ugb>\tmp`: the release player, IL2CPP unless `-Backend mono` (a machine
+   without IL2CPP's C++ tools). The `Windows\` folder is fresh every time (Unity refuses to build IL2CPP over a Mono
+   build in one folder). An editor that stops with no word about the game (no `error CS` line, no failed `build.player`
+   row) is tried once more, as `player-retry`, the first attempt staying in `steps[]` marked `retried` (an IL post
+   processor exited 1 without a message once, and the same commit built on a rerun); a missing licence (exit 198) is
+   never retried. What `BuildPlayer` did comes from the `build.player` row it writes to the clone's `workflow.jsonl`
+   (backend, bytes); the next checkout drops that row.
+4. Leak scan of the build folder (`Windows\`): a case-insensitive byte search (ASCII and UTF-16LE) for the Windows user
+   name inside paths (`\<name>\`, `/<name>/`) and for superposition / game-factory / game_factory / gamefactory /
+   game factory / claude / anthropic / openai (`$ForbiddenNamePatterns` in `common.ps1`), one read per file; hits are
+   warned about and recorded in `leak_scan` (a build with hits can still be recorded but must not be handed out).
+   `leak-scan.ps1 <dir>` runs the same scan by hand. The clone sits under `<ugb>` because a player carries the folder
+   it was built in: measured on a template game's IL2CPP build, `GameAssembly.dll` names the clone's path once and
+   Unity's `*_BurstDebugInformation_DoNotShip` and `*_BackUpThisFolder_ButDontShipItWithYourGame` folders thousands of
+   times, so a clone under `C:\Users\<name>` ships the user name.
+5. The AutoPlay drop-in's version (the `Version` constant of the game's `AutoPlay.cs`, null without one) goes into the
+   row: `record.ps1` refuses a build without it.
+
+`builds.jsonl` row and `build_info.json` (next to the player, written only for an ok build; schema `unity-build/1`):
+`game`, `project`, `commit`, `short_sha`, `requested`, `commit_subject`, `commit_time`, `command`,
+`start`/`end`/`duration_s`, `status`, `exit_code`, `error_excerpt` (first matching error lines of the failing log),
+`log_path`, `output_path`, `exe_path`, `config` (`release`), `backend`, `player_bytes`, `autoplay_version`,
+`leak_scan {scanned, hits[] {file, pattern, count, example}}`, `unity_version`, `editor`, and `steps[]` (each with its
+exact command line, times, exit code, log, and `retried` for a first attempt that was tried again).
+
+Measured on this machine's 16 GB laptop beside other sessions' editors: the first IL2CPP build of a template game with
+one scene, from a fresh clone (a full import), took 614 s, a later commit's build in the same clone 184 s; the leak
+scan of a 1.2 GB `Windows\` takes 20 to 70 s.
 
 ### Record
 
-Not available yet (the recorder). Before the runs, the build is mirrored into a stable `builds\<slug>\_run\` and
-launched from there: Windows Firewall asks once per program path for a program that listens on the network, so a
-fixed path per game means one prompt per game instead of one per build. Per run (seed = `-Seed + i`, or random; skill
-= `-Skill`, or cycling 1.0 / 0.75 / 0.5 / 0.25):
+`record.ps1 <game> -Build <dir|latest> [-Scenario n] [-Runs k] [-Skill s] [-Seed s] [-MaxSeconds n]` (also `-Capture`,
+`-IdleMinutes`, `-MaxVramInUseMB`, `-ExtraArgs`, `-OutputFps 30|60`, `-CaptureNote`, `-NoStablePath`). Before the runs,
+the build is mirrored (robocopy /MIR) into a stable `builds\<slug>\_run\` and launched from there: Windows Firewall asks
+once per program path for a program that listens on the network, and a fixed path per game means one prompt per game
+instead of one per build. A release player opens no socket (measured: no TCP or UDP endpoint), so a release build never
+prompts and needs no Firewall pre-flight. Per run (seed = `-Seed + i`, or random; skill = `-Skill`, or cycling 1.0 /
+0.75 / 0.5 / 0.25):
 
-0. **Wait until the user is away** (default; the user's standing instruction overrides it): no keyboard/mouse input for
-   `-IdleMinutes` (default 5; `GetLastInputInfo`; the game's injected input doesn't count) and the session unlocked.
-   From the start of that wait until the run ends the display is kept on (`SetThreadExecutionState`, like a video
-   player; no settings change). Right before launch the display is also **woken** (a 1-pixel mouse move out and back,
-   outside the game run): the display timeout can equal the idle gate, so when the user went away during a build the
-   display is already off, `SetThreadExecutionState` doesn't turn it back on, and Desktop Duplication delivers no frames
-   (ddagrab hangs, gdigrab gets ~4 fps). An unanswered Windows Firewall prompt dims the whole screen and blocks capture
-   until it is answered. **Idle override:** `builds\_queue\_idle-override.txt` (JSON `{idle_minutes, reason}`, written
-   by the coordinator once the recorder is here) replaces the default when `-IdleMinutes` isn't given; `idle_minutes`
-   0 = record right away. It is standing (the user's "record now" instruction) unless it has `"one_drain": true`, which
-   the drainer retires when the queue empties. The privacy guard and the display wake apply either way. Before
-   launching, it also waits while more than 4096 MB of VRAM is in use (nvidia-smi total; per-process numbers are N/A
-   under WDDM); after 120 min the run fails.
-1. Launch the player from `_run\` with the contract's flags (autoplay-contract.md section 1) plus `-goTimeout 300`,
-   windowed 1920x1080, `-logFile <raw>\game.log`.
-2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (whether a Unity player
-   re-centres its window after launch is to be checked), make it topmost (not activated), check the client
-   area is exactly 1920x1080 and fully on screen (physical pixels; the recorder is per-monitor DPI aware). If anything
-   covers it (e.g. a first-run Firewall prompt), wait up to 240 s for it to clear.
+0. **Wait until the user is away** (default; the user's standing instruction overrides it, see below): no
+   keyboard/mouse input for `-IdleMinutes` (default 5; `GetLastInputInfo`; the bot's Input System events don't count)
+   and the session unlocked. From the start of that wait until the run ends the display is kept on
+   (`SetThreadExecutionState`, like a video player; no settings change). Right before launch the display is also
+   **woken** (a 1-pixel mouse move out and back, outside the game run): the display timeout can equal the idle gate,
+   so when the user went away during a build the display is already off, `SetThreadExecutionState` doesn't turn it
+   back on, and Desktop Duplication delivers no frames (ddagrab hangs, gdigrab gets ~4 fps). The wake counts as input,
+   so the next run's idle wait starts from it. An unanswered Windows Firewall prompt dims the whole screen and blocks
+   capture until it is answered. **Idle override:** `builds\_queue\_idle-override.txt` (JSON `{idle_minutes, reason}`,
+   written by the coordinator) replaces the default when `-IdleMinutes` isn't given; `idle_minutes` 0 = record right
+   away. It is standing (the user's "record now" instruction) unless it has `"one_drain": true`, which the drainer
+   retires when the queue empties. The privacy guard and the display wake apply either way.
+1. Launch `_run\Windows\<Project>.exe` with the contract's flags (autoplay-contract.md section 1): `-autoplay
+   -scenario <n> -seed <s> -skill <s> -outputDir <bundle>\raw -maxSeconds <n> -buildCommit <sha> -runId <id>
+   -goTimeout 300 -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -logFile <bundle>\raw\game.log`, plus
+   `-ExtraArgs` (the drop-in's `-autoplayQuality <level>`, `-autoplayMute`). Background Unity work (batchmode editors,
+   shader compilers, the build backend, IL2CPP) is lowered to below-normal for the run and put back after it. A Unity
+   player saves the `-screen-*` window as its own setting before any script runs (the `Screenmanager` values under
+   `HKCU\Software\<company>\<product>`), so after a recording that game's player starts 1920x1080 windowed, as it does
+   after `Scripts/unity.ps1 play -Render` at 1280x720; the recorder leaves the setting so (every start with `-screen-*`
+   flags overrides it), and a start with `-screen-fullscreen 1` puts a full-screen window back.
+2. Wait for `ready.json`, find the window by PID (class `UnityWndClass`, titled with the product name), centre its
+   client area on the primary screen (on a 1920x1200 display at (0, 60)), make it topmost (not activated), check the
+   client area is exactly 1920x1080 and fully on screen (physical pixels; the recorder is per-monitor DPI aware, and so
+   is a Unity player: measured at 125 % scaling, its client was 1920x1080 physical pixels). If anything covers it (e.g.
+   a Firewall prompt), wait up to 240 s for it to clear.
 3. Start ffmpeg on that screen rectangle, wait for 30 captured frames, write `go`. Each capture attempt has its own
-   files (`video.<mode>.mkv`, `raw\ffmpeg-<mode>.log`); a failed attempt is kept as `raw\failed-attempt-<mode>.mkv`.
-4. Watch every 100 ms until `outcome.json` appears (written while the result screen is still up).
-   **Privacy guard:** if the window moves, or another window covers its client area for ≥ 0.3 s (5x5 point test with
-   `WindowFromPoint`; shorter blips are tooltips/ghost windows), ffmpeg is stopped at once, the game killed, the run
-   failed, and the video cut to 0.5 s before the first sighting (`-c copy -t`). The problem names the covering window;
-   moves are logged in `raw\window.jsonl` with whether a mouse button was held (user drag). A client-size change or a
-   minimized window also fails the run. **Stop ffmpeg before the window closes** (so nothing behind it is ever
-   captured), wait for the game to quit. Kill after `maxSeconds + 90 s`.
+   files (`video.<mode>.mkv`, `raw\ffmpeg-<mode>.log`, `raw\ffmpeg_progress-<mode>.txt`); a failed attempt is kept as
+   `raw\failed-attempt-<mode>.mkv`.
+4. Watch every 100 ms until `outcome.json` appears. **Privacy guard:** if the window moves, or another window covers
+   its client area for â‰¥ 0.3 s (5x5 point test with `WindowFromPoint`; shorter blips are tooltips/ghost windows),
+   ffmpeg is stopped at once, the game killed, the run failed, and the video cut to 0.5 s before the first sighting
+   (`-c copy -t`). The problem names the covering window; moves are logged in `raw\window.jsonl` with whether a mouse
+   button was held (user drag). A client-size change or a minimized window also fails the run, and so does a game
+   that exits before writing `outcome.json` (its video is cut 0.5 s before that was seen, like the guard's). **Stop
+   ffmpeg, then let the window close:** ffmpeg is stopped as soon as `outcome.json` is there, then the game is given
+   60 s to quit (the drop-in ends its process at once after `outcome.json` and `clock.json`, with no engine shutdown,
+   but that took up to 16 s beside a compiling editor); it is killed after `-MaxSeconds + 90 s`. The window is gone
+   before ffmpeg has stopped, and a window that closes fades out over about 117 ms (measured: a run's last 7 frames
+   showed one fading into what was behind it), so every normal run's video ends at the game's own `end` clock sample,
+   which the drop-in takes before it ends: nothing behind the window reaches the video.
 5. Validate and write the bundle (below), even for failed runs.
 
 ### Capture
 
-Not available yet (the recorder runs it); the pinned ffmpeg is here today. ffmpeg: gyan.dev
-`ffmpeg-8.1.2-full_build.7z` in `%UGF_ROOT%\tools\ffmpeg-8.1.2\ffmpeg-8.1.2-full_build\bin\`, SHA-256
-`0fff188997a499b5382e0f66e845d4556c48c54f0113ebed4853d556dbdd7059` (`machine/get-ffmpeg.ps1` fetches and verifies it).
-Desktop Duplication (`ddagrab`) of the window's client rectangle, **event-driven**, no mouse cursor, converted to 60
-fps CFR. With NVENC (needs NVIDIA driver ≥ 610) the D3D11 frames go straight to the encoder:
+ffmpeg: pinned to gyan.dev `ffmpeg-8.1.2-full_build.7z` in `%UGF_ROOT%\tools\ffmpeg-8.1.2\ffmpeg-8.1.2-full_build\bin\`,
+SHA-256 `0fff188997a499b5382e0f66e845d4556c48c54f0113ebed4853d556dbdd7059` (`machine/get-ffmpeg.ps1` fetches and
+verifies it; env `UGF_FFMPEG` overrides it; without either, an ffmpeg on PATH or the winget `Gyan.FFmpeg` package is
+used). Desktop Duplication (`ddagrab`) of the window's client rectangle, **event-driven**, no mouse cursor, converted
+to 60 fps CFR. With NVENC (needs NVIDIA driver â‰¥ 610) the D3D11 frames go straight to the encoder:
 
 ```
-ffmpeg -hide_banner -loglevel +datetime+level+info -stats_period 1 -progress <raw>\ffmpeg_progress.txt -y
+ffmpeg -hide_banner -loglevel +datetime+level+info -stats_period 1 -progress <raw>\ffmpeg_progress-ddagrab.txt -y
   -f lavfi -i "ddagrab=output_idx=0:framerate=240:dup_frames=0:offset_x=<x>:offset_y=<y>:video_size=1920x1080:draw_mouse=0,showinfo"
   -c:v h264_nvenc -preset p5 -tune hq -rc vbr -cq 19 -b:v 0 -maxrate 60M -bufsize 120M -g 120 -bf 0
-  -color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv -fps_mode cfr -r 60 -an <bundle>\video.mkv
+  -color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv -fps_mode cfr -r 60 -an <bundle>\video.ddagrab.mkv
 ```
 
 Why `framerate=240:dup_frames=0` and not `framerate=60`: ddagrab paces itself with `av_usleep`, which on Windows is
 `Sleep()` at the default 15.6 ms timer resolution (since Windows 10 2004 a process only gets 1 ms if it asks for it
-itself, and ffmpeg doesn't). At `framerate=60` that produced frames at 15.6/31 ms intervals, 57 fps, 5–7 % CFR
+itself, and ffmpeg doesn't). At `framerate=60` that produced frames at 15.6/31 ms intervals, 57 fps, 5â€“7 % CFR
 duplicates. With `dup_frames=0` and a rate above the display's, the pacing loop never sleeps and ddagrab waits inside
 `AcquireNextFrame` for each new desktop image (timestamped when acquired); `-fps_mode cfr -r 60` then keeps the latest
 image per 1/60 s slot. ffmpeg's `drop=` count is just these surplus samples; `dup=` counts slots without a new image.
 
-**Encoder.** The recorder probes at start and uses the first that opens: `h264_nvenc` (NVIDIA), `h264_amf` (AMD,
+**Encoder.** `record.ps1` probes at start and uses the first that opens: `h264_nvenc` (NVIDIA), `h264_amf` (AMD,
 e.g. a CPU's integrated Radeon), `libx264` (CPU); `metadata.video.encoder` says which. The pinned ffmpeg 8.1.2 needs
-NVENC API 13.1, i.e. NVIDIA driver ≥ 610; with an older driver it fails ("Required: 13.1 Found: 13.0") and recordings
+NVENC API 13.1, i.e. NVIDIA driver â‰¥ 610; with an older driver it fails ("Required: 13.1 Found: 13.0") and recordings
 use AMF. `h264_mf` does not work. AMF and libx264 take system-memory frames, so `fps=60` picks the 60 fps grid on the
 GPU frames first and only those are downloaded and converted (BT.709 matrix, limited range):
 
@@ -244,27 +306,40 @@ GPU frames first and only those are downloaded and converted (BT.709 matrix, lim
 ```
 
 The libx264 variant is the same with `format=yuv420p` and `-c:v libx264 -preset ultrafast -crf 17 -g 120 -bf 0
--pix_fmt yuv420p` (`veryfast` only reached 0.977x on the shared CPU). Fallbacks (`-Capture`), as measured
+-pix_fmt yuv420p` (`veryfast` only reached 0.977x on a shared CPU). Fallbacks (`-Capture`), as measured
 on earlier games: `gdigrab-region` captures real content but only ~44 fps (24 % duplicates), `gdigrab-window` ~56 fps (8 %
 duplicates, 23 % gap time); both fail validation, so they are for emergencies. `auto` tries ddagrab, then (after waking
 the display) ddagrab once more, then gfxcapture, and gdigrab-region last, each only if the one before got fewer than 30
 frames in 10 s; each failed attempt is logged with its frame count, whether ffmpeg hung or exited (exit code) and the
 tail of its log. `gfxcapture` (Windows.Graphics.Capture of the game window by `hwnd`, ffmpeg 8's `gfxcapture` filter,
 max 120 fps, then the same `fps=60` CFR + NVENC path) records only the game window, so other windows never reach the
-video, and it needs no live display (a PC reached over remote desktop whose monitor is off); its showinfo pts are in
-1/10^7 s, not µs: read the unit from showinfo's `config in time_base` line (misread, it looked like 2–6 frames/s and
-broke the start estimate). If the game window stays covered for 240 s before capture, `auto` skips the screen-region
-modes and uses gfxcapture.
+video and the privacy guard does not apply; the window is still made topmost and brought to the foreground (a
+synthetic Alt tap lifts the foreground lock). It needs no live display (a PC reached over remote desktop whose monitor
+is off); its showinfo pts are in 1/10^7 s, not Âµs: `record.ps1` reads the unit from showinfo's `config in time_base`
+line (misread, it looked like 2â€“6 frames/s and broke the start estimate). If the game window stays covered for 240 s
+before capture, `auto` skips the screen-region modes and uses gfxcapture.
 
 Display: run it at a multiple of 60 Hz (e.g. 120 Hz) for recording sessions; with vsync off the game's frames reach the
 screen on the display's refresh grid, and a 60 Hz capture repeats some and misses some otherwise (measured
-on earlier games: 13 % at 159 Hz, 7 % at 120 Hz on the AMF path, 0.3–1.1 % with NVENC). The recorder logs
+on earlier games: 13 % at 159 Hz, 7 % at 120 Hz on the AMF path, 0.3â€“1.1 % with NVENC). The recorder logs
 `machine.display_refresh_hz` and warns (does not fail) when the rate is not a multiple of 60; `machine/check.ps1` checks
-it today.
+it too.
+
+### Measured
+
+On this machine (RTX 5060 Laptop, driver 617, NVENC; one 1920x1200 display at 125 % scaling and 144 Hz), a template
+game's IL2CPP release player (Direct3D 12) with the AutoPlay drop-in, its bot and sync markers (`sync-check.ps1`),
+recorded from the queue:
+
+| | Result |
+|---|---|
+| Output | 1920x1080 H.264 Main yuv420p, 60/1 CFR, 0.59 % duplicated slots, duration within 8 ms of the span to the cut; the game at 59.95 fps |
+| Capture input | 60 desktop images/s during the scenario; gaps > 25 ms 0.08 % of frames |
+| Video lag | a game event shows on video 7.8 ms (âˆ’2.3â€“12.8) after its `t_ns` (the frame's slot on the 60 fps grid, so within a frame either way): game â†’ present â†’ DWM â†’ capture. `video_start_offset_ns` is the capture clock and does **not** subtract this. With `gfxcapture` a window's frames came 23 ms after its events |
+| Game frame cadence | frame-code strip over 1202 frames: 0 repeated, 0 skipped game frames, at 144 Hz |
+| Audio | 1033 buffers, no stall, 15 ms at most from the median anchor; a sound sits 10 ms (4â€“30 ms) before its `t_ns` in `system_audio`, since the drop-in stamps a buffer with its arrival less its length, so in `gameplay.mp4` the sound leads the picture by about 18 ms |
 
 ### Bundle
-
-Not available yet (the recorder writes it):
 
 ```
 recordings\<slug>\<slug>_S<scenario>_<yyyyMMdd-HHmmss>_s<seed>\
@@ -273,96 +348,130 @@ recordings\<slug>\<slug>_S<scenario>_<yyyyMMdd-HHmmss>_s<seed>\
   inputs.jsonl        as written by the game (autoplay-contract.md section 5)
   telemetry.jsonl     as written by the game
   outcome.json        as written by the game
-  metadata.json       game, scenario, scenario_name, seed, skill, result, build sha, ffmpeg command + version, capture rect,
-                      video_start_offset_ns (+ estimate details), system_audio.start_offset_ns,
-                      clock samples (game: start/go/audio_start/audio_stop/end; pipeline: record_start,
-                      capture_start, go_written, capture_stopped, record_end)
-  validation.json     status ok | warn | failed, problems, warnings, per-check details
-  manifest.json       sha256 + bytes of every file in the bundle (incl. raw\ and stills\)
+  metadata.json       schema unity-autoplay-bundle/v1: game, scenario, scenario_name, seed, skill, result, score, build
+                      {commit, short_sha, config, backend, unity_version, path, exe, autoplay_version}, ffmpeg command +
+                      version, encoder, capture mode and rect, video_start_offset_ns (+ estimate details), video.cut
+                      (where the video was cut and why), system_audio {start_offset_ns, aligned, clock, stats}, clock
+                      samples (game: start/go/audio_start/audio_stop/end; pipeline: record_start, capture_start_<mode>,
+                      go_written, capture_stopped, record_end), machine (cpu, gpu, display, display_refresh_hz),
+                      capture_notes, stills, gameplay_mp4, status
+  validation.json     status ok | warn | failed, problems, warnings, per-check details (below)
+  manifest.json       schema manifest/v1: sha256 + bytes of every file in the bundle (incl. raw\ and stills\)
   stills\NN.jpg       8 evenly spaced frames (t = duration * i / 9) for README screenshots, runs with status ok / warn
                       only; CPU decode with the pinned ffmpeg (-ss before -i, -frames:v 1, -q:v 2); also copied to
                       recordings\<slug>\_stills\<run_id>_NN.jpg; metadata.json `stills` lists them. A failed extraction
                       is logged and recorded in `stills.error`; it never changes the run's status.
   gameplay.mp4        the dataset's Gameplay/ file (packaged as <slug>_S<n>.mp4), runs with status ok / warn only:
                       video.mkv's H.264 stream copied (1080p60, no re-encode) + system_audio.mka as AAC 192k stereo,
-                      aligned on the QPC clock: offset = system_audio.start_offset_ns (from audio_clock.jsonl)
-                      − video_start_offset_ns, applied with adelay (audio later) or atrim (earlier), then apad +
+                      aligned on the QPC clock: offset = system_audio.start_offset_ns (the median over
+                      audio_clock.jsonl's rows of t_ns - frame / rate: its first buffers come in a burst)
+                      âˆ’ video_start_offset_ns, applied with adelay (audio later) or atrim (earlier), then apad +
                       -shortest to the video's end; +faststart. CPU only, below-normal priority. Checked with ffprobe
                       (h264 + aac, duration within 0.5 s of video.mkv). metadata.json `gameplay_mp4` {audio_offset_s,
                       duration_s, bytes, error}; a failure is logged there and never changes the run's status.
   FAILED              only on failed runs (problems listed); failed runs are kept, never deleted
   INVALID             excluded from the dataset after the fact (reason inside), e.g. recorded from a broken build;
-                      validation.json status "invalid" and a runs.jsonl row; files kept
+                      written by mark-invalid.ps1, which also sets validation.json status "invalid" and adds a
+                      runs.jsonl row; files kept
   raw\                the game's outputDir: audio.wav, audio_clock.jsonl, clock.json, ready.json, go, game.log,
-                      ffmpeg.log, ffmpeg_progress.txt
+                      watchdog.json (when its watchdog fired), window.jsonl (moves), ffmpeg-<mode>.log,
+                      ffmpeg_progress-<mode>.txt
 ```
 
 `video.mkv` is H.264, 60 fps, no audio; `inputs.jsonl` has ns QPC timestamps; there is no microphone track (a bot has
-no voice). `video_start_offset_ns` is the capture clock's and does **not** subtract the way from game to screen (game
-thread → render thread → GPU → present → DWM → capture: a game event showed on video 14–29 ms after its `t_ns` with
-NVENC on earlier games).
+no voice). `runs.jsonl` row (schema `unity-run/v1`): `run_id`, `game`, `scenario`, `scenario_name`, `seed`, `skill`,
+`build_commit`, `build_path`, `status`, `result`, `score`, `duration_s`, `start`/`end`/`wall_s`, `capture`,
+`video_start_offset_ns`, `dup_pct`, `problems`, `warnings`, `bundle`; `mark-invalid.ps1` adds `{event: "invalidated",
+run_id, time, reason, status_before, bundle}` rows.
 
 ### Validation (per run)
-
-Not available yet (the run checker):
 
 | Check | Fails when | Warns when |
 |---|---|---|
 | outcome | missing, bad `result`, `go_timed_out` | result `abort` |
 | inputs | no `inject` rows, unparseable lines, `t_ns` going backwards | |
 | telemetry | missing `run_start`/`scenario_start`/`scenario_end`/`run_end`, unparseable lines | |
-| audio | missing, or WAV duration doesn't fit the recorded span (start lag outside −30…10000 ms; the lag is the scenario load) | silent (max < −60 dB) |
-| video | not 1920x1080, no frames, ffmpeg dup > 5 % of output frames, video longer than the capture span by ≥ 0.5 s or shorter by ≥ 2 s, doesn't cover the scenario (start..end), start time not estimable | dup > 1 %, capture gaps > 2 % of scenario frames, game < 55 fps, video ends 0.5–2 s before the stop, display not 60/120 Hz |
-| process | game exit code ≠ 0, killed at timeout, window moved, ffmpeg died | |
+| audio | missing, or not aligned: `audio_clock.jsonl` drift over 250 ms or a WAV whose length differs from the span its rows cover by more than 0.25 s (without `audio_clock.jsonl`: anchored at the `audio_stop` sample, start lag outside âˆ’30â€¦10000 ms) | silent (max < âˆ’60 dB), stalls filled with silence |
+| video | not 1920x1080, no frames, ffmpeg dup > 5 % of output frames, video longer than the capture span by â‰¥ 0.5 s or shorter by â‰¥ 2 s, doesn't cover the scenario (start..end), start time not estimable | dup > 1 %, capture gaps > 2 % of scenario frames, game < 55 fps (`frames` / `duration_s` of outcome.json), video ends 0.5â€“2 s early, display not a multiple of 60 Hz |
+| process | game exit code â‰  0, killed at timeout, window moved, covered or minimized, game gone before `outcome.json`, ffmpeg died | |
 | watchdog | `watchdog.json` with `reason` `run` | `watchdog.json` with `reason` `shutdown` after a complete run |
+
+`validate-run.ps1 <outputDir>` checks the same files of a run made by hand (no video): every row stamped with `t_ns`,
+`qpc` and `frame`, the inject rows, the four telemetry events (a note when `score` or `state` events are missing), the
+outcome, the five clock samples, `audio.wav` (a note when it is silent) and `audio_clock.jsonl`'s drift; it prints PASS
+or FAIL with the problems and notes and exits 1 on FAIL.
 
 ### Queue
 
-Not available yet (the queue and its drainer); today a session reports what is ready to the coordinator instead.
-
-A pipeline run of a game resolves the commit (default `HEAD`) and the scenarios (default 1..n from the newest
+`pipeline.ps1 <game>` resolves the commit (default HEAD) and the scenarios (default 1..n from the newest
 `milestone/autoplay-<n>` tag reachable from it, meaning "scenarios 1..n are ready"), skips scenarios that already have
-enough good runs of that commit (unless forced), then builds and records per scenario. Each step takes the lock itself,
-so other work can interleave between steps.
+`-Runs` good runs (status `ok`/`warn`, not invalidated) of that commit unless `-Force`, then runs `build.ps1` and
+`record.ps1` per scenario. Each step takes the lock itself, so other work can interleave between steps. `-Runs`
+defaults to 1: one recorded run per scenario is enough (AGENTS.md, "Priorities").
 
-**Queueing (the coordinator owns the queue).** Game sessions never enqueue; once the queue is here they ask the
-coordinating session, and until then they only report what is ready. The queue tool refuses (exit 2, red message,
-nothing queued) unless the request says the coordinator made it, and records who did. It returns at once; one hidden
-drainer works through `builds\_queue\*.json` in file-name order (the coordinator reorders by renaming; a request being
-processed must not be renamed). Dropping a queued request: move it to `builds\_queue\done\` with a `result` note
-(status `dropped`). The drainer holds the recordings' GPU flag for each whole job (from its first build step to the
-end of its last run) and removes it when the queue is empty.
+**Queueing (the coordinator owns the queue).** Game sessions never enqueue; they send the coordinator what is ready
+(commit sha, tag, scenarios, `validate-run.ps1` result, screenshot paths). `enqueue.ps1` refuses (exit 2, red message,
+nothing queued) unless `-RequestedBy coordinator`; `-Force` overrides and the request still records its
+`requested_by`. It pins the commit and checks `-MaxSeconds` before it writes, returns at once, and starts the one
+hidden drainer (`pipeline.ps1 -DrainQueue`, transcript in `builds\_logs\queue-<time>.log`), which works through
+`builds\_queue\*.json` in file-name order (the coordinator reorders by renaming; a request being processed must not be
+renamed):
+
+```
+powershell -ExecutionPolicy Bypass -File %UGF_ROOT%\unity-game-factory\tools\unity-pipeline\enqueue.ps1 <game> -Scenarios 1,2 -RequestedBy coordinator
+```
+
+`builds\_queue\_paused.txt` (e.g. "stop recording" from the user) pauses it: no job starts, requests wait, and a new
+request does not start a drainer. Dropping a queued request: move it to `builds\_queue\done\` with a `result` note
+(status `dropped`). The drainer re-reads `build.ps1` and `record.ps1` for every job and hands over to a fresh drainer
+between jobs when `pipeline.ps1` or `common.ps1` changed.
 
 AutoPlay time limit: 600 s per run by default (the game gets `-maxSeconds`, the recorder kills it 90 s later), per
 scenario as `1=300,2=600,3=900` (unlisted ones keep 600; `*=700` changes the rest) or one value for every scenario;
 values 30..7200. The request stores it as `max_seconds`, and the job's `pipeline.jsonl` row lists the limit used per
-scenario.
+scenario. A machine without IL2CPP's C++ tools records a Mono release player: `-Backend mono` (stored as `backend`).
 
-**A game that is GPU-bound at its default quality** (coordinator rule 2026-10-18: the GPU 3D
-engine above ~95 % with the game under ~55 fps, so the capture fails on duplicated frames) is recorded one quality level
-lower and says so: the note goes to the run's `metadata.json` (`capture_notes`), then to the dataset's manifest
-(`scenarios[].capture_notes`) and a "Recording note" line under the README's Scenarios table. Nothing else changes (no
-game repo edit, no bot change, same validation).
+**A game that is GPU-bound at its default quality** (coordinator rule 2026-10-18: the GPU 3D engine above ~95 % with
+the game under ~55 fps, so the capture fails on duplicated frames) is recorded one quality level lower and says so:
+`record.ps1 ... -ExtraArgs "-autoplayQuality <level>" -CaptureNote "<level> quality for 60 fps capture"` (the drop-in's
+flag; a level's index or name). The note goes to the run's `metadata.json` (`extra_args`, `capture_notes`), then to the
+dataset's manifest (`scenarios[].capture_notes`) and a "Recording note" line under the README's Scenarios table.
+Nothing else changes (no game repo edit, no bot change, same validation).
 
-Results: `.recording\<slug>\pipeline.jsonl` (summary), `runs.jsonl`, `builds\_queue\done\<request>.json`; the job
-summary lists the build's leak-scan hits (warn-only here; the packager blocks on them). No nightly run: runs are queued
-on demand (the user's decision).
+Results: `.recording\<slug>\pipeline.jsonl` (schema `unity-pipeline/v1`: commit, scenarios, the time limit per
+scenario, build {status, short_sha, output, backend, autoplay_version, leak_scan_hits}, runs[] {run_id, scenario,
+status, result}, status `ok` / `partial` / `failed` / `skipped`, note), `runs.jsonl`,
+`builds\_queue\done\<request>.json`.
+The job summary's `build.leak_scan_hits` lists the build's leak-scan hits (`[]` = clean); warn-only here, the packager
+blocks on them. If the session is locked (`LogonUI` running), recording is skipped and the row says so. There is no
+nightly run: runs are queued on demand (the user's decision).
+
+### Games started before the pipeline
+
+A game made from any version of the template is built as it is: `build.ps1` needs only the game's
+`Assets/Editor/Tools/BuildPlayer.cs`, which every template game has had, with the same `-buildOut` and `-backend`
+arguments, since the first template; it keeps the clone's `Library\` by name whatever the game's `.gitignore` says,
+and it does not use the game's `Scripts/unity.ps1`. Recording needs the AutoPlay drop-in in the game, which
+`tools/unity-pipeline/autoplay/install.ps1 -Game <root>\games\<slug>` adds (its own commit and `workflow.jsonl` row;
+autoplay-contract.md), and the game's own scenario wiring and bot: a game made from an earlier template than today's
+got the drop-in that way, was wired, built and recorded from the queue. Changes to `machine/` reach a machine when it
+pulls this repo and runs `machine/bootstrap.ps1` again (`ugb` and its folders, the installed limiter); the pipeline's
+scripts run from the checkout, so a pull is enough for them.
 
 ### Machine notes and open items
 
-Not available yet (they apply once the recorder runs):
-
-- Any display and scaling that holds a 1920x1080 window should work: a Unity player declares per-monitor DPI awareness
-  (PerMonitorV2 in its exe's manifest, Mono and IL2CPP players of 6000.3 built from the template), so its 1920x1080
-  should be physical pixels at any scaling (the window itself to check; a DPI-unaware game is
-  stretched, e.g. to 2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
-- The game window sits topmost with its 1920x1080 client area on the primary screen for the run. Runs start only after
-  5 min without user input; if you come back mid-run, leave the window alone (moving or covering it stops the run
-  safely). Its audio plays on the speakers during runs.
+- Any display and scaling that holds a 1920x1080 window works: a Unity player is per-monitor DPI aware, so its
+  1920x1080 client is physical pixels at any scaling (measured at 125 %). Vsync off and a 60 fps cap in the game
+  (the drop-in sets both) keep it at 60 fps whatever the refresh.
+- The game window sits topmost with its 1920x1080 client area centred on the primary screen for the run. Runs start
+  only after 5 min without user input; if you come back mid-run, leave the window alone (moving or covering it stops
+  the run safely). Its audio plays on the speakers during runs (`-ExtraArgs -autoplayMute` keeps them silent;
+  `audio.wav` is still whole).
 - **Machine-path scrub before bundles leave the machine** (an open item). Bundles
   carry machine paths and the user name: `metadata.json` (build path, exe, ffmpeg command), `raw\game.log`,
-  `raw\ffmpeg.log`, `raw\ready.json`. Per AGENTS.md (leak scan for `C:\Users\…`, real names, e-mails), a publish step
-  must rewrite or drop these and re-hash `manifest.json` before any upload.
+  `raw\ffmpeg-<mode>.log`, `raw\ready.json`. Per AGENTS.md (leak scan for `C:\Users\â€¦`, real names, e-mails), a
+  publish step must rewrite or drop these and re-hash `manifest.json` before any upload; the dataset itself takes only
+  `gameplay.mp4`.
 
 ## Creation replay
 
@@ -442,10 +551,13 @@ library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_packa
 User's rule: the names **Superposition**, **game-factory** and **unity-game-factory** (case-insensitive, incl.
 `game_factory`/`gamefactory`) must not appear in a game (repo files, code, commit messages, builds, logs, in-game files,
 anything passed to the game process), and agent, model and provider names stay out too (unity-game-session skill,
-"Names"). Recording/workflow traces are fine and `workflow.jsonl` stays in the game repos. Today
-`templates/new-game.ps1` refuses the names in what it writes and `tools/validate-game.py` checks a repo's tracked text
-for them and for the account name.
+"Names"). Recording/workflow traces are fine and `workflow.jsonl` stays in the game repos. `templates/new-game.ps1`
+refuses the names in what it writes, `tools/validate-game.py` checks a repo's tracked text for them and for the
+account name, and `build.ps1`'s leak scan checks every file of a release build for them, the account name in paths and
+`openai`.
 
-- The flags the recorder will pass to the game (autoplay-contract.md section 1) and the paths under
-  `%UGF_ROOT%\recordings\` and `builds\` contain none of the names.
-- The pipeline's own files (`.recording\*.jsonl`, bundle `metadata.json`, docs) may name things freely.
+- The flags the recorder passes to the game (`-autoplay -scenario -seed -skill -outputDir -maxSeconds -buildCommit
+  -runId -goTimeout`, Unity's `-screen-*` and `-logFile`, autoplay-contract.md section 1) and the paths under
+  `%UGF_ROOT%\recordings\`, `builds\` and `<ugb>\` contain none of the names.
+- The pipeline's own files (`.recording\*.jsonl`, `build_info.json`, bundle `metadata.json`, docs) may name things
+  freely.

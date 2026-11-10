@@ -7,9 +7,9 @@
      unity_version, and the job slots heavy_slots / gpu_slots computed from the hardware by lib\ugf-root.ps1
      Get-UGFComputedSlots, recorded in slots_auto; values set by hand stay unless -Force) and creates the UnityWork
      layout under the root (games, tasks, builds\_queue, builds\_logs, recordings, .recording, deliverables,
-     asset-library, tools; builds, recordings and deliverables wait for the recording pipeline and the packagers, which
-     are not available yet) plus <ugb>\src and <ugb>\tmp (the release builds' private clones and their temp folder,
-     outside the user profile so the user name is not compiled into a player).
+     asset-library, tools; builds and recordings are the recording pipeline's, docs\unity-pipeline.md; nothing writes to
+     deliverables yet) plus <ugb>\src and <ugb>\tmp (the release builds' private clones and their temp folder, outside
+     the user profile so the user name is not compiled into a player).
   2. Tools: <root>\tools\unity-heavy.ps1 (+ ugf-root.ps1) and the pinned ffmpeg
      (machine\get-ffmpeg.ps1, downloaded and SHA-256 verified, never committed).
   3. Coding agents (-Agent claude|codex|both; default: the config's "agents", else the ones installed, else both;

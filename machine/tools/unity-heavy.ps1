@@ -24,9 +24,9 @@
 # - VRAM guard: a GPU job starts only while the GPU's used VRAM is under "gpu_vram_limit_mb" (default half the VRAM) and
 #   no other GPU job that still runs started in the last 60 s (a new renderer's VRAM shows only once it has loaded);
 #   otherwise it gives the slot back and looks again every 30 s (logged as vram_wait).
-# - Recordings are exclusive: a recorder takes every GPU slot (the other factory's; this factory's recorder is not
-#   available yet), and while one waits (builds\_queue\_recording-wants-gpu fresh, in either factory's root) new GPU
-#   jobs hold back or hand their slot back.
+# - Recordings are exclusive: a recorder takes every GPU slot (tools/unity-pipeline/common.ps1 Enter-GpuSlot -Recording,
+#   or the other factory's recorder), and while one waits (builds\_queue\_recording-wants-gpu fresh, in either
+#   factory's root) new GPU jobs hold back or hand their slot back.
 # - -Low (background work): one low job machine-wide; it takes a general slot only while no other job waits for one and
 #   another slot stays free; its process runs below normal priority.
 [CmdletBinding(PositionalBinding = $false)]

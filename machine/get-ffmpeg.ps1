@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Download, checksum-verify and unpack the pinned ffmpeg the sound tools use (idempotent).
+  Download, checksum-verify and unpack the pinned ffmpeg the recording pipeline and the sound tools use (idempotent).
 .DESCRIPTION
   Pinned build: gyan.dev ffmpeg 8.1.2 "full_build" .7z (166,721,853 bytes, SHA-256 below, matching gyan.dev's
-  published .7z.sha256). Result: <root>\tools\ffmpeg-8.1.2\ffmpeg-8.1.2-full_build\bin\ffmpeg.exe, which tools/sfx.py
-  prefers over anything on PATH (and the recording pipeline will, which is not available yet). Binaries are never
+  published .7z.sha256). Result: <root>\tools\ffmpeg-8.1.2\ffmpeg-8.1.2-full_build\bin\ffmpeg.exe, which
+  tools/unity-pipeline/common.ps1 (Find-FFmpeg) and tools/sfx.py prefer over anything on PATH. Binaries are never
   committed.
   The archive is kept next to the folder with a .sha256 file. A download whose hash does
   not match is deleted and the script fails; nothing from it is unpacked or run.

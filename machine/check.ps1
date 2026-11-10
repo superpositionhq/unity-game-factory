@@ -4,9 +4,10 @@
 .DESCRIPTION
   Toolchain: Unity Hub and a Unity licence, the Unity 6.3 LTS editor new games use (the config's unity_version) with
   Windows Build Support (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN
-  only: Mono builds need none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what the
-  recorder will need; it is not available yet): NVIDIA driver (NVENC with the pinned ffmpeg), refresh rate, display
-  sleep off, the pinned ffmpeg (tools/sfx.py uses it today). Space: free disk on the root's drive. Content: the asset
+  only: Mono builds need none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what
+  tools/unity-pipeline/record.ps1 needs; WARN only: a machine that does not record needs none): NVIDIA driver (NVENC
+  with the pinned ffmpeg), the primary display, refresh rate, display sleep off, the pinned ffmpeg (tools/sfx.py uses it
+  too). Space: free disk on the root's drive. Content: the asset
   library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
   installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
   recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
@@ -144,20 +145,20 @@ Try-Check 'Python' {
 # --- recording hardware / display ------------------------------------------------------------------------------------
 Try-Check "NVIDIA driver >= $MinDriver" {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if (-not $smi) { Add-Result WARN "NVIDIA driver >= $MinDriver" 'nvidia-smi not found (no NVIDIA GPU/driver)' 'only for the recorder, which is not available yet: it will prefer NVENC and without it fall back to the CPU (slower)'; return }
+    if (-not $smi) { Add-Result WARN "NVIDIA driver >= $MinDriver" 'nvidia-smi not found (no NVIDIA GPU/driver)' 'only for recording: record.ps1 prefers NVENC and without it falls back to AMF, then libx264 on the CPU (slower)'; return }
     $r = Run $smi.Source @('--query-gpu=name,driver_version,memory.total', '--format=csv,noheader')
     $first = ($r.out -split "`n")[0]
     $parts = $first -split ',\s*'
     $drv = [double]($parts[1] -replace '[^\d.]', '')
     if ($drv -ge $MinDriver) { Add-Result PASS "NVIDIA driver >= $MinDriver" $first }
-    else { Add-Result WARN "NVIDIA driver >= $MinDriver" $first "only for the recorder, which is not available yet: update the driver (the pinned ffmpeg 8.1.2 NVENC needs >= 610)" }
+    else { Add-Result WARN "NVIDIA driver >= $MinDriver" $first "only for recording: update the driver (the pinned ffmpeg 8.1.2 NVENC needs >= 610; older ones record with AMF or the CPU)" }
 }
 Try-Check 'Primary display' {
     Add-Type -Namespace UgfCheck -Name Metrics -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int i); [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
     [void][UgfCheck.Metrics]::SetProcessDPIAware()   # physical pixels, as a desktop capture sees them
     $w = [UgfCheck.Metrics]::GetSystemMetrics(0); $h = [UgfCheck.Metrics]::GetSystemMetrics(1)
     if ($w -ge 1920 -and $h -ge 1080) { Add-Result PASS 'Primary display' "${w}x${h} (holds a 1920x1080 player window)" }
-    else { Add-Result WARN 'Primary display' "${w}x${h}" 'only for the recorder, which is not available yet and will show a 1920x1080 player window on the primary display: use a display (and scaling) of at least 1920x1080' }
+    else { Add-Result WARN 'Primary display' "${w}x${h}" 'only for recording: record.ps1 centres a 1920x1080 player window on the primary display: use a display (and scaling) of at least 1920x1080' }
 }
 Try-Check 'Display refresh rate' {
     $rates = @(Get-CimInstance Win32_VideoController | Where-Object { $_.CurrentRefreshRate } | ForEach-Object { "$($_.Name): $($_.CurrentHorizontalResolution)x$($_.CurrentVerticalResolution) @ $($_.CurrentRefreshRate) Hz" })
@@ -165,8 +166,8 @@ Try-Check 'Display refresh rate' {
     # Fractional rates (59.94, 119.88 Hz) are reported rounded down (59, 119): treat them as the 60-multiple they are.
     if ($max -ge 59 -and ($max + 1) % 60 -eq 0) { $rates = @($rates) + "reported $max Hz = a fractional $($max + 1)-class rate (e.g. 59.94), counted as $($max + 1)"; $max = $max + 1 }
     if ($max -ge 60 -and $max % 60 -eq 0) { Add-Result PASS 'Display refresh rate' ($rates -join '; ') }
-    elseif ($max -ge 60) { Add-Result WARN 'Display refresh rate' ($rates -join '; ') 'only for the recorder, which is not available yet and will record 60 fps CFR: pick a multiple of 60 (60/120/240 Hz), or frames repeat/skip (Settings > Display > Advanced display)' }
-    else { Add-Result WARN 'Display refresh rate' $(if ($rates) { $rates -join '; ' } else { 'no active display' }) 'only for the recorder, which is not available yet and will capture the desktop at 60 fps: a display at >= 60 Hz' }
+    elseif ($max -ge 60) { Add-Result WARN 'Display refresh rate' ($rates -join '; ') 'only for recording: recordings are 60 fps CFR: pick a multiple of 60 (60/120/240 Hz) for recording, or frames repeat/skip (Settings > Display > Advanced display)' }
+    else { Add-Result WARN 'Display refresh rate' $(if ($rates) { $rates -join '; ' } else { 'no active display' }) 'only for recording: record.ps1 captures the desktop at 60 fps: a display at >= 60 Hz' }
 }
 function Get-PowerAc([string]$Sub, [string]$Setting) {
     $r = Run powercfg @('/query', 'SCHEME_CURRENT', $Sub, $Setting)

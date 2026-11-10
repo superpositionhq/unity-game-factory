@@ -249,8 +249,8 @@ function Get-UGFOtherFactoryRoot {
 }
 
 # The "a recording waits for the GPU" flags unity-heavy.ps1 honours: ours (<root>\builds\_queue\_recording-wants-gpu,
-# for the recorder, which is not available yet) and the other factory's when one is set up here (its limiter, ue-heavy.ps1,
-# reads only its own). A running recording takes every GPU slot of the machine.
+# written by tools/unity-pipeline/record.ps1 and the queue's drainer) and the other factory's when one is set up here
+# (its limiter, ue-heavy.ps1, reads only its own). A running recording takes every GPU slot of the machine.
 function Get-UGFRecordingFlags {
     $flags = @(Join-Path (Get-UGFRoot) 'builds\_queue\_recording-wants-gpu')
     $other = Get-UGFOtherFactoryRoot
