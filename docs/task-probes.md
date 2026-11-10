@@ -117,8 +117,10 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
       "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to the
       player (the player and its own children left out; of two as near, the first in hierarchy order), on the
-      player's side and level with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else
-      that object. The way to reach a spot each build chooses itself (the ore a fix placed, a door it moved).
+      player's side (in front of the object when the player stands right above it) and level with it, plus `offset`
+      (default none), facing `face` (a point, section 2.13) or else that object (with nothing to face within a
+      centimetre on the ground, it keeps its own yaw). The way to reach a spot each build chooses itself (the ore a
+      fix placed, a door it moved).
       **Level is pivot to pivot**: the player's own position goes to the height of the object's position plus
       `offset`'s y, and nothing then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up,
       `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). **A select matches every
