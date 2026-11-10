@@ -534,16 +534,18 @@ Limits:
 ### 2.7 `light`: light reaching a point, as the engine computes it
 
 `{"probe": "light", "point": <Point>, "field": "illuminance|exposure|brightness", ...}`:
-- `illuminance`: the sum over the Lights that are on of their contribution at the point (point and spot lights by
-  intensity x colour luminance x URP's distance and cone attenuation; directional lights by intensity x colour
-  luminance; the colour linear, its colour temperature applied when used), each with a wall check: a ray from the
-  light to the point (from the point toward a directional light, 2000 m) that any collider stops but a trigger, one
-  on the Ignore Raycast layer, the player's and the Light's own (on its object or under it). The wall check runs for
-  lights with shadows off too, though URP itself lights through walls then. Area lights are skipped (URP only bakes
-  them). Plus the ambient light: the ambient probe's upward value in every mode (flat ambient ignores
-  `ambientIntensity`; gradient ambient is a mix of the sky, equator and ground colours, not the sky colour), times the
-  open share of 9 upward rays (straight up and 8 around it at 45 degrees, 2000 m each, stopped as the wall check is).
-  It is in Unity's own light units, not lux;
+- `illuminance`: the sum over the Lights URP lights with (below) of their contribution at the point (point and spot
+  lights by intensity x colour luminance x URP's distance and cone attenuation; directional lights by intensity x
+  colour luminance; the colour linear, its colour temperature applied when used). A wall stops a Light only where URP
+  draws that Light's shadows: its own shadows on, of a strength above 0, and the URP asset's shadows for its kind (the
+  main light's; point and spot lights'; URP shadows no other directional light). Then a ray from the light to the
+  point (from 2000 m back along a directional light) that a collider stops lets through 1 minus the shadow's strength:
+  any collider but a trigger, one on the Ignore Raycast layer, the player's and the Light's own (on its object or
+  under it); a ray doesn't hit a collider it starts inside, so a housing around a lamp never stops its light. A Light
+  without shadows lights through walls, as in the frame. Plus the ambient light, unshaded by walls (URP doesn't shade
+  it at run time): the baked light probes around the point straight up when the scene has light probes, else the
+  ambient probe's upward value (flat ambient ignores `ambientIntensity`; gradient ambient is a mix of the sky, equator
+  and ground colours, not the sky colour). It is in Unity's own light units, not lux;
 - `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without one (so at a play's
   first sample: section 2.8), or when the camera's post-processing is off. URP has no auto-exposure;
 - `brightness`: `illuminance * exposure`, what the player sees at that point.
@@ -551,7 +553,13 @@ Limits:
 The sample's value also holds the parts of `illuminance` (`local`: point and spot lights, `directional`, `sky`: the
 ambient), `lights` (how many sources lit it) and `point`, for the logs. A point that doesn't resolve: no value.
 
-A Light counts when it is on: enabled, active in the hierarchy, of an intensity above 0 (`grading`'s sun the same).
+A Light counts when URP lights with it at run time: it is on (enabled, active in the hierarchy, of an intensity above
+0; `grading`'s sun the same); it is a directional, point or spot light (URP only bakes area lights); its bake didn't
+store its light (a baked Light's light reaches the point through the light probes; a Light set to Baked but never
+baked, and a Mixed one, light in real time); and the URP asset lights it (the main light when the asset lights it per
+pixel, the others when its additional lights are on). Without URP as the render pipeline the measure still computes
+URP's terms, and the play's `query_errors` says `light <id>: the render pipeline isn't URP: the light is URP's, not
+the frame's`.
 
 It sees no post-processing beyond post exposure (no colour grading, vignette, ambient occlusion, bloom); for what
 reaches the screen, use `screen` (section 2.15). It sees Lights only: whether a lamp is on, whatever lit it (a Light,
