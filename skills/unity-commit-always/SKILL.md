@@ -6,8 +6,8 @@ description: 'Commit discipline for every unity-game-factory session (game build
 # Commit always (Unity)
 
 The git history is the product: a game's `git.log` and `workflow.jsonl` are the creation record the dataset is built
-from, and uncommitted work is invisible to the coordinator, the packager and the pipeline (the packager builds from
-commits; the pipeline, not available yet, will too).
+from, and uncommitted work is invisible to the coordinator, the recording pipeline, the creation replay and the
+packager (they all build from commits).
 The user's standing rule: **every session commits its work continuously.**
 
 ## When
@@ -58,8 +58,8 @@ The user's standing rule: **every session commits its work continuously.**
   edited rows. `python <UGF_ROOT>/unity-game-factory/tools/scrub-workflow-rows.py <repo>` does exactly this (dry run
   first, then `--apply`; it prints the commit message line). Write new rows without such names in the first place
   (relative paths, neutral words). The account name is enforced in every non-script file (workflow.jsonl, configs,
-  docs, data); scripts and editor steps that already ran keep it (never edited; the packager scrubs them in every
-  delivery), new ones use relative paths.
+  `ReplayConfig.json`: `{root}` / `{home}` there, docs, data); scripts and editor steps that already ran keep it
+  (never edited; the packager scrubs them in every delivery), new ones use relative paths.
 - Every editor step that ran stays in `Assets/Editor/Steps/` unchanged (a new step in a new file instead of
   overwriting), so `source.script` + `source.sha256` point at the real code.
 - **Human directions (user rule: "not direct user messages, more like user directions"; "you should rewrite that and
@@ -133,10 +133,12 @@ NavMesh data) gets its own LFS pattern before its first commit.
 
 ## The replay after every commit (game repos)
 
-Not available yet: the creation replay, and with it `ReplayConfig.json` and the post-commit hook's `[replay] ...`
-lines, comes with the recording pipeline; until then nothing replays your commits. Work so that it can (the
-unity-game-session skill, "Replay-friendly work"), and never amend or rebase a commit you already made: the replay has
-to go back and redo everything after it.
+A game is replayed in the background after each commit (docs/unity-replay.md, section 3), unless its
+`ReplayConfig.json` says `"live": false`. The post-commit hook prints `[replay] ...` lines when the last replay found
+something: read them, fix what they name in your next commits (they are about how you work, not about the game), and
+keep `ReplayConfig.json` current (store pack copied in -> `asset_drops`; wrapper of your own -> `run_patterns`; the
+unity-game-session skill, "Replay-friendly work"). Never amend or rebase a commit you already made: the replay has to
+go back and redo everything after it.
 
 ## Push policy
 

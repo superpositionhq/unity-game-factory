@@ -57,8 +57,8 @@ Windows the word `tasks` also names the folder `Tasks/` (the disk ignores case),
 - Never add `Tasks/` (or any task file) to main, never merge or cherry-pick between `tasks` and main, never point
   main's code, docs, README or `workflow.jsonl` at the tasks branch. The validator fails a repo whose main tracks
   anything under `Tasks/` or whose `tasks` branch shares history with main.
-- The recording hooks ignore commits on the `tasks` branch, and the delivered history leaves it out, so committing
-  tasks costs the game's record nothing.
+- The recording hooks and the live creation replay ignore commits on the `tasks` branch, and the delivered history
+  leaves it out, so committing tasks costs the game's record nothing.
 - Seeds (`seed.commit`, `seed.reference`) are commits of main's history (ancestors of main's head) or of the task's
   own start branch `starts/<task name>` (section 2, "Starts on the engine"); pick them in the game checkout
   (`git -C <root>/games/<slug> log`), never on the tasks branch.
