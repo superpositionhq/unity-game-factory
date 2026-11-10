@@ -16,9 +16,9 @@
 # (recording-backfill.json next to this file), and a call already in actions.jsonl is never written twice.
 # On Stop, leftover changes in a game repo are committed ("WIP") so no work stays uncommitted (not while conflicts
 # are unresolved or HEAD is detached: that commit would hold the conflict markers, or land on no branch).
-# Nothing is recorded when UGF_NO_RECORDING (or the Unreal factory's GF_NO_RECORDING) is set: tools/task-try.py sets
+# Nothing is recorded when UGF_NO_RECORDING (or another factory's GF_NO_RECORDING) is set: tools/task-try.py sets
 # both for the agent it runs on a task.
-# The Unreal game-factory's record-action.ps1 may run on the same calls (same agent settings): each factory maps only
+# Another factory's record-action.ps1 may run on the same calls (same agent settings): each factory maps only
 # paths under its own root and keeps its own session map, so a session is recorded by the factory whose root its calls
 # name (by both, if they name both).
 # <root> = the machine root (ugf-root.ps1 next to this file; machine/lib/ugf-root.ps1 in the repo).
@@ -216,7 +216,7 @@ $e = $raw | ConvertFrom-Json
 $sid = [string]$e.session_id
 if ((Test-Path $excludeFile) -and ((Get-Content $excludeFile) -contains $sid)) { exit 0 }
 
-# One mutex for every writer of this factory's recording (both agents' hooks, record-unity-commit.ps1). Not the Unreal
+# One mutex for every writer of this factory's recording (both agents' hooks, record-unity-commit.ps1). Not another
 # factory's mutex: the two write different files and need not wait on each other. A hook killed at its timeout leaves
 # it abandoned; Enter-UGFMutex takes it over (WaitOne threw there, and every hook waiting on it lost its row). After
 # 30 s the hook goes on without it, and then releases nothing: releasing a mutex not held throws.

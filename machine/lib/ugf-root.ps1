@@ -13,9 +13,9 @@
 # wired up: "claude", "codex") and "hooks_dir" (where the recording hooks live, shared by both agents;
 # Get-UGFHooksDir). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this file next to them.
 #
-# The Unreal game-factory may run on the same machine with its own root and config (%USERPROFILE%\.game-factory\).
+# Another factory may run on the same machine with its own root and config (%USERPROFILE%\.game-factory\).
 # The two never share a root, a config or a hooks folder; they share only the machine-wide job slots (the mutexes
-# below), and unity-heavy.ps1 also honours the Unreal factory's recording flag and reads its job log
+# below), and unity-heavy.ps1 also honours the other factory's recording flag and reads its job log
 # (Get-UGFRecordingFlags, Get-UGFJobLogs), so both together never oversubscribe the PC.
 
 function Get-UGFConfigPath {
@@ -64,7 +64,7 @@ function Get-UGFAgents($Cfg = (Get-UGFConfig)) {
 }
 
 # The recording hooks' folder (record-unity-action.ps1, record-unity-commit.ps1, the session map), one for every agent:
-# "hooks_dir" in the config, else %USERPROFILE%\.unity-game-factory\hooks. Never the Unreal factory's hooks folder: each
+# "hooks_dir" in the config, else %USERPROFILE%\.unity-game-factory\hooks. Never another factory's hooks folder: each
 # factory's hooks record only the sessions mapped to its own root, and each keeps its own session map.
 function Get-UGFHooksDir($Cfg = (Get-UGFConfig)) {
     if ($Cfg.PSObject.Properties['hooks_dir'] -and $Cfg.hooks_dir) { return [IO.Path]::GetFullPath([string]$Cfg.hooks_dir) }
@@ -223,10 +223,10 @@ function Get-UGFRootPattern([string]$Root = (Get-UGFRoot)) {
     return "(?i)$head[\\/]+" + ($rest -join '[\\/]+')
 }
 
-# The Unreal game-factory's root on this machine, or '' when it is not set up here ($env:GF_ROOT, else "root" in
-# %USERPROFILE%\.game-factory\config.json, else %USERPROFILE%\Work if it holds a game-factory clone). Used only to see
+# The root of another factory on this machine, or '' when none is set up here ($env:GF_ROOT, else "root" in
+# %USERPROFILE%\.game-factory\config.json, else %USERPROFILE%\Work if it holds a clone named game-factory). Used only to see
 # that factory's recording flag and job log, so the two factories share the machine's slots fairly.
-function Get-UGFUnrealRoot {
+function Get-UGFOtherFactoryRoot {
     $r = ''
     if ($env:GF_ROOT) { $r = $env:GF_ROOT }
     else {
@@ -246,29 +246,29 @@ function Get-UGFUnrealRoot {
 }
 
 # The "a recording waits for the GPU" flags unity-heavy.ps1 honours: ours (<root>\builds\_queue\_recording-wants-gpu,
-# for the recorder, which is not available yet) and the Unreal factory's when it is set up here (its ue-heavy.ps1 reads
-# only its own). A running recording takes every GPU slot of the machine.
+# for the recorder, which is not available yet) and the other factory's when one is set up here (its limiter, ue-heavy.ps1,
+# reads only its own). A running recording takes every GPU slot of the machine.
 function Get-UGFRecordingFlags {
     $flags = @(Join-Path (Get-UGFRoot) 'builds\_queue\_recording-wants-gpu')
-    $ue = Get-UGFUnrealRoot
-    if ($ue) { $flags += (Join-Path $ue 'builds\_queue\_recording-wants-gpu') }
+    $other = Get-UGFOtherFactoryRoot
+    if ($other) { $flags += (Join-Path $other 'builds\_queue\_recording-wants-gpu') }
     , $flags
 }
 
 # The heavy-job logs both limiters write (ours first): unity-heavy.ps1 reads waits and recent GPU starts from both, so
-# its jobs see the Unreal factory's (ue-heavy.ps1 reads only its own).
+# its jobs see the other factory's (ue-heavy.ps1 reads only its own).
 function Get-UGFJobLogs {
     $logs = @(Join-Path (Get-UGFRoot) '.recording\_heavy-jobs.jsonl')
-    $ue = Get-UGFUnrealRoot
-    if ($ue) { $logs += (Join-Path $ue '.recording\_heavy-jobs.jsonl') }
+    $other = Get-UGFOtherFactoryRoot
+    if ($other) { $logs += (Join-Path $other '.recording\_heavy-jobs.jsonl') }
     , $logs
 }
 
 # Machine-wide job slots (unity-heavy.ps1). Config keys win: heavy_slots (general slots: builds, batchmode editor runs,
 # tests; GPU jobs hold one too), gpu_slots (concurrent rendering jobs; a recording takes all of them), gpu_vram_limit_mb
 # (a GPU job starts only while less VRAM than this is in use; default half the VRAM). Without them the slots are
-# computed from the hardware (bootstrap.ps1 writes the computed values to the config), with the Unreal factory's formula
-# so both factories agree on the counts:
+# computed from the hardware (bootstrap.ps1 writes the computed values to the config), with the same formula as the other
+# factory's limiter, so both factories agree on the counts:
 #   heavy_slots = clamp(1..8, min(floor((RAM GB - 6) / 6), floor(logical cores / 4), floor((commit limit GB - 6) / 8)))
 #                 (~6 GB per heavy editor process, 6 GB kept for the desktop and the sessions)
 #   gpu_slots   = clamp(1..4, min(floor(VRAM GB of the largest NVIDIA GPU / 4), heavy_slots - 1)); 1 without nvidia-smi
@@ -321,7 +321,7 @@ function Get-UGFSlotPlan($Cfg = (Get-UGFConfig)) {
 
 # ---- machine-wide job slots: one named mutex per slot (unity-heavy.ps1) ---------------------------------------------
 # A slot is the mutex Global\ue-heavy-slot-<n> (general) or Global\ue-gpu-slot-<n> (GPU), n < heavy_slots / gpu_slots.
-# The names are the Unreal factory's on purpose: its ue-heavy.ps1 takes the same mutexes, so the two factories draw
+# The names are another factory's on purpose: its ue-heavy.ps1 takes the same mutexes, so the two factories draw
 # from one set of slots and together never run more heavy or GPU jobs than the machine holds. Unlike a counted
 # semaphore nothing leaks: a holder that dies without releasing (killed job, crashed editor) leaves its mutex
 # "abandoned", and the next taker gets it. The count is the config's at every call, so a new heavy_slots or gpu_slots

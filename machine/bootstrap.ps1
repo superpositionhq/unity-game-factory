@@ -15,7 +15,7 @@
      written to the config): the recording hooks into the hooks dir (config "hooks_dir", default
      ~\.unity-game-factory\hooks), their entries merged into each agent's settings (Claude Code:
      <ClaudeDir>\settings.json; Codex: <CodexDir>\hooks.json plus the trust entries in config.toml; a backup
-     .bak-<time> first; other settings and hooks are kept, including the Unreal game-factory's own recording hooks;
+     .bak-<time> first; other settings and hooks are kept, including another factory's own recording hooks;
      before adding or changing them it prints what they record and asks, -Yes skips the question, a non-interactive run
      without -Yes leaves them out), the repo's skills (skills\, all unity-*) into each agent's personal skills folder
      (<ClaudeDir>\skills\, ~\.agents\skills\; other skill folders are never touched), and the
@@ -159,7 +159,7 @@ else {
 if (-not $Org) { Note warn 'github_org' 'not set: run bootstrap.ps1 -Org <GitHub org or user> (new-game.ps1, -CloneGames and check.ps1 need it)' }
 # Job slots from the hardware (lib\ugf-root.ps1 Get-UGFComputedSlots; unity-heavy.ps1 reads the config). The computed
 # values are recorded in slots_auto; a heavy_slots / gpu_slots that differs from it was set by hand and stays unless
-# -Force. The formula is the Unreal factory's, so on a machine running both the two configs agree.
+# -Force. Another factory on the same machine computes its slots with the same formula, so the two configs agree.
 $hw = Get-UGFHardware
 $calc = Get-UGFComputedSlots $hw
 $now = [IO.File]::ReadAllText($cfgPath) | ConvertFrom-Json
@@ -234,7 +234,7 @@ else { [IO.File]::WriteAllText($map, '{}', $utf8); Note added 'hooks\recording-s
 
 # Merge a hook fragment ({{HOOKS_DIR}} filled in) into a parsed settings/hooks object: every handler whose command runs
 # record-unity-action.ps1 becomes the fragment's handler for that event, a missing one is added; everything else stays
-# as it was, value for value (the Unreal game-factory's handlers run its record-action.ps1). Returns $true when
+# as it was, value for value (another factory's handlers run its record-action.ps1). Returns $true when
 # something changed; a file whose "hooks" has another shape stops bootstrap before anything is written.
 function Merge-RecordingHooks($Target, $Frag, [string]$Path) {
     $changed = $false
@@ -326,7 +326,7 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged) -and -not $Yes) {
     Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl (every run adds"
     Write-Host "      it to each game repo whatever the answer; removing its line from .git\hooks\post-commit stops it until bootstrap runs again)."
     Write-Host "    - Sessions that never touch a game folder under $Root are not recorded; session ids in"
-    Write-Host "      hooks\recording-exclude.txt never are. Other hooks in those files (e.g. the Unreal game-factory's) stay as they are."
+    Write-Host "      hooks\recording-exclude.txt never are. Other hooks in those files (e.g. another factory's) stay as they are."
     Write-Host "    These records become the game-creation dataset. Remove the entries from those files to stop recording tool calls."
     $ok = $false
     if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) { $ok = (Read-Host '  Install the recording hooks? [y/N]') -match '^(y|yes)$' }
@@ -355,7 +355,7 @@ if ($codexTrustChanged) {
 
 # Skills: one source (<repo>\skills\<name>\SKILL.md), copied to where each agent looks for personal skills
 # (Claude Code: ~\.claude\skills; Codex: ~\.agents\skills). Copies, not links: links need Developer Mode on Windows.
-# Only the repo's own skill folders are written (all named unity-*, so they sit beside the Unreal game-factory's
+# Only the repo's own skill folders are written (all named unity-*, so they sit beside another factory's
 # commit-always, game-session, sound and write-tasks); every other skill there is left alone.
 $skillsSrc = Join-Path $repo 'skills'
 $skillDirs = @()
@@ -420,7 +420,7 @@ if ($CloneGames) {
     if (-not $ghOk) { Note warn 'clone games' 'needs gh logged in' }
     elseif (-not $Org) { Note warn 'clone games' 'needs github_org (-Org)' }
     else {
-        # unity-game-<slug> repos only: the Unreal factory's game-<slug> repos and unity-game-factory itself are not games here
+        # unity-game-<slug> repos only: another factory's game-<slug> repos and unity-game-factory itself are not games here
         $names = @(& gh repo list $Org --limit 500 --json name --jq '.[].name' | Where-Object { $_ -match '^unity-game-.' -and $_ -ne 'unity-game-factory' })
         foreach ($n in $names) {
             $slug = $n.Substring(11)

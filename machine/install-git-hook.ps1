@@ -11,7 +11,7 @@
   case.
   record-unity-commit.ps1 exits at once when the committing checkout is on the orphan `tasks` branch (the game's
   tasks, docs/game-format.md): a commit there, e.g. from a tasks worktree, is not recorded.
-  Not available yet: the per-commit live creation replay line (the Unreal factory has one). This script will add it
+  Not available yet: the per-commit live creation replay line. This script will add it
   when the Unity creation replay comes (and -Force will rewrite older hooks).
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\install-git-hook.ps1 %UGF_ROOT%\games\stealth

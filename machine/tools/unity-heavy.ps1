@@ -11,11 +11,11 @@
 # - Slots are named mutexes, one per slot (ugf-root.ps1 Get-UGFSlotMutexes): a job killed before it releases leaves its
 #   mutex abandoned and the next job takes it over, so no slot leaks. Counts are read at every call, so a config change
 #   applies at once.
-# - The mutex names are the Unreal game-factory's (Global\ue-heavy-slot-<n>, Global\ue-gpu-slot-<n>,
-#   Global\ue-heavy-low-slot): on a machine that runs both factories, Unity and Unreal jobs draw from one set of slots,
-#   so together they never run more heavy or GPU jobs than the PC holds. This limiter also reads the Unreal factory's
+# - The mutex names are another factory's (Global\ue-heavy-slot-<n>, Global\ue-gpu-slot-<n>,
+#   Global\ue-heavy-low-slot): on a machine that runs both factories, the jobs of both draw from one set of slots,
+#   so together they never run more heavy or GPU jobs than the PC holds. This limiter also reads the other factory's
 #   job log (waiting jobs, recent GPU starts) and its recording flag (Get-UGFJobLogs, Get-UGFRecordingFlags);
-#   ue-heavy.ps1 reads neither of ours.
+#   its limiter, ue-heavy.ps1, reads neither of ours.
 # - General slots (Global\ue-heavy-slot-<n>): every job takes one. Count: "heavy_slots" in the machine config, else the
 #   hardware formula in ugf-root.ps1 Get-UGFComputedSlots (bootstrap.ps1 writes it to the config).
 # - GPU slots (Global\ue-gpu-slot-<n>): jobs that render (Unity.exe without -nographics, i.e. the editor GUI or a
@@ -24,7 +24,7 @@
 # - VRAM guard: a GPU job starts only while the GPU's used VRAM is under "gpu_vram_limit_mb" (default half the VRAM) and
 #   no other GPU job that still runs started in the last 60 s (a new renderer's VRAM shows only once it has loaded);
 #   otherwise it gives the slot back and looks again every 30 s (logged as vram_wait).
-# - Recordings are exclusive: a recorder takes every GPU slot (the Unreal factory's; this factory's recorder is not
+# - Recordings are exclusive: a recorder takes every GPU slot (the other factory's; this factory's recorder is not
 #   available yet), and while one waits (builds\_queue\_recording-wants-gpu fresh, in either factory's root) new GPU
 #   jobs hold back or hand their slot back.
 # - -Low (background work): one low job machine-wide; it takes a general slot only while no other job waits for one and
@@ -58,7 +58,7 @@ $ugfRoot = Get-UGFRoot
 $plan = Get-UGFSlotPlan
 if ($Slots -le 0) { $Slots = $plan.heavy_slots }
 $log = Join-Path $ugfRoot '.recording\_heavy-jobs.jsonl'
-$jobLogs = Get-UGFJobLogs   # ours first, then the Unreal factory's when it is set up here
+$jobLogs = Get-UGFJobLogs   # ours first, then the other factory's when one is set up here
 New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
 function Log($event, $extra) {
   $row = [ordered]@{ time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture); event = $event; label = $Label; pid = $PID; cwd = (Get-Location).Path }
@@ -74,7 +74,7 @@ function Log($event, $extra) {
     }
   } finally { $m.ReleaseMutex() }
 }
-# The last lines of every job log (ours and the Unreal factory's), oldest first within each.
+# The last lines of every job log (ours and the other factory's), oldest first within each.
 function Get-JobLogTail([int]$Lines) {
   foreach ($l in $jobLogs) { try { Get-Content -LiteralPath $l -Tail $Lines -ErrorAction Stop } catch { } }
 }
@@ -99,7 +99,7 @@ function Get-VramMB([string]$What) {
 }
 if ($isGpu -and $vramLimit -le 0) { $tot = Get-VramMB 'total'; $vramLimit = if ($tot) { [int]($tot / 2) } else { 8192 } }
 $t0 = Get-Date
-# "slots":"mutex" as in ue-heavy.ps1's rows (it marks a job of the per-slot mutexes there), so both job logs read alike
+# "slots":"mutex" as in the other factory's ue-heavy.ps1 rows (it marks a job of the per-slot mutexes there), so both job logs read alike
 Log 'wait' @{ command = $cmdText; gpu = [bool]$isGpu; low = [bool]$Low; slots = 'mutex' }
 $flags = Get-UGFRecordingFlags
 function Test-RecordingWaits {
@@ -169,7 +169,7 @@ function Test-OthersWaiting {
 }
 $lowM = $null
 if ($Low) {
-  # Low-priority work never makes another job wait: one low job machine-wide (a mutex shared with the Unreal factory,
+  # Low-priority work never makes another job wait: one low job machine-wide (a mutex shared with another factory,
   # so a killed one does not block the next), and it takes a general slot only while nobody else is waiting and
   # another slot would still be free.
   $lowM = New-Object Threading.Mutex($false, 'Global\ue-heavy-low-slot')

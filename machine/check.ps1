@@ -231,8 +231,8 @@ Try-Check 'Job slots' {
     $detail = "heavy_slots $($sp.heavy_slots) [$($sp.heavy_slots_source)], gpu_slots $($sp.gpu_slots) [$($sp.gpu_slots_source)], " +
         "VRAM limit $vl; formula gives $($calc.heavy_slots)/$($calc.gpu_slots) ($($calc.hardware.logical_cores) threads, " +
         "$($calc.hardware.ram_gb) GB RAM, $($calc.hardware.vram_mb) MB VRAM)"
-    $ue = Get-UGFUnrealRoot
-    if ($ue) { $detail += "; slots shared with the Unreal game-factory at $ue (same machine-wide mutexes)" }
+    $other = Get-UGFOtherFactoryRoot
+    if ($other) { $detail += "; slots shared with another factory at $other (same machine-wide mutexes)" }
     # with one general slot (what the formula gives a 16 GB PC) a GPU job always holds it: nothing to change then
     if ($sp.gpu_slots -ge $sp.heavy_slots -and $sp.heavy_slots -gt 1) {
         Add-Result WARN 'Job slots' "$detail; GPU jobs also take a general slot, so gpu_slots >= heavy_slots can leave no slot for compiles" 'lower gpu_slots or raise heavy_slots in the config'

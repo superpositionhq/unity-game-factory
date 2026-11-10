@@ -59,9 +59,9 @@ source (config set by hand, config from bootstrap, or computed at run time). The
   "heavy_slots": 3, "gpu_slots": 2, "slots_auto": { "heavy_slots": 3, "gpu_slots": 2, "basis": "<hardware>" } }
 ```
 
-### Next to the Unreal game-factory
+### Next to another factory
 
-A PC may also run the Unreal game-factory (root `%USERPROFILE%\Work`, config `%USERPROFILE%\.game-factory\`). The two
+A PC may also run another factory (root `%USERPROFILE%\Work`, config `%USERPROFILE%\.game-factory\`). The two
 keep separate roots, configs, hooks folders, session maps and skills, and each one's bootstrap adds its hook entries
 next to the other's in `~\.claude\settings.json` / `~\.codex\hooks.json` without touching them (ours run
 `record-unity-action.ps1`, theirs `record-action.ps1`). A session is recorded by the factory whose `games\<slug>` (or
@@ -69,13 +69,13 @@ extra project) one of its tool calls names, by both if its calls name a game of 
 is recorded there (see Recording below). What they share on purpose:
 
 - **Job slots.** `unity-heavy.ps1` takes the same machine-wide mutexes as `ue-heavy.ps1` (`Global\ue-heavy-slot-<n>`,
-  `Global\ue-gpu-slot-<n>`, `Global\ue-heavy-low-slot`), so Unity and Unreal jobs draw from one set of slots. Both use
+  `Global\ue-gpu-slot-<n>`, `Global\ue-heavy-low-slot`), so the jobs of both draw from one set of slots. Both use
   the same slot formula; if the two configs set different counts, each limiter enforces its own count over the shared
   mutexes, so keep them equal.
 - **Recordings.** `unity-heavy.ps1` holds back its GPU jobs while either factory's `builds\_queue\_recording-wants-gpu`
-  flag is fresh, and reads both factories' job logs for waiting jobs and recent GPU starts (`Get-UGFUnrealRoot` finds
+  flag is fresh, and reads both factories' job logs for waiting jobs and recent GPU starts (`Get-UGFOtherFactoryRoot` finds
   the other root from `GF_ROOT`, its config (`GF_CONFIG`, else `%USERPROFILE%\.game-factory\config.json`), else
-  `%USERPROFILE%\Work` when that holds a game-factory clone); `ue-heavy.ps1` reads only its own root's. A running
+  `%USERPROFILE%\Work` when that holds a clone named `game-factory`); `ue-heavy.ps1` reads only its own root's. A running
   recording holds every GPU slot, which stops the GPU jobs of both.
 
 ## Files
@@ -89,7 +89,7 @@ is recorded there (see Recording below). What they share on purpose:
 | `lib/ugf-root.ps1` | `<root>\tools\`, the hooks dir | root/config resolver (also `Get-UGFHooksDir`, `Get-UGFAgents`, `Get-UGFUnity`, `Get-UGFNewestUnity`, the slot mutexes), dot-sourced by every script |
 | `lib/ugfroot.py` | | the same for Python tools (`root`, `org`, `unity_editor`, `unity_version`, `computed_slots`, `slot_plan`, `out`, `check_free`) |
 | `lib/codex-hooks.ps1` | | Codex hook trust: the `[hooks.state]` entries Codex needs in `config.toml` before it runs a hook (bootstrap writes ours, check compares) |
-| `tools/unity-heavy.ps1` | `<root>\tools\unity-heavy.ps1` | machine-wide job limiter: `heavy_slots` general slots + `gpu_slots` GPU slots, one named mutex per slot (shared with the Unreal factory, see above: a killed job leaks none; VRAM guard; a recording takes all GPU slots), counts from the config or the hardware formula above, `-Low` for background work, GPU auto-detected (`Unity.exe` without `-nographics`, a packaged player; `-Gpu` forces it, `-nographics` always rules it out), yields to `builds\_queue\_recording-wants-gpu`, log `.recording\_heavy-jobs.jsonl`. Installed next to a copy of `lib\ugf-root.ps1` |
+| `tools/unity-heavy.ps1` | `<root>\tools\unity-heavy.ps1` | machine-wide job limiter: `heavy_slots` general slots + `gpu_slots` GPU slots, one named mutex per slot (shared with another factory, see above: a killed job leaks none; VRAM guard; a recording takes all GPU slots), counts from the config or the hardware formula above, `-Low` for background work, GPU auto-detected (`Unity.exe` without `-nographics`, a packaged player; `-Gpu` forces it, `-nographics` always rules it out), yields to `builds\_queue\_recording-wants-gpu`, log `.recording\_heavy-jobs.jsonl`. Installed next to a copy of `lib\ugf-root.ps1` |
 | `hooks/record-unity-action.ps1` | the hooks dir | the agent hook (Claude Code: PostToolUse / PostToolUseFailure / Stop; Codex: PostToolUse / Stop with `-Agent codex`): every tool call of a game session to `.recording\<project>\actions.jsonl` (earlier calls backfilled from the transcript, see Recording); Stop auto-commits leftovers as `WIP` (none while conflicts are unresolved or HEAD is detached) |
 | `hooks/record-unity-commit.ps1` | the hooks dir | called by each game repo's post-commit hook: `.recording\<repo>\commits.jsonl` |
 | `hooks/settings-hooks.json` | merged into `~\.claude\settings.json` | Claude Code: the three hook entries (`{{HOOKS_DIR}}` filled in) |
@@ -128,12 +128,10 @@ creation replay (its post-commit line), the recording queue and its recorder, an
   `~\.codex\sessions\` with `-Agent codex`, when not given); a second run does nothing.
 - Live rows carry no `status`; every row of a backfill carries `from_transcript`, so the two are never confused.
 - Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
-  The Unreal factory writes `superposition.agent-action/v0` / `superposition.commit/v0` and its packager strips the
-  prefix; this factory never writes it.
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows
   (`input.command` = the patch), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose response
   shows the exit code).
-- Nothing is recorded while `UGF_NO_RECORDING` (or the Unreal factory's `GF_NO_RECORDING`) is set: a task try's agent
+- Nothing is recorded while `UGF_NO_RECORDING` (or another factory's `GF_NO_RECORDING`) is set: a task try's agent
   is not a game session.
 - **Codex hook trust.** Codex runs a hook from `hooks.json` only after it is trusted (a hash of the hook in
   `config.toml` `[hooks.state."<hooks.json>:<event>:<group>:<handler>"]`); an untrusted or edited hook is skipped

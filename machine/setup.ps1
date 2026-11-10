@@ -19,7 +19,7 @@
   The coding agent: -Agent claude (Claude Code), codex (OpenAI Codex CLI) or both; asked on the first run (remembered),
   passed on to bootstrap.ps1, which wires the recording hooks, skills and root instructions into each.
   Ends with a PASS / TODO list. Log: <root>\.setup\setup.log; answers: <root>\.setup\state.json (not asked again).
-  The Unreal game-factory may already be set up on this PC: this one uses its own root, config, hooks and skills
+  Another factory may already be set up on this PC: this one uses its own root, config, hooks and skills
   (unity-*) and leaves that one's alone; the two share only the machine-wide job slots.
 
   Minimums: Windows 11; 8 logical cores and 16 GB RAM (32 GB recommended: job slots scale with RAM); 200 GB free on
