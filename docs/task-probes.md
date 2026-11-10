@@ -447,9 +447,9 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   one road object read here;
 - `spin` (deg/s): how fast the component's transform turns in the world, from its rotation read every frame and summed
   since the previous sample (so a part turning many times a second still reads); the first time it is seen, the
-  angular velocity of a non-kinematic Rigidbody on its object, else no value then. Any part near a point: select
-  `Renderer` with `near`; each part of one object: select by `owner`. No name is needed. A turn drawn by bones (a
-  skinned rotor) or by a material reads 0 here: `drawn`'s `motion` (section 2.19) sees it;
+  angular velocity of a non-kinematic Rigidbody or a Dynamic Rigidbody2D on its object, else no value then. Any part
+  near a point: select `Renderer` with `near`; each part of one object: select by `owner`. No name is needed. A turn
+  drawn by bones (a skinned rotor) or by a material reads 0 here: `drawn`'s `motion` (section 2.19) sees it;
 - `extent_x`, `extent_y`, `extent_z` (a Renderer's or Collider's world bounds half-size, m) and `simulating` (it is,
   or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D; a collider by the body it is attached to);
 - `changed`, `bounds_change`, `pose_change`: a Renderer against the first sample it was seen in, as an object's
