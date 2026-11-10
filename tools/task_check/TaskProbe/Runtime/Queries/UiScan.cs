@@ -610,7 +610,9 @@ namespace TaskProbe
         // ---------------------------------------------------------------- widget click
 
         /// <summary>Clicks the first visible, interactable uGUI Selectable whose object's name matches `want` (a wildcard)
-        /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it. False when none.</summary>
+        /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it (the original's
+        /// FindButton and its pressed, released, clicked). No raycast: an image over it doesn't stop it. False when
+        /// none.</summary>
         public static bool Click(string want)
         {
 #if TASKPROBE_UGUI
@@ -637,7 +639,8 @@ namespace TaskProbe
                     if (!(e is UIE.Button button)) continue;
                     if (!Find.Wild(want, e.name ?? "") && !Reflect.IsA(e.GetType(), want)) continue;
                     if (!e.enabledInHierarchy || !UitkVisible(e, root.Value)) continue;
-                    // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or pad press does
+                    // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or
+                    // pad press does; a ClickEvent callback needs a pointer's click (the cursor)
                     using (var submit = UIE.NavigationSubmitEvent.GetPooled())
                     {
                         submit.target = button;
@@ -651,31 +654,49 @@ namespace TaskProbe
         }
 
 #if TASKPROBE_UGUI
-        /// <summary>A pointer enter, down, up and click on the selectable's object, at its centre, through ExecuteEvents: the
-        /// events an input module sends for a click, so onClick, toggles and custom IPointer*Handlers react.</summary>
+        /// <summary>A pointer's click at the selectable's centre as the Input System's UI module makes it, through
+        /// ExecuteEvents: the pointer enters; the press lets go of a selection the pressed object wouldn't take, then
+        /// pointer down and the start of a possible drag; the release pointer up and click. onClick, toggles, EventTrigger
+        /// entries and a game's own IPointer*Handlers react as to a player's click.</summary>
         static void UguiClick(Selectable s)
         {
             var go = s.gameObject;
-            var system = EventSystem.current;
-            var data = new PointerEventData(system) { button = PointerEventData.InputButton.Left, clickCount = 1, clickTime = Time.unscaledTime };
+            var events = EventSystem.current;
             var canvas = go.GetComponentInParent<Canvas>();
+            var data = new PointerEventData(events) { button = PointerEventData.InputButton.Left };
             if (RectOf(go.transform as RectTransform, canvas, false, out var x, out var y, out var w, out var h))
                 data.position = new Vector2((float)((x + w / 2) * Screen.width), (float)((1.0 - (y + h / 2)) * Screen.height));
-            data.pressPosition = data.position;
-            data.pointerEnter = go;
-            data.pointerCurrentRaycast = data.pointerPressRaycast = new RaycastResult { gameObject = go, module = canvas != null ? canvas.GetComponent<BaseRaycaster>() : null, screenPosition = data.position };
+            data.pointerCurrentRaycast = new RaycastResult
+            {
+                gameObject = go, module = canvas != null ? canvas.GetComponent<BaseRaycaster>() : null, screenPosition = data.position,
+            };
             ExecuteEvents.ExecuteHierarchy(go, data, ExecuteEvents.pointerEnterHandler);
-            var pressed = ExecuteEvents.ExecuteHierarchy(go, data, ExecuteEvents.pointerDownHandler);
-            var clickHandler = ExecuteEvents.GetEventHandler<IPointerClickHandler>(go);
-            if (pressed == null) pressed = clickHandler;
-            data.pointerPress = pressed;
-            data.rawPointerPress = go;
+            data.pointerEnter = go;
+
             data.eligibleForClick = true;
-            if (system != null && pressed != null) system.SetSelectedGameObject(pressed, data);
-            ExecuteEvents.Execute(pressed, data, ExecuteEvents.pointerUpHandler);
-            if (clickHandler != null && clickHandler == pressed) ExecuteEvents.Execute(clickHandler, data, ExecuteEvents.pointerClickHandler);
+            data.delta = Vector2.zero;
+            data.dragging = false;
+            data.useDragThreshold = true;
+            data.pressPosition = data.position;
+            data.pointerPressRaycast = data.pointerCurrentRaycast;
+            if (events != null && ExecuteEvents.GetEventHandler<ISelectHandler>(go) != events.currentSelectedGameObject)
+                events.SetSelectedGameObject(null, data);
+            var pressed = ExecuteEvents.ExecuteHierarchy(go, data, ExecuteEvents.pointerDownHandler);
+            var clicked = ExecuteEvents.GetEventHandler<IPointerClickHandler>(go);
+            data.pointerPress = pressed != null ? pressed : clicked;
+            data.pointerClick = clicked;
+            data.rawPointerPress = go;
+            data.pointerDrag = ExecuteEvents.GetEventHandler<IDragHandler>(go);
+            if (data.pointerDrag != null) ExecuteEvents.Execute(data.pointerDrag, data, ExecuteEvents.initializePotentialDrag);
+
+            data.clickCount = 1;
+            data.clickTime = Time.unscaledTime;
+            ExecuteEvents.Execute(data.pointerPress, data, ExecuteEvents.pointerUpHandler);
+            if (data.pointerClick != null) ExecuteEvents.Execute(data.pointerClick, data, ExecuteEvents.pointerClickHandler);
             data.eligibleForClick = false;
             data.pointerPress = null;
+            data.rawPointerPress = null;
+            data.pointerDrag = null;
         }
 #endif
     }
