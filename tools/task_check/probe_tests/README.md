@@ -55,9 +55,12 @@ One folder per family of measures, each with the same layout:
   plays/<play>.json   one play spec each
 ```
 
-- C# is in namespace `ProbeTests.<Family>`, and a type name is unique across all families: a select by `component`
-  and a `prop:` path find a type by its name alone (the runner refuses two scripts of one file name). Test scripts
-  compile into the game's assembly and cannot reference the `TaskProbe` assembly: the tests are black-box.
+- C# is in a namespace of the family's own under `ProbeTests` (`ProbeTests.Core`), and a type name is unique across
+  all families: a select by `component` and a `prop:` path find a type by its name alone (the runner refuses two
+  scripts of one file name). The namespace's last part must not be the name of a type another family's code uses:
+  inside `ProbeTests.*` it would be found before the type (`ProbeTests.Light` hides `UnityEngine.Light` from every
+  family, so the light family is `ProbeTests.Lighting`). Test scripts compile into the game's assembly and cannot
+  reference the `TaskProbe` assembly: the tests are black-box.
 - In a test project each MonoBehaviour is in its own file named after it (several in one file made the player fail
   to load the scene).
 - The scene builders (`SETUP`) are static methods without arguments. They make the scenes from code, write everything
@@ -73,7 +76,7 @@ One folder per family of measures, each with the same layout:
 
 ```python
 """<what the family tests>"""
-SETUP = ["ProbeTests.Light.LightScenes.Build"]            # the scene builders, run in one start of the editor
+SETUP = ["ProbeTests.Lighting.LightScenes.Build"]         # the scene builders, run in one start of the editor
 SCENES = ["Assets/ProbeTests/light/Made/LightLab.unity"]  # the scenes the plays open (added to the build)
 
 def lamps(t, play):
@@ -83,7 +86,7 @@ def lamps(t, play):
 
 PLAYS = {                    # in the order they run; a play's spec is plays/<name>.json
     "lamps": {"check": lamps},
-    "walls": {"check": walls, "args": ["-scenario", "2"], "errors": [r"^no query kind bogus$"], "varies": ["mix"]},
+    "walls": {"check": walls, "args": ["-scenario", "2"], "errors": [r"^light under_wall: "], "varies": ["mix"]},
 }
 
 ASSETS = {"measures": "measures.json", "check": saved}    # one editor pass: {"<id>": {<asset measure>}}; saved(t, results)
@@ -107,3 +110,36 @@ ASSETS = {"measures": "measures.json", "check": saved}    # one editor pass: {"<
   `query_errors`, no exception of the probe's in the player's log, and the second play's probe.json is the first's.
   For an editor pass it checks the editor's exit code, that the result is the pass's own, and that the pass changed
   no file under `Assets/`, `Packages/` and `ProjectSettings/`.
+
+## The families
+
+| Family | What it tests |
+|---|---|
+| `core` | the play itself: the clock, samples, inputs, teleports and holds, waits, scene loads, the player and the camera, screenshots, saved data, how a play ends, the queries list's errors |
+| `select` | object selects (every key), `prop:` paths, rows, the 200-row cap |
+| `world` | `camera`, `spawns`, `pieces`, `ground` |
+| `objects` | `objects` and `components`: every field, `lit` and `glow`, change over time |
+| `ui` | `widgets`, `ui`, `screen`, clicks on widgets |
+| `ocr` | the frame text reader behind `ui` |
+| `light` | `light`, `grading`, `audio` |
+| `drawn` | `drawn`, and what its renders leave behind |
+| `asset` | the editor pass over the project as saved (asset measures), and the build |
+
+Each family's README says what its scenes hold, what each play proves and what it leaves untested.
+
+## A project that lacks a part
+
+```
+python tools/task_check/probe_tests/variants.py <template project> [--package DIR]
+```
+
+The package must compile in a game without the Input System, uGUI, TextMeshPro or URP, and in one that took a
+built-in module out (physics, 2D physics, audio, animation, particles, terrain, AI, UI Toolkit, video, cloth, vehicles,
+image conversion). `variants.py` compiles the runtime assembly with the editor's own C# compiler, without starting the
+editor, once per missing part: each of the asmdef's defines off with the assemblies it stands for taken away (and those
+of every module that needs that module), every package off, every module off, both, and each removable module gone
+with every define still on (a use of a type outside its guard). `<template project>` is any project that has opened
+once in the editor with the template's packages (its `Library/ScriptAssemblies` gives the packages' assemblies). It
+prints one line per variant and exits with 0 when all compile. It starts no editor and no player: it proves the
+package compiles there, not what a play measures there (a measure that needs the missing part gives no value and one
+`query_errors` line saying which part the project lacks).
