@@ -295,8 +295,8 @@ values to the turn you need.
 
 **Keys do nothing.** The probe drives the Input System only. A game that reads the old Input Manager
 (`Input.GetKey`, `Input.GetAxis`) takes no input in a play; the `track` in `probe.json` stays put through the
-`drive`. Such a game's tasks can only use outcomes that need no input (teleports and idle plays), or a start that
-reads the Input System.
+`drive`. Such a game's tasks can only use what goes around the Input System (teleports, widget clicks, waits and idle
+plays), or a start that reads the Input System.
 
 **`start fails still-works X`.** The game works at the start, so a still-works probe that fails there is broken: it
 doesn't find the HUD, the object or the value it looks for. Fix the probe (see the play's `probe.json`), never the
