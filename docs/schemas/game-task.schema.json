@@ -7,7 +7,6 @@
       "properties": {
         "kind": {
           "const": "actions_judge",
-          "default": "actions_judge",
           "title": "Kind",
           "type": "string"
         },
@@ -53,6 +52,7 @@
       },
       "required": [
         "name",
+        "kind",
         "question",
         "rubric"
       ],
@@ -491,7 +491,6 @@
       "properties": {
         "kind": {
           "const": "boot",
-          "default": "boot",
           "title": "Kind",
           "type": "string"
         },
@@ -528,7 +527,8 @@
         }
       },
       "required": [
-        "name"
+        "name",
+        "kind"
       ],
       "title": "Boot",
       "type": "object"
@@ -544,7 +544,6 @@
         },
         "kind": {
           "const": "build",
-          "default": "build",
           "title": "Kind",
           "type": "string"
         },
@@ -574,7 +573,8 @@
         }
       },
       "required": [
-        "name"
+        "name",
+        "kind"
       ],
       "title": "Build",
       "type": "object"
@@ -770,7 +770,6 @@
       "properties": {
         "kind": {
           "const": "code_judge",
-          "default": "code_judge",
           "title": "Kind",
           "type": "string"
         },
@@ -816,6 +815,7 @@
       },
       "required": [
         "name",
+        "kind",
         "question",
         "rubric"
       ],
@@ -1273,7 +1273,6 @@
         },
         "kind": {
           "const": "file_exists",
-          "default": "file_exists",
           "title": "Kind",
           "type": "string"
         },
@@ -1310,6 +1309,7 @@
       },
       "required": [
         "name",
+        "kind",
         "glob"
       ],
       "title": "FileExists",
@@ -1723,7 +1723,6 @@
         },
         "kind": {
           "const": "judge",
-          "default": "judge",
           "title": "Kind",
           "type": "string"
         },
@@ -1788,6 +1787,7 @@
       },
       "required": [
         "name",
+        "kind",
         "question",
         "rubric"
       ],
@@ -2056,7 +2056,6 @@
       "properties": {
         "kind": {
           "const": "log_absent",
-          "default": "log_absent",
           "title": "Kind",
           "type": "string"
         },
@@ -2093,6 +2092,7 @@
       },
       "required": [
         "name",
+        "kind",
         "pattern"
       ],
       "title": "LogAbsent",
@@ -2427,7 +2427,6 @@
       "properties": {
         "kind": {
           "const": "package",
-          "default": "package",
           "title": "Kind",
           "type": "string"
         },
@@ -2457,7 +2456,8 @@
         }
       },
       "required": [
-        "name"
+        "name",
+        "kind"
       ],
       "title": "Package",
       "type": "object"
@@ -2835,7 +2835,6 @@
         },
         "kind": {
           "const": "probe",
-          "default": "probe",
           "title": "Kind",
           "type": "string"
         },
@@ -2961,6 +2960,7 @@
       },
       "required": [
         "name",
+        "kind",
         "describe",
         "play",
         "measure",
