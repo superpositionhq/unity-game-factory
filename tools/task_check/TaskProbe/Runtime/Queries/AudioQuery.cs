@@ -15,7 +15,7 @@ namespace TaskProbe
     public sealed class AudioQuery : Query
     {
         /// <summary>A source at this volume (-60 dB) or louder is audible.</summary>
-        public const double AudibleVolume = 0.001;
+        const double AudibleVolume = 0.001;
 
         string sound, soundClass;
         Sel owner;
@@ -31,16 +31,17 @@ namespace TaskProbe
         }
 
 #if TASKPROBE_AUDIO
-        // the tap's level is read once per sample time and shared: reading it resets it
-        static int levelFrame = -1;
+        // the tap's level is read once a pass and shared by every audio query: reading it resets it
+        static int levelStamp = -1;
         static bool levelAny;
         static double levelRms, levelPeak;
+        static readonly List<AudioSource> sources = new List<AudioSource>();
 
         static void Level(out bool any, out double rms, out double peak)
         {
-            if (levelFrame != Time.frameCount)
+            if (levelStamp != Probe.Stamp)
             {
-                levelFrame = Time.frameCount;
+                levelStamp = Probe.Stamp;
                 levelAny = AudioTap.Level(out levelRms, out levelPeak);
             }
             any = levelAny;
@@ -48,36 +49,30 @@ namespace TaskProbe
             peak = levelPeak;
         }
 
-        /// <summary>The listener the player hears through: the first enabled AudioListener on an active object.</summary>
-        public static AudioListener Listener()
-        {
-            foreach (var l in UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID))
-                if (l.enabled && l.gameObject.activeInHierarchy) return l;
-            return null;
-        }
-
         public override void Sample(double t, Dictionary<string, object> sample)
         {
             Level(out var any, out var rms, out var peak);
-            var listener = Listener();
+            var listener = AudioTap.Listener();
             if (listener == null)
             {
                 sample["value"] = null;
                 return;
             }
             var here = listener.transform.position;
-            var centre = Vector3.zero;
-            var hasCentre = Vector3.zero;
-            var ownerOk = owner == null
-                          || ((owner.Near == null || Find.Point(owner.Near.Point, out centre))
-                              && (owner.Has?.Near == null || Find.Point(owner.Has.Near.Point, out hasCentre)));
+            // an owner select that matches nothing (its point doesn't resolve) owns nothing
+            var owners = owner != null ? Find.Owners(owner) : null;
             int count = 0, audible = 0;
             double sum = 0.0, max = 0.0;
             string loudest = null;
-            if (ownerOk)
-                foreach (var source in UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID))
+            if (owners == null || owners.Count > 0)
+            {
+                // in hierarchy order: the sum and a tie for the loudest come out the same in every play
+                sources.Clear();
+                sources.AddRange(UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID));
+                Find.SortByHierarchy(sources);
+                foreach (var source in sources)
                 {
-                    if (source == null || !source.enabled || !source.isPlaying || Probe.IsOwn(source.gameObject)) continue;
+                    if (source == null || !source.enabled || !source.isPlaying || Find.IsOwn(source)) continue;
                     var clip = source.clip;
                     if (sound != null && !Find.Wild(sound, clip != null ? clip.name : null)) continue;
                     if (soundClass != null)
@@ -85,7 +80,7 @@ namespace TaskProbe
                         var group = source.outputAudioMixerGroup;
                         if (group == null || !Find.Wild(soundClass, group.name)) continue;
                     }
-                    if (owner != null && !Find.OwnedBy(source, owner, centre, hasCentre)) continue;
+                    if (owners != null && !Find.OwnedBy(source, owners)) continue;
                     var v = AtListener(source, here);
                     count++;
                     if (v >= AudibleVolume) audible++;
@@ -96,6 +91,7 @@ namespace TaskProbe
                         loudest = clip != null ? clip.name : "";
                     }
                 }
+            }
             sample["value"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["count"] = (double)count, ["audible"] = (double)audible, ["volume"] = sum, ["max_volume"] = max,
@@ -105,7 +101,7 @@ namespace TaskProbe
         }
 
         /// <summary>A source's volume at the listener at `here`: volume (0 muted) x ((1 - blend) + blend x rolloff(d)).</summary>
-        public static double AtListener(AudioSource s, Vector3 here)
+        static double AtListener(AudioSource s, Vector3 here)
         {
             if (s.mute) return 0.0;
             double volume = s.volume;
@@ -116,7 +112,7 @@ namespace TaskProbe
         }
 
         /// <summary>The distance attenuation of a 3D source at `d` m.</summary>
-        public static double Rolloff(AudioSource s, double d)
+        static double Rolloff(AudioSource s, double d)
         {
             double min = Math.Max(s.minDistance, 1e-6), max = Math.Max(s.maxDistance, min);
             switch (s.rolloffMode)
