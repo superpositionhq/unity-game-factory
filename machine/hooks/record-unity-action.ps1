@@ -285,13 +285,15 @@ try {
         # commit waited out that script's 30 s timeout, and the session with it
         if ($held) { $mutex.ReleaseMutex() }
         git -C $repo commit -q -m "WIP" 2>$null | Out-Null
+        $made = $LASTEXITCODE -eq 0
         if ($held) { $held = Enter-UGFMutex $mutex 30000 }
         # the WIP commit is the one whose parent is the HEAD before it, not HEAD: while the mutex was free another
-        # session's commit could land on top of it. A commit the repo refused (a hook said no) is not recorded as one:
-        # the row then carries no auto_commit.
+        # session's commit could land on top of it. A commit the repo refused (a hook said no, or another session's
+        # Stop had just committed the same leftovers as WIP on that parent) is not recorded as one: the row then
+        # carries no auto_commit.
         $sha = @(git -C $repo rev-list --parents -n 10 HEAD) | Where-Object { @($_ -split ' ')[1] -eq $before } |
           ForEach-Object { @($_ -split ' ')[0] } | Select-Object -First 1
-        if ($sha -and (git -C $repo log -1 --format=%s $sha) -eq 'WIP') { $row.auto_commit = [ordered]@{ sha = $sha; files = @($dirty).Count } }
+        if ($made -and $sha -and (git -C $repo log -1 --format=%s $sha) -eq 'WIP') { $row.auto_commit = [ordered]@{ sha = $sha; files = @($dirty).Count } }
       } else { $row.auto_commit = $null }
     }
   } else {
