@@ -26,7 +26,7 @@ Words used here:
   first in hierarchy order, the same in every play: section 2.1), else the root object of the camera below. Where that
   could find the wrong object (two tagged `Player`, say), name it with the task's `player`;
 - **the camera**: `Camera.main` (tagged `MainCamera`, enabled), else the enabled camera of highest depth that renders
-  to the screen.
+  to the screen (of several at that depth, the first in hierarchy order: the same one in every play).
 
 Units are Unity's: metres, metres per second, degrees. Y is up. `yaw`, `pitch` and `roll` are the euler Y, X and Z
 angles of the world rotation (`transform.eulerAngles`; the Inspector shows a child's rotation relative to its parent
@@ -80,7 +80,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
-    one with a `.` or `..` part.
+    one with a `.` or `..` part or an empty part (`//`, or a `/` at its end).
   - `args` (optional): the player's command-line arguments for this play instead of the task's `play_args` (`[]`:
     none), at most 16, each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and a letter is a flag
     (`-scenario`, `-devmenu`); anything else is a value (`2`, `2:quest=bull,6:fell`). Never a flag the checker sets
@@ -106,16 +106,24 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       `delta/x`, `delta/y`, `scroll/x`, `scroll/y` or `<Gamepad>/` `leftStick/x`, `leftStick/y`, `rightStick/x`,
       `rightStick/y`, `leftTrigger`, `rightTrigger`. The mouse's delta and scroll are one-frame impulses; a stick or a
       trigger keeps its value until set again (see the lessons on mouse axes in section 5);
-    - a widget click: `{"t": 6.0, "widget": "RetryButton", "click": true}` clicks the first visible, interactable uGUI
-      Selectable or UI Toolkit Button whose name (a wildcard) or type matches, as a player's click fires it: a uGUI
-      Selectable gets the pointer events of a click at its centre (enter, down, up, click), a UI Toolkit Button a
-      submit event, which fires `Button.clicked` (a game that handles a raw `ClickEvent` instead needs the cursor,
-      below). The click casts no ray, so an image drawn over the button doesn't stop it. No match: nothing happens
-      (the play's `probe.log` says `no visible button matches '<widget>'`);
+    - a widget click: `{"t": 6.0, "widget": "RetryButton", "click": true}` clicks the first visible (as the `widgets`
+      field reads it, so a fully transparent button counts), interactable uGUI Selectable or UI Toolkit Button whose
+      name (a wildcard) or type matches, as a player's click fires it: a uGUI Selectable gets the pointer events of a
+      click at its centre (enter, down, up, click, exit) as the Input System's UI module sends them (the press lets go
+      of a selection the clicked object wouldn't take; a Slider takes the value at its centre, an InputField is
+      focused, a Dropdown opens), a UI Toolkit Button a submit event, which fires `Button.clicked` (a game that handles
+      a raw `ClickEvent` instead needs the cursor, below). The click casts no ray, so an image drawn over the button
+      doesn't stop it. The play's `probe.log` names what it clicked and its type: `clicked RetryButton (Button)`. With
+      no EventSystem in the scene a player's click reaches no uGUI widget, and neither does this one: `probe.log` says
+      `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
+      when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
+      matches '<widget>'`);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
       from the top; it starts at the centre); a following `<Mouse>/leftButton` press and release clicks there: uGUI
-      through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit buttons, and the game through
-      `Mouse.current`;
+      through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit through that module or, when the scene has
+      no EventSystem, on its own, and the game through `Mouse.current` (an EventSystem with the old
+      `StandaloneInputModule` reads the Input Manager, which the probe can't drive: there the cursor clicks neither
+      uGUI nor UI Toolkit);
     - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` puts the player's own position (its pivot) at that
       point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player), at once: the game's
       scripts of that frame already find the player there (a key reaches them a frame later). It is the way to reach
@@ -169,7 +177,7 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   `play_scene` null, the game's own first build scene plays.
 - **The game's first build scene** doesn't run when the play opens another one. The probe asks for the play's scene
   before the first build scene has woken up: that scene's objects still get `Awake` and `OnEnable` (Unity has loaded
-  it already), then are destroyed before their `Start` and first `Update`. So a singleton a boot scene makes in
+  it already), then `OnDestroy`, and never `Start` or `Update`. So a singleton a boot scene makes in
   `Awake` with `DontDestroyOnLoad` exists in the play; anything it sets up in `Start` does not. A game that needs its
   boot scene to run is started through its own `play_args` (`["-scenario", "2"]`) with `play_scene` null. A
   `play_scene` that names the first build scene itself is opened the same way, so that scene loads a second time
@@ -184,10 +192,13 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   `Time.time` runs on this clock. `Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the
   system clock follow the wall clock instead: a 20 s play takes a few seconds of them, a different number every time,
   so whatever a game drives by them hardly advances in a play and differs between two plays. Give it real time with a
-  `wait`.
+  `wait`. A game that sets `Time.captureFramerate`, `QualitySettings.vSyncCount` or `Application.targetFrameRate`
+  itself doesn't change the play's time step: the probe sets the first two again before and after every frame's
+  scripts, and the target frame rate before them.
 - **Saved data.** Every play starts from clean saved data. The checker's build gives the copy's player a company name
   of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so its PlayerPrefs and
-  `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts.
+  `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts
+  (every PlayerPrefs key deleted; the folder emptied, and still there for the game to write into).
 - **Focus.** The player runs windowed at 960x540 on a Windows desktop of its own ([task-check.md](task-check.md),
   "The plays"), where it counts itself focused for the whole play (`Application.isFocused` is true, no object gets
   `OnApplicationFocus(false)`): a game that pauses when it loses focus plays on.
@@ -278,8 +289,9 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
   `prop:`, a text match, a percent) needs `"of": "first"` or another value reducer, or it counts instead of reading.
   With `"field": "count"`, `of` is ignored. Objects and components match in hierarchy order: the scenes in the order
   they were loaded, the DontDestroyOnLoad scene last; in a scene, its roots in the order the built player lists them
-  (`Scene.GetRootGameObjects`), which is neither the Hierarchy window's order in the editor nor the order the objects
-  were made in; below a root, sibling order; several components of one object in the Inspector's order. That order is
+  (`Scene.GetRootGameObjects`, read again for a root made since the list was read), which is neither the Hierarchy
+  window's order in the editor nor the order the objects were made in; below a root, sibling order; several
+  components of one object in the Inspector's order. That order is
   the same in every play of one build, but the fix may change the scene: select the one you mean (by name, tag or
   `near`) rather than take the first of a broad select.
 - **Every match counts, past 200.** The probe keeps at most 200 rows a sample in `probe.json` but reads every match:
@@ -321,7 +333,9 @@ the camera to the player's position (its pivot, as `player` reads it, not its ce
 that position's y (m); `pitch`, `yaw` (degrees, of the camera's world rotation); `fov` the vertical field of view in
 degrees (0 for an orthographic camera); `occluded` = 1 when a ray from the camera to the player's centre hits a
 collider (triggers, the Ignore Raycast layer, the player's colliders and colliders under the camera itself are
-ignored); `player_on_screen` = 1 when the player's centre projects inside the viewport, in front of the camera. The
+ignored; in a project without Unity's Physics module it reads 0, and the play's `query_errors` says "camera <id>: the
+project has no Physics module: occluded reads 0"); `player_on_screen` = 1 when the player's centre projects inside
+the viewport, in front of the camera. The
 player's centre: the centre of its enabled colliders that aren't triggers (its descendants' too), else of its drawn
 renderers, else its position.
 
@@ -393,7 +407,9 @@ renderers, else its position.
     its own transform), each read as a component's `spin` (section 2.5). **Its threshold is calibrated or relative to
     the start, never a literal value**;
   - `simulating`: 1 when the object or a descendant has a non-kinematic Rigidbody or a Dynamic Rigidbody2D (pieces
-    that broke loose, a ragdoll);
+    that broke loose, a ragdoll). In a project with neither Physics module (3D or 2D), `collision` and `simulating`
+    read 0 and the play's `query_errors` says so once: `objects <id>: the project has no Physics module: collision
+    reads 0` (`simulating reads 0`, or `collision and simulating read 0`, for the fields asked);
   - `spread` (m): how far apart the object's parts are, the diagonal of the world-aligned box around their centres:
     each part `extent_*` counts by its bounds centre, a skinned mesh whose bones carry several Rigidbodies (a ragdoll)
     by each body's place; 0 with one part, no value when it draws nothing. A whole crate reads its pieces' own layout;
@@ -438,11 +454,17 @@ renderers, else its position.
     strings through `match`; an array or list without an index gives its length, `[i]` its element
     (`prop:Inventory.items[0]`), a set its count; a dictionary's entry by its key (`prop:Inventory.counts.coins`); a
     vector's `.x`, `.y`, `.z` and a colour's `.r`, `.g`, `.b`, `.a`: a struct read without its member has no value
-    (`prop:Rigidbody.linearVelocity` none, `prop:Rigidbody.linearVelocity.y` a number). A getter runs at each read. A
-    renderer's `material` and `materials`, a MeshFilter's `mesh`, a Collider's `material` and TextMeshPro's
-    `fontMaterial` and `fontMaterials` in a path are read as their shared versions (`sharedMaterial`,
+    (`prop:Rigidbody.linearVelocity` none, `prop:Rigidbody.linearVelocity.y` a number). A getter runs at each read:
+    name a field, or a getter without side effects. The Animator's IK getters (`prop:Animator.bodyPosition` and the
+    like) outside the IK pass, and a mesh's array getters (`prop:MeshFilter.sharedMesh.vertices`) on a mesh without
+    read access, write a warning or an error into the game's own log at every sample; an array getter copies its data
+    at every read. A renderer's `material` and `materials`, a MeshFilter's `mesh`, a Collider's `material` and
+    TextMeshPro's `fontMaterial` and `fontMaterials` in a path are read as their shared versions (`sharedMaterial`,
     `fontSharedMaterial`; the plain getters would give that object a copy of its own, which changes the game), so
-    either spelling reads the shared asset. A path of more than 16 steps reads nothing;
+    either spelling reads the shared asset; so is a Volume's (`prop:Volume.profile` reads its `sharedProfile`): once
+    the game has taken the volume's own profile (`volume.profile.TryGet(...)`), the volume renders that copy, which
+    the path doesn't read, so read what a volume renders with `post:` (section 2.8). A path of more than 16 steps
+    reads nothing;
   - `bone:<Component>.<Bone>.x|y|z`: the world position of a bone of a SkinnedMeshRenderer, a human bone of an
     Animator (`bone:Animator.Head.y`), or a descendant transform of that name. Bone, Part (below) and Animator
     parameter names are written as Unity has them, dots, spaces, colons, parentheses and hyphens included
@@ -457,8 +479,10 @@ renderers, else its position.
     under 0.1 m/s);
   - `anim:<Parameter>`: a parameter of its Animator (on it, else the first in its descendants, enabled and with a
     controller): floats and ints as numbers, bools as 1/0, a trigger has no value; `clip`: the name of that Animator's
-    current clip on layer 0 (the heaviest while it blends), through `match`. Unity has no built-in AI blackboard: read
-    an AI's state with `anim:` or a `prop:` of the component that holds it.
+    current clip on layer 0 (the heaviest while it blends), through `match`. In a project without the Animation module
+    they have no value, and `query_errors` says so once: `objects <id>: the project has no Animation module: clip has
+    no value` (with the fields asked: `anim:Speed has no value`, `clip and anim:Speed have no value`). Read an AI's
+    state with `anim:` or a `prop:` of the component that holds it.
 
 A row (in `probe.json`, for the logs) holds the object's `name` and a `class`: its first script's type, else its first
 Behaviour or Renderer, else its first other component (a BoxCollider, a LODGroup; its Transform and MeshFilter aside),
@@ -498,18 +522,21 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   near a point: select `Renderer` with `near`; each part of one object: select by `owner`. No name is needed. A turn
   drawn by bones (a skinned rotor) or by a material reads 0 here: `drawn`'s `motion` (section 2.19) sees it;
 - `extent_x`, `extent_y`, `extent_z` (a Renderer's or Collider's world bounds half-size, m) and `simulating` (it is,
-  or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D; a collider by the body it is attached to);
+  or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D; a collider by the body it is attached to; 0 in a
+  project with neither Physics module, and `query_errors` says so once: `components <id>: the project has no Physics
+  module: simulating reads 0`);
 - `changed`, `bounds_change`, `pose_change`: a Renderer against the first sample it was seen in, as an object's
   (section 2.4) for one part: hidden or shown, its world bounds moved, a skinned mesh's pose moved (`pose_change` has
   no value unless it is a SkinnedMeshRenderer);
-- `lit` and `glow`: as an object's (section 2.4), for one source: a Light; a renderer with its materials (a
-  MeshRenderer or SkinnedMeshRenderer as below; any other that draws a shape, a SpriteRenderer, a LineRenderer, a
-  TilemapRenderer, always as rendered, as a mesh is below with its world bounds for the box: what it draws is its own,
-  not its material's); or an effect (a ParticleSystem, a TrailRenderer, a VisualEffect, or its renderer); no value
-  for any other component. An effect is read as rendered, as a mesh is below (its world bounds for the box), lit when
-  it is live (a particle system playing or holding particles, a trail drawing points, a visual effect holding
-  particles), its renderer drawn and its brightest pixel above 0.01. A row it lights names `effect` in
-  `glow_sources`. **Check for light with these**, whatever the build made it with;
+- `lit` and `glow`: as an object's (section 2.4), for one source: a Light; a part, a renderer that draws a shape and has
+  something to draw (as an object's parts, section 2.4), with its materials (a MeshRenderer or SkinnedMeshRenderer as
+  below; any other, a SpriteRenderer, a LineRenderer, a TilemapRenderer, always as rendered, as a mesh is below with
+  its world bounds for the box: what it draws is its own, not its material's); or an effect (a ParticleSystem, a
+  TrailRenderer, a VisualEffect, or its renderer); no value for any other component (a MeshRenderer without a mesh
+  among them). An effect is read as rendered, as a mesh is below (its world bounds for the box), lit when it is live
+  (a particle system playing or holding particles, a trail drawing points, a visual effect holding particles), its
+  renderer drawn and its brightest pixel above 0.01. A row it lights names `effect` in `glow_sources`. **Check for
+  light with these**, whatever the build made it with;
 - `intensity` (a Light's own intensity, in its units) and `on` (1 when the Light lights the scene: enabled, active in
   the hierarchy, of an intensity above 0: the `light` probe's test of a Light that is on, section 2.7, which then
   also leaves out a baked one). A lamp switched off by intensity 0 or by disabling the Light reads 0. One switched
@@ -526,17 +553,19 @@ alone, never on their colours. A renderer that isn't drawn (disabled, inactive, 
 read either way.
 - **From its material properties**, when every material it draws with has a shader of one of two kinds (a Shader
   Graph is neither, whatever its properties: the probe knows one by the tag Shader Graph writes into its shader,
-  whatever its path) and no texture on the colour it gives: a shader whose name contains
+  whatever its path), and neither a texture nor a property block on the colour it gives: a shader whose name contains
   `unlit` in any case (URP's `Universal Render Pipeline/Unlit`) and that has `_BaseColor` or `_Color` gives that
   colour (its texture: `_BaseMap` or `_MainTex`); a shader with `_EmissionColor` that declares an `_EMISSION` keyword
   gives, when the material has the keyword enabled, its emission colour (its texture: `_EmissionMap`; keyword off: no
   light, whatever its colour and texture). A colour is read as the shader gets it: one its shader marks [HDR] (URP
   Lit's `_EmissionColor`) as the material holds it (an emission colour of (4, 3, 2) has a luminance of 3.14), any
-  other made linear in a linear-space project. MaterialPropertyBlock overrides on the renderer count, their textures
-  too (a block's colour is made linear whatever the property, as a block hands it on). The brightest material counts,
-  over the renderer's whole local bounds; lit above a luminance of 0.01. `glow_read` is `props`.
+  other made linear in a linear-space project. A MaterialPropertyBlock on the renderer that sets the colour or the
+  texture read makes it read as rendered: a block can hold the colour set as a colour, which the shader gets made
+  linear, or as a vector, which it gets as it is, and nothing tells them apart. The brightest material counts, over
+  the renderer's whole local bounds; lit above a luminance of 0.01. `glow_read` is `props`.
 - **As rendered**, when any material has a texture on the colour it gives (a texture may be an atlas, or dark but for
-  a spot) or another shader (a Shader Graph, or a custom shader whose glow comes from its own code): the renderer is
+  a spot), a property block sets that colour or texture, or another shader (a Shader Graph, or a custom shader whose
+  glow comes from its own code): the renderer is
   drawn alone with every light off, ambient black, reflections and fog off, orthographic from four fixed views around
   it (128 x 128, in HDR), so what is left is what it gives off itself. The views frame its own local bounds box (a
   skinned mesh's in its root bone's frame). `lit`: its brightest pixel's luminance above 0.01. `glow`: the views'
@@ -547,8 +576,8 @@ read either way.
   `bound`). What such a render can't switch off, and its other limits: section 2.19.
 - **Without a render** (past the 64 renders a sample, below; a renderer on the UI layer; a player that can't render
   alone: section 2.19), a mesh reads the bound its materials of the two kinds give instead, each texture taken as
-  white (`glow_read` `bound`); a mesh with no such material, and any other source read as rendered, has no value that
-  sample (`glow_read` `unread`).
+  white and a block's value as the larger of itself and itself made linear (`glow_read` `bound`); a mesh with no such
+  material, and any other source read as rendered, has no value that sample (`glow_read` `unread`).
 
 Limits:
 - a renderer read from its properties counts its brightest material over its whole bounds, so a lamp post with a small
@@ -570,29 +599,38 @@ Limits:
 "AMMO\\s*\\d+", "of": "any"}`.
 
 - What is searched: uGUI (the `UnityEngine.UI` Graphics and Selectables, TextMeshPro text) on every canvas of the
-  loaded scenes, and UI Toolkit (every element of every `UIDocument`'s panel), hidden and inactive widgets included.
-  World-space canvases are included too, their rectangle projected through the camera (`ui` leaves them out). A
-  widget is a uGUI component's object or a UI Toolkit element: one row per GameObject or element, not per component.
-  A row's `class` is the matched component's type, else the object's Selectable, else its text or graphic (a UI
-  Toolkit element's: its type).
+  loaded scenes, and UI Toolkit (every element of every `UIDocument`'s panel, the parts a control builds inside itself
+  too, such as a Slider's tracker and dragger, each named by its name or, unnamed, by its type), hidden and inactive
+  widgets included. World-space canvases are included too, their rectangle projected through the camera (`ui` leaves
+  them out). A widget is a uGUI component's object or a UI Toolkit element: one row per GameObject or element, not
+  per component. A row's `class` is the matched component's type, else the object's Selectable, else its text or
+  graphic (a UI Toolkit element's: its type).
 - `select`: `component` (a uGUI component's type: `Image`, `Slider`, `TextMeshProUGUI`, a game's own component on a
   canvas object; or a UI Toolkit element's type: `Label`, `ProgressBar`, a game's own element; base types match too,
-  so `Button` takes uGUI and UI Toolkit buttons alike), `name` (a wildcard on the GameObject's or the element's name;
-  an unnamed UI Toolkit element's is its type's, as its row shows), `text` (a regular expression its text must
-  match), `visible`. A `component` no loaded assembly has (a typo, or
-  `Label` in a project without UI Toolkit) matches nothing, and the play's `query_errors` says `widgets <id>: no
-  component type <T>`.
+  so `Button` takes uGUI and UI Toolkit buttons alike; with a `name`, a component on an object above, or an element
+  above, matches too: `{"component": "PauseMenu", "name": "Resume*"}` finds the Resume button inside the object that
+  carries `PauseMenu`, and the row keeps its own class), `name` (a wildcard on the GameObject's or the element's name;
+  an unnamed UI Toolkit element's is its type's, as its row shows, so `Vis*` also matches an unnamed `VisualElement`;
+  with no `component` it also finds an object of a canvas that has neither a graphic nor a selectable, such as a menu
+  root that is only a CanvasGroup, of class `RectTransform`), `text` (a regular expression its text must match; a
+  Selectable's text is its label's, so a button and its label both match), `visible`. A `component` no loaded
+  assembly has (a typo, or `Label` in a project without UI Toolkit) matches nothing, and the play's `query_errors`
+  says `widgets <id>: no component type <T>`. In a project with neither uGUI nor UI Toolkit no widget is read, and
+  `query_errors` says `widgets <id>: the project has neither uGUI nor UI Toolkit: no widget is read`.
 - **To check what a HUD shows, whatever draws it, use `ui` (section 2.18).** `widgets` reads a named widget's own
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
-- `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for, those whose drawing is on
-  screen: never an inactive widget, one whose own graphic is disabled or fully transparent, one culled by a
-  RectMask2D, one of no size or entirely outside the frame, nor one under an inactive object, a disabled Canvas or a
-  CanvasGroup at alpha 0, nor one on a canvas drawn into a texture or on another display; in UI Toolkit, never one
-  under an element with `display: none`, one whose own visibility is hidden (a child may be visible again under a
-  hidden parent), or one in a panel not drawn on the screen. So `count` counts what is on screen (a warning bar's
-  shown messages, not the ones the game keeps hidden). A disabled button whose image still draws is visible: whether
-  it can be pressed is `interactable`.
+- `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for. `visible` is the widget's
+  state: the object active, every Canvas up the chain enabled, its own graphic enabled, the CanvasGroups' alpha above
+  0.004, on a canvas drawn on the screen and inside the frame; in UI Toolkit, displayed all the way up, its own
+  visibility visible (a child may be visible again under a hidden parent), an opacity above 0.004 down the tree, in a
+  panel drawn on the screen and inside the frame. Its colour, its size and clipping don't count: a shown panel whose
+  own image is transparent, or whose root has no size, reads visible like its children, and so does an item scrolled
+  out of a Scroll View's view while inside the frame. Never visible: an inactive widget, one whose own graphic is
+  disabled, one under an inactive object, a disabled Canvas or a CanvasGroup at alpha 0, one entirely outside the
+  frame, one on a canvas drawn into a texture, on another display or by a camera that is off. So `count` counts what
+  the game shows (a warning bar's shown messages, not the ones it keeps hidden); what is drawn on screen is `ui`'s
+  (section 2.18). A disabled button whose image still draws is visible: whether it can be pressed is `interactable`.
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; an input field's (`InputField`,
   `TMP_InputField`, UI Toolkit's `TextField`) what was typed, not its placeholder; a UI Toolkit `DropdownField`'s
@@ -603,9 +641,11 @@ Limits:
   when a uGUI Selectable is interactable and enabled, no value for another uGUI widget; a UI Toolkit element's enabled
   state); `has_brush` (1 when an Image's sprite, a RawImage's texture, or a UI Toolkit element's image or background
   image is set; no value for another uGUI widget); `brush` (that image's name, with `match`); `x`, `y`, `w`, `h` (the
-  widget's rectangle in viewport fractions 0-1, **y down from the top**, whatever anchor or layout placed it; no value
-  for a widget with a zero-size rect, such as one under `display: none`, a world-space one behind the camera, or one
-  on a canvas or in a panel not drawn on the screen).
+  widget's rectangle in viewport fractions 0-1, **y down from the top**, whatever anchor or layout placed it, as laid
+  out at the sample: a uGUI layout change made in that frame shows from the next sample (a canvas is laid out when it
+  is drawn), a UI Toolkit one at once (the panels are laid out before LateUpdate); no value for a widget with a
+  zero-size rect, such as one under `display: none`, a world-space one behind the camera, or one on a canvas or in a
+  panel not drawn on the screen).
 - A project without the TextMeshPro essential resources draws no TMP text, but `widgets` and `ui` still report its
   `.text`.
 
@@ -634,15 +674,28 @@ ambient), `lights` (how many sources lit it) and `point`, for the logs. A point 
 
 A Light counts when URP lights with it at run time: it is on (enabled, active in the hierarchy, of an intensity above
 0; `grading`'s sun the same); it is a directional, point or spot light (URP only bakes area lights); its bake didn't
-store its light (a baked Light's light reaches the point through the light probes; a Light set to Baked but never
-baked, and a Mixed one, light in real time); and the URP asset lights it (the main light when the asset lights it per
-pixel, the others when its additional lights are on). Without URP as the render pipeline the measure still computes
-URP's terms, and the play's `query_errors` says `light <id>: the render pipeline isn't URP: the light is URP's, not
-the frame's`.
+store its light (a Light set to Baked but never baked, and a Mixed one, light in real time; a baked Light reaches the
+point only through the scene's baked light probes: in a scene without them it reaches no point, as it reaches no
+moving object there in the frame, though the lightmapped surfaces show it); and the URP asset lights it (the main
+light when the asset lights it per pixel, the others when its additional lights are on). The main light is the
+Lighting window's sun source, else the directional light of the highest intensity; of two as intense, the measure
+takes the first in hierarchy order, URP the first in its own list of visible lights. Without URP as the render
+pipeline the measure still computes URP's distance and cone terms, with each light's colour as the engine computes it
+then (with linear light intensity off in the graphics settings, which URP turns on, a light's intensity counts in
+gamma: a white lamp of intensity 2 lights as 2^2.2); every Light that is on counts (not a baked one, nor an area
+light), a wall stops one whose shadows are on when the quality settings have shadows, and the play's `query_errors`
+says `light <id>: the render pipeline isn't URP: the light is URP's, not the frame's`.
 
 It sees no post-processing beyond post exposure (no colour grading, vignette, ambient occlusion, bloom); for what
-reaches the screen, use `screen` (section 2.15). It sees Lights only: whether a lamp is on, whatever lit it (a Light,
-or a renderer drawn with a glowing material), is `lit` of the lamp (section 2.4).
+reaches the screen, use `screen` (section 2.15). It doesn't read a light's cookie, its culling mask or rendering
+layers (a point has no layer), URP's per-object light limit under the Forward path or Adaptive Probe Volumes, nor,
+as a moving object there wouldn't, a static surface's own lightmap. Its walls are colliders, standing for shadow
+casters: a mesh without a collider casts no shadow here, a collider without a shadow-casting renderer does.
+It reads the Light's and the URP asset's shadow settings, not the camera's (a point reads the same wherever the
+camera stands): beyond the asset's shadow distance from the camera (50 m in the template's asset; URP draws no shadow
+past it), for a camera with Render Shadows off, and for additional lights lit per vertex, the frame has no shadow
+while the measure still stops the light at the wall. It sees Lights only: whether a lamp is on, whatever lit it (a
+Light, or a renderer drawn with a glowing material), is `lit` of the lamp (section 2.4).
 
 ### 2.8 `grading`: the colour pipeline
 
@@ -662,9 +715,11 @@ parameter's effective value at the camera after blending.
 - The stack: the probe blends the volumes for the camera's volume trigger and volume layer mask at each sample
   (`source: "camera"`), or takes the camera's own stack when the camera updates it by script (`camera_stack`). A camera
   with post-processing off draws ungraded: neutral constants and exposure 1 (its `post:` values still read the stack).
-  Without URP the constants are neutral and a `post:` field has no value, and the play's `query_errors` says so
-  (`grading <id>: the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no value)`).
-  Of two directional Lights of one intensity, the sun is the first in hierarchy order.
+  So does a camera whose renderer has post-processing off (the renderer asset's own switch), whatever the camera's
+  says: the measure doesn't read the renderer's, and reports the stack's constants (and `exposure` its post exposure)
+  all the same. Without URP the constants are neutral and a `post:` field has no value, and the play's `query_errors`
+  says so (`grading <id>: the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no
+  value)`). Of two directional Lights of one intensity, the sun is the first in hierarchy order.
 - A play's first sample can come before URP has set up its volumes: for a camera that renders post-processing (or
   with no camera yet) the grade isn't known then, and that sample has no value, for every grading field and for a
   light's `exposure` and `brightness` (the next sample reads them; a camera without post-processing reads its
@@ -681,11 +736,12 @@ parameter's effective value at the camera after blending.
   shadows/midtones/highlights, the curves and a Color Lookup texture: read a tonemapping change with
   `post:Tonemapping.mode`, a lookup's with `post:ColorLookup.contribution`.
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
-  enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set, a colour or a vector by its channel,
-  either spelling for either: `.r` or `.x` the first, `.g` or `.y` the second, `.b` or `.z` the third, `.a` or `.w`
-  the fourth (`post:Vignette.color.r`, `post:Vignette.center.x`). Names are spelled exactly, case included. A `post:`
-  name that doesn't exist (a component, a parameter or a channel), a colour or vector without its channel, or a
-  parameter with no single number (a curve) has no value and gives a `query_errors` line.
+  enum its value (`post:Tonemapping.mode` None reads 0), a texture (or another asset) 1 when set and 0 when not, a
+  colour or a vector by its channel, either spelling for either: `.r` or `.x` the first, `.g` or `.y` the second,
+  `.b` or `.z` the third, `.a` or `.w` the fourth (`post:Vignette.color.r`, `post:Vignette.center.x`). Names are
+  spelled exactly, case included. A `post:` name that doesn't exist (a component, a parameter or a channel), a colour
+  or vector without its channel, or a parameter with no single number (a curve: `post:ColorCurves.master`) has no
+  value and gives a `query_errors` line.
 - The sample's value also holds, for the logs: `post_processing`, `grading_mode` (`ldr` or `hdr`), `source`,
   `pipeline`, the constants (linear colours; `hue_shift` in degrees), `sun`, `sky` and `fog` (with its `mode`).
 
@@ -740,7 +796,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
     prefab's root as a scene object's `prop:` does (`prop:Light.intensity`, the first Light in it). `material`,
     `materials` and `mesh` in a path are read as their `shared...` versions (the plain getters would copy the asset).
     A path that stops at an unset reference or past the end of a list has no value; one naming a member the asset
-    doesn't have is an error (below);
+    doesn't have is an error (below). Values read as section 2.4 reads them: numbers and booleans as numbers, an enum
+    its value, an object reference or a C# object (an AnimationCurve) 1 when set and 0 when not; a struct read without
+    its member, NaN and an infinity have no value;
   - `import:<path>`: its importer's setting (`import:maxTextureSize`, `import:textureCompression`), falling back to
     an AudioImporter's `defaultSampleSettings` (so `import:loadType` works);
   - `shader:<Property>`: a material's shader property: a float, range or int as it is (`shader:_Smoothness`); a
@@ -774,9 +832,10 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
 - Errors: the probe fails with "the editor couldn't measure it: " and the editor's message, one of these (`<...>` stands
   for the names in question):
   - `no asset <path>`, `no scene <path>`, `no prefab <path>` (also for a path that isn't `Assets/...` or
-    `Packages/...` with forward slashes, or that has a `.` or `..` part; a task's schema refuses the first before any
-    build, and `tools/validate-game.py` the second: `check <n>: <path> has a "." or ".." part: name the file by its
-    own path under Assets/ or Packages/`);
+    `Packages/...` with forward slashes, or that has an empty, `.` or `..` part; a task's schema refuses the first
+    before any build, and `tools/validate-game.py` the others: `check <n>: <path> has a "." or ".." part: name the
+    file by its own path under Assets/ or Packages/`, `check <n>: <path> has an empty part ("//", or a "/" at its
+    end): name the file by its own path under Assets/ or Packages/`);
   - `the scene <path> couldn't be opened: <type>: <message>`, `the prefab <path> couldn't be loaded: <type>:
     <message>` (the file is there, but Unity can't open it);
   - `no property <path> on <asset type> <asset path>` (a `prop:` of an asset naming a member it doesn't have);
@@ -788,7 +847,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   - `no <part> on the shader property <name>` (`.name` of a float, a channel of a texture);
   - "`player` selects need a running game: the editor pass can't match them";
   - "`has` needs a running game: the editor pass can't match it";
-  - "a `near` point on the player or the camera needs a running game: use {"xyz": [x, y, z]}".
+  - "a `near` point on the player or the camera needs a running game: use {"xyz": [x, y, z]}";
+  - `the select nests too deep` (a select's points hold at most two object selects, one inside the other, the second
+    without a `near` of its own; in a play a deeper point doesn't resolve).
   Any other failure in the pass reads as its exception's type and message (`<type>: <message>`). A value that reads no
   number fails too: "the property has no number" (an `asset` field without a value, or a string read without
   `match`), "no selected object has a value" (rows without a value, or none, under `of` `min`, `max`, `mean` or
@@ -875,13 +936,15 @@ is too dark to see" or "the night is too bright" is measured on what reaches the
 light arriving at a point and sees none of that.
 
 - `rect`: `[x0, y0, x1, y1]` in viewport fractions 0-1, y down from the top, x0 < x1 and y0 < y1 (default
-  `[0, 0, 1, 1]`, the whole frame). The frame is read **as displayed, UI included**: keep the rect on the scene the
-  task is about and off the HUD. What the HUD shows is `ui` (section 2.18), not luminance.
+  `[0, 0, 1, 1]`, the whole frame), read as whole pixels, rounded out (at least one pixel each way). The frame is read
+  **as displayed, UI included**: keep the rect on the scene the task is about and off the HUD. What the HUD shows is
+  `ui` (section 2.18), not luminance.
 - `field`: `luminance`, the mean linear Rec. 709 luminance of the displayed pixels (sRGB decoded, 0-1); `luma`, the
   mean Rec. 709 luma of the encoded values (0-1, closer to perceived brightness).
 - What is read: the frame drawn right after each sample (the sample's own frame, read once it is drawn: no play time
-  passes in between). No value when no frame is drawn. The value also holds `pixels` (how many the rect covers) and
-  `size` (the frame's width and height), for the logs.
+  passes in between). No value when no frame is drawn, nor when the frame can't be read: the play's `query_errors`
+  then says `screen <id>: <type> reading the frame (the exception is in probe.log)`. The value also holds `pixels`
+  (how many the rect covers) and `size` (the frame's width and height), for the logs.
 - **The threshold is calibrated or relative to the start, never a literal value** (`tools/validate-game.py` refuses
   one): the numbers depend on the GPU, the driver and the resolution, so they compare only within one machine's plays.
   Two plays of one build on one machine read the same (measured: identical series), to about 1e-5 with a realtime
@@ -897,9 +960,9 @@ light arriving at a point and sees none of that.
 
 The AudioSources playing: a source on an object, a 2D source for music, a temporary one-shot source; so ambience a
 game drives from code reads as well as a source placed in the scene. `PlayClipAtPoint` sounds read like any other
-(Unity makes a "One shot audio" source with the clip). A `PlayOneShot` sound counts (its source reads as playing), but
-the probe sees only its source's own clip, not the one-shot's: on a source without a clip, `loudest` is "" and no
-`sound` select matches it; `level` hears it.
+(Unity makes a "One shot audio" source with the clip). A `PlayOneShot` sound counts (its source reads as playing, at
+the source's own volume: the one-shot's volume scale is left out), but the probe sees only its source's own clip, not
+the one-shot's: on a source without a clip, `loudest` is "" and no `sound` select matches it; `level` hears it.
 
 - `select` (optional; none: every source playing): `sound` a wildcard on the AudioClip's name, `sound_class` a
   wildcard on the name of the AudioMixerGroup the source outputs to (that group's own name: a parent group's doesn't
@@ -920,8 +983,14 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   the frame it comes on; a sample before which no audio reached the tap at all (a play's first sample can be one)
   has no `level`, while silence reads 0. No listener: no value at all; nor in a project without Unity's Audio
   module, where the play's `query_errors` says "audio <id>: the project has no Audio module: no sound is read".
-- While `AudioListener.pause` is on, every source reads as not playing (`count` and `level` 0); with `timeScale` 0
-  sounds keep playing.
+- With two listeners on (Unity warns), Unity places the sound at the one that came on last, while the measure keeps
+  the first in hierarchy order: `volume`, `max_volume`, `audible` and `listener` are that one's. `level` is still the
+  whole mix (both listeners' taps run one after the other on the one mix; the second gets the first's silence), but a
+  buffer of pure silence is then left out of it, so a sound that plays for part of the time between two samples reads
+  the level of its own stretch, not of the whole time.
+- While `AudioListener.pause` is on, every source reads as not playing but one that ignores the pause
+  (`AudioSource.ignoreListenerPause`, which only code sets: a scene doesn't save it), and `level` is the mix of those;
+  with `timeScale` 0 sounds keep playing.
 - The sample's value also holds `loudest` (the loudest source's clip name), `peak` and `listener` (its object's name),
   for the logs.
 - **A `volume`, `max_volume` or `level` threshold is calibrated or relative to the start, never a literal value**: how
@@ -952,9 +1021,9 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   ground; anything else (trees, rocks, roofs) is traced through. The player's colliders are always skipped, with or
   without `select`.
 - The ray is 3D: 2D colliders are never ground (a 2D game's ground isn't read this way). A height comes from a
-  single-precision ray from 2000 m up: it is good to about 0.1 mm. In a project without Unity's Physics module the
-  ray meets nothing, and the play's `query_errors` says "ground <id>: the project has no Physics module: no ground
-  is read".
+  single-precision ray from 2000 m up: it is good to about 0.1 mm. In a project without Unity's (3D) Physics module
+  the ray meets nothing (`hit` and `hits` read 0), and the play's `query_errors` says so once: "ground <id>: the
+  project has no Physics module: no ground is read".
 - **A `range` threshold is calibrated or relative to the start, never a literal value**; heights take a literal, as
   an object's `y` does.
 
@@ -976,23 +1045,25 @@ percent, a sprite).
   CanvasGroup at an alpha of 0.004 or less, a UI Toolkit element with `display: none` or at an opacity that low, and
   everything under them, are not read; nor is a UI Toolkit element whose own visibility is hidden (a child may show
   again under a hidden parent), a disabled graphic, one whose own colour is that transparent, one culled by a
-  RectMask2D, a blank text, an Image filled to 0, an element of no size or entirely off the frame, or anything on a
-  canvas or in a panel drawn into a texture or on another display. No value when no frame is drawn. Should the scan
+  RectMask2D or wholly outside an enabled Mask (an item scrolled out of a Scroll View), a blank text, an Image filled
+  to 0, an element of no size or entirely off the frame, or anything on a canvas or in a panel drawn into a texture or
+  on another display, or on a camera canvas whose camera is off. No value when no frame is drawn. Should the scan
   of the uGUI canvases or of the UI Toolkit panels fail, that sample misses their elements and the play's
   `query_errors` says `ui: the uGUI canvases couldn't be read: <type> (the exception is in probe.log)` (or the UI
   Toolkit panels).
 - Each element is one row: on a screen-space canvas (Overlay or Camera), a `Text` or `TMP_Text` is `text`, an `Image`
   or `RawImage` with a sprite or texture is `image`, any other drawn Graphic is `box`; in a UI Toolkit panel drawn on
-  the screen, a `TextElement` with text (an empty field: its placeholder) is `text`, an element with an image (an
-  `Image` element's, or a background image) is `image`, one with a background colour or a border is `box`. An element
-  can be two rows: a UI Toolkit Button gives a `box` row and a `text` row, as a uGUI button gives its image and its
-  child text. Text is read as shown: rich text tags stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`)
-  honoured. Rows come in this order: uGUI elements in hierarchy order, then UI Toolkit elements in tree order, then
-  the lines read from the frame (below).
+  the screen, a `TextElement` with text (an empty field: its placeholder; a password field: its mask characters, as
+  drawn) is `text`, an element with an image (an `Image` element's, or a background image) is `image`, one with a
+  background colour or a border is `box`. An element can be two rows: a UI Toolkit Button gives a `box` row and a
+  `text` row, as a uGUI button gives its image and its child text. Text is read as shown: rich text tags stripped, a
+  TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; the text as set, not as TextMeshPro last laid it
+  out (the zero-width space a TextMeshPro input field adds for its caret left out). Rows come in this order: uGUI
+  elements in hierarchy order, then UI Toolkit elements in tree order, then the lines read from the frame (below).
 - `select` (optional; default every element): `kind` (`text`, `box`, `image`); `text` (a regular expression the
   element's text must match; text elements only, so with `kind` `text` or none); `rect` `[x0, y0, x1, y1]` in viewport
-  fractions, y down from the top, x0 < x1 and y0 < y1 (the element's centre inside). There is no `line` kind: Unity
-  keeps no list of line draws.
+  fractions, y down from the top, x0 < x1 and y0 < y1 (the element's centre inside). Lines a game draws (with `GL`,
+  `OnGUI` or a mesh) are no elements of any kind: Unity keeps no list of them.
 - `field`: `count` (one per element); `text` (the string shown, with `match`: a `ui` measure takes `match` when its
   field is `text`, and only then); `x`, `y`, `w`, `h` (the element's rectangle in viewport fractions 0-1, y down);
   `signature` (whether what the select shows updates, below); `number` and `clock` (the number or time it shows,
@@ -1039,7 +1110,8 @@ percent, a sprite).
   so nothing reads twice. It reads digits 0-9, capital letters A-Z and `%`, `/`, `.`, `-`, `:`, in the shapes
   line-drawn and segment fonts give them (plain strokes, cut or rounded corners, seven segments, a slashed 0, diagonals
   in 1, 4 and 7). Only such a select reads the frame's pixels; any other select reads the elements alone. Should the
-  reader itself fail, the sample keeps its other elements and the play's `query_errors` says `ui <id>: <type> in the
+  frame's pixels not be read, or the reader itself fail, the sample keeps its other elements and the play's
+  `query_errors` says `ui <id>: <type> reading the frame (the exception is in probe.log)` or `ui <id>: <type> in the
   frame reader (the exception is in probe.log)`.
   - It reads nothing rather than guess: text that doesn't stand out in one colour from an even background behind it;
     a line that runs out of the rect or that another mark crosses; a glyph two characters fit (an unslashed 0 and O,
@@ -1056,8 +1128,8 @@ percent, a sprite).
     its fit is over the limit); a flat-topped 3 reads. TextMeshPro at 32 px in its default font is too bold for its
     size and reads nothing through the frame (it reads as a `ugui` element anyway). Where a readout drawn without UI
     components matters, check in the fix's play that it reads.
-  - Where a line-drawn readout still doesn't read as text, `ui` has nothing else to read it by: there are no line
-    elements to count. Grade another outcome of the same issue.
+  - Where a line-drawn readout still doesn't read as text, `ui` has nothing else to read it by (its lines are no
+    elements): grade another outcome of the same issue.
 - Limits: world-space canvases and text in the 3D scene (a `TextMeshPro` 3D text, a `TextMesh`) are not UI elements
   (their text can still read from the frame, above).
 
@@ -1076,12 +1148,13 @@ rendered alone, by a camera of the probe's own that shows only those: orthograph
 point at 64 x 64, slanted from the corners of a tetrahedron, two of them from above and two from below; two across a
 line at 128 x 128), lit by a flat white ambient light alone, with no Lights, shadows, lightmaps, light probes,
 reflections, fog, post-processing or anti-aliasing, so a still scene renders the same every sample. At most 1024 are
-rendered, the first in hierarchy order. A renderer or terrain whose bounds enclose the whole place and are at least
-20 times its size (a sky dome, a room seen from inside) is left out.
+rendered: past that, the first in hierarchy order, the same ones in every play. A renderer or terrain whose bounds
+enclose the whole place and are at least 20 times its size (a sky dome, a room seen from inside) is left out.
 A pixel is in the place when its depth puts it there, or when it shows colour with nothing opaque behind it
 (translucent particles); the views reach no further than the place's far side, so an opaque wall behind the place
 doesn't hide translucent particles in front of it. Everything the render changes is put back before the sample
-returns: the game's own frames are the same with and without the measure.
+returns, even when a game's camera callback throws during it (that sample then has no value): the game's own frames
+are the same with and without the measure, but for what a game sees of a render (below).
 
 - The place: `near` (section 2.13: a point, a radius and, optionally, a height band), or `line`: `{"from": <Point>,
   "to": <Point>, "radius": m}` (0 < radius <= 100), the segment and how far from it counts as on it. One of them.
@@ -1110,17 +1183,31 @@ returns: the game's own frames are the same with and without the measure.
 - Limits: the player's own object counts like anything else in the place (keep it out, or teleport away); a lit
   translucent particle shows as lit by the white ambient light only; a surface that writes no base colour has none
   (an unlit one reads 0, a translucent one is left out); what isn't a renderer or a terrain (`GL` drawing,
-  `Graphics.RenderMesh*` from code, UI) reads nothing, nor does anything on the UI layer, where world-space canvases
-  draw (a canvas on another layer isn't a renderer, so nothing switches it off: keep one out of the place). The probe
-  renders with the URP renderer the player's camera draws with, its RenderObjects features kept and its other features
-  off, so a layer that renderer doesn't draw reads nothing; URP's Forward, Forward+ and Deferred renderers read the
-  same, but a shader with only a forward pass draws nothing under Deferred, in the game as in the probe. Game code
-  hooked to the render pipeline's camera callbacks also sees the probe's render (an exception it throws there leaves
-  the sample with no value: "rendering: an exception during a render: no value that sample (the exception is in
-  probe.log)"), and an object the probe renders may report itself visible to the game that frame (`OnBecameVisible`,
-  `Renderer.isVisible`). URP adaptive probe volumes and realtime GI lightmaps are not switched off (they would add
-  light to a glow reading). Keep the place tight around what the task is about: a floor or a wall inside it counts
-  too.
+  `Graphics.RenderMesh*` from code, UI) reads nothing. A renderer on the UI layer is never rendered: the probe leaves
+  that layer out, so world-space canvases there don't show; a world-space canvas on another layer inside the views is
+  drawn with the place and counts, as it can't be switched off (keep canvases on the UI layer). The probe renders with
+  the URP renderer the player's camera draws with (Forward, Forward+ or Deferred), its RenderObjects features kept and
+  its other features off: a layer that renderer filters out is drawn only when it draws it another way (a
+  RenderObjects pass), as in the game, and a shader with only a forward pass draws nothing under Deferred, in the game
+  as in the probe. Under Forward+ (or Deferred+) with reflection probe blending on, a reflection probe whose box holds
+  a surface still reaches the render whatever the renderer's own setting: a smooth surface there keeps a little of
+  what the probes reflect, and a realtime probe's new picture reads as motion (the template's renderer is Forward,
+  blending off). A Light or a renderer the game hides from scripts (`HideFlags.HideAndDontSave`) isn't found: such a
+  Light stays on in a probe render, and such a renderer is never chosen nor switched off. Particles with a random
+  seed draw differently in every play: compare a reading of particles over a window (`"agg": "mean"`), never one
+  sample. URP adaptive probe volumes and realtime GI lightmaps are not switched off (they would add light to a glow
+  reading). Keep the place tight around what the task is about: a floor or a wall inside it counts too.
+- What a game sees of a probe render: game code hooked to the render pipeline's camera callbacks sees the probe's
+  renders too, from a camera named `TaskProbe.Render`, disabled and hidden (`Camera.main`, `Camera.allCameras` and
+  object searches never find it); an exception such a callback throws, as one of the probe's own, leaves that sample
+  with no value and the line "rendering: <ExceptionType> in a render: no value that sample (the exception is in
+  probe.log)". An object the probe renders counts as seen that frame (`OnBecameVisible`, `OnWillRenderObject`,
+  `Renderer.isVisible`): an Animator culled when unseen (Cull Completely) animates, and a particle system paused when
+  unseen runs on, in a frame the probe renders them. Keep a drawn place and the glow sources off what a task needs to
+  stay culled.
+- Cost, measured: about 5 to 8 ms a sample near a point (the `base_` fields add a third render of each view), 4 ms
+  along a line, 2.5 ms a glow render; in a scene of 4,000 renderers about 11 ms near a point and 4 to 5 ms a glow
+  render, and 17 ms for a place holding 1,024 renderers.
 
 ## 3. What gates, and how a probe fails
 
