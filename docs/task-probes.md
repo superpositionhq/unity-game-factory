@@ -23,7 +23,8 @@ Words used here:
 - **the player**: the first object the task's `player` select matches (an object select, section 2.4), when the task
   has one; then nothing else is tried, so a select that matches nothing leaves the play without a player. Else an
   active object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController`, else the root
-  object of the camera below. A scene with more than one of these needs the task's `player`;
+  object of the camera below. Where that could find the wrong object (two tagged `Player`, say), name it with the
+  task's `player`;
 - **the camera**: `Camera.main` (tagged `MainCamera`, enabled), else the enabled camera of highest depth that renders
   to the screen.
 
@@ -342,8 +343,8 @@ renderers, else its position.
     that object a copy of its own, which changes the game;
   - `bone:<Component>.<Bone>.x|y|z`: the world position of a bone of a SkinnedMeshRenderer, a human bone of an
     Animator (`bone:Animator.Head.y`), or a descendant transform of that name. Bone, Part (below) and Animator
-    parameter names are written as Unity has them, spaces, colons, parentheses and hyphens included
-    (`bone:SkinnedMeshRenderer.mixamorig:Hips.y`, `world_yaw:Lamp (1)`);
+    parameter names are written as Unity has them, dots, spaces, colons, parentheses and hyphens included
+    (`bone:SkinnedMeshRenderer.mixamorig:Hips.y`, `bone:Animator.hand.L.y`, `world_yaw:Lamp (1)`);
   - `rel_yaw:<Part>`: the part's world yaw minus the object's (turning the whole object doesn't change it);
   - `world_yaw:<Part>`, `world_pitch:<Part>`, `world_roll:<Part>`: the part's own rotation in the world (degrees),
     whether its object or the part itself turned; `forward:<Part>.x|y|z`: its forward unit vector in the world. For a
@@ -456,9 +457,9 @@ Limits:
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
 - `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for: never an inactive, disabled
-  or fully transparent one, nor one under such a parent (a CanvasGroup at alpha 0, a UI Toolkit element with
-  `display: none` or `visibility: hidden`), nor one culled by a RectMask2D or entirely outside the frame, so `count`
-  counts what is on screen (a warning bar's shown messages, not the ones the game keeps hidden).
+  or fully transparent one, nor one under an inactive object, a disabled Canvas, a CanvasGroup at alpha 0 or a UI
+  Toolkit element with `display: none` or `visibility: hidden`, nor one culled by a RectMask2D or entirely outside the
+  frame, so `count` counts what is on screen (a warning bar's shown messages, not the ones the game keeps hidden).
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; a Selectable with no text of its own
   reads its first child label's, so a Button reads its label); `percent` (0-1: a Slider's normalized value, a filled
@@ -778,10 +779,11 @@ the way to check what a HUD or menu shows**; `widgets` (section 2.6) stays for a
 percent, a sprite).
 
 - What is read: the elements on screen in the frame drawn right after each sample (the sample's own frame, read once it
-  is drawn: no play time passes in between). Only what is on screen: an inactive or disabled element, one at an alpha
-  of 0.004 or less (its colour, a CanvasGroup, UI Toolkit opacity), one hidden in UI Toolkit (`display: none`,
-  `visibility: hidden`) or culled by a RectMask2D, and everything under it, are not read, nor is a blank text, an
-  Image filled to 0 or an element entirely off the frame. No value when no frame is drawn.
+  is drawn: no play time passes in between). Only what is on screen: an inactive object, a disabled Canvas, a
+  CanvasGroup at an alpha of 0.004 or less, a UI Toolkit element hidden (`display: none`, `visibility: hidden`) or at
+  an opacity that low, and everything under them, are not read; nor is a disabled graphic, one whose own colour is
+  that transparent, one culled by a RectMask2D, a blank text, an Image filled to 0, or an element entirely off the
+  frame. No value when no frame is drawn.
 - Each element is one row: on a screen-space canvas (Overlay or Camera), a `Text` or `TMP_Text` is `text`, an `Image`
   or `RawImage` with a sprite or texture is `image`, any other drawn Graphic is `box`; in a UI Toolkit panel drawn on
   the screen, a `TextElement` with text is `text`, an element with an image (an `Image` element's, or a background
@@ -917,11 +919,13 @@ returns: the game's own frames are the same with and without the measure.
   start measured nothing for, because its play crashed on the very bug the task fixes, doesn't count against it.)
 - **Trace probes never gate**: `"required": false`, with a literal threshold.
 - **No samples, no pass.** When a play ends early or a measure has no samples in its window (the game quit, crashed or
-  never reached that time; a `player` measure in a play that found no player, a `camera` measure with no camera), the
-  probe fails with "no samples in the window (the play ended at X s)", or "no samples in the window (the play wrote no
-  probe file)"; when samples exist but nothing selected has a value, it fails with "no value in the window (nothing it
-  selects was measured)", followed by "; the probe said: " and the first line of the play's `query_errors` when it has
-  one (that line may be another measure's: the play's `probe.json` holds them all).
+  never reached that time; or, for a `player` measure, the play found no player, and for the camera's `distance`,
+  `height`, `pitch`, `yaw` or `fov`, no camera), the probe fails with
+  "no samples in the window (the play ended at X s)" or "no samples in the window (the play wrote no probe file)";
+  when samples exist but nothing selected has a value, it fails with
+  "no value in the window (nothing it selects was measured)", followed by "; the probe said: " and the first line of
+  the play's `query_errors` when it has one (that line may be another measure's: the play's `probe.json` holds them
+  all).
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`
