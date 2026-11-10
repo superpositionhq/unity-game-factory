@@ -1,24 +1,20 @@
 ---
 name: unity-write-tasks
-description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, up to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, every task medium or hard, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene, milestones and deterministic probe checks (pass/fail never by a model judge or pixels; one required probe per issue), limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves or reviews tasks, and before calling a game complete.'
+description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, up to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, every task medium or hard, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by a model judge or pixels; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves or reviews tasks, and before calling a game complete.'
 ---
 
 # Writing a game's tasks (Unity)
 
 A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an LLM agent can be given on this game,
 fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.json` (`kind`: `fix`, `corr`, `feat`,
-`change`), in the task format `GameTask` (`game-task/1`, Unity flavour: `"engine": "unity"`), with `"name"` equal to
-the file stem (run and grade ids depend on it; never rename a shipped task). Up to about 10 per game, every one a long
-thread of multiple edits (section 1): fewer good tasks beat filling the count with short ones. The tasks branch is the
-single source: tasks are loaded as `Tasks/*.json` from the repos' tasks branches, and the packager ships them in the
-dataset split into the agent's and the grader's halves (docs/game-format.md). Write tasks with this skill and the
-unity-game-factory tools only, never with another skill (AGENTS.md, "Only these skills").
-
-> **The verifier is not in this repo yet.** The task schema (`docs/schemas/game-task.schema.json`), the validator
-> (`tools/validate-game.py`), the probe plugin and the task check (`tools/task-check.py`, docs/task-check.md,
-> docs/task-probes.md) come with it. Until they land: write and commit tasks by this skill, count each thread with
-> `tools/thread-stats.py` (available now), and report the tasks as **written, not yet checked**. No task is VALID
-> before the task check says so.
+`change`), in the task format `GameTask`
+([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`, Unity flavour:
+`"engine": "unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
+shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat
+filling the count with short ones. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
+repos' tasks branches, and the packager ships them in the dataset split into the agent's and the grader's halves
+(docs/game-format.md). Write tasks with this skill and the unity-game-factory tools only, never with another skill
+(AGENTS.md, "Only these skills").
 
 ## 0. Where tasks live: the orphan `tasks` branch
 
@@ -60,7 +56,13 @@ when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `gi
   own start branch `starts/<task name>` (section 2); pick them in the game checkout (`git -C <root>/games/<slug> log`),
   never on the tasks branch.
 
-Commit tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only.
+Check every task after committing it on the tasks branch:
+`python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` (it reads the committed `tasks`
+branch, else `origin/tasks`, through git: schema, the format's extra rules, name = file name, seed commits on main or
+the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). Commit
+tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then run the task check on
+all of them in one background run (section 5, `tools/task-check.py`): only VALID tasks ship, so fix or remove every
+INVALID one before the game is packaged.
 
 ## 1. The bar: long threads of multiple edits, nothing else
 
@@ -93,8 +95,10 @@ validator count with it):
    sits in another (a HUD symptom from a ScriptableObject, a camera symptom from physics layers, a crash only in the
    player build, an intermittent or timing bug, a regression from an earlier change).
 5. **Checkable by the grader.** Every required outcome is measurable in the grader's own plays: a scenario
-   (`play_scene` arguments at the seed) that triggers the moment, or a task play whose scripted keys reach it (Input
-   System key and button names, but no mouse movement). A thread no probe can measure is not a task.
+   (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted keys reach it
+   (Input System control paths, mouse buttons included, but no mouse movement). The plays drive the Input System
+   only: a game that reads the old Input Manager (`Input.GetKey`) takes no keys in them. A thread no probe can
+   measure is not a task.
 
 **Never make a task easier (permanent).** After a task is first written, these are banned if they lower the bar:
 widening a threshold or window, making a required probe optional, removing a probe, removing a requirement from the
@@ -130,8 +134,9 @@ its ends.
 ## 2. Picking the commits
 
 **Starts on the game's editor.** The checker opens a start exactly as committed, with the Unity version its
-`ProjectSettings/ProjectVersion.txt` names (6000.3.x): it never upgrades, patches or rewrites a game. So `seed.commit`
-and `seed.reference` must both be 6000.3 commits that compile and open as they are. When a thread's real start can't
+`ProjectSettings/ProjectVersion.txt` names (6000.3.x): it never upgrades, patches or rewrites a game, and it refuses a
+start that isn't a 6000.3 project. So `seed.commit` and `seed.reference` must both be 6000.3 commits that compile and
+build as they are (the validator checks the version). When a thread's real start can't
 be used as it is (it predates a package upgrade the reference depends on, or an unrelated later fix is needed for it to
 compile), give it a made start:
 
@@ -192,14 +197,20 @@ that the issues are related. Leave out the play_scene line, which the harness ad
 - Describe the controls the player needs; the harness tells the agent which scene QA plays (`play_scene`).
 - Never name the studio, its pipeline or its tools. Never describe the fix or any step of the thread.
 
-## 4. `play_scene`
+## 4. `play_scene` and `play_args`
 
 The game's first build scene is usually a title menu that simulated keys cannot leave, so a task almost always needs
-`play_scene`: the scene path and the player's command-line arguments that start straight in the gameplay where the
-issue shows (e.g. `{"scene": "Assets/Scenes/Harbor.unity", "args": ["-scenario", "2"]}`). Read the game's
-command-line and scenario handling at `seed.commit` and check the scene exists there and is in the build list
-(`ProjectSettings/EditorBuildSettings.asset`). Every grader play opens it (boots, idle and drive, the route, the before
-and reference plays).
+`play_scene` and `play_args`: the scene that starts straight in the gameplay where the issue shows, and the player's
+command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`,
+`"play_args": ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the
+scene exists there and at `seed.reference`. The checker adds every scene the plays open to the build, after the
+project's own enabled build scenes, so the scene needn't be in `ProjectSettings/EditorBuildSettings.asset`. Every grader
+play opens it (boots, idle and drive, the route, the before and reference plays); a task play may open its own `scene`
+and `args` instead. Each argument matches `^-?[A-Za-z0-9_.:=,/-]{1,60}$` (at most 16): an element starting with `-` and
+a letter is a flag, anything else a value. Never Unity's or the checker's own flags (`-batchmode`, `-nographics`,
+`-quit`, `-logFile`, `-projectPath`, `-executeMethod`, `-popupwindow`, `-monitor`, `-parentHWND`,
+`-single-instance`, `-screen-*`, `-force-*`, `-taskProbe*`); the validator refuses them. Check in the task check's
+screenshots and `track` that the reference's plays really start where the issue shows.
 
 ## 5. Milestones and checks: deterministic probes decide
 
@@ -207,23 +218,28 @@ and reference plays).
 checks. A model judge (`judge`, `code_judge`, `actions_judge`) never decides pass/fail and nothing is graded from pixel
 statistics of the game's frames except the frame's mean luminance (`screen`), whose threshold is always calibrated or
 relative to the start. Judges may stay as `"required": false` quality checks (taste, readability, how the agent
-worked).
+worked). The probe language, every play, measure and threshold with the rules that gate a task, is the task author's
+contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
+[docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.
 
 Each milestone is a reward group; a run that gets part of the way earns part of the reward. **A no-op scores zero
 (permanent):** the score is the weighted share of checks passed, so every check the start already passes takes
 `"weight": 0`: `builds`, `boots`, all of `still_works`, and any `log_absent` or `file_exists` true of the start. They
-still gate: a run must pass the required ones to be solved. The usual order:
+still gate: a run must pass the required ones to be solved. `validate-game.py` and the task check refuse a task a
+no-op would earn anything on. The usual order:
 
 1. `builds`: `build` (`player_builds`: the scripts compile and a Windows player builds).
-2. `boots`: `boot` 60 s (`boots_clean`: no exception in the player log), `needs` the build.
+2. `boots`: `boot` 60 s (`boots_clean`: the player runs 60 s without a crash), `needs` the build. A managed exception
+   the game survives is not a crash; a `log_absent` check catches those.
 3. `fixed` (bug_fix, correction) / `done` (feature, change): `probe` checks of the reported outcomes, `required`,
    `needs` `boots_clean`: at least 3, one per issue the thread settled (split them over several milestones, e.g.
    `fixed_hud`, `fixed_camera`, when the issues are separable). Each one fails at the start for the reported reason
    and passes on the reference.
 4. `still_works`: probes that what must keep working still does (the player still moves, the HUD still shows, the
    scene still loads its scenario).
-5. `quality` (optional, never required): a `judge` for taste items no probe can capture, a `code_judge` for code
-   quality, and the standard `actions_judge` `worked_well`.
+5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
+   readability of text over the scene), a `code_judge` for code quality, and the standard `actions_judge`
+   `worked_well` (or `trace` probes, `"required": false`).
 
 A probe names one measurement and its threshold:
 
@@ -235,54 +251,81 @@ A probe names one measurement and its threshold:
  "expect": {"op": ">=", "calibrate": 0.5}}
 ```
 
-Unity is Y-up: height is `y`.
+Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
 
-- `play`: `look` (20 s idle), `drive` (22 s: W 1-6 s, D 6-8 s, W 8-13 s with Space at 9 s, A 13-15 s, W 15-21 s),
-  a task play `{"name": ..., "seconds": ..., "inputs": [{"t", "key", "press"}]}` with Input System control names
-  (`<Keyboard>/f2`, `<Mouse>/leftButton`, `<Gamepad>/buttonSouth`) when the outcome needs other input, or `editor`
-  for asset facts.
-- `measure.probe` (the Unity probe set; its exact fields come with the verifier, docs/task-probes.md): `player`
-  (x/y/z/speed/moved/dist of the object the game marks as the player), `camera` (distance/height/pitch/fov/occluded/
-  player_on_screen of the main camera), `objects` (select by component type, tag, layer, name, near; count, transform,
-  bounds, active, collider, speed, `field:<Component>.<field>` by reflection), `ui` (what the UI shows on screen,
-  whatever draws it: uGUI, TextMeshPro, UI Toolkit: text, count, place; number and clock for readouts), `drawn` (what
-  is rendered near a point), `light` (illuminance and exposure at a point), `grading` (the post-processing volume
-  result: exposure, colour, contrast), `audio` (what plays and how loud the listener hears it), `spawns`, `log`,
-  `asset` (editor: a material's shader and properties, import settings, a ScriptableObject's fields).
+- `play`: `look` (20 s idle), `drive` (22 s: `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s, `<Keyboard>/w` 8-13 s with
+  `<Keyboard>/space` at 9 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s), a task play `{"name": ..., "seconds":
+  ..., "inputs": [{"t", "key", "press"}]}` with Input System control paths (`<Keyboard>/f2`, `<Mouse>/leftButton`,
+  `<Gamepad>/buttonSouth`) when the outcome needs other keys (F2, a fire button, a menu key), or `editor` for asset
+  facts.
+- `measure.probe`: `player` (track: x/y/z/speed/moved/dist), `camera` (distance/height/pitch/yaw/fov/occluded/
+  player_on_screen), `objects` (select by component type, tag, layer, name, near, `has`; count, transform, extent,
+  active, hidden, collision, speed, lit, `prop:<Component>.<member>` by reflection, `anim:<Parameter>`), `components`
+  (lights, particle systems, renderers, audio sources: count, active, visible, position, spin, lit, on, intensity),
+  `widgets` (a uGUI or UI Toolkit element's own state: visible, text, percent, value, has_brush), `ui` (what the UI
+  shows, whatever draws it: text, count, place of uGUI, TextMeshPro and UI Toolkit elements alike, and text read from
+  the frame in a rect; signature with agg changes for a readout that updates; number and clock for which way a readout
+  or a timer moved, with agg rises/falls), `drawn` (what is drawn near a point or along a line, rendered: drawn,
+  motion, base colour, a beam's reach), `pieces` (placed mesh pieces and their triangles), `light` (illuminance,
+  exposure, brightness at a point), `grading` (the URP volume result: cast, warmth, tint, saturation, contrast, grey,
+  `post:<Component>.<parameter>`), `screen` (the frame's luminance, calibrated only), `audio` (what plays and how loud
+  the listener hears it), `ground` (height and relief), `spawns`, `log`, `asset` (editor: a material's `shader:` and
+  `keyword:` values, `import:` settings, a ScriptableObject's `prop:`, and in a scene `material_default`,
+  `material:<property>`, `mesh_collision`).
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or
   `{"op": ">=", "calibrate": 0.5}` for continuous quantities: the grader measures the start and the reference in the
   grading environment and puts the threshold that fraction of the way from start to fix; `op` points to the fix's side.
 
 Write probes from the game's own code at `seed.commit` and `seed.reference`: the real component types, tags, layers,
 scene paths and UI element names. **Test the outcome a player sees, never the implementation**: another valid fix must
-pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor is
-brighter", not "spawnHeight is 0.92" or "the method was changed"). Lighting and colour are measured from the engine
-(`light`, `grading`), never from screenshots. `describe` says the assertion in plain words; it is shown in the grade,
-never to the agent. Check names are unique and `needs` only names earlier checks; calibrated probes, `code_judge` and
-`"reference": true` judges need `seed.reference`.
+pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor
+times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). Lighting and colour
+are measured from the engine (`light`, `grading`), never from screenshots. `describe` says the assertion in plain
+words; it is shown in the grade, never to the agent. Check names are unique and `needs` only names earlier checks;
+calibrated probes, `code_judge` and `"reference": true` judges need `seed.reference`.
 
 A task is valid only when it passes the task check: its start fails the task and its reference fix passes every
-required check, and every required `still_works` probe already passes at the start. Once the verifier lands, the
-game's tasks are checked **together, in one background run** (one run builds a commit several tasks share once, and
-the person can leave it running and come back); its command and how to read its progress come with it.
-**A task ships only when the task check says VALID**; for INVALID, fix the task, never the threshold toward what the
-start happens to measure.
+required check, and every required `still_works` probe already passes at the start. Write the probes per
+[docs/task-probes.md](../../docs/task-probes.md), then check the game's tasks **together, in one background run** (one
+run builds a commit several tasks share once, and the person can leave it running and come back). Write and commit
+every task first, check that Unity Hub is signed in with an active licence (a batchmode run without one exits 198),
+then start the check as its own process so it outlives your turn and no tool timeout cuts it short (PowerShell, under
+either agent):
+
+```powershell
+Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game-factory `
+  -ArgumentList 'tools\task-check.py', '<UGF_ROOT>\games\<slug>', '--all' `
+  -RedirectStandardOutput <UGF_ROOT>\games\<slug>\.task-checks\run.out `
+  -RedirectStandardError <UGF_ROOT>\games\<slug>\.task-checks\run.log
+```
+
+Create `.task-checks` first if it doesn't exist. Unity fails on paths past 260 characters, so the checker refuses a
+scratch project folder longer than 90 characters; when it says so, add `'--scratch', 'C:\tc'` (a short folder on the
+repo's drive) to the arguments. Tell the person it is running, roughly how long (about 20-60 minutes a task, most of it
+importing each commit's assets, less where tasks share commits), and that they can leave it. Read
+`<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
+`finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
+fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
+committed yet ([docs/task-check.md](../../docs/task-check.md)). The check builds each start and reference as a Windows
+player with the probe package, plays them off-screen and writes VALID or INVALID per task with the reasons and the
+measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common
+reasons and fixes"), never the threshold toward what the start happens to measure.
 
 ## 6. Difficulty, limits and what the validator enforces
 
 - `difficulty` is `medium` or `hard` (never `easy`), and `tags` hold `long-thread`.
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
-- The validator fails a task that is `easy`, has no `seed.reference`, has fewer than 3 required probes outside
-  `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2 systems
-  against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
+- `tools/validate-game.py` fails a task that is `easy`, has no `seed.reference`, has fewer than 3 required probes
+  outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
+  systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
   `seed.reference`. These are floors, not targets: pick the longest threads the history has.
-- **Judge difficulty in the session; never run the task with another agent.** Don't start a fresh Claude Code or Codex
-  session on a task. Before committing, review each task against section 1 here, with the person: would a strong
-  agent given only the brief and the start solve it easily (25 minutes is a guide, not a cut-off)? It would when the
-  brief points at one place, the issues share one obvious cause, or the reference diff is mostly one file or one
-  system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring issues, or drop it. Tell
-  the person which tasks you judged long enough and why, in a line each. We try every submitted task with a strong
-  agent and measure its time; that grade decides.
+- **Judge difficulty in the session; never run the task with another agent.** Don't run `tools/task-try.py` or start
+  a fresh Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with
+  the person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
+  cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
+  mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring
+  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each. We try every
+  submitted task with a strong agent and measure its time; that grade decides.
 
 Probes may measure the cause's effect directly, since the agent never sees them.
 
@@ -310,17 +353,37 @@ reaches it. So:
 | a model judge misread screenshots and failed a correct fix (or passed a wrong one) | pass/fail by probes only; judges are `"required": false` |
 | a fix made only in assets (a prefab, a material) failed a code review | the cause is checked by its measured effect (a probe), never by reading the diff |
 | a pixel threshold moved between GPUs | light and colour from the engine (`light`, `grading`); the frame's luminance (`screen`) only calibrated or relative to the start, never a literal |
-| a level dressed with GPU-instanced or combined meshes counted as one object | count what is drawn (rendered pieces or triangles), calibrated or relative to the start, never a literal |
-| a lamp turned off by disabling its GameObject (or intensity 0) read as lit | only lights the renderer draws count; a light's `enabled` and `intensity` are component fields |
-| a lamp drawn by an emissive material rather than a Light read dark | read glow as rendered, not only Light components |
-| a HUD drawn with UI Toolkit read as absent to a uGUI-only probe (or the reverse) | `ui`: what the UI shows on screen, whatever draws it |
-| a hidden panel (alpha 0, `display: none`, inactive) still counted as shown | count only what is visible on screen |
+| trees painted on a Terrain counted as one object | count placed pieces (`pieces`), not objects or components |
+| a dense forest combined into 3 meshes read 3 pieces against a threshold set on hundreds | count the drawn geometry (`pieces` `visible_triangles`), calibrated or relative to the start, never a literal |
+| a count stopped at 200 rows and a threshold was set on it | counts and `of` read every match (`total` and `full`) |
+| a light's turn read relative to its own object | `world_yaw:`/`world_pitch:`/`forward:` read the Light's part in the world |
+| a lamp switched off (Light disabled, its object inactive, intensity 0) read as lit | the `light` probe counts only Lights that are on; a lamp's `on` and `intensity` are `components` fields |
+| a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object) still counted as shown | `"visible": true` in a widget select, or `ui`, count only what is on screen |
+| a sound judged by its AudioSource being enabled, not by what the player hears | `audio`: sources playing at their volume at the listener, and the mix's `level`; volumes and level calibrated or relative to the start |
+| relief judged by the height of one spot | `ground` over a box: `range`, calibrated or relative to the start |
+| a teleport to fixed coordinates missed what each build placed itself | `teleport_to` an object select (nearest match), facing it or a point |
+| a select by component type or tag also matched the scene's own objects, or named the type the reference happened to use | select by what the object carries: `has` (a part that is `lit`, `visible`, of a `component`, `near` a point) |
+| cars that are parts of one object had no position or speed | `components` fields `x`, `y`, `z`, `speed` |
+| a broken crate kept its pieces drawn and tagged, so counts couldn't see it break | object `simulating` and `spread`, component `extent_*` and `simulating` |
+| an object that breaks by hiding a part or by animating its pieces read whole to `spread`, `extent_*` and `simulating` | object or component `changed` (since the start; `bounds_change` and `pose_change` calibrated or relative to the start) |
+| a lamp drawn by an emissive material rather than a Light read dark to `on`, `intensity` and `light` | object or component `lit` (any Light that is on or glowing renderer; `glow` calibrated or relative to the start) |
+| a HUD made with UI Toolkit read as absent to a uGUI widget select (or the reverse) | `ui`: what the UI shows on screen, whatever draws it (text with `match`, counts by `kind` and `rect`) |
+| a lamp whose glow comes from a Shader Graph's own nodes had no reading from its material | `lit` and `glow` as they are: a renderer whose shader lacks the standard emission interface is read as rendered |
+| a readout drawn with `OnGUI`, `GL` lines or a custom mesh read as absent to `ui` | `ui` `text` with `match` on a `select` of `"kind": "text"` with a `rect` around the readout (read from the frame as drawn); there are no line elements, so if it still doesn't read, grade another outcome |
+| a task needs a readout to keep updating, and it may be drawn by any UI system | `ui` `signature` with `"agg": "changes"` on a `select` with a `rect` around the readout (calibrated or relative to the start) |
+| an effect (particles, a panned material, a spinning mesh) had no reading that it shows and moves | `drawn` `near` a point: `drawn`, and `motion` calibrated or relative to the start |
+| a spinning part had no speed, or needed its object's name | `spin` of `components` near a point or by `owner`, or an object's `spin`; calibrated or relative to the start |
+| duplicate effects after a restart went unseen | `components` with `"effect": true` and `near`: `count` of live effects, read after the restart |
+| a score or a timer had to be read as a number, not a string | `ui` `number` or `clock` on a `select` of `"kind": "text"` with a `rect`; `rises`, `falls`, `range` over the window |
+| a lamp lit only by particles read dark | `lit` and `glow` as they are: particle systems are sources |
+| a beam's length had no reading | `drawn` along a `line` from its source: `reach` or `length`, calibrated or relative to the start |
+| a surface's tint change (not emissive) had no reading | `drawn` `near` it: `base_r`/`base_g`/`base_b` or `base_change`, calibrated or relative to the start |
+| the nearest object a player can push had to be named by type | `has` with `"simulating": true` (and `"movable": true`), in a select or `teleport_to` |
+| the game reset the player's position every frame, undoing a teleport | `teleport` or `teleport_to` with `hold` (seconds) |
+| a lamp above matched together with one below it | `near` with `y_min`/`y_max` (world, or `y_relative` to the point) |
+| a menu that pages on real time (`Time.unscaledTime`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a probe that tests the reference's implementation ("spawnHeight = 0.92") | measure the outcome; another valid fix must pass |
-| every AudioSource read silent because the play ran with audio off | `audio` reads what the listener hears; volumes calibrated or relative to the start |
-| a teleport to fixed coordinates missed what each build placed itself | teleport to an object select (nearest match) |
-| the game reset the player's position every frame, undoing a teleport | teleport with `hold` (seconds) |
-| a menu that pages on real time (`Time.unscaledTime`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}` |
-| the brief said "scenario 1" but not `-scenario 1` | `play_scene` always set and checked at the seed |
+| the brief said "scenario 1" but not `-scenario 1` | `play_scene` and `play_args` always set and checked at the seed |
 | a UI element or component name guessed | read the names from the code and assets at `seed.commit` and `seed.reference` |
 | quoting the person | write from context |
 | a reference that crashed | the reference must compile and run |
