@@ -81,8 +81,9 @@ game reads only `-scenario <n>` ("Until the drop-in is here").
 Arguments are Unity style (one dash, value as the next argument), read with `Environment.GetCommandLineArgs()`.
 The `-screen-*` and `-logFile` arguments are Unity's own.
 
-**Recording builds are release players** (`Scripts/unity.ps1 build`, not `-Development`): a development build draws
-"Development Build" on every frame, and the recording would show it.
+**Recording builds are release players** (`Scripts/unity.ps1 build`, not `-Development`): a development build is
+expected to draw a "Development Build" label on its frames, which the recording would show (to check when the recorder
+is built: Unity's manual says only that it adds the Profiler and debug symbols).
 
 | Flag | Meaning | Default |
 |---|---|---|
@@ -103,11 +104,12 @@ The `-screen-*` and `-logFile` arguments are Unity's own.
 Not available yet: the drop-in will enforce these in AutoPlay; today a game only keeps `Application.runInBackground` on
 and never pauses or mutes on focus loss.
 
-- **Windowed 1920x1080** (`Screen.SetResolution(1920, 1080, FullScreenMode.Windowed)`; the player's saved settings
-  are untouched).
+- **Windowed 1920x1080** (`Screen.SetResolution(1920, 1080, FullScreenMode.Windowed)`); the player's own saved
+  settings must stay as they were (whether Unity keeps a size set this way for the player's next normal start is to
+  check when the drop-in is built).
 - **60 fps cap, vsync off**: `QualitySettings.vSyncCount = 0`, `Application.targetFrameRate = 60`. Vsync is off so frame
   pacing does not depend on the monitor's refresh rate; in windowed mode DWM composes the window, so captured frames
-  don't tear.
+  don't tear (measured with the Unreal factory's games; to check for a Unity player).
 - The quality level fixed to the game's highest shipped level; no auto-detect.
 - **Never pause or mute on focus loss**: `Application.runInBackground = true` (the template sets it too); the game's
   `OnApplicationFocus` / `OnApplicationPause` handlers must not pause, open a menu or set `AudioListener.pause` while
