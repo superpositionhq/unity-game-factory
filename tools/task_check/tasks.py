@@ -22,7 +22,6 @@ SAMPLED = ("player", "camera", "objects", "widgets", "components", "pieces", "sc
 WHOLE_SCREEN = [0.0, 0.0, 1.0, 1.0]
 ANGLE_PREFIXES = ("rel_yaw:", "world_yaw:", "world_pitch:", "world_roll:")
 ZERO = [0.0, 0.0, 0.0]
-TELEPORT_DISTANCE = 2.0  # m: how far from the object a teleport_to puts the player when the task doesn't say
 _validator = None
 
 
@@ -191,7 +190,7 @@ def inputs(rows):
     for r in rows or []:
         row = {"t": float(r["t"])}
         if "teleport_to" in r:
-            row.update(teleport_to=select(r["teleport_to"]), distance=float(r.get("distance", TELEPORT_DISTANCE)),
+            row.update(teleport_to=select(r["teleport_to"]), distance=float(r.get("distance", 2.0)),
                        offset=_floats(r.get("offset", ZERO)))
             if r.get("face") is not None:
                 row["face"] = point(r["face"])
