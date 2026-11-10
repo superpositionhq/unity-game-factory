@@ -22,7 +22,7 @@ FACET = {'cc0': '"Creative Commons 0"', 'by': '("Attribution" OR "Creative Commo
 SORT = {'relevance': 'Automatic by relevance', 'downloads': 'Downloads (most first)',
         'rating': 'Rating (highest first)', 'short': 'Duration (shortest first)'}
 SHORT = {'Creative Commons 0': 'CC0', 'Attribution': 'BY'}
-LICENCE = re.compile(r'creativecommons\.org/(publicdomain/zero|licenses/by)/([\d.]+)/?$')
+LICENCE = re.compile(r'https?://(creativecommons\.org/(publicdomain/zero|licenses/by)/([\d.]+)/?)')
 
 
 def fetch(url, timeout=120, tries=5):
@@ -94,15 +94,16 @@ def read_sound(key):
         raise ValueError('keys look like fs:<id>')
     body, url = fetch(f'{SITE}/s/{m[1]}/')
     page = body.decode('utf-8')
-    # the link's own tag: the uploader's description comes earlier on the page, its quotes kept as typed
-    href = re.search(r'<a title="Go to the full license text" href="([^"]+)"', page)
-    lic = LICENCE.search(href[1]) if href else None
+    # the link's own tag (the uploader's description comes earlier on the page, its quotes kept as typed), and only one
+    # target: a second licence link (descriptions are HTML) or a link to another site is refused, never guessed
+    hrefs = sorted(set(re.findall(r'<a title="Go to the full license text" href="([^"]+)"', page)))
+    lic = LICENCE.fullmatch(hrefs[0]) if len(hrefs) == 1 else None
     if not lic:
-        raise ValueError(f'licence {href[1] if href else "not found"}: only CC0 and CC BY may ship in a game')
+        raise ValueError(f'licence {", ".join(hrefs) or "not found"}: only CC0 and CC BY may ship in a game')
     artist = re.search(r'property="og:audio:artist" content="([^"]*)"', page)
     return {'id': m[1], 'title': attr('title', page), 'author': html.unescape(artist[1]) if artist else '', 'url': url,
-            'preview': hq(attr('mp3', page)), 'licence': ('CC0 ' if 'zero' in lic[1] else 'CC BY ') + lic[2],
-            'licence_url': 'https://' + lic[0]}
+            'preview': hq(attr('mp3', page)), 'licence': ('CC0 ' if 'zero' in lic[2] else 'CC BY ') + lic[3],
+            'licence_url': 'https://' + lic[1]}
 
 
 def fetch_wav(s, repo, mono):
