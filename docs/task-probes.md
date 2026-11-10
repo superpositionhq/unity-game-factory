@@ -815,21 +815,22 @@ the one on the floor below it. `y_min < y_max`; `y_relative` goes with one of th
 How many mesh pieces are placed, however the scene holds them: trees painted on a Terrain read as one object and one
 component to `objects` and `components`, but as their real number of pieces here.
 
-- A piece: a MeshRenderer whose mesh has triangles is 1; a SkinnedMeshRenderer with a mesh is 1; a Terrain's tree
-  instances are 1 each. Empty meshes (no mesh, or no triangles), other renderers (sprites, lines, trails, particles),
-  meshes drawn from code with `Graphics.RenderMesh*` and a Terrain's detail grass count 0. Only renderers of objects
-  active in the hierarchy count (a disabled renderer is a piece that isn't drawn). Under a LODGroup only LOD 0's
-  renderers count, so an object with three LODs is one piece.
+- A piece: a MeshRenderer or a SkinnedMeshRenderer whose mesh has triangles is 1 (a TextMeshPro 3D text draws with a
+  MeshRenderer: it is one); a Terrain's tree instances are 1 each. Empty meshes (no mesh, or no triangles), other
+  renderers (sprites, lines, trails, particles), meshes drawn from code with `Graphics.RenderMesh*` and a Terrain's
+  detail grass count 0. Only renderers of objects active in the hierarchy count (a disabled renderer is a piece that
+  isn't drawn). Under a LODGroup only LOD 0's renderers count, so an object with three LODs is one piece.
 - `select` (optional; every key given must match, none means every mesh piece in the scene):
   - `component`: the renderer's type or a base type (`MeshRenderer`, `SkinnedMeshRenderer`; `Renderer` takes in
-    both), or `Terrain` for a Terrain's trees; default every one;
+    both), or `Terrain` for a Terrain's trees; default every one. A name no component can have gives no value, and
+    the play's `query_errors` says `pieces <id>: no component type <T>`;
   - `name`: a wildcard on the renderer's object's name (a tree's: its Terrain's); `mesh`: a wildcard on its mesh
     asset's name (`Rock*`; a tree's is its prototype's first mesh's);
   - `owner`: an object select the renderer's object (a tree's: its Terrain's) or an ancestor must match (as in
-    `objects`);
+    `objects`); one that matches nothing (its point doesn't resolve, say) owns no piece: 0;
   - `near`: within `radius` m of a point, **each piece by its own place** (a tree instance's position, else its
-    renderer's object's position). A point that doesn't resolve (the `near`'s, or one in `owner`) leaves the sample
-    with no value, not a count of 0.
+    renderer's object's position). A `near` point that doesn't resolve leaves the sample with no value, not a count
+    of 0.
 - `field`: `count` (pieces), `visible` (pieces drawn: renderer enabled and active, not forced off; trees when their
   Terrain is enabled and draws its trees), `components` (how many renderers or terrains hold them), `objects` (how many
   objects), `triangles` (the triangles the pieces hold), `visible_triangles` (the triangles of the pieces drawn, as
