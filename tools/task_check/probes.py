@@ -77,8 +77,9 @@ def needs(measure):
 
 def hears(queries):
     """Whether a play's queries (a list, or a query file) measure audio: the play spec's `sound`, which paces the play
-    to real time (sound plays in real time); every other play runs as fast as the machine renders. In every play the
-    probe's tap on the AudioListener measures the mix and then silences it."""
+    to real time (sound plays in real time); every other play runs as fast as the machine renders. In every probe play
+    the probe's tap on every enabled AudioListener measures the mix and then silences it (only in a probe play: a tap
+    outside one lets the sound through)."""
     found = queries.get("queries") if isinstance(queries, dict) else queries
     return any(isinstance(q, dict) and q.get("kind") == "audio" for q in found or [])
 
