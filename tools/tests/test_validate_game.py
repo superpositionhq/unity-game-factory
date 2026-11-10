@@ -3,7 +3,7 @@ and a full Dataset.zip) and one broken variant per rule. Fixtures are made with 
 
     python -m unittest discover -s tools/tests -p "test_validate_game.py" -v
 """
-import hashlib, importlib.util, io, json, os, re, shutil, stat, subprocess, sys, tempfile, unittest, zipfile
+import hashlib, importlib.util, io, json, os, re, shutil, stat, subprocess, sys, tempfile, unittest, unittest.mock, zipfile
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TOOLS)
@@ -125,6 +125,7 @@ def make_game(repo):
     meta(repo, 'Assets/Editor/Steps/README.md')
     write(repo, 'ProjectSettings/ProjectVersion.txt', 'm_EditorVersion: 6000.3.26f1\nm_EditorVersionWithRevision: 6000.3.26f1 (x)\n')
     write(repo, 'ProjectSettings/ProjectSettings.asset', YAML.format('x') + '  companyName: Kiln Run\n  productName: Kiln Run\n')
+    write(repo, 'ProjectSettings/NavMeshAreas.asset', YAML.format('areas'))   # YAML: plain git, as the template keeps it
     write(repo, 'Packages/packages-lock.json', '{"dependencies": {}}\n')
     asset(repo, 'Assets/Scenes/Main.unity', YAML.format('Main'))
     asset(repo, 'Assets/Scripts/Kiln.cs', code('Kiln', 30))
@@ -294,10 +295,30 @@ class Meta(Base):
     def test_meta_problems_unit(self):
         files = ['Assets/A/b.png', 'Assets/A/b.png.meta', 'Assets/A.meta', 'Assets/.hidden/x.txt', 'Assets/c.tmp',
                  'Assets/cvs/d.txt', 'Packages/manifest.json', 'Packages/x/package.json', 'Packages/x.meta',
-                 'ProjectSettings/TagManager.asset', 'Assets/Z.meta']
-        missing, orphan = vg.meta_problems(files)
-        self.assertEqual(missing, ['Packages/x/package.json'])
-        self.assertEqual(orphan, ['Assets/Z.meta'])
+                 'ProjectSettings/TagManager.asset', 'Assets/Z.meta',
+                 'Assets/Keep/.gitkeep', 'Assets/Keep.meta',          # Unity imports the folder: it has its .meta
+                 'Assets/hero.cs', 'Assets/Hero.cs.meta']             # a rename in case only, the .meta left behind
+        missing, orphan, metas = vg.meta_problems(files)
+        self.assertEqual(missing, ['Assets/hero.cs', 'Packages/x/package.json'])
+        self.assertEqual(orphan, ['Assets/Hero.cs.meta', 'Assets/Z.meta'])
+        self.assertNotIn('Packages/x.meta', metas)
+
+    def test_meta_guids(self):
+        """Every .meta names a GUID of its own (a copied folder keeps its .meta files); paths with spaces and letters
+        beyond ASCII; a folder that holds only a name Unity skips still needs its .meta."""
+        shutil.copy(os.path.join(self.repo, 'Assets/Scripts/Kiln.cs.meta'),
+                    os.path.join(self.repo, 'Assets/Scripts/Kiln Copy.cs.meta'))
+        write(self.repo, 'Assets/Scripts/Kiln Copy.cs', code('KilnCopy', 5))
+        asset(self.repo, 'Assets/Données/Carte été.asset', YAML.format('carte'))
+        write(self.repo, 'Assets/Bad.txt', 'x\n')
+        write(self.repo, 'Assets/Bad.txt.meta', 'fileFormatVersion: 2\n')
+        write(self.repo, 'Assets/Lost/.gitkeep', '')
+        commit(self.repo, 'Meta contents')
+        errs = errors(self.check(), 'repo: .meta')
+        self.assertEqual(len(errs), 3, errs)
+        for what in ('Assets/Lost: no .meta tracked', 'Assets/Bad.txt.meta: no guid',
+                     'Assets/Scripts/Kiln Copy.cs.meta and Assets/Scripts/Kiln.cs.meta share the guid'):
+            self.assertTrue(any(e.startswith(what) for e in errs), (what, errs))
 
 
 class RepoRules(Base):
@@ -340,13 +361,33 @@ class RepoRules(Base):
     def test_lfs(self):
         attrs = os.path.join(self.repo, '.gitattributes')
         text = read(attrs).replace('*.[pP][nN][gG] filter=lfs diff=lfs merge=lfs -text', '')
-        write(self.repo, '.gitattributes', text + '*.prefab filter=lfs diff=lfs merge=lfs -text\n')
+        text = text.replace('Assets/**/NavMesh*.asset filter=lfs diff=lfs merge=lfs -text', '')
+        write(self.repo, '.gitattributes', text + '*.prefab filter=lfs diff=lfs merge=lfs -text\n'
+              'ProjectSettings/NavMeshAreas.asset filter=lfs diff=lfs merge=lfs -text\n'
+              'Assets/Pack/*.asset filter=lfs diff=lfs merge=lfs -text\n')
         asset(self.repo, 'Assets/Art/plain.png', b'\x89PNG\r\n\x1a\n' + b'\2' * 64)
         asset(self.repo, 'Assets/Prefabs/Crate.prefab', YAML.format('Crate'))
-        commit(self.repo, 'LFS mistakes')
+        asset(self.repo, 'Assets/Scenes/Main/NavMesh.asset', b'\0\1binary navmesh')
+        asset(self.repo, 'Assets/Pack/Binary.asset', b'\0\1a store pack\'s binary asset')
+        commit(self.repo, 'LFS mistakes')   # the copy's files are all re-added: the base's crate.png and Hero.prefab too
+        self.assertIn('ProjectSettings/NavMeshAreas.asset', git(self.repo, 'lfs', 'ls-files', '--name-only'))
         errs = errors(self.check(), 'repo: LFS')
-        self.assertIn('binary tracked in plain git: Assets/Art/plain.png', errs)
-        self.assertTrue(any(e.startswith('Unity YAML in LFS: Assets/Prefabs/Crate.prefab') for e in errs), errs)
+        self.assertEqual(sorted(errs), sorted(
+            [f'binary tracked in plain git: {f}' for f in ('Assets/Art/plain.png', 'Assets/Scenes/Main/NavMesh.asset',
+                                                          'Assets/ThirdParty/Kenney/crate.png')] +
+            [f"Unity YAML or C# in LFS: {f} (it loses its diffs and merges; .gitattributes must keep it plain git text, "
+             "as the template's does)" for f in ('Assets/Prefabs/Crate.prefab', 'Assets/Prefabs/Hero.prefab',
+                                                 'ProjectSettings/NavMeshAreas.asset')]))   # a binary .asset in LFS is right
+        real = subprocess.run
+
+        def no_lfs(args, **kw):   # a machine without Git LFS: git says lfs is no git command
+            if 'lfs' in args:
+                return subprocess.CompletedProcess(args, 1, '', "git: 'lfs' is not a git command.")
+            return real(args, **kw)
+        with unittest.mock.patch.object(vg.subprocess, 'run', no_lfs):
+            errs = errors(self.check(), 'repo: LFS')
+        self.assertEqual(len(errs), 1, errs)
+        self.assertTrue(errs[0].startswith('git lfs ls-files failed, so LFS is not checked'), errs)
 
     def test_assets_manifest(self):
         data = json.loads(read(os.path.join(self.repo, 'assets.manifest.json')))
@@ -477,6 +518,32 @@ class TaskRules(Base):
         for what in ('takes a point `xz` or a `box`', 'taken by the editor pass', 'of one asset takes no select',
                      'names its component, or `effect`', 'y_min < y_max'):
             self.assertTrue(any(what in e for e in errs), (what, errs))
+
+
+class Units(unittest.TestCase):
+    """The validator's rules on their own, without a repo."""
+
+    def test_thread_definitions(self):
+        """The Unreal factory's eight systems in Unity terms; an editor step (the creation's record) or a .meta is no
+        game file, though a step's lines are code lines."""
+        for path, system in (('Assets/Scripts/Hero.cs', 'code'), ('Assets/Editor/HeroInspector.cs', 'code'),
+                             ('Assets/Game.asmdef', 'code'), ('ProjectSettings/TagManager.asset', 'config'),
+                             ('Packages/manifest.json', 'config'), ('Packages/packages-lock.json', 'config'),
+                             ('Packages/com.kiln.tools/Runtime/Tool.cs', 'package'), ('Assets/Scenes/Yard.unity', 'scene'),
+                             ('Assets/Materials/M_Bulb.mat', 'material'), ('Assets/Shaders/Glow.shader', 'material'),
+                             ('Assets/Shaders/Glow.hlsl', 'material'), ('Assets/Art/Crate.PNG', 'material'),
+                             ('Assets/Prefabs/Hero.prefab', 'prefab'), ('Assets/UI/Hud.uxml', 'prefab'),
+                             ('Assets/Anim/Hero.controller', 'prefab'), ('Assets/Data/Coins.asset', 'data'),
+                             ('Assets/Data/waves.csv', 'data'), ('Assets/Audio/hit.wav', 'asset'),
+                             ('Assets/Anim/Run.anim', 'asset'), ('Assets/Models/Crate.fbx', 'asset')):
+            self.assertEqual(vg.thread_system(path), system, path)
+        for path in ('Assets/Editor/Steps/BuildYard.cs', 'Assets/Scripts/Hero.cs.meta', 'Assets/Scenes.meta',
+                     'workflow.jsonl', 'Docs/Design.md', 'Scripts/unity.ps1'):
+            self.assertIsNone(vg.GAME_FILE.search(path), path)
+        numstat = ('40\t0\tAssets/Editor/Steps/BuildYard.cs\n2\t0\tAssets/Editor/Steps/BuildYard.cs.meta\n'
+                   '9\t3\tAssets/Scenes/Yard.unity\n-\t-\tAssets/Art/crate.png\n30\t0\tAssets/ThirdParty/Pack/P.cs\n'
+                   '25\t5\tAssets/Scripts/Hero.cs\n')
+        self.assertEqual(vg.thread_size(numstat), (40 + 25 + 5, 3))   # code, scene, material
 
 
 # ---- the schema against the contract's examples ----------------------------------------------------------------------

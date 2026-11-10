@@ -1099,32 +1099,36 @@ def meta_depth(parts):
 
 
 def meta_problems(files):
-    """(missing, orphan): tracked files and folders under Assets/ and embedded packages without a tracked .meta, and
-    tracked .meta files whose file or folder is not tracked. A folder is tracked when a file under it is."""
+    """(missing, orphan, metas): tracked files and folders under Assets/ and embedded packages without a tracked .meta,
+    tracked .meta files whose file or folder is not tracked, and the tracked .meta files Unity reads. A folder is
+    tracked when a file under it is, even one Unity skips (a folder holding only a .gitkeep gets its .meta)."""
     tracked = set(files)
     need, metas = set(), []
     for f in files:
         base = f[:-len('.meta')] if f.endswith('.meta') else f
         parts = base.split('/')
         k = meta_depth(parts)
-        if k is None or any(unity_hidden(p) for p in parts[k:]):
+        if k is None:
             continue
+        shown = next((i for i in range(k, len(parts)) if unity_hidden(parts[i])), len(parts))   # what Unity imports
         if f.endswith('.meta'):
-            metas.append(f)
+            if shown == len(parts):
+                metas.append(f)
             continue
-        need.add(f)
-        for i in range(k + 1, len(parts)):
-            need.add('/'.join(parts[:i]))
+        need.update('/'.join(parts[:i]) for i in range(k + 1, shown + 1))
     missing = sorted(p for p in need if p + '.meta' not in tracked)
     orphan = sorted(m for m in metas if m[:-len('.meta')] not in need)
-    return missing, orphan
+    return missing, orphan, metas
 
 
-def check_meta(rep, files):
+META_GUID = re.compile(r'^guid:\s*([0-9a-fA-F]{32})\s*$', re.M)
+
+
+def check_meta(rep, repo, files):
     """Every asset with its .meta (unity-commit-always skill): the .meta holds the GUID every scene, prefab and material
-    refers to it by."""
+    refers to it by, so it is there, it has its asset, and its GUID is the asset's own."""
     a = 'repo: .meta'
-    missing, orphan = meta_problems(files)
+    missing, orphan, metas = meta_problems(files)
     for p in missing[:15]:
         rep.error(a, f'{p}: no .meta tracked (Unity gives it a new GUID on import and every reference to it breaks)')
     if len(missing) > 15:
@@ -1134,8 +1138,23 @@ def check_meta(rep, files):
                      'committed, so neither can its .meta)')
     if len(orphan) > 15:
         rep.error(a, f'... {len(orphan) - 15} more orphan .meta files')
-    if not missing and not orphan:
-        rep.note(a, f'{sum(1 for f in files if f.endswith(".meta"))} .meta files, each with its file or folder')
+    owners, bad = {}, []
+    for m in metas:
+        text = read_text(os.path.join(repo, m))
+        g = META_GUID.search(text)
+        if g and g.group(1).strip('0'):
+            owners.setdefault(g.group(1).lower(), []).append(m)
+        elif not text.startswith('version https://git-lfs'):   # an LFS pointer: the .meta in LFS is reported above
+            bad.append(m)
+    for m in bad[:10]:
+        rep.error(a, f'{m}: no guid (Unity writes a new one on import and every reference to its asset breaks)')
+    shared = [(g, ms) for g, ms in owners.items() if len(ms) > 1]
+    for g, ms in shared[:10]:
+        rep.error(a, f'{" and ".join(ms[:3])}{" and more" if len(ms) > 3 else ""} share the guid {g}: Unity gives all '
+                     'but one a new GUID on import and every reference to those breaks (a folder copied with its .meta '
+                     'files: delete the copies\' .meta files so Unity makes new ones)')
+    if not missing and not orphan and not bad and not shared:
+        rep.note(a, f'{len(metas)} .meta files, each with its file or folder and a guid of its own')
 
 
 def setting(text, key):
@@ -1296,7 +1315,7 @@ def check_repo(rep, repo):
     for f in nul[:10]:
         rep.warn('repo: LFS', f'binary content in plain git: {f} (give its type an LFS pattern in .gitattributes)')
     # every asset with its .meta, no orphan .meta
-    check_meta(rep, files)
+    check_meta(rep, repo, files)
     # assets.manifest.json: unified format, every listed file committed under Assets/, Packages/ or RawAssets/
     if 'assets.manifest.json' in tracked:
         try:
