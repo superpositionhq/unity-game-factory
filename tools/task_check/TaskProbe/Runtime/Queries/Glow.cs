@@ -83,6 +83,7 @@ namespace TaskProbe
 
         static readonly ShaderTagId GraphTag = new ShaderTagId("ShaderGraphShader");
         static readonly Dictionary<int, Face> Faces = new Dictionary<int, Face>();  // by shader: its interface never changes
+        static readonly Dictionary<(int, int), bool> Hdr = new Dictionary<(int, int), bool>();  // by shader and property
         static readonly Dictionary<int, GlowReading> Seen = new Dictionary<int, GlowReading>();  // each part once a pass
         static int seenStamp = -1;
         static MaterialPropertyBlock blockAll, blockOne;
@@ -117,16 +118,13 @@ namespace TaskProbe
             return total;
         }
 
-        /// <summary>A Light: glow its intensity times its colour's luminance (its colour temperature included when the
-        /// project uses it, as URP lights with it).</summary>
+        /// <summary>A Light: glow its intensity times the luminance of the colour it lights with (Find.LightColour: its
+        /// colour temperature included when the project uses it, as URP lights with it).</summary>
         static void AddLight(ref GlowReading r, Light light)
         {
             r.Read = true;
             if (!Find.LightOn(light)) return;
-            var colour = Find.Linear(light.color);
-            if (GraphicsSettings.lightsUseColorTemperature && light.useColorTemperature)
-                colour *= Mathf.CorrelatedColorTemperatureToRGB(light.colorTemperature);
-            var amount = light.intensity * Luminance(colour);
+            var amount = light.intensity * Luminance(Find.LightColour(light));
             if (amount <= 0.0) return;
             r.Lit = true;
             r.Glow += amount;
@@ -289,7 +287,7 @@ namespace TaskProbe
             return face;
         }
 
-        /// <summary>The luminance a material gives off by its properties, in linear (as the shader gets the colour);
+        /// <summary>The luminance a material gives off by its properties, as the shader gets the colour (ColourOf);
         /// `textured`: a texture multiplies it, so it is a bound (the texture taken as white).</summary>
         static double MaterialLight(Material m, Face face, MaterialPropertyBlock one, MaterialPropertyBlock all, out bool textured)
         {
@@ -299,24 +297,47 @@ namespace TaskProbe
                 // emission off (no _EMISSION keyword) draws none, whatever its colour or map
                 if (!m.IsKeywordEnabled("_EMISSION")) return 0.0;
                 textured = TextureOf(m, one, all, EmissionMap, EmissionMap) != null;
-                return Luminance(Find.Linear(ColourOf(m, one, all, EmissionColor, EmissionColor)));
+                return Luminance(ColourOf(m, one, all, EmissionColor, "_EmissionColor", EmissionColor, "_EmissionColor"));
             }
             textured = TextureOf(m, one, all, BaseMap, MainTex) != null;
-            return Luminance(Find.Linear(ColourOf(m, one, all, BaseColor, ColorId)));
+            return Luminance(ColourOf(m, one, all, BaseColor, "_BaseColor", ColorId, "_Color"));
         }
 
-        static Color ColourOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, int fallback)
+        /// <summary>The colour a property gives the shader, linear: a property block's (the slot's, then the renderer's)
+        /// colour made linear as the block's SetColor makes it, whatever the property (a block knows no shader), a
+        /// vector on it as it is; else the material's colour, made linear unless the shader marks the property [HDR],
+        /// which Unity hands on as the material holds it (measured: URP Lit's [HDR] _EmissionColor (4, 4, 4) draws 4,
+        /// a custom shader's plain (3, 2, 1) draws (11.2, 4.6, 1)).</summary>
+        static Color ColourOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, string name, int fallback, string fallbackName)
         {
-            foreach (var block in new[] { one, all })
-            {
-                if (block == null) continue;
-                if (block.HasColor(id)) return block.GetColor(id);
-                if (block.HasVector(id)) return block.GetVector(id);
-                if (id != fallback && block.HasColor(fallback)) return block.GetColor(fallback);
-            }
-            if (m.HasProperty(id)) return m.GetColor(id);
-            if (m.HasProperty(fallback)) return m.GetColor(fallback);
+            if (BlockColour(one, id, fallback, out var c) || BlockColour(all, id, fallback, out c)) return c;
+            if (m.HasProperty(id)) return HandedOn(m, id, name);
+            if (m.HasProperty(fallback)) return HandedOn(m, fallback, fallbackName);
             return Color.white;
+        }
+
+        static bool BlockColour(MaterialPropertyBlock block, int id, int fallback, out Color c)
+        {
+            c = default;
+            if (block == null) return false;
+            if (block.HasColor(id)) c = Find.Linear(block.GetColor(id));
+            else if (block.HasVector(id)) c = block.GetVector(id);
+            else if (id != fallback && block.HasColor(fallback)) c = Find.Linear(block.GetColor(fallback));
+            else return false;
+            return true;
+        }
+
+        static Color HandedOn(Material m, int id, string name)
+        {
+            var c = m.GetColor(id);
+            var shader = m.shader;
+            var key = (shader.GetInstanceID(), id);
+            if (!Hdr.TryGetValue(key, out var hdr))
+            {
+                var index = shader.FindPropertyIndex(name);
+                Hdr[key] = hdr = index >= 0 && (shader.GetPropertyFlags(index) & ShaderPropertyFlags.HDR) != 0;
+            }
+            return hdr ? c : Find.Linear(c);
         }
 
         static Texture TextureOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, int fallback)
