@@ -47,6 +47,9 @@ PLAYS = {"look": (20, 6, None), "drive": (22, 8, DRIVE)}  # seconds, screenshots
 JUDGES = ("judge", "code_judge", "actions_judge")
 NOT_JUDGED = "not asked: judges never decide a task check"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
+# s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:
+# `t >= seconds + 0.5`), so a look cut from a longer play keeps that half second too
+OVERRUN = 0.5
 
 
 def fatal(log):
@@ -55,22 +58,23 @@ def fatal(log):
 
 def first_seconds(probe, seconds):
     """`probe` (a play's probe.json) as a play of only its first `seconds` would have written it: rows and samples after
-    that dropped, its length cut to them."""
+    that play's last one (at seconds + OVERRUN) dropped, its length cut to them."""
     if not isinstance(probe, dict):
         return probe
+    end = seconds + OVERRUN
     cut = dict(probe)
     for name in ("track", "camera"):
         rows = probe.get(name)
         if isinstance(rows, list):
             cut[name] = [r for r in rows if not (isinstance(r, list) and r and isinstance(r[0], int | float)
-                                                 and r[0] > seconds + 1e-6)]
+                                                 and r[0] > end + 1e-6)]
     if isinstance(probe.get("measures"), dict):
         cut["measures"] = {q: [s for s in samples if not (isinstance(s, dict) and isinstance(s.get("t"), int | float)
-                                                          and s["t"] > seconds + 1e-6)] if isinstance(samples, list)
+                                                          and s["t"] > end + 1e-6)] if isinstance(samples, list)
                            else samples for q, samples in probe["measures"].items()}
     length = probe.get("seconds")
-    if isinstance(length, int | float) and not isinstance(length, bool) and length >= seconds - 1e-6:
-        cut["seconds"], cut["ended"] = float(seconds), "time"
+    if isinstance(length, int | float) and not isinstance(length, bool) and length >= end - 1e-6:
+        cut["seconds"], cut["ended"] = float(end), "time"
     return cut
 
 

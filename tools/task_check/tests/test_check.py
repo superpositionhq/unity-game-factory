@@ -526,11 +526,13 @@ class Whole(unittest.TestCase):
 
 
 def rising(log="Initialize engine version: 6000.3.26f1\n"):
-    """A play answer whose player rises 0.1 m a second, for the play's whole length."""
+    """A play answer whose player rises 0.1 m a second, for the play's whole length (as the probe samples it: on to
+    half a second past its seconds)."""
 
     def play(seconds, shots, queries):
-        return {"format": "unity-probe/1", "ended": "time", "seconds": float(seconds), "scene": None, "inputs_sent": 0,
-                "screenshots": [], "track": [[i * 0.5, 0.0, i * 0.05, 0.0] for i in range(int(seconds * 2) + 1)],
+        last = seconds + check.OVERRUN
+        return {"format": "unity-probe/1", "ended": "time", "seconds": last, "scene": None, "inputs_sent": 0,
+                "screenshots": [], "track": [[i * 0.5, 0.0, i * 0.05, 0.0] for i in range(int(last * 2) + 1)],
                 "camera": [], "measures": {}}, log
 
     return play
@@ -546,8 +548,8 @@ class IdlePlay(unittest.TestCase):
         found = grade(task, "reference", side("start", FakeProject(), task), side("reference", game, task))
         self.assertTrue(all(c["passed"] for c in found["checks"]), found["checks"])
         self.assertEqual([(p["seconds"], p["shots"]) for p in game.plays], [(60, 6)], "one launch for both")
-        self.assertAlmostEqual(found["probes"]["highest"]["value"], 2.0,
-                               msg="the highest point of the first 20 s, not 3")
+        self.assertAlmostEqual(found["probes"]["highest"]["value"], 2.05,
+                               msg="the highest point a 20 s look sees (its samples run to 20.5 s), not 3")
 
     def test_a_look_probe_reading_the_log_keeps_its_own_play(self):
         task = task_with(self.BOOT, probe("no_warnings", measure={"probe": "log", "pattern": "Warning"},
@@ -572,12 +574,15 @@ class IdlePlay(unittest.TestCase):
                                 "  reference: played look in 95 s (40 s of it waiting for a machine slot)"])
 
     def test_first_seconds_cuts_rows_samples_and_length(self):
-        probe_ = {"seconds": 60.0, "ended": "time", "track": [[0.0, 0, 1, 0], [20.0, 0, 2, 0], [20.5, 0, 3, 0]],
-                  "camera": [], "measures": {"q": [{"t": 19.5, "value": 1}, {"t": 30, "value": 2}]}}
+        times = [1 / 30] + [0.5 * i for i in range(1, 122)]  # a 60 s play's samples as the probe takes them: to 60.5 s
+        probe_ = {"seconds": 60.533, "ended": "time", "track": [[t, 0, 1, 0] for t in times], "camera": [],
+                  "measures": {"q": [{"t": t, "value": 1} for t in times]}}
         cut = check.first_seconds(probe_, 20)
-        self.assertEqual((cut["seconds"], cut["ended"], len(cut["track"]), cut["measures"]["q"]),
-                         (20.0, "time", 2, [{"t": 19.5, "value": 1}]))
-        self.assertEqual(probe_["seconds"], 60.0, "the boot's own probe is left whole")
+        look = [t for t in times if t <= 20.5]  # a 20 s look's
+        self.assertEqual((cut["seconds"], cut["ended"]), (20.5, "time"))
+        self.assertEqual([r[0] for r in cut["track"]], look)
+        self.assertEqual([s["t"] for s in cut["measures"]["q"]], look, "its last sample, its \"end\", is a look's")
+        self.assertEqual(probe_["seconds"], 60.533, "the boot's own probe is left whole")
         quit_ = check.first_seconds({"seconds": 12.0, "ended": "shutdown", "track": []}, 20)
         self.assertEqual((quit_["seconds"], quit_["ended"]), (12.0, "shutdown"), "a play that ended early stays so")
 
