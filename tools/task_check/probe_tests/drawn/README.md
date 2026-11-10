@@ -32,8 +32,9 @@ filtered out), 1 Forward+, 2 Deferred, 3 the 2D renderer; and a second asset wit
   - behind the player's camera, shadows off: a watcher cube, an Animator culled when unseen and a particle system
     paused when unseen, once inside a drawn place (z -45) and once in none (z -60);
   - the scripts: `DrawnLeakBefore` and `DrawnLeakWatch` (everything a render changes, as text, just before the probe's
-    samples and just after them, and from one frame to the next), `DrawnCallbacks` (with `-drawnCallback`), `DrawnPipeline` (with
-    `-drawnPipeline`), `DrawnCrowd` (with `-drawnCrowd`).
+    samples and just after them, and from one frame to the next from the third: the realtime reflection probe makes
+    its picture in the first), `DrawnCallbacks` (with `-drawnCallback`), `DrawnPipeline` (with `-drawnPipeline`),
+    `DrawnCrowd` (with `-drawnCrowd`).
 - **DrawnBaked**: a white Lit cube with a baked lightmap and a white sphere lit by 50 light probes, under a red baked
   light (the builder bakes with the CPU lightmapper; the runner's setup starts the editor with graphics).
 - **DrawnCoin**: two coins as the sample game makes them (a root `Coin` that spins 180 degrees a second about the

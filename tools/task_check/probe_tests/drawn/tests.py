@@ -229,20 +229,26 @@ def watchers(t, play, at):
     t.eq("Camera.main is the game's", inside.get(p + "mainIsGame"), 1)
     t.ok("the game's camera callbacks see the probe's renders", (inside.get(p + "otherRenders") or 0) > 0, inside)
     t.eq("by the probe's camera's name", inside.get(p + "otherCamera"), "TaskProbe.Render")
-    t.ok("an object only the probe renders becomes visible to the game", (inside.get(p + "becameVisible") or 0) > 0, inside)
-    t.ok("and gets OnWillRenderObject", (inside.get(p + "willRender") or 0) > 0, inside)
-    t.ok("one nothing renders does neither", away.get(p + "becameVisible") == 0 and away.get(p + "willRender") == 0, away)
-    arms = play.rows("arms", at)
-    t.eq("two animated arms", [r.get("z") for r in arms], [-45.0, -60.0])
-    if len(arms) == 2:
-        t.ok("an Animator culled when unseen animates when only the probe renders it", (arms[0].get("x") or 0) > 42.0 + 1e-4, arms[0])
-        t.near("one nothing renders stays still", arms[1].get("x"), 42.0, 1e-5)
-    early, fx = play.rows("fx", 2.0), play.rows("fx", at)
-    if len(fx) == 2 and len(early) == 2:
-        time = "prop:ParticleSystem.time"
-        t.ok("a particle system paused when unseen runs on when only the probe renders it", (fx[0].get(time) or 0) > (early[0].get(time) or 0),
-             (early[0].get(time), fx[0].get(time)))
-        t.eq("one nothing renders stays paused (its time from 2 s to the end)", fx[1].get(time), early[1].get(time))
+    # the twins in no place are seen once too, before any sample: the scene's realtime reflection probe draws everything
+    # for its first picture (so they are compared with themselves at 2 s)
+    t.ok("an object only the probe renders becomes visible to the game at each sample",
+         (inside.get(p + "becameVisible") or 0) > (away.get(p + "becameVisible") or 0) + 10, (inside, away))
+    t.ok("and gets OnWillRenderObject at each render", (inside.get(p + "willRender") or 0) > (away.get(p + "willRender") or 0) + 10, (inside, away))
+    t.ok("its twin in no place: no more than the reflection probe's picture", (away.get(p + "becameVisible") or 0) <= 1, away)
+    # rows come in an order the select doesn't promise (the two arms, both named Arm, came Away first): the arms by z,
+    # the particle systems by name
+    arms, early_arms = ({r.get("z"): r for r in play.rows("arms", when)} for when in (at, 2.0))
+    t.eq("two animated arms", sorted(arms), [-60.0, -45.0])
+    if len(arms) == 2 and len(early_arms) == 2:
+        t.ok("an Animator culled when unseen animates when only the probe renders it",
+             (arms[-45.0].get("x") or 0) > (early_arms[-45.0].get("x") or 0) + 1e-4, (early_arms[-45.0], arms[-45.0]))
+        t.eq("one nothing renders stays still (its x from 2 s to the end)", arms[-60.0].get("x"), early_arms[-60.0].get("x"))
+    time = "prop:ParticleSystem.time"
+    fx_in, fx_away = row(play, "fx", at, "Fx_In"), row(play, "fx", at, "Fx_Away")
+    early_in, early_away = row(play, "fx", 2.0, "Fx_In"), row(play, "fx", 2.0, "Fx_Away")
+    t.ok("a particle system paused when unseen runs on when only the probe renders it", (fx_in.get(time) or 0) > (early_in.get(time) or 0),
+         (early_in.get(time), fx_in.get(time)))
+    t.eq("one nothing renders stays paused (its time from 2 s to the end)", fx_away.get(time), early_away.get(time))
     t.eq("an objects select of cameras finds the game's camera only", [r.get("name") for r in play.rows("cameras", at)], ["Main Camera"])
     t.eq("no select finds the probe's objects", play.rows("hidden", at), [])
 
