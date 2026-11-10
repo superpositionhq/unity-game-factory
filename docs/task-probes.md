@@ -83,9 +83,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     none), at most 16, each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and a letter is a flag
     (`-scenario`, `-devmenu`); anything else is a value (`2`, `2:quest=bull,6:fell`). Never a flag the checker sets
     itself or one that changes how the player runs (any case, after one dash or more): `batchmode`, `nographics`,
-    `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`, `single-instance`, any
-    flag starting with `screen-` or `force-`, nor the probe's own (any flag starting with `taskprobe`);
-    `tools/validate-game.py` lists what it refuses.
+    `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
+    `single-instance`, `window-mode`, any flag starting with `screen-` or `force-`, nor the probe's own (any flag
+    starting with `taskprobe`); `tools/validate-game.py` lists what it refuses.
   - `inputs` (at most 400), each at time `t` (seconds of play, 0-120). Keys, buttons and axes go through the **Input
     System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game that reads the old Input Manager
     (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued before the game's scripts run and
