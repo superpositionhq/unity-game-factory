@@ -29,7 +29,8 @@ namespace __PROJECT__.EditorTools
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
             if (scenes.Length == 0)
             {
-                WorkflowLog.Row("build.player", Relative(exe), new Dictionary<string, object> { ["error"] = "no enabled scene in the build list" }, status: "failed");
+                WorkflowLog.Row("build.player", Relative(exe), new Dictionary<string, object>
+                    { ["error"] = "no enabled scene in the build list (EditorBuildSettings.scenes: add the game's scenes from an editor step)" }, status: "failed");
                 EditorApplication.Exit(1);
                 return;
             }
@@ -40,6 +41,10 @@ namespace __PROJECT__.EditorTools
             var buildRoot = Path.GetFullPath(Path.Combine(WorkflowLog.ProjectRoot, "Build")) + Path.DirectorySeparatorChar;
             if (Directory.Exists(fullOut) && fullOut.StartsWith(buildRoot, StringComparison.OrdinalIgnoreCase))
                 Directory.Delete(fullOut, true);
+
+            // what Assets/Resources held before the build (RemovePerformanceTestFiles takes away only what the build added)
+            var resourcesBefore = AssetDatabase.IsValidFolder(ResourcesFolder);
+            var perfBefore = PerformanceTestFiles.Where(f => File.Exists($"{ResourcesFolder}/{f}")).ToArray();
 
             var target = NamedBuildTarget.Standalone;
             var before = PlayerSettings.GetScriptingBackend(target);
@@ -64,7 +69,7 @@ namespace __PROJECT__.EditorTools
 
             var summary = report.summary;
             var ok = summary.result == BuildResult.Succeeded;
-            WorkflowLog.Row("build.player", Relative(exe), new Dictionary<string, object>
+            var p = new Dictionary<string, object>
             {
                 ["result"] = summary.result.ToString(),
                 ["configuration"] = development ? "development" : "release",
@@ -74,8 +79,39 @@ namespace __PROJECT__.EditorTools
                 ["warnings"] = summary.totalWarnings,
                 ["seconds"] = (int)summary.totalTime.TotalSeconds,
                 ["bytes"] = (long)summary.totalSize,
-            }, status: ok ? "observed" : "failed");
+            };
+            // the first error, so the run's output says why (Scripts/unity.ps1 shows the row's line)
+            var error = report.steps.SelectMany(s => s.messages).Where(m => m.type == LogType.Error || m.type == LogType.Exception)
+                .Select(m => m.content).FirstOrDefault();
+            if (!ok && !string.IsNullOrEmpty(error)) p["error"] = error.Split('\n')[0].Trim();
+            if (!ok) RemovePerformanceTestFiles(resourcesBefore, perfBefore);
+            WorkflowLog.Row("build.player", Relative(exe), p, status: ok ? "observed" : "failed");
             EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        const string ResourcesFolder = "Assets/Resources";
+        static readonly string[] PerformanceTestFiles = { "PerformanceTestRunInfo.json", "PerformanceTestRunSettings.json" };
+
+        /// <summary>The performance-testing package (com.unity.test-framework.performance, which URP pulls in through
+        /// com.unity.collections) writes these two files into Assets/Resources before every player build and removes them
+        /// only after one that succeeds. A failed build left them, with an Assets/Resources.meta that .gitignore cannot
+        /// leave out (a game's own Resources folder needs its .meta) and that `git add -A` committed as an orphan. So,
+        /// after a failed build only: the two files when they were not there before, and the folder when it did not exist
+        /// before and nothing else is in it. A game's own Resources folder, its .meta and its files are never touched.</summary>
+        static void RemovePerformanceTestFiles(bool folderBefore, string[] filesBefore)
+        {
+            foreach (var f in PerformanceTestFiles.Except(filesBefore))
+                if (File.Exists($"{ResourcesFolder}/{f}")) Delete($"{ResourcesFolder}/{f}");
+            if (!folderBefore && AssetDatabase.IsValidFolder(ResourcesFolder) && Directory.GetFileSystemEntries(ResourcesFolder).Length == 0)
+                Delete(ResourcesFolder);
+        }
+
+        /// <summary>An asset or folder with its .meta (the AssetDatabase's own delete, else the files directly).</summary>
+        static void Delete(string path)
+        {
+            if (AssetDatabase.DeleteAsset(path)) return;
+            FileUtil.DeleteFileOrDirectory(path);
+            FileUtil.DeleteFileOrDirectory(path + ".meta");
         }
 
         /// <summary>A path as the workflow row names it: relative to the project, never a machine path.</summary>
