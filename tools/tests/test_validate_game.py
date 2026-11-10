@@ -611,6 +611,23 @@ class Units(unittest.TestCase):
                    '25\t5\tAssets/Scripts/Hero.cs\n')
         self.assertEqual(vg.thread_size(numstat), (40 + 25 + 5, 3))   # code, scene, material
 
+    def test_game_paths(self):
+        """The git pathspecs that count a thread's game files and commits (GAME_PATHS) name exactly the files GAME_FILE
+        matches, which the systems and thread-stats.py count: no editor step, no .meta, any name."""
+        tmp = tempfile.mkdtemp(prefix='ugfp')
+        self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
+        git(tmp, 'init', '-q')
+        paths = ['Assets/Scripts/Hero.cs', 'Assets/Scripts/Hero.cs.meta', 'Assets/Editor/Steps/BuildYard.cs',
+                 'Assets/Editor/Steps.meta', 'Assets/Editor/StepsOld/Keep.cs', 'Assets/Editor/HeroInspector.cs',
+                 'Assets/Données/Carte été.asset', 'Assets/Store Pack/Sky Box.png', 'Packages/manifest.json',
+                 'Packages/com.kiln.tools/Runtime/Tool.cs', 'Packages/com.kiln.tools/Runtime/Tool.cs.meta',
+                 'ProjectSettings/TagManager.asset', 'Scripts/unity.ps1', 'Docs/Design.md', 'RawAssets/Hero.blend',
+                 'workflow.jsonl']
+        blob = git(tmp, 'hash-object', '-w', '--stdin', input=b'')
+        git(tmp, 'update-index', '-z', '--index-info', input=''.join(f'100644 {blob}\t{p}\0' for p in paths).encode())
+        listed = git(tmp, '-c', 'core.quotepath=off', 'ls-files', '-z', '--', *vg.GAME_PATHS).split('\0')
+        self.assertEqual(sorted(p for p in listed if p), sorted(p for p in paths if vg.GAME_FILE.search(p)))
+
     def test_what_a_run_would_refuse(self):
         """What the probe or the checker refuses at run time (or stops on) is refused when the task is written."""
         def errs(measure, play='look', expect=None):
