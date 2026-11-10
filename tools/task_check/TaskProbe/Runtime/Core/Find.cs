@@ -1,18 +1,21 @@
 // Selects and points (contract sections 2 and 3): which objects a select matches, where a point is, whether a place is
-// near. An object is a GameObject; its parts are the components of itself and its descendants. Only objects active in
-// the hierarchy match unless the select says "inactive": true. Matches come in hierarchy order (scene, then sibling
-// indices from the root down), so "the first match" is the same object in every play of one scene.
+// near, and the small readers every kind shares. An object is a GameObject; its parts are the components of itself and
+// of its descendants active in the hierarchy. Only objects active in the hierarchy match unless the select says
+// "inactive": true (then inactive objects and parts count too). Matches come in hierarchy order (HierarchyKey), so
+// "the first match" is the same object in every play of one build.
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace TaskProbe
 {
     /// <summary>{"point": &lt;Point&gt;, "radius": m, "y_min", "y_max", "y_relative"}.</summary>
     public sealed class NearSel
     {
-        public Dictionary<string, object> Point;
+        public Dictionary<string, object> Point;  // none: a near without a point matches nothing
         public float Radius;
         public float? YMin, YMax;
         public bool YRelative;
@@ -38,11 +41,13 @@ namespace TaskProbe
         }
     }
 
-    /// <summary>A select's `has`: a component in the object (or its descendants) that matches every key given.</summary>
+    /// <summary>A select's `has`: a part of the object (a component of it or of a descendant) that matches every key
+    /// given. The original's `movable` (a component's Mobility) has no counterpart: Unity keeps no Static flags in a
+    /// player, so a `has` that gives it reads it as any key it doesn't know: not at all.</summary>
     public sealed class HasSel
     {
         public string Component;
-        public bool Lit, Visible, Simulating, Movable;
+        public bool Lit, Visible, Simulating;
         public NearSel Near;
 
         public static HasSel Parse(Dictionary<string, object> has)
@@ -50,8 +55,8 @@ namespace TaskProbe
             if (has == null) return null;
             return new HasSel
             {
-                Component = Json.Str(has, "component"), Lit = Json.Bool(has, "lit"), Visible = Json.Bool(has, "visible"),
-                Simulating = Json.Bool(has, "simulating"), Movable = Json.Bool(has, "movable"), Near = NearSel.Parse(Json.Obj(has, "near")),
+                Component = Sel.Text(has, "component"), Lit = Json.Bool(has, "lit"), Visible = Json.Bool(has, "visible"),
+                Simulating = Json.Bool(has, "simulating"), Near = NearSel.Parse(Json.Obj(has, "near")),
             };
         }
     }
@@ -63,19 +68,25 @@ namespace TaskProbe
         public bool Player, Inactive;
         public NearSel Near;
         public HasSel Has;
+        internal int LayerAt = -1;  // the layer named Layer (-1: no layer has that name)
 
         public static Sel Parse(Dictionary<string, object> select)
         {
             var s = new Sel();
             if (select == null) return s;
-            s.Component = Json.Str(select, "component");
-            s.Tag = Json.Str(select, "tag");
-            s.Layer = Json.Str(select, "layer");
-            s.Name = Json.Str(select, "name");
+            s.Component = Text(select, "component");
+            s.Tag = Text(select, "tag");
+            s.Layer = Text(select, "layer");
+            s.Name = Text(select, "name");
             s.Player = Json.Bool(select, "player");
             s.Inactive = Json.Bool(select, "inactive");
             s.Near = NearSel.Parse(Json.Obj(select, "near"));
             s.Has = HasSel.Parse(Json.Obj(select, "has"));
+            if (s.Layer != null)
+            {
+                s.LayerAt = LayerMask.NameToLayer(s.Layer);
+                if (s.LayerAt >= 0 && LayerMask.LayerToName(s.LayerAt) != s.Layer) s.LayerAt = -1;  // the name exactly
+            }
             return s;
         }
 
@@ -91,17 +102,28 @@ namespace TaskProbe
         {
             if (select == null || depth > Find.MaxDepth) return;
             var has = Json.Obj(select, "has");
-            foreach (var name in new[] { Json.Str(select, "component"), Json.Str(has, "component") })
-                if (!string.IsNullOrEmpty(name) && !Reflect.NamesComponent(name)) Probe.Active?.Error(about + ": no component type " + name);
+            foreach (var name in new[] { Text(select, "component"), Text(has, "component") })
+                if (name != null && !Reflect.NamesComponent(name)) Probe.Active?.Error(about + ": no component type " + name);
             foreach (var near in new[] { Json.Obj(select, "near"), Json.Obj(has, "near") })
                 Check(Json.Obj(Json.Obj(near, "point"), "object"), about, depth + 1);
+        }
+
+        /// <summary>A key's text; an empty one is no key (the original's: empty matches everything).</summary>
+        internal static string Text(Dictionary<string, object> o, string key)
+        {
+            var s = Json.Str(o, key);
+            return string.IsNullOrEmpty(s) ? null : s;
         }
     }
 
     public static class Find
     {
-        public const int MaxDepth = 4;  // a select inside a point inside a select...
+        /// <summary>A point deeper than this doesn't resolve (a select inside a point inside a select...; the depth goes
+        /// up by one from a select to its points and from a point to its object select): two object selects nest inside
+        /// a select's points, the second without a point of its own (the original's limit).</summary>
+        public const int MaxDepth = 3;
         static readonly Dictionary<string, Regex> Wildcards = new Dictionary<string, Regex>(StringComparer.Ordinal);
+        static readonly Dictionary<string, TagHandle?> Tags = new Dictionary<string, TagHandle?>(StringComparer.Ordinal);
 
         /// <summary>A wildcard match (* any run, ? one character), case-insensitive, on the whole text.</summary>
         public static bool Wild(string pattern, string text)
@@ -127,36 +149,12 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- objects
 
-        /// <summary>Every object of the loaded scenes (the DontDestroyOnLoad scene too), the probe's own left out.</summary>
-        public static IEnumerable<GameObject> All(bool inactive)
-        {
-            var transforms = UnityEngine.Object.FindObjectsByType<Transform>(
-                inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            foreach (var t in transforms)
-                if (t != null && !Probe.IsOwn(t.gameObject)) yield return t.gameObject;
-        }
-
-        /// <summary>The objects `sel` matches, in hierarchy order, at most `limit` of them; `total` counts them all.</summary>
+        /// <summary>The objects `sel` matches now, in hierarchy order, at most `limit` of them; `total` counts them all.</summary>
         public static List<GameObject> Objects(Sel sel, int limit, out int total, int depth = 0)
         {
             var found = new List<GameObject>();
-            total = 0;
-            if (depth > MaxDepth) return found;
-            var centre = Vector3.zero;
-            if (sel.Near != null && !Find.Point(sel.Near.Point, out centre, depth + 1)) return found;
-            var hasCentre = Vector3.zero;
-            if (sel.Has?.Near != null && !Find.Point(sel.Has.Near.Point, out hasCentre, depth + 1)) return found;
-            if (sel.Player)
-            {
-                var player = Probe.Active != null ? Probe.Active.Player : null;
-                if (player != null && Matches(player, sel, centre, hasCentre)) found.Add(player);
-                total = found.Count;
-                return found;
-            }
-            foreach (var go in Candidates(sel))
-                if (Matches(go, sel, centre, hasCentre)) found.Add(go);
+            Collect(sel, depth, found, true);
             total = found.Count;
-            SortByHierarchy(found);
             if (found.Count > limit) found.RemoveRange(limit, found.Count - limit);
             return found;
         }
@@ -168,48 +166,25 @@ namespace TaskProbe
             return found.Count > 0 ? found[0] : null;
         }
 
-        static IEnumerable<GameObject> Candidates(Sel sel)
+        /// <summary>The objects an `owner` select matches now, as a set to test a component's object and its ancestors
+        /// against (OwnedBy): the components, pieces, audio and ground selects. Empty when its points don't resolve.</summary>
+        public static HashSet<GameObject> Owners(Sel owner)
         {
-            var type = sel.Component != null ? Reflect.TypeNamed(sel.Component) : null;
-            if (type != null && typeof(Component).IsAssignableFrom(type))
-            {
-                var seen = new HashSet<GameObject>();
-                foreach (var o in UnityEngine.Object.FindObjectsByType(type,
-                             sel.Inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                    if (o is Component c && c != null && !Probe.IsOwn(c.gameObject) && seen.Add(c.gameObject)) yield return c.gameObject;
-                yield break;
-            }
-            foreach (var go in All(sel.Inactive)) yield return go;
+            var found = new List<GameObject>();
+            if (owner != null) Collect(owner, 0, found, false);
+            return new HashSet<GameObject>(found);
         }
 
-        /// <summary>Whether `go` matches every key of `sel` (`centre`, `hasCentre`: its near's and its has.near's points,
-        /// resolved).</summary>
-        public static bool Matches(GameObject go, Sel sel, Vector3 centre, Vector3 hasCentre)
+        /// <summary>Whether `component`'s object, or one of its ancestors, is one of `owners`.</summary>
+        public static bool OwnedBy(Component component, HashSet<GameObject> owners)
         {
-            if (go == null) return false;
-            if (!sel.Inactive && !go.activeInHierarchy) return false;
-            if (sel.Name != null && !Wild(sel.Name, go.name)) return false;
-            if (sel.Tag != null && !HasTag(go, sel.Tag)) return false;
-            if (sel.Layer != null && LayerMask.LayerToName(go.layer) != sel.Layer) return false;
-            if (sel.Component != null && Reflect.ComponentNamed(go, sel.Component, false) == null) return false;
-            if (sel.Near != null && !sel.Near.Contains(centre, go.transform.position)) return false;
-            if (sel.Has != null && !Carries(go, sel.Has, hasCentre)) return false;
-            return true;
+            for (var t = component.transform; t != null; t = t.parent)
+                if (owners.Contains(t.gameObject)) return true;
+            return false;
         }
 
-        /// <summary>Whether `go` matches `sel` now (its near points resolved here).</summary>
-        public static bool Matches(GameObject go, Sel sel, int depth = 0)
-        {
-            var centre = Vector3.zero;
-            if (sel.Near != null && !Find.Point(sel.Near.Point, out centre, depth + 1)) return false;
-            var hasCentre = Vector3.zero;
-            if (sel.Has?.Near != null && !Find.Point(sel.Has.Near.Point, out hasCentre, depth + 1)) return false;
-            if (sel.Player && (Probe.Active == null || Probe.Active.Player != go)) return false;
-            return Matches(go, sel, centre, hasCentre);
-        }
-
-        /// <summary>Whether `component`'s object, or one of its ancestors, matches `owner` (a components, pieces or audio
-        /// select's `owner`).</summary>
+        /// <summary>Whether `component`'s object, or one of its ancestors, matches `owner` (its points resolved: `centre`,
+        /// `hasCentre`). Owners and the set's OwnedBy do this once a sample.</summary>
         public static bool OwnedBy(Component component, Sel owner, Vector3 centre, Vector3 hasCentre)
         {
             for (var t = component.transform; t != null; t = t.parent)
@@ -223,16 +198,61 @@ namespace TaskProbe
             return false;
         }
 
-        /// <summary>The objects an `owner` select matches now, as a set to test a component's object and its ancestors
-        /// against (OwnedBy): the components, pieces, audio and ground selects. Empty when its points don't resolve.</summary>
-        public static HashSet<GameObject> Owners(Sel owner) => new HashSet<GameObject>(Objects(owner, int.MaxValue, out _));
-
-        /// <summary>Whether `component`'s object, or one of its ancestors, is one of `owners`.</summary>
-        public static bool OwnedBy(Component component, HashSet<GameObject> owners)
+        /// <summary>Adds the objects `sel` matches now to `found`, in hierarchy order when `ordered`.</summary>
+        static void Collect(Sel sel, int depth, List<GameObject> found, bool ordered)
         {
-            for (var t = component.transform; t != null; t = t.parent)
-                if (owners.Contains(t.gameObject)) return true;
-            return false;
+            var centre = Vector3.zero;
+            if (sel.Near != null && !Point(sel.Near.Point, out centre, depth + 1)) return;
+            var hasCentre = Vector3.zero;
+            if (sel.Has?.Near != null && !Point(sel.Has.Near.Point, out hasCentre, depth + 1)) return;
+            if (sel.Player)
+            {
+                var player = Probe.Active != null ? Probe.Active.Player : null;
+                if (player != null && Matches(player, sel, centre, hasCentre)) found.Add(player);
+                return;
+            }
+            var candidates = Candidates(sel);
+            // has.lit may render, and a frame allows so many renders: the first in hierarchy order get them, every play
+            var lit = sel.Has != null && sel.Has.Lit;
+            if (lit) SortByHierarchy(candidates);
+            foreach (var go in candidates)
+                if (Matches(go, sel, centre, hasCentre)) found.Add(go);
+            if (ordered && !lit) SortByHierarchy(found);
+        }
+
+        /// <summary>Where a select's matches can be: the objects carrying a component of the type it names (none when no
+        /// component can be of that type), else every object; the probe's own left out.</summary>
+        static List<GameObject> Candidates(Sel sel)
+        {
+            var found = new List<GameObject>();
+            if (sel.Component != null)
+            {
+                var components = new List<Component>();
+                if (!Components(sel.Component, sel.Inactive, components)) return found;
+                var seen = new HashSet<GameObject>();
+                foreach (var c in components)
+                    if (seen.Add(c.gameObject)) found.Add(c.gameObject);
+                return found;
+            }
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(
+                         sel.Inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (t != null && !Probe.IsOwn(t.gameObject)) found.Add(t.gameObject);
+            return found;
+        }
+
+        /// <summary>Whether `go` matches every key of `sel` (`centre`, `hasCentre`: its near's and its has.near's points,
+        /// resolved).</summary>
+        public static bool Matches(GameObject go, Sel sel, Vector3 centre, Vector3 hasCentre)
+        {
+            if (go == null) return false;
+            if (!sel.Inactive && !go.activeInHierarchy) return false;
+            if (sel.Name != null && !Wild(sel.Name, go.name)) return false;
+            if (sel.Tag != null && !HasTag(go, sel.Tag)) return false;
+            if (sel.Layer != null && go.layer != sel.LayerAt) return false;
+            if (sel.Component != null && Reflect.ComponentNamed(go, sel.Component, false) == null) return false;
+            if (sel.Near != null && !sel.Near.Contains(centre, go.transform.position)) return false;
+            if (sel.Has != null && !Carries(go, sel.Has, hasCentre, sel.Inactive)) return false;
+            return true;
         }
 
         /// <summary>The components of the loaded scenes (the DontDestroyOnLoad scene too) whose type, a base type or an
@@ -244,11 +264,10 @@ namespace TaskProbe
             var searched = new List<Type>();
             foreach (var t in Reflect.TypesNamed(type))
             {
-                Type search;
-                if (typeof(Component).IsAssignableFrom(t)) search = t;
-                else if (t.IsInterface || t.IsAssignableFrom(typeof(Component))) search = typeof(Component);  // every component, then IsA
-                else continue;
-                if (!searched.Contains(search)) searched.Add(search);
+                if (typeof(Component).IsAssignableFrom(t)) Search(searched, t);
+                else if (t.IsInterface)
+                    foreach (var implementer in Reflect.ComponentsImplementing(t)) Search(searched, implementer);
+                else if (t.IsAssignableFrom(typeof(Component))) Search(searched, typeof(Component));  // Object: every component
             }
             if (searched.Count == 0) return false;
             var mode = inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude;
@@ -260,6 +279,11 @@ namespace TaskProbe
             return true;
         }
 
+        static void Search(List<Type> searched, Type type)
+        {
+            if (!searched.Contains(type)) searched.Add(type);
+        }
+
         /// <summary>A component of the probe's own: on its object, or the tap it puts on the game's AudioListener.</summary>
         public static bool IsOwn(Component c)
         {
@@ -269,24 +293,32 @@ namespace TaskProbe
             return Probe.IsOwn(c.gameObject);
         }
 
+        /// <summary>A tag the project doesn't define has no object. Whether it is defined is asked once per tag, through a
+        /// TagHandle: CompareTag(string) with such a tag returns false and writes "Tag: T is not defined." into the game's
+        /// log at every call (measured: 2,295 lines in a play of 2 s), which a task's log_absent would read.</summary>
         static bool HasTag(GameObject go, string tag)
         {
-            try { return go.CompareTag(tag); }
-            catch (UnityException) { return false; }  // a tag the project doesn't define
+            if (!Tags.TryGetValue(tag, out var handle))
+            {
+                try { handle = TagHandle.GetExistingTag(tag); }
+                catch (Exception) { handle = null; }
+                Tags[tag] = handle;
+            }
+            return handle.HasValue && go.CompareTag(handle.Value);
         }
 
-        /// <summary>has: a component of `go` or its descendants matches every key given.</summary>
-        public static bool Carries(GameObject go, HasSel has, Vector3 nearCentre)
+        /// <summary>has: a part of `go` (a component of it or of a descendant active in the hierarchy; with `inactive` of
+        /// any descendant) that matches every key given, the original's order: `lit` last, as it may render.</summary>
+        static bool Carries(GameObject go, HasSel has, Vector3 nearCentre, bool inactive)
         {
-            foreach (var c in go.GetComponentsInChildren<Component>(true))
+            foreach (var c in go.GetComponentsInChildren<Component>(inactive))
             {
-                if (c == null || c is Transform) continue;
+                if (c == null || IsOwn(c)) continue;
                 if (has.Component != null && !Reflect.IsA(c.GetType(), has.Component)) continue;
-                if (has.Visible && !(c is Renderer r && Drawn(r))) continue;
-                if (has.Lit && !Glow.Of(c).Lit) continue;  // as the components lit field reads it
                 if (has.Near != null && !has.Near.Contains(nearCentre, c.transform.position)) continue;
-                if (has.Simulating && !Simulates(c)) continue;
-                if (has.Movable && c.gameObject.isStatic) continue;
+                if (has.Visible && !(c is Renderer r && Drawn(r))) continue;
+                if (has.Simulating && !Simulates(c)) continue;  // as the simulating field reads it: one a player can shove
+                if (has.Lit && !Glow.Of(c).Lit) continue;  // as the components lit field reads it
                 return true;
             }
             return false;
@@ -297,34 +329,36 @@ namespace TaskProbe
         /// <summary>A renderer that is drawn: enabled, its object active in the hierarchy, not forced off.</summary>
         public static bool Drawn(Renderer r) => r != null && r.enabled && r.gameObject.activeInHierarchy && !r.forceRenderingOff;
 
-        /// <summary>The parts an object draws with: its MeshRenderers that have a mesh with triangles and its
-        /// SkinnedMeshRenderers, in itself and its descendants (extent_, spread, changed, lit).</summary>
-        public static void MeshParts(GameObject go, List<Renderer> parts, bool inactive = true)
+        /// <summary>The mesh a component draws or collides with: a MeshRenderer's (its MeshFilter's), a
+        /// SkinnedMeshRenderer's, a MeshFilter's or a MeshCollider's; null for any other component or when it has none.</summary>
+        public static Mesh MeshOf(Component c)
         {
-            foreach (var r in go.GetComponentsInChildren<Renderer>(inactive))
+            switch (c)
             {
-                if (r is SkinnedMeshRenderer s) { if (s.sharedMesh != null) parts.Add(r); }
-                else if (r is MeshRenderer)
-                {
-                    var filter = r.GetComponent<MeshFilter>();
-                    if (filter != null && filter.sharedMesh != null && filter.sharedMesh.vertexCount > 0) parts.Add(r);
-                }
+                case SkinnedMeshRenderer skinned: return skinned.sharedMesh;
+                case MeshRenderer _: return c.TryGetComponent<MeshFilter>(out var filter) ? filter.sharedMesh : null;
+                case MeshFilter f: return f.sharedMesh;
+#if TASKPROBE_PHYSICS
+                case MeshCollider m: return m.sharedMesh;
+#endif
             }
+            return null;
         }
 
-        /// <summary>Whether a component's object simulates physics: a Rigidbody that isn't kinematic, or a Dynamic
-        /// Rigidbody2D, on it (a collider by the body it is attached to).</summary>
+        /// <summary>Whether a component's object simulates physics: a Rigidbody that isn't kinematic, or a simulated
+        /// Dynamic Rigidbody2D, on it (a collider by the body it is attached to), active in the hierarchy (an inactive
+        /// body simulates nothing).</summary>
         public static bool Simulates(Component c)
         {
 #if TASKPROBE_PHYSICS
             var body = c as Rigidbody;
             if (body == null) body = c is Collider col ? col.attachedRigidbody : c.GetComponent<Rigidbody>();
-            if (body != null && !body.isKinematic) return true;
+            if (body != null && !body.isKinematic && body.gameObject.activeInHierarchy) return true;
 #endif
 #if TASKPROBE_PHYSICS2D
             var body2 = c as Rigidbody2D;
             if (body2 == null) body2 = c is Collider2D col2 ? col2.attachedRigidbody : c.GetComponent<Rigidbody2D>();
-            if (body2 != null && body2.bodyType == RigidbodyType2D.Dynamic && body2.simulated) return true;
+            if (body2 != null && body2.bodyType == RigidbodyType2D.Dynamic && body2.simulated && body2.gameObject.activeInHierarchy) return true;
 #endif
             return false;
         }
@@ -339,6 +373,21 @@ namespace TaskProbe
 #if TASKPROBE_PHYSICS2D
             foreach (var body in go.GetComponentsInChildren<Rigidbody2D>(false))
                 if (body.bodyType == RigidbodyType2D.Dynamic && body.simulated) return true;
+#endif
+            return false;
+        }
+
+        /// <summary>An enabled collider that isn't a trigger (3D or 2D) on `go`, or with `descendants` on it or one of
+        /// its descendants active in the hierarchy (collision, mesh_collision).</summary>
+        public static bool Collides(GameObject go, bool descendants)
+        {
+#if TASKPROBE_PHYSICS
+            foreach (var c in descendants ? go.GetComponentsInChildren<Collider>(false) : go.GetComponents<Collider>())
+                if (c.enabled && !c.isTrigger) return true;
+#endif
+#if TASKPROBE_PHYSICS2D
+            foreach (var c in descendants ? go.GetComponentsInChildren<Collider2D>(false) : go.GetComponents<Collider2D>())
+                if (c.enabled && !c.isTrigger) return true;
 #endif
             return false;
         }
@@ -372,40 +421,20 @@ namespace TaskProbe
             return have ? box.center : go.transform.position;
         }
 
-        /// <summary>An enabled collider that isn't a trigger (3D or 2D) on `go`, or with `descendants` on it or one of
-        /// its descendants active in the hierarchy (collision, mesh_collision).</summary>
-        public static bool Collides(GameObject go, bool descendants)
-        {
-#if TASKPROBE_PHYSICS
-            foreach (var c in descendants ? go.GetComponentsInChildren<Collider>(false) : go.GetComponents<Collider>())
-                if (c.enabled && !c.isTrigger) return true;
-#endif
-#if TASKPROBE_PHYSICS2D
-            foreach (var c in descendants ? go.GetComponentsInChildren<Collider2D>(false) : go.GetComponents<Collider2D>())
-                if (c.enabled && !c.isTrigger) return true;
-#endif
-            return false;
-        }
-
-        /// <summary>The mesh a component draws or collides with: a MeshRenderer's (its MeshFilter's), a
-        /// SkinnedMeshRenderer's, a MeshFilter's or a MeshCollider's; null for any other component or when it has none.</summary>
-        public static Mesh MeshOf(Component c)
-        {
-            switch (c)
-            {
-                case SkinnedMeshRenderer skinned: return skinned.sharedMesh;
-                case MeshRenderer _: return c.TryGetComponent<MeshFilter>(out var filter) ? filter.sharedMesh : null;
-                case MeshFilter f: return f.sharedMesh;
-#if TASKPROBE_PHYSICS
-                case MeshCollider m: return m.sharedMesh;
-#endif
-            }
-            return null;
-        }
-
         /// <summary>A Light that lights the scene: enabled, active in the hierarchy, of an intensity above 0 (lit, glow,
         /// on, light, grading's sun).</summary>
         public static bool LightOn(Light light) => light != null && light.enabled && light.gameObject.activeInHierarchy && light.intensity > 0f;
+
+        /// <summary>The colour a Light lights with, its intensity left out: its colour in the space lighting is done in,
+        /// times its colour temperature's when the light and the project use temperatures (alpha 1). Glow and the light
+        /// measure take it, so a lamp's glow and its share of light agree on its colour.</summary>
+        public static Color LightColour(Light light)
+        {
+            var c = Linear(light.color);
+            if (light.useColorTemperature && GraphicsSettings.lightsUseColorTemperature) c *= Mathf.CorrelatedColorTemperatureToRGB(light.colorTemperature);
+            c.a = 1f;
+            return c;
+        }
 
         /// <summary>Rec. 709 luminance of a linear colour (glow, screen, drawn; the light measure weighs as URP does).</summary>
         public static double Luminance(double r, double g, double b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -417,14 +446,15 @@ namespace TaskProbe
         // ---------------------------------------------------------------- points
 
         /// <summary>{"xyz": [x, y, z]}, {"player": true, "offset": [...]}, {"camera": true, "forward": m} or
-        /// {"object": &lt;select&gt;, "offset": [...]} (the first match). False when it doesn't resolve now.</summary>
+        /// {"object": &lt;select&gt;, "offset": [...]} (the first match), tried in that order. False when it doesn't
+        /// resolve now, or lies deeper than MaxDepth.</summary>
         public static bool Point(Dictionary<string, object> point, out Vector3 at, int depth = 0)
         {
             at = Vector3.zero;
             if (point == null || depth > MaxDepth) return false;
-            if (point.TryGetValue("xyz", out var xyz)) return Json.TryVec3(xyz, out at);
             var offset = Vector3.zero;
             if (point.TryGetValue("offset", out var o)) Json.TryVec3(o, out offset);
+            if (point.TryGetValue("xyz", out var xyz) && Json.TryVec3(xyz, out at)) return true;
             var probe = Probe.Active;
             if (Json.Bool(point, "player"))
             {
@@ -450,19 +480,32 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- hierarchy order
 
-        // In a built player every scene root reports sibling index 0, so roots are ordered by their place in the
-        // scene's own root list (the same in every play of one build); below a root, by sibling index. Each object's
-        // key is made once per sort: comparing transforms pair by pair cost most of a whole-scene sample.
+        // Hierarchy order is the order the Hierarchy window lists a playing game in: the scenes in the order they were
+        // loaded (SceneManager's list), the DontDestroyOnLoad scene last; in a scene, its roots in the order of its root
+        // list, and below a root by sibling index. A player keeps no sibling order for roots (every root reports index
+        // 0), so a scene's roots come in the player's own root list, the same in every play of one build: the player
+        // makes it from the scene file as it loads it, not from the editor's Hierarchy. Each object's key is made once
+        // per sort: comparing transforms pair by pair cost most of a whole-scene sample. The lists are read once per pass
+        // (Probe.Stamp): a search an input makes before the game's scripts never serves the samples taken after them,
+        // which may have made a root.
         static readonly Dictionary<int, Dictionary<Transform, int>> RootOrder = new Dictionary<int, Dictionary<Transform, int>>();
-        static int rootOrderFrame = -1;
+        static readonly Dictionary<int, int> SceneOrder = new Dictionary<int, int>();
+        static int orderStamp = -1;
+
+        static void Fresh()
+        {
+            if (orderStamp == Probe.Stamp) return;
+            orderStamp = Probe.Stamp;
+            RootOrder.Clear();
+            SceneOrder.Clear();
+            for (var i = 0; i < SceneManager.sceneCount; i++) SceneOrder[SceneManager.GetSceneAt(i).handle] = i;
+        }
+
+        // the DontDestroyOnLoad scene is in no place of SceneManager's list: last
+        static int ScenePlace(Scene scene) => SceneOrder.TryGetValue(scene.handle, out var at) ? at : int.MaxValue;
 
         static int RootIndex(Transform root)
         {
-            if (rootOrderFrame != Time.frameCount)
-            {
-                RootOrder.Clear();
-                rootOrderFrame = Time.frameCount;
-            }
             var scene = root.gameObject.scene;
             if (!RootOrder.TryGetValue(scene.handle, out var order))
             {
@@ -474,20 +517,19 @@ namespace TaskProbe
                 }
                 RootOrder[scene.handle] = order;
             }
-            return order.TryGetValue(root, out var index) ? index : root.GetSiblingIndex();
+            return order.TryGetValue(root, out var index) ? index : int.MaxValue;
         }
 
         static int[] HierarchyKey(Transform t)
         {
             var depth = 0;
             for (var at = t; at != null; at = at.parent) depth++;
-            var key = new int[depth + 2];
+            var key = new int[depth + 1];
             var i = key.Length - 1;
             var here = t;
             for (; here.parent != null; here = here.parent) key[i--] = here.GetSiblingIndex();
-            key[i--] = RootIndex(here);
-            key[1] = here.gameObject.scene.handle;
-            key[0] = here.gameObject.scene.buildIndex;
+            key[1] = RootIndex(here);
+            key[0] = ScenePlace(here.gameObject.scene);
             return key;
         }
 
@@ -502,24 +544,29 @@ namespace TaskProbe
         public static void SortByHierarchy(List<GameObject> objects)
         {
             if (objects.Count < 2) return;
+            Fresh();
             var keyed = new List<KeyValuePair<int[], GameObject>>(objects.Count);
             foreach (var go in objects) keyed.Add(new KeyValuePair<int[], GameObject>(HierarchyKey(go.transform), go));
             keyed.Sort((x, y) => CompareKeys(x.Key, y.Key));
             for (var i = 0; i < keyed.Count; i++) objects[i] = keyed[i].Value;
         }
 
-        /// <summary>Sorts components into hierarchy order (by their objects; several on one object keep their order).</summary>
+        /// <summary>Sorts components into hierarchy order: by their objects, several on one object in the Inspector's
+        /// order.</summary>
         public static void SortByHierarchy<T>(List<T> components) where T : Component
         {
             if (components.Count < 2) return;
+            Fresh();
             var keyed = new List<KeyValuePair<int[], T>>(components.Count);
-            for (var i = 0; i < components.Count; i++)
+            var on = new List<Component>();
+            foreach (var c in components)
             {
-                var path = HierarchyKey(components[i].transform);
+                var path = HierarchyKey(c.transform);
                 var key = new int[path.Length + 1];
                 path.CopyTo(key, 0);
-                key[path.Length] = i;  // the order they came in, among the components of one object
-                keyed.Add(new KeyValuePair<int[], T>(key, components[i]));
+                c.GetComponents(on);
+                key[path.Length] = on.IndexOf(c);
+                keyed.Add(new KeyValuePair<int[], T>(key, c));
             }
             keyed.Sort((x, y) =>
             {
