@@ -104,15 +104,18 @@ Steps:
 4) Once scenario 1 is playable end to end, make the game ready for AutoPlay (the drop-in is not available yet: no
    AutoPlay code, no bot): every scenario starts with -scenario <n>, all input through the Input System, no pause or
    mute on focus loss, every action reachable by input; the design doc's status says AutoPlay is open. Framing check
-   from one short rendered play per scenario (unity-game-session skill, "AutoPlay and recordings"); report to me what
-   is ready (commit sha, the scenarios that start with -scenario <n>, the release build's result, screenshot paths).
+   from one short rendered play per scenario, which shows each scenario as it starts: check what it shows, list the
+   rest as open, never script the player's movement for it (unity-game-session skill, "AutoPlay and recordings");
+   report to me what is ready (commit sha, the scenarios that start with -scenario <n>, the release build's result,
+   screenshot paths).
    The bot does NOT need to win, finish, resupply or avoid getting stuck: never tune or re-test it for results; fix
    only game bugs, then one run per scenario.
 5) Expand content, art, UI and story to the quality bar (menus, settings, pause, save/load where it fits, HUD, sound
    through the unity-sound skill, the Windows release player build).
 6) Finish with a playtest checklist pass and a status section in the design doc (what works, what's left, built vs
    store assets, stats: workflow rows, commits, hours). Before calling the game content-complete: Docs/screenshots/
-   holds 5-7 real gameplay stills (JPG, Git LFS), the README shows them as a hero image plus a captioned gallery, and
+   holds 5-7 real gameplay stills (JPG, Git LFS; until recordings exist, the framing frames there are, never invented
+   ones), the README shows them as a hero image plus a captioned gallery, and
    after the push every image renders on the github.com repo page (unity-game-session skill, "README screenshots");
    and Tasks/ on the repo's orphan tasks branch (its own worktree, never on main) holds the game's tasks, up to about
    10, every one a long thread of multiple edits (unity-write-tasks skill); and tools/validate-game.py on your repo

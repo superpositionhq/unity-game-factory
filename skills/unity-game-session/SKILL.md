@@ -228,8 +228,10 @@ bind the day it arrives; until then, do what each bullet says to do today.
   argument of the game's own choosing that makes it save its own frames as JPG
   (`ScreenCapture.CaptureScreenshotAsTexture` after `WaitForEndOfFrame`, then `EncodeToJPG`;
   `ScreenCapture.CaptureScreenshot` writes PNG) under its working folder, `Build/Windows/`, which the next build
-  deletes: copy the ones you keep to `Docs/screenshots/` first. No retakes for looks; they are the README's screenshots
-  too.
+  deletes: copy the ones you keep to `Docs/screenshots/` first. These frames show each scenario as it starts (nothing
+  moves the player without input): check the camera rules on what they show and list the rest (narrow spaces,
+  crouched, against walls) as open in the design doc's status; never script the player's movement for the capture
+  (that is the bot, which waits for the drop-in). No retakes for looks; they are the README's screenshots too.
 - **Never queue a recording yourself.** Only the coordinator queues recordings (one GPU recording at a time); the
   queue is not available yet, so never request or wait for one. Message the coordinator what is ready: commit sha,
   the scenarios that start with `-scenario <n>`, the release build's result, screenshot paths.
@@ -259,10 +261,11 @@ packaged yet" warning is expected.
 
 **README screenshots (user rule; required before the game is called content-complete).** `Docs/screenshots/` holds
 5-7 real gameplay stills (JPG, in Git LFS; from validated recordings' stills or the framing-gate screenshots, not from
-extra GPU launches; until recordings exist, the framing gate's frames; no editor views, debug overlays or placeholder
-art). The README shows them as a hero image plus a captioned gallery (one line per image saying what it shows). Every
-image the README links must be committed: after pushing, open the repo page on github.com and check that each image
-renders (a link to a file that was never committed shows as a broken image).
+extra GPU launches; no editor views, debug overlays or placeholder art). Until recordings exist, use the framing gate's
+frames there are, each from a different scenario or moment: fewer than 5 is the validator's warning (not an error), so
+never invent stills to reach five. The README shows them as a hero image plus a captioned gallery (one line per image
+saying what it shows). Every image the README links must be committed: after pushing, open the repo page on github.com
+and check that each image renders (a link to a file that was never committed shows as a broken image).
 
 **Game format (docs/game-format.md).** Before calling the game content-complete,
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` must say VALID: required files,

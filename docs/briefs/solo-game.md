@@ -86,10 +86,12 @@ Steps:
 Scripts\unity.ps1, committing each working step; 4) once scenario 1 plays end to end, make it ready for AutoPlay (not
 available yet: no AutoPlay code, no bot): every scenario starts with -scenario <n>, input through the Input System, no
 pause or mute on focus loss, every action reachable by input; the framing check from one short rendered play per
-scenario (unity-game-session skill), then tell me what is ready; 5) content, art, UI, sound (unity-sound skill), the
-Windows release player build; 6) playtest checklist, status section in the design doc, and before calling it
-content-complete: 5-7 real gameplay stills in Docs/screenshots/ (JPG, LFS) shown in the README as a hero image plus a
-captioned gallery, checked on github.com after I say push; Tasks/ with up to about 10 tasks on the game, every one a
-long thread of multiple edits, on the tasks branch, never on main (unity-write-tasks skill); tools/validate-game.py
-VALID. Report each milestone here with the commit sha.
+scenario, which shows each scenario as it starts: check what it shows, list the rest as open, never script the
+player's movement for it (unity-game-session skill), then tell me what is ready; 5) content, art, UI, sound
+(unity-sound skill), the Windows release player build; 6) playtest checklist, status section in the design doc, and
+before calling it content-complete: 5-7 real gameplay stills in Docs/screenshots/ (JPG, LFS; until recordings exist,
+the framing frames there are, never invented ones) shown in the README as a hero image plus a captioned gallery,
+checked on github.com after I say push; Tasks/ with up to about 10 tasks on the game, every one a long thread of
+multiple edits, on the tasks branch, never on main (unity-write-tasks skill); tools/validate-game.py VALID. Report each
+milestone here with the commit sha.
 ```
