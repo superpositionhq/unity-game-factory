@@ -72,16 +72,19 @@ def no_rect(t, what, row):
 
 # ---------------------------------------------------------------- widgets
 
-VISIBLE = {  # widgets' visible: drawn on screen or not
-    "VisUnder": 1, "VisClear": 0, "VisFaint": 0, "VisDim": 1, "VisHalfText": 1, "VisZero": 0, "VisOff": 0, "VisEdge": 1,
-    "VisClipped": 0, "VisClippedIn": 1, "VisOffCanvasText": 0, "VisOffGraphic": 0, "VisMuted": 1, "VisLocked": 1,
-    "VisHidden": 0, "VisHiddenText": 0, "VisInactive": 0, "VisInactiveText": 0, "VisMask": 1, "VisMaskedText": 1,
-    "VisUitkHidden": 0, "VisUitkInvisible": 0, "VisUitkHiddenParent": 0, "VisUitkShownChild": 1, "VisUitkClear": 0,
-    "VisUitkFaint": 0, "VisUitkOff": 0, "VisUitkZero": 0, "VisUitkDisabled": 1,
+VISIBLE = {  # widgets' visible, the original's state: a widget's colour, size and clipping don't count (ui's do)
+    "VisUnder": 1, "VisClear": 1, "VisFaint": 1, "VisDim": 1, "VisHalf": 1, "VisHalfText": 1, "VisZero": 1, "VisOff": 0,
+    "VisEdge": 1, "VisClip": 1, "VisClipped": 1, "VisClippedIn": 1, "VisOffCanvas": 0, "VisOffCanvasText": 0,
+    "VisOffGraphic": 0, "VisMuted": 1, "VisLocked": 1, "VisHidden": 0, "VisHiddenText": 0, "VisInactive": 0,
+    "VisInactiveText": 0, "VisMask": 1, "VisMaskedText": 1, "VisMaskedOut": 1, "VisUitkHidden": 0, "VisUitkInvisible": 0,
+    "VisUitkHiddenParent": 0, "VisUitkShownChild": 1, "VisUitkClear": 0, "VisUitkFaint": 0, "VisUitkOff": 0,
+    "VisUitkZero": 1, "VisUitkDisabled": 1,
 }
 WHY = {
     "VisUnder": "under another canvas's box", "VisClear": "a text of alpha 0", "VisFaint": "a text of alpha 0.004",
-    "VisDim": "a text of alpha 0.01", "VisHalfText": "alpha 0.5 in a CanvasGroup of 0.5", "VisZero": "scale 0",
+    "VisDim": "a text of alpha 0.01", "VisHalf": "a CanvasGroup of 0.5, no graphic", "VisHalfText": "alpha 0.5 in a CanvasGroup of 0.5",
+    "VisZero": "scale 0", "VisClip": "a RectMask2D, no graphic", "VisOffCanvas": "a disabled Canvas, no graphic",
+    "VisMaskedOut": "outside its Mask",
     "VisOff": "off the frame", "VisEdge": "half off the frame", "VisClipped": "outside its RectMask2D",
     "VisClippedIn": "inside its RectMask2D", "VisOffCanvasText": "under a disabled Canvas", "VisOffGraphic": "its Text disabled",
     "VisMuted": "its Button disabled, its Image on", "VisLocked": "not interactable", "VisHidden": "a CanvasGroup at 0",
@@ -97,7 +100,7 @@ RECTS = {
     "RectWorld": world(), "RectUitkScaled": (0.7, 0.8, 0.1, 0.1), "RectUitkTurned": turned(900, 360, 60),
 }
 NOT_ON_SCREEN = {"RectBack": "a world-space canvas behind the camera", "RectTv": "a camera canvas drawn into a texture",
-                 "RectUitkTv": "a panel drawn into a texture"}
+                 "RectUitkTv": "a panel drawn into a texture", "RectCamOff": "a camera canvas whose camera is off"}
 
 
 def widgets(t, play):
@@ -148,6 +151,7 @@ def widgets(t, play):
     t.eq("an empty InputField's text (not its placeholder)", get(play, "fields", 1.0, "EmptyField", "text"), "")
     t.eq("a TMP_InputField's text", get(play, "tmpfields", 1.0, "TmpField", "text"), "TMPNAME")
     t.eq("a TextField's value", get(play, "uitkfields", 1.0, "UitkField", "text"), "ABC")
+    t.eq("a password TextField's value (what was typed)", get(play, "uitkfields", 1.0, "UitkSecret", "text"), "SECRET")
     t.eq("an empty TextField's value", get(play, "uitkfields", 1.0, "UitkEmptyField", "text"), "")
     for name, text, value in (("ModeDropdown", "HARD", 1), ("TmpDropdown", "ONE", 0), ("UitkDropdown", "BLUE", 1)):
         t.eq(f"{name}: its caption and selected index", [get(play, "dropdowns", 1.0, name, k) for k in ("text", "value")], [text, value])
@@ -192,8 +196,18 @@ def widgets(t, play):
     t.eq("a text regex picks only the matching widget", names(play, "regex", 1.0), ["ScoreText"])
     t.eq("a text regex sees a UI Toolkit label without its tags", names(play, "uitkregex", 1.0), ["UitkLabel"])
     t.eq("component Button: uGUI's Buttons, then UI Toolkit's", names(play, "buttons", 1.0),
-         ["VisMuted", "VisLocked", "VisUitkDisabled", "UitkButton"])
+         ["VisMuted", "VisLocked", "FirstShown", "VisUitkDisabled", "UitkButton"])
     t.eq("a Button reads its label", get(play, "buttons", 1.0, "VisMuted", "text"), "Button")
+    t.eq("... the first label that shows (its first is inactive)", get(play, "buttons", 1.0, "FirstShown", "text"), "SHOWN")
+    t.eq("with a name, a component on an object above matches too; the row keeps its own class",
+         [(r.get("name"), r.get("class"), r.get("text")) for r in play.rows("owned", 1.0)], [("HudChild", "Text", "OWNED")])
+    t.eq("... and not on an object elsewhere", play.rows("notowned", 1.0), [])
+    t.eq("... an element above, in UI Toolkit", [(r.get("name"), r.get("class"), r.get("text")) for r in play.rows("owned_uitk", 1.0)],
+         [("UitkOwned", "Label", "OWNED")])
+    bare = (play.rows("bare", 1.0) or [{}])[0]
+    t.eq("a name alone finds a panel with no graphic: class, visible", [bare.get(k) for k in ("name", "class", "visible")],
+         ["BarePanel", "RectTransform", 1])
+    rect(t, "BarePanel", bare, frac(560, 45, 30, 25), FLOAT)
     t.ok("an element without a name is named by its type, and a select by that name finds it",
          "ANON" in [r.get("text") for r in play.rows("anon", 1.0)], play.rows("anon", 1.0))
 
@@ -224,7 +238,7 @@ UI_ABSENT = (  # not on screen, or not UI
     "RectWorld", "RectBack", "RectTv", "RectUitkTv", "EmptyFill", "VisClear", "VisFaint", "VisZero", "VisOff",
     "VisClipped", "VisOffCanvasText", "VisOffGraphic", "VisHidden", "VisHiddenText", "VisInactive", "VisInactiveText",
     "VisMask", "UitkPlain", "VisUitkHidden", "VisUitkInvisible", "VisUitkHiddenParent", "VisUitkClear", "VisUitkFaint",
-    "VisUitkOff", "VisUitkZero", "StaleText",
+    "VisUitkOff", "VisUitkZero", "StaleText", "VisMaskedOut", "RectCamOff", "NotShown", "BarePanel",
 )
 
 
@@ -255,6 +269,7 @@ def ui(t, play):
     for text in ("BOB", "TYPE HERE", "ABC", "HINT", "HARD", "ONE", "TMPNAME", "Sound", "MUSIC"):
         t.ok(f"a text element shows {text!r}", text in texts, texts)
     t.ok("an InputField with text doesn't show its placeholder", "Enter name..." not in texts)
+    t.ok("a password field shows its mask characters", "******" in texts and "SECRET" not in texts, texts)
     t.eq("UitkButton's text", [r.get("text") for r in rows if r.get("name") == "UitkButton" and r.get("kind") == "text"], ["GO"])
     t.eq("a box has no text", [r.get("text") for r in rows if r.get("name") == "UitkButton" and r.get("kind") == "box"], [None])
     rect(t, "ScoreText", play.row("all", 1.0, "ScoreText"), frac(20, 10, 240, 30), FLOAT)
@@ -289,7 +304,8 @@ def life(t, play):
     t.eq("1 s: destroyed after the sample: still a widget at the sample, gone from the frame drawn after it",
          (names(play, "doomed_w", 1.0), names(play, "doomed_u", 1.0)), (["DoomedText"], []))
     t.eq("1.5 s: gone", (names(play, "doomed_w", 1.5), names(play, "doomed_u", 1.5)), ([], []))
-    t.eq("1 s: a canvas and a UI Toolkit element made this frame are widgets", names(play, "born_w", 1.0), ["BornText", "UitkBorn"])
+    t.eq("1 s: a canvas and a UI Toolkit element made this frame are widgets", names(play, "born_w", 1.0),
+         ["BornCanvas", "BornText", "UitkBorn"])
     t.eq("... and elements on screen", sorted(names(play, "born_u", 1.0)), ["BornText", "UitkBorn"])
     times = [round(s["t"], 4) for s in play.samples("grey_w")]
     t.eq("the game asks for the Grey scene in the 1.5 s frame: that frame's sample is taken in it", times,
@@ -297,7 +313,7 @@ def life(t, play):
     boxes = names(play, "grey_u", 1.5)
     t.eq("1.5 s: a load isn't done in the frame that asks for it: widgets and ui alike still read the Hud",
          (names(play, "grey_w", 1.5), "GreyRight" in boxes, "ScorePanel" in boxes, names(play, "born_w", 1.5)),
-         ([], False, True, ["BornText", "UitkBorn"]))
+         ([], False, True, ["BornCanvas", "BornText", "UitkBorn"]))
     t.eq("2.0 s: the Grey scene's UI, read by widgets and ui alike", (names(play, "grey_w", 2.0), sorted(names(play, "grey_u", 2.0))),
          (["GreyRight"], ["BlackBox", "GreyRight", "WhiteBox"]))
     t.eq("... and nothing of the Hud", (names(play, "doomed_w", 2.0), names(play, "born_w", 2.0)), ([], []))
@@ -319,30 +335,41 @@ def count(play, t, name, field, index=0):
 
 
 def clicks_for(module):
-    """The widget clicks (the same under every input module: they need none) and the cursor clicks (uGUI's only through
-    the Input System's UI module, `module` "system"; UI Toolkit's through that module or with no EventSystem)."""
+    """The widget clicks (uGUI's with an EventSystem under either module, as a player's click: without one a click
+    reaches no uGUI widget; UI Toolkit's always) and the cursor clicks (uGUI's only through the Input System's UI module,
+    `module` "system"; UI Toolkit's through that module or with no EventSystem)."""
     def check(t, play):
         system = module == "system"
+        on = 0 if module == "none" else 1  # a widget click reaches uGUI
         end = 5.0
-        for name in ("GoButton", "TriggerButton", "LockedButton2", "BlockedButton"):
-            t.eq(f"widget click on {name}: pointer enter, down, up, click once, and onClick once",
-                 [count(play, end, name, f) for f in ("enters", "downs", "ups", "clicks", "fired")], [1, 1, 1, 1, 1])
-        t.eq("widget click by type (Toggle): the first Toggle switched off", get(play, "toggle", 1.0, "GoToggle", "value"), 0)
-        t.eq("... its onValueChanged once", count(play, end, "GoToggle", "fired"), 1)
-        t.near("widget click on a Slider: it takes the value at its centre", get(play, "slider", 1.0, "GoSlider", "value"), 5.0, 1e-4)
+        for name in ("GoButton", "TriggerButton", "LockedButton2", "BlockedButton", "GhostButton"):
+            t.eq(f"widget click on {name}: pointer enter, down, up, click, exit once, and onClick once",
+                 [count(play, end, name, f) for f in ("enters", "downs", "ups", "clicks", "exits", "fired")], [on] * 6)
+        t.eq("widget click by type (Toggle): the first Toggle switched off", get(play, "toggle", 1.0, "GoToggle", "value"), 1 - on)
+        t.eq("... its onValueChanged once", count(play, end, "GoToggle", "fired"), on)
+        t.near("widget click on a Slider: it takes the value at its centre", get(play, "slider", 1.0, "GoSlider", "value"), 5.0 if on else 2.0, 1e-4)
+        t.eq("widget click on a Slider under a parent that takes clicks: the Slider takes the press, the parent the click",
+             [count(play, end, "SliderHolder", f) for f in ("downs", "clicks")], [0, on])
         t.eq("EventTrigger entries: down, up, click", [get(play, "trigger", end, "TriggerButton", "prop:UiTriggerCount." + f)
-                                                      for f in ("downs", "ups", "clicks")], [1, 1, 1])
+                                                      for f in ("downs", "ups", "clicks")], [on] * 3)
         for name, why in (("LockedButton", "not interactable"), ("MutedButton", "its Button disabled"),
                           ("OffButton", "off the frame")):
             t.eq(f"not clicked: {name} ({why})", [count(play, end, name, f) for f in ("downs", "fired")], [0, 0])
-        t.eq("Twin: the first in hierarchy order clicked, the second not", [count(play, end, "Twin", "fired", i) for i in (0, 1)], [1, 0])
+        t.eq("Twin: the first in hierarchy order clicked, the second not", [count(play, end, "Twin", "fired", i) for i in (0, 1)], [on, 0])
         t.eq("UI Toolkit: Button.clicked by a widget click", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.go"), 1)
         t.eq("UI Toolkit: a disabled Button and one off the frame not clicked",
              [get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("no", "off")], [0, 0])
         t.eq("UI Toolkit: a ClickEvent handler: not by the widget click (2 s)", get(play, "uitk", 2.5, "UitkClicks", "prop:UiToolkitClicks.evt"), 0)
         log = play.probe_log
-        for widget in ("GoButton", "Toggle", "UGoButton", "UEvtButton"):
+        for widget in ("UGoButton", "UEvtButton") + (("GoButton", "Toggle") if on else ()):
             t.ok(f"probe.log: clicked {widget}", f"clicked {widget}" in log)
+        if not on:
+            for widget in ("GoButton", "GoField", "LockedButton2"):
+                line = f"no EventSystem: a click reaches no uGUI widget, so {widget} isn't clicked"
+                t.ok(f"probe.log: {line}", line in log)
+            t.ok("probe.log: no uGUI widget clicked", "clicked GoButton" not in log)
+            t.ok("the game's log has no exception (an InputField's pointer down throws without an EventSystem)",
+                 "Exception" not in play.log)
         for widget in ("MutedButton", "OffButton", "UNoButton", "UOffButton", "NoSuchButton"):
             t.ok(f"probe.log: no visible button matches '{widget}'", f"no visible button matches '{widget}'" in log)
         t.eq("an EventSystem in the scene", get(play, "watch", 1.0, "Watch", "prop:UiClickWatch.system"), 0 if module == "none" else 1)
@@ -353,7 +380,8 @@ def clicks_for(module):
         t.eq("cursor click on a uGUI button", count(play, end, "CursorButton", "fired"), cursor)
         t.eq("cursor click on a UI Toolkit button", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.cursor"), uitk_cursor)
         t.eq("cursor click on a UI Toolkit ClickEvent handler", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.evt"), uitk_cursor)
-        t.eq("cursor click on BlockedButton: the image over it takes it", count(play, end, "BlockedButton", "downs"), 1)
+        t.eq("cursor click on BlockedButton: the image over it takes it (the widget click's down only)",
+             count(play, end, "BlockedButton", "downs"), on)
         if system:
             t.eq("widget click on an InputField: focused", get(play, "field", 1.0, "GoField", "prop:InputField.isFocused"), 1)
             t.eq("widget click on a Dropdown: its list is open", get(play, "dropdown", end, "GoDropdown", "prop:Dropdown.m_Dropdown"), 1)

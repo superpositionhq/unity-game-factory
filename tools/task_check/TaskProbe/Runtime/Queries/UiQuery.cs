@@ -39,7 +39,13 @@ namespace TaskProbe
                     Probe.Error("ui " + Id + ": the text regex " + pattern + " doesn't compile");
                 }
             }
-            if (select.TryGetValue("rect", out var r) && Json.TryNumbers(r, 4, out var numbers)) rect = numbers;
+            // the rect as the original's FillUi reads it: exactly four items, one that isn't a number keeping its default
+            if (select.TryGetValue("rect", out var r) && r is List<object> items && items.Count == 4)
+            {
+                rect = new[] { 0.0, 0.0, 1.0, 1.0 };
+                for (var i = 0; i < 4; i++)
+                    if (items[i] is double v) rect[i] = v;
+            }
             // a select of text in a rect also reads the frame as drawn; only such a query pays for the capture
             ocr = rect != null && (kind == "text" || (string.IsNullOrEmpty(kind) && !string.IsNullOrEmpty(pattern)));
         }

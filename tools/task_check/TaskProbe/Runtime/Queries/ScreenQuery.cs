@@ -1,7 +1,8 @@
 // screen: the mean brightness of the frame as displayed, over a rect (contract section 3): the frame drawn right after
-// the sample, after post-processing and tone mapping, with the UI on it (the original reads its viewport before the
-// UMG and Slate UI is drawn over it; URP draws the overlay UI inside the last camera's render, so no point of a Unity
-// frame holds the scene without it).
+// the sample, after post-processing and tone mapping, with the UI on it. The original reads its viewport before the
+// UMG and Slate UI is drawn over it; URP draws the overlay UI in a pass of its own at the end of the last camera's
+// render, and the probe reads the frame as displayed, after that pass (reading it before would take a pass of the
+// probe's own in the game's renderer).
 // "value": {"luminance" (mean linear Rec. 709 luminance of the displayed pixels, sRGB decoded, 0-1), "luma" (mean
 // Rec. 709 luma of the encoded values, 0-1), "pixels", "size": [w, h]} | null when no frame was drawn (the play ended
 // first).

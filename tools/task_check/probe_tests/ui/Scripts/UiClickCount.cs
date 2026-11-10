@@ -5,9 +5,10 @@ using UnityEngine.UI;
 namespace ProbeTests.Ui
 {
     /// <summary>Counts the pointer events its object gets and what its Button, Toggle or Slider fires.</summary>
-    public sealed class UiClickCount : MonoBehaviour, IPointerEnterHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
+    public sealed class UiClickCount : MonoBehaviour, IPointerEnterHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler,
+        IPointerExitHandler
     {
-        public int enters, downs, ups, clicks, fired;
+        public int enters, downs, ups, clicks, exits, fired;
 
         void Awake()
         {
@@ -20,5 +21,6 @@ namespace ProbeTests.Ui
         public void OnPointerDown(PointerEventData eventData) => downs++;
         public void OnPointerUp(PointerEventData eventData) => ups++;
         public void OnPointerClick(PointerEventData eventData) => clicks++;
+        public void OnPointerExit(PointerEventData eventData) => exits++;
     }
 }

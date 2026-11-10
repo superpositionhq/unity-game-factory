@@ -15,6 +15,7 @@
     "prop:UiClickCount.downs",
     "prop:UiClickCount.ups",
     "prop:UiClickCount.clicks",
+    "prop:UiClickCount.exits",
     "prop:UiClickCount.fired"
    ]
   },
@@ -143,6 +144,11 @@
    "click": true
   },
   {
+   "t": 1.65,
+   "widget": "GhostButton",
+   "click": true
+  },
+  {
    "t": 1.7,
    "widget": "OffButton",
    "click": true
@@ -150,6 +156,11 @@
   {
    "t": 1.8,
    "widget": "BlockedButton",
+   "click": true
+  },
+  {
+   "t": 1.9,
+   "widget": "HeldSlider",
    "click": true
   },
   {

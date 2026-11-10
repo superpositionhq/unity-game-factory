@@ -364,6 +364,51 @@
    "fields": []
   },
   {
+   "id": "owned",
+   "kind": "widgets",
+   "select": {
+    "component": "UiHudMarker",
+    "name": "HudChild"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "notowned",
+   "kind": "widgets",
+   "select": {
+    "component": "UiHudMarker",
+    "name": "ScoreText"
+   },
+   "fields": []
+  },
+  {
+   "id": "owned_uitk",
+   "kind": "widgets",
+   "select": {
+    "component": "Box",
+    "name": "UitkOwned"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "bare",
+   "kind": "widgets",
+   "select": {
+    "name": "BarePanel"
+   },
+   "fields": [
+    "visible",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
    "id": "shown",
    "kind": "screen",
    "rect": [

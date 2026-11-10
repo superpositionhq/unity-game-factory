@@ -1,8 +1,11 @@
 // widgets: the UI's own elements and their state (contract section 3): uGUI objects (graphics, selectables, TextMeshPro)
-// on the scene's canvases and UI Toolkit elements of every UIDocument, hidden ones included.
+// on the scene's canvases and every element of every UIDocument's panel (a control's own parts too, an unnamed one
+// named by its type), hidden ones included.
 // "rows": [{"name", "class", <field>: value}] for every widget the select matches (select: component, a type name of
-// a component on the object, or of the element, base types included; name, a wildcard on the object's or element's
-// name; text, a regex its text must match; visible: true, only the widgets the visible field reads 1 for).
+// a component on the object, or of the element, base types included, and with a name one above it too; name, a
+// wildcard on the object's or element's name, which alone also finds an object of a canvas with no graphic; text, a
+// regex its text must match, a Selectable's being its label's; visible: true, only the widgets the visible field
+// reads 1 for).
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -23,6 +26,9 @@ namespace TaskProbe
         public override void Load()
         {
             KnownFields(Known);
+#if !TASKPROBE_UGUI && !TASKPROBE_UITK
+            Probe.Error("widgets " + Id + ": the project has neither uGUI nor UI Toolkit: no widget is read");
+#endif
             var select = Json.Obj(Def, "select");
             if (select == null) return;
             component = Json.Str(select, "component");

@@ -88,6 +88,10 @@ namespace ProbeTests.Ui
             turned.style.backgroundColor = Color.yellow;
             // an element without a name: its row is named by its type
             root.Add(At(new Label("ANON"), 620, 330, 100, 20));
+            // a password field: what was typed, drawn as its mask characters
+            Add(new TextField { value = "SECRET", isPasswordField = true }, "UitkSecret", 730, 330, 120, 25);
+            // an element under a Box: with its name, a select of the Box finds it
+            Add(new Box(), "UitkGroup", 730, 360, 120, 25).Add(At(new Label("OWNED") { name = "UitkOwned" }, 0, 0, 120, 25));
             // a box that moves from x 620 to 700 at 1 s
             mover = Add(new VisualElement(), "UitkMover", 620, 400, 60, 20);
             mover.style.backgroundColor = Color.magenta;

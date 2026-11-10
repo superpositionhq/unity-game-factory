@@ -315,7 +315,9 @@ namespace ProbeTests.Ui
             Box("SpriteImage", hud, 100, 195, 30, 30, Color.white, skin.standard);
             Box("PlainImage", hud, 140, 195, 30, 30, new Color(0.8f, 0.2f, 0.2f));
             Box("ScorePanel", hud, 180, 195, 60, 30, new Color(0.2f, 0.2f, 0.6f)).gameObject.AddComponent<UiScoreKeeper>();
-            Ui("HudRoot", hud, 250, 195, 30, 30, typeof(UiHudMarker));
+            var hudRoot = Ui("HudRoot", hud, 250, 195, 30, 30, typeof(UiHudMarker));
+            Legacy("HudChild", hudRoot.transform, "OWNED", 0, 0, 30, 30);  // a widget under a game's own component
+            Ui("BarePanel", hud, 560, 45, 30, 25, typeof(CanvasGroup));  // a panel with no graphic: found by its name
             var stale = Ui("StalePanel", hud, 290, 195, 150, 30);
             Tmp("StaleText", stale.transform, "BEFORE", 0, 0, 150, 30);
             Tmp("TmpSprite", hud, "STAR <sprite=0>", 450, 195, 140, 30);
@@ -339,6 +341,12 @@ namespace ProbeTests.Ui
             Legacy("VisOffGraphic", hud, "OFFGRAPHIC", 260, 255, 80, 20).enabled = false;
             Control(DefaultControls.CreateButton(skin), "VisMuted", hud, 350, 255, 80, 20).GetComponent<UnityEngine.UI.Button>().enabled = false;
             Control(DefaultControls.CreateButton(skin), "VisLocked", hud, 440, 255, 80, 20).GetComponent<UnityEngine.UI.Button>().interactable = false;
+            // a button whose first label is inactive: its text is the first label that shows
+            var shown = Control(DefaultControls.CreateButton(skin), "FirstShown", hud, 530, 255, 70, 20);
+            shown.GetComponentInChildren<Text>().text = "SHOWN";
+            var notShown = Legacy("NotShown", shown.transform, "HIDDEN", 0, 0, 70, 20);
+            notShown.transform.SetAsFirstSibling();
+            notShown.gameObject.SetActive(false);
             var hidden = Box("VisHidden", hud, 20, 300, 150, 30, Color.gray).gameObject;
             hidden.AddComponent<CanvasGroup>().alpha = 0f;
             Legacy("VisHiddenText", hidden.transform, "SECRET", 5, 5, 140, 20);
@@ -348,6 +356,7 @@ namespace ProbeTests.Ui
             var mask = Box("VisMask", hud, 340, 300, 120, 30, Color.white, skin.standard);
             mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             Legacy("VisMaskedText", mask.transform, "MASKED", 5, 5, 110, 20);
+            Legacy("VisMaskedOut", mask.transform, "OUTSIDE", 130, 5, 100, 20);  // as if scrolled out of the Mask's rect
 
             // a row laid out by a HorizontalLayoutGroup: LayoutA (50 px), 10 px, LayoutB; the driver takes LayoutA away at 1 s
             var row = Ui("LayoutRow", hud, 300, 495, 300, 30, typeof(HorizontalLayoutGroup)).GetComponent<HorizontalLayoutGroup>();
@@ -395,6 +404,13 @@ namespace ProbeTests.Ui
             var tv = NewCanvas("TvCanvas", 0, RenderMode.ScreenSpaceCamera);
             tv.GetComponent<Canvas>().worldCamera = tvCamera.GetComponent<Camera>();
             Legacy("RectTv", tv, "TV", 10, 10, 100, 40);
+
+            // a camera canvas whose camera is off: drawn by no one
+            var offCamera = new GameObject("OffCamera", typeof(Camera)).GetComponent<Camera>();
+            offCamera.enabled = false;
+            var camOff = NewCanvas("CamOffCanvas", 0, RenderMode.ScreenSpaceCamera);
+            camOff.GetComponent<Canvas>().worldCamera = offCamera;
+            Box("RectCamOff", camOff, 120, 420, 100, 40, new Color(0.7f, 0.2f, 0.2f));
 
             // world-space canvases: 3 x 1 m, 10 m in front of the camera, and one behind it
             World("WorldCanvas", "RectWorld", new Vector3(0f, 1f, 0f));
@@ -477,6 +493,11 @@ namespace ProbeTests.Ui
             MakeButton(skin, "OffButton", canvas, -300, 180, 120, 30, "OFF");
             MakeButton(skin, "BlockedButton", canvas, 20, 220, 120, 30, "BLOCKED");
             MakeButton(skin, "CursorButton", canvas, 20, 300, 160, 40, "CURSOR");
+            // a fully transparent button (a tap-anywhere overlay): a player's click fires it
+            MakeButton(skin, "GhostButton", canvas, 300, 180, 120, 30, "").GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);
+            // a Slider under a parent that takes clicks: the Slider takes the press, the parent the click
+            var holder = Ui("SliderHolder", canvas, 300, 220, 200, 30, typeof(UiClickCount));
+            Control(DefaultControls.CreateSlider(skin), "HeldSlider", holder.transform, 0, 5, 200, 20);
             // a half-transparent image on a canvas above, over BlockedButton: it takes the cursor's raycast
             Box("Blocker", NewCanvas("BlockCanvas", 10), 0, 210, 200, 50, new Color(0f, 0f, 0f, 0.5f));
             new GameObject("Watch").AddComponent<UiClickWatch>();
