@@ -118,8 +118,8 @@ Start sessions in the UnityWork root (or a game folder under it), never in the U
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into
   `~\.claude\settings.json` for Claude Code and `~\.codex\hooks.json` + trust entries in `~\.codex\config.toml` for
-  Codex (backup first; asked first, `-Yes` skips the question; only the handlers that run this hooks dir's
-  `record-unity-action.ps1` are added or updated, any other hook stays); the `unity-*` skills from `skills\` in
+  Codex (backup first; asked first, `-Yes` skips the question; only the handlers that run `record-unity-action.ps1`
+  are added or updated, any other hook stays); the `unity-*` skills from `skills\` in
   `~\.claude\skills\` and/or `~\.agents\skills\` (other skill folders untouched); `<root>\CLAUDE.md` importing
   `unity-game-factory/CLAUDE.md` and/or `<root>\AGENTS.md` naming `unity-game-factory\AGENTS.md`;
 - Git LFS filters, the commit recorder in every game repo, and with `-CloneGames` every `<org>/unity-game-*` repo.

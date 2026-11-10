@@ -57,8 +57,9 @@ source (config set by hand, config from bootstrap, or computed at run time). The
 
 A PC may also run the Unreal game-factory (root `%USERPROFILE%\Work`, config `%USERPROFILE%\.game-factory\`). The two
 keep separate roots, configs, hooks folders, session maps and skills, and each one's bootstrap adds its hook entries
-next to the other's in `~\.claude\settings.json` / `~\.codex\hooks.json` without touching them (ours are recognised by
-our hooks dir in the command). A tool call is recorded by the factory whose root it names. What they share on purpose:
+next to the other's in `~\.claude\settings.json` / `~\.codex\hooks.json` without touching them (ours run
+`record-unity-action.ps1`, theirs `record-action.ps1`). A tool call is recorded by the factory whose root it names. What
+they share on purpose:
 
 - **Job slots.** `unity-heavy.ps1` takes the same machine-wide mutexes as `ue-heavy.ps1` (`Global\ue-heavy-slot-<n>`,
   `Global\ue-gpu-slot-<n>`, `Global\ue-heavy-low-slot`), so Unity and Unreal jobs draw from one set of slots. Both use

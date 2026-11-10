@@ -41,8 +41,6 @@ $HooksDir = [IO.Path]::GetFullPath($HooksDir)
 $Agents = @(Get-UGFAgents $cfg)
 if (-not $Org) { $Org = Get-UGFOrg $cfg }
 $results = New-Object Collections.Generic.List[object]
-# Our recording handlers: record-unity-action.ps1 run from OUR hooks dir (the Unreal game-factory's own handlers don't count).
-$ourHookRx = '(?i)' + [regex]::Escape(($HooksDir -replace '\\', '/')).Replace('/', '[\\/]') + '[\\/]record-unity-action\.ps1'
 
 function Add-Result([string]$Status, [string]$Check, [string]$Detail, [string]$Fix = '') {
     $results.Add([pscustomobject]@{ status = $Status; check = $Check; detail = $Detail; fix = $Fix })
@@ -241,12 +239,12 @@ Try-Check 'Recording hooks' {
     if ($diff -or -not (Same-File (Join-Path $PSScriptRoot 'lib\ugf-root.ps1') (Join-Path $hd 'ugf-root.ps1'))) { Add-Result WARN 'Recording hooks' "$hd`: older than the repo copy ($(@($diff) + @('ugf-root.ps1') -join ', '))" 'machine\bootstrap.ps1 (backs up the old copies)'; return }
     Add-Result PASS 'Recording hooks' $hd
 }
-# The events each agent must run OUR record-unity-action.ps1 on (Codex has no PostToolUseFailure).
+# The events each agent must run record-unity-action.ps1 on (Codex has no PostToolUseFailure).
 function Get-WiredEvents($Obj, [string[]]$Events) {
     $w = @()
     foreach ($ev in $Events) {
         $cmds = @($Obj.hooks.$ev | ForEach-Object { $_.hooks } | ForEach-Object { [string]$_.command })
-        if ($cmds -match $ourHookRx) { $w += $ev }
+        if ($cmds -match 'record-unity-action\.ps1') { $w += $ev }
     }
     return $w
 }
@@ -261,8 +259,8 @@ if ($Agents -contains 'claude') {
         $sp = Join-Path $ClaudeDir 'settings.json'
         $events = @('PostToolUse', 'PostToolUseFailure', 'Stop')
         $wired = if (Test-Path $sp) { @(Get-WiredEvents ([IO.File]::ReadAllText($sp) | ConvertFrom-Json) $events) } else { @() }
-        if ($wired.Count -eq $events.Count) { Add-Result PASS 'Claude Code hooks' "$sp wires $($events -join ', ') to $HooksDir" }
-        else { Add-Result FAIL 'Claude Code hooks' "$sp wires to ${HooksDir}: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent claude (asks before installing them)' }
+        if ($wired.Count -eq $events.Count) { Add-Result PASS 'Claude Code hooks' "$sp wires $($events -join ', ')" }
+        else { Add-Result FAIL 'Claude Code hooks' "$sp wires: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent claude (asks before installing them)' }
     }
 }
 if ($Agents -contains 'codex') {
@@ -279,10 +277,10 @@ if ($Agents -contains 'codex') {
         $events = @('PostToolUse', 'Stop')
         $h = if (Test-Path $hp) { [IO.File]::ReadAllText($hp) | ConvertFrom-Json } else { $null }
         $wired = if ($h) { @(Get-WiredEvents $h $events) } else { @() }
-        if ($wired.Count -ne $events.Count) { Add-Result FAIL 'Codex hooks' "$hp wires to ${HooksDir}: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent codex (asks before installing them)'; return }
+        if ($wired.Count -ne $events.Count) { Add-Result FAIL 'Codex hooks' "$hp wires: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent codex (asks before installing them)'; return }
         # an untrusted or changed hook is skipped by Codex without a word: compare the trust entries
         $state = Get-UGFCodexTrustState (Join-Path $CodexDir 'config.toml')
-        $trust = @(Get-UGFCodexHookTrust $hp $h $ourHookRx)
+        $trust = @(Get-UGFCodexHookTrust $hp $h)
         $bad = @($trust | Where-Object { $state[$_.key] -ne $_.hash -and $state["\\?\$($_.key)"] -ne $_.hash } | ForEach-Object { $_.event })
         if (-not $bad) { Add-Result PASS 'Codex hooks' "$hp wires $($events -join ', '); trusted in config.toml" }
         else { Add-Result FAIL 'Codex hooks' "wired but not trusted (Codex skips them): $($bad -join ', ')" 'machine\bootstrap.ps1 -Agent codex, or in Codex type /hooks and trust the record-unity-action.ps1 hooks' }

@@ -7,10 +7,8 @@
 #   {"event_name": "post_tool_use", "matcher": "*", "hooks": [{"type": "command", "command": "...", "timeout": 60, "async": true}]}
 # (codex-rs hooks/src/engine/discovery.rs hook_hash, config/src/fingerprint.rs version_for_toml; commandWindows is not
 # part of it, a missing timeout counts as 600, a missing matcher is left out). An untrusted or changed hook is skipped
-# without an error, so bootstrap.ps1 writes these entries for the unity-game-factory hooks and only those (the
-# handlers that run record-unity-action.ps1 from its own hooks dir: -Pattern; never the Unreal game-factory's, which its own
-# bootstrap trusts), and check.ps1 compares them. Typing /hooks in Codex shows the same trust state and can trust them
-# by hand.
+# without an error, so bootstrap.ps1 writes these entries for the unity-game-factory hooks (and only those), and
+# check.ps1 compares them. Typing /hooks in Codex shows the same trust state and can trust them by hand.
 
 $script:CodexEventLabels = @{ PreToolUse = 'pre_tool_use'; PermissionRequest = 'permission_request'; PostToolUse = 'post_tool_use'
     PreCompact = 'pre_compact'; PostCompact = 'post_compact'; SessionStart = 'session_start'; SessionEnd = 'session_end'

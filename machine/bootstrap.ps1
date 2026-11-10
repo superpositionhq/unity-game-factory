@@ -211,15 +211,9 @@ $map = Join-Path $hooksDir 'recording-sessions.json'
 if (Test-Path -LiteralPath $map) { Note ok 'hooks\recording-sessions.json' 'kept as is' }
 else { [IO.File]::WriteAllText($map, '{}', $utf8); Note added 'hooks\recording-sessions.json' }
 
-$hooksSlash = ($hooksDir -replace '\\', '/')
-# Ours are the handlers whose command runs record-unity-action.ps1 from OUR hooks dir (either slash spelling). The Unreal
-# game-factory's handlers run record-unity-action.ps1 from its own hooks dir: they are left exactly as they are, so both
-# factories record side by side, each only its own root's sessions.
-$ourHookRx = '(?i)' + [regex]::Escape($hooksSlash).Replace('/', '[\\/]') + '[\\/]record-unity-action\.ps1'
-
-# Merge a hook fragment ({{HOOKS_DIR}} filled in) into a parsed settings/hooks object: every handler of ours
-# ($ourHookRx) becomes the fragment's handler for that event, a missing one is added as its own group; everything else
-# stays. Returns $true when something changed.
+# Merge a hook fragment ({{HOOKS_DIR}} filled in) into a parsed settings/hooks object: every handler whose command runs
+# record-unity-action.ps1 becomes the fragment's handler for that event, a missing one is added; everything else stays
+# (the Unreal game-factory's handlers run its record-action.ps1). Returns $true when something changed.
 function Merge-RecordingHooks($Target, $Frag) {
     $changed = $false
     if (-not ($Target.PSObject.Properties.Name -contains 'hooks')) { $Target | Add-Member hooks (New-Object psobject); $changed = $true }
@@ -232,7 +226,7 @@ function Merge-RecordingHooks($Target, $Frag) {
         foreach ($g in $groups) {
             $hs = @($g.hooks)
             for ($i = 0; $i -lt $hs.Count; $i++) {
-                if ([string]$hs[$i].command -match $ourHookRx) {
+                if ([string]$hs[$i].command -match 'record-unity-action\.ps1') {
                     $found = $true
                     if (($hs[$i] | ConvertTo-Json -Compress) -ne ($want | ConvertTo-Json -Compress)) { $hs[$i] = $want; $changed = $true }
                 }
@@ -249,6 +243,7 @@ function Read-JsonOrEmpty([string]$Path) {
     if (-not $o) { $o = New-Object psobject }
     return $o
 }
+$hooksSlash = ($hooksDir -replace '\\', '/')
 
 # Claude Code: ~\.claude\settings.json gets PostToolUse, PostToolUseFailure and Stop.
 $claudeChanged = $false
@@ -259,7 +254,7 @@ if ($Agents -contains 'claude') {
     $claudeChanged = Merge-RecordingHooks $settings $frag
 }
 # Codex: ~\.codex\hooks.json gets PostToolUse and Stop (Codex has no PostToolUseFailure), and config.toml the trust
-# entries for exactly our handlers (machine/lib/codex-hooks.ps1: Codex skips an untrusted hook silently).
+# entries for exactly those handlers (machine/lib/codex-hooks.ps1: Codex skips an untrusted hook silently).
 $codexChanged = $false; $codexTrustChanged = $false; $codexTrust = @()
 if ($Agents -contains 'codex') {
     $codexHooksPath = Join-Path $CodexDir 'hooks.json'
@@ -269,7 +264,7 @@ if ($Agents -contains 'codex') {
     $codexChanged = Merge-RecordingHooks $codexHooks $cfrag
     # The key holds the hooks.json path as Codex prints it. With CODEX_HOME set, Codex canonicalizes the folder, which on
     # Windows can add the \\?\ prefix: both spellings are trusted then (an unused entry does nothing).
-    $codexTrust = @(Get-UGFCodexHookTrust $codexHooksPath $codexHooks $ourHookRx)
+    $codexTrust = @(Get-UGFCodexHookTrust $codexHooksPath $codexHooks)
     if ($env:CODEX_HOME -and $codexHooksPath -match '^[A-Za-z]:\\') {
         $codexTrust += @($codexTrust | ForEach-Object { [pscustomobject]@{ event = $_.event; key = "\\?\$($_.key)"; hash = $_.hash } })
     }
