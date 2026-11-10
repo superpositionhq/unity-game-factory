@@ -220,12 +220,12 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
   `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
   The result doesn't name a check's play: it is the check's `play` in the task file. Each holds `probe.json`
   (below), `play_spec.json` (what the play was given: its seconds, scene and inputs, and its queries with their ids,
-  kinds and selects or places; a `look` that a boot served has its queries in the boot's), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
-  line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI
-  included, evenly over the play), `play.log` (the game's own player log) and `output.txt` (what the play's job
-  printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and `build\build.log`
-  Unity's log of a build that failed. Read these when a value surprises you. Checking a task again replaces its
-  folder.
+  kinds and selects or places; a `look` that a boot served has its queries in the boot's), `probe.log` (the probe's
+  own lines: where each teleport put the player, each click, wait and error, each line `<play time> [<real time> s]
+  ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play),
+  `play.log` (the game's own player log) and `output.txt` (what the play's job printed, the machine slot's waits
+  among it). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's log of a build that failed.
+  Read these when a value surprises you. Checking a task again replaces its folder.
 - A play's `probe.json` holds, per sample time: in `track` a row `[t, x, y, z]`, the player's position (`[t]` alone
   while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
