@@ -291,16 +291,43 @@ def forget(path):
         forget_saves(project)
 
 
+def refused(path):
+    """Why remove() never deletes `path`, or None: what can never be a folder of the checker's own. An empty path is
+    the current folder (remove("") emptied it); a drive's or share's root, the current folder or one above it (the
+    checker's own run is in it) and the user's home or one above it."""
+    if not str(path).strip():
+        return "an empty path is the current folder"
+    full = os.path.normcase(os.path.abspath(path))
+    if os.path.dirname(full) == full:
+        return "a drive's root"
+    for what, folder in (("the current folder", os.getcwd()), ("the user's home", os.path.expanduser("~"))):
+        if os.path.isabs(folder):
+            try:
+                if os.path.commonpath([full, os.path.normcase(os.path.abspath(folder))]) == full:
+                    return f"{what}, or a folder above it"
+            except ValueError:  # on another drive
+                pass
+    return None
+
+
 def remove(path):
     """`path` removed (a folder, read-only files included, or a file), and with a scratch copy the saved data its plays
     left outside it. What another process still holds is tried again for up to HELD seconds, then the error raised: a
-    player killed at its timeout still held its log for a moment, and the next play of its copy failed on it."""
+    player killed at its timeout still held its log for a moment, and the next play of its copy failed on it. A link (a
+    junction too) goes as the link, never what it points at (rmtree refused one and left it without a word); a path
+    `refused` names raises ValueError."""
 
     def writable(func, target, _):
         os.chmod(target, stat.S_IWRITE)
         func(target)
 
+    why = refused(path)
+    if why:
+        raise ValueError(f"won't delete {path}: {why}")
     path = Path(path)
+    if path.is_symlink() or os.path.isjunction(path):
+        os.unlink(path)  # (for a link to a folder too: Windows removes the link itself)
+        return
     if path.is_dir():
         forget(path)
     end = time.monotonic() + HELD

@@ -518,6 +518,34 @@ class Whole(unittest.TestCase):
             self.assertIn("  reference: built (1 s, built earlier in this run)", said,
                           "the third task's reference build is the second's")
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
+    def test_a_copy_that_cant_be_deleted_is_said_not_raised(self):
+        """A file of a copy another process holds (a player that outlived an interrupt, a viewer) never ends the run
+        or hides its result: the run says which folder to delete."""
+        with tempfile.TemporaryDirectory() as tmp:
+            said = []
+            builds = check.Builds(".", Path(tmp) / "run", log=said.append)
+            copy = Path(tmp) / "run" / ("a" * 12)
+            (copy / "Logs").mkdir(parents=True)
+            (copy / "Logs" / "play.log").write_text("held", encoding="utf-8")
+            builds.copies["a" * 40] = (None, {})
+            ready = Path(tmp) / "ready"
+            holder = subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1], 'rb'); "
+                                       "open(sys.argv[2], 'w').close(); time.sleep(60)", copy / "Logs" / "play.log",
+                                       ready])
+            try:
+                while holder.poll() is None and not ready.exists():
+                    time.sleep(0.05)
+                with mock.patch.object(seeds, "HELD", 0.5):
+                    builds.release("a" * 40)
+                    builds.close()
+            finally:
+                holder.kill()
+                holder.wait()
+            told = [s for s in said if "couldn't delete" in s]
+            self.assertEqual(len(told), 2, said)
+            self.assertIn(str(copy), told[0])
+
     def test_a_failed_build_of_more_scenes_serves_no_task_with_fewer(self):
         """A later task's scene that doesn't build fails that task, never the next one whose own scenes build: sharing
         a copy changes no result."""
@@ -1153,6 +1181,42 @@ class SavedData(unittest.TestCase):
                 seeds.remove(Path(tmp) / "run")
             self.assertEqual(forgotten, [project])
             self.assertFalse((Path(tmp) / "run").exists())
+
+    def test_remove_refuses_what_is_never_a_folder_of_the_checkers_own(self):
+        home, here = os.path.expanduser("~"), os.getcwd()
+        for path in ("", ".", "..", "C:", "C:\\", "\\\\server\\share", here, os.path.dirname(here), home,
+                     os.path.dirname(home)):
+            self.assertIsNotNone(seeds.refused(path), path)  # (never handed to remove() here: it would delete them)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(seeds.refused(Path(tmp) / "scratch" / "run"))
+            canary = Path(tmp) / "canary.txt"
+            canary.write_text("the folder the checker was started in", encoding="utf-8")
+            with contextlib.chdir(tmp):
+                for path in ("", ".", Path("")):
+                    with self.assertRaisesRegex(ValueError, "won't delete"):
+                        seeds.remove(path)
+            self.assertTrue(canary.is_file())
+
+    @unittest.skipUnless(sys.platform == "win32", "junctions")
+    def test_remove_takes_a_link_as_the_link(self):
+        import _winapi
+
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "outside"
+            (outside / "sub").mkdir(parents=True)
+            (outside / "sub" / "keep.txt").write_text("not the checker's", encoding="utf-8")
+            live, dangling, gone = Path(tmp) / "live", Path(tmp) / "dangling", Path(tmp) / "gone"
+            _winapi.CreateJunction(str(outside), str(live))
+            gone.mkdir()
+            _winapi.CreateJunction(str(gone), str(dangling))
+            gone.rmdir()
+            folder = Path(tmp) / "copy"
+            folder.mkdir()
+            _winapi.CreateJunction(str(outside), str(folder / "inside"))
+            for path in (live, dangling, folder):
+                seeds.remove(path)
+                self.assertFalse(os.path.lexists(path), path)
+            self.assertTrue((outside / "sub" / "keep.txt").is_file(), "never what a link points at")
 
     @unittest.skipUnless(sys.platform == "win32", "the Windows registry and known folders")
     def test_forgetting_a_copy_deletes_only_names_of_its_own_form(self):

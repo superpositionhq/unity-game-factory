@@ -168,11 +168,19 @@ class Builds:
 
     def release(self, sha):
         if self.copies.pop(sha, None) is not None:
-            seeds.remove(self.scratch / sha[:12])
+            self._remove(self.scratch / sha[:12])
 
     def close(self):
         self.copies.clear()
-        seeds.remove(self.scratch)
+        self._remove(self.scratch)
+
+    def _remove(self, folder):
+        """`folder` deleted; one that can't be (a process outside the checker holds a file of it) is said, with the
+        folder to delete, and the run goes on: raised, it ended the run or hid the result it was cleaning up after."""
+        try:
+            seeds.remove(folder)
+        except (OSError, ValueError) as exc:
+            self.log(f"  couldn't delete {folder} ({exc}): delete it by hand")
 
 
 def task_scenes(task):
