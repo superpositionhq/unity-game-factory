@@ -70,7 +70,7 @@ Try-Check 'Unity Hub' {
 Try-Check 'Unity licence' {
     $lic = @((Join-Path $env:LOCALAPPDATA 'Unity\licenses\UnityEntitlementLicense.xml'), (Join-Path $env:ProgramData 'Unity\Unity_lic.ulf')) | Where-Object { Test-Path -LiteralPath $_ }
     if ($lic) { Add-Result PASS 'Unity licence' ($lic -join '; ') }
-    else { Add-Result WARN 'Unity licence' 'no activated licence on this Windows account' 'Unity Hub > sign in with a Unity ID > Preferences > Licenses > Add (Personal is fine); a licence server''s floating seat does not show here' }
+    else { Add-Result WARN 'Unity licence' 'no licence file of Unity Hub or of a serial activation' 'Unity Hub > sign in with a Unity ID > Preferences > Licenses > Add (Personal is fine); a licence server''s floating seat does not show here' }
 }
 Try-Check 'Unity 6.3 LTS editor' {
     $ver = Get-UGFUnityVersion $cfg   # the editor new games use: unity_version, a series (its newest patch) or exact
@@ -229,7 +229,8 @@ Try-Check 'Job slots' {
         "$($calc.hardware.ram_gb) GB RAM, $($calc.hardware.vram_mb) MB VRAM)"
     $ue = Get-UGFUnrealRoot
     if ($ue) { $detail += "; slots shared with the Unreal game-factory at $ue (same machine-wide mutexes)" }
-    if ($sp.gpu_slots -ge $sp.heavy_slots) {
+    # with one general slot (what the formula gives a 16 GB PC) a GPU job always holds it: nothing to change then
+    if ($sp.gpu_slots -ge $sp.heavy_slots -and $sp.heavy_slots -gt 1) {
         Add-Result WARN 'Job slots' "$detail; GPU jobs also take a general slot, so gpu_slots >= heavy_slots can leave no slot for compiles" 'lower gpu_slots or raise heavy_slots in the config'
     } else { Add-Result PASS 'Job slots' $detail }
 }
@@ -247,8 +248,8 @@ Try-Check 'unity-heavy.ps1' {
     $dst = Join-Path $Root 'tools\unity-heavy.ps1'
     $lib = Join-Path $Root 'tools\ugf-root.ps1'
     if ((Same-File (Join-Path $PSScriptRoot 'tools\unity-heavy.ps1') $dst) -and (Same-File (Join-Path $PSScriptRoot 'lib\ugf-root.ps1') $lib)) { Add-Result PASS 'unity-heavy.ps1' $dst }
-    elseif (Test-Path $dst) { Add-Result WARN 'unity-heavy.ps1' "$dst or ugf-root.ps1 next to it differs from the repo copy" 'machine\bootstrap.ps1 (keeps a backup)' }
-    else { Add-Result FAIL 'unity-heavy.ps1' "missing $dst" 'machine\bootstrap.ps1' }
+    elseif ((Test-Path $dst) -and (Test-Path $lib)) { Add-Result WARN 'unity-heavy.ps1' "$dst or ugf-root.ps1 next to it differs from the repo copy" 'machine\bootstrap.ps1 (keeps a backup)' }
+    else { Add-Result FAIL 'unity-heavy.ps1' "missing $(@($dst, $lib | Where-Object { -not (Test-Path $_) }) -join ', ')" 'machine\bootstrap.ps1' }   # without ugf-root.ps1 next to it the limiter does not start
 }
 Try-Check 'Recording hooks' {
     $hd = $HooksDir
