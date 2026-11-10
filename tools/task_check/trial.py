@@ -309,11 +309,12 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
         for folder in [scratch / "start", scratch / "reference"] + [scratch / f"run{i}" / seed["game"]
                                                                   for i in range(1, runs + 1)]:
             seeds.check_length(folder)  # before hours of building, not after
-        sides = {}
+        sides, machines = {}, {}
         for label, sha in (("start", shas["commit"]), ("reference", shas["reference"])):
             log(f"  {label}: materializing {sha[:12]}")
             seeds.materialize(repo, sha, scratch / label)
-            sides[label], machine = side(label, scratch / label, task, direct, timeout, build_timeout, evidence, log)
+            sides[label], machines[label] = side(label, scratch / label, task, direct, timeout, build_timeout, evidence,
+                                                 log)
         start, reference = sides["start"], sides["reference"]
         if not start.built() and tasks.fails_at_start(task) is None:
             return finish("ERROR", [f"the start doesn't build: {start.why_unbuilt()} (run task-check.py first)"])
@@ -331,7 +332,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
         # and the copies' logs hold the grader's queries. The start's import cache (its Library) serves the grades.
         seeds.remove(scratch / "reference")
         clear(scratch / "start", ("Logs", "Build"))
-        prompt = brief(task, machine.editor)
+        prompt = brief(task, machines["start"].editor)  # the workspace's: the reference may name another 6000.3 release
         (evidence / "brief.md").write_text(prompt, encoding="utf-8")
         limits = limits_of(task)
         for i in range(1, runs + 1):
@@ -367,7 +368,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                 if seeds.seed_library(scratch / "start", folder):
                     log(f"  {label}: starts from the import cache of the start")
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
-            except (seeds.WrongEngine, FileNotFoundError) as exc:  # the agent changed the Unity version or the project
+            except (seeds.WrongEngine, FileNotFoundError, RuntimeError) as exc:  # Unity version or project changed
                 row.update(solved=False, score=0.0, required_passed=0, required=None, milestones={}, checks=[],
                            why=str(exc))
             else:

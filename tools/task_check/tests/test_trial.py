@@ -398,6 +398,42 @@ class Whole(unittest.TestCase):
             self.assertEqual(result["status"], "DONE", result["reasons"])
             self.assertEqual(at_grade, {"run1": ["Library/Artifacts/a1"]}, "the start's cache, without its compiled code")
 
+    def test_the_brief_names_the_editor_of_the_start(self):
+        """The workspace is the start: when the thread moved the game to another 6000.3 release, the agent is still
+        given the start's editor, not the reference's."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            editors = {"start": "C:/Unity/6000.3.26f1/Editor/Unity.exe", "reference": "C:/Unity/6000.3.28f1/Editor/Unity.exe"}
+            machine = classmethod(lambda cls, p, d=False: cls(Path(editors.get(Path(p).name, "C:/U/Unity.exe")), None))
+            with faked(answered), mock.patch.object(unity.Machine, "for_project", machine):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            brief = (Path(tmp) / "out" / "probe-task" / "brief.md").read_text(encoding="utf-8")
+            self.assertIn(str(Path(editors["start"])), brief)
+            self.assertNotIn("6000.3.28f1", brief)
+
+    def test_a_run_whose_unity_isnt_installed_is_not_solved_and_the_try_goes_on(self):
+        """The agent moved the project to a 6000.3 release this machine doesn't have: that run fails, not the try."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            real = unity.Machine.for_project
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                (Path(cwd) / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.99f1\n")
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            def machine(cls, project, direct=False):
+                return real(project, direct) if Path(project).parent.name.startswith("run") else \
+                    cls(Path("C:/U/Unity.exe"), None)
+
+            with faked(agent), mock.patch.object(unity.Machine, "for_project", classmethod(machine)):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", runs=2, log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual([(r["solved"], r["required"]) for r in result["runs"]], [(False, None), (False, None)])
+            self.assertIn("6000.3.99f1", result["runs"][0]["why"])
+
 
 class LongEnough(unittest.TestCase):
     def test_the_line_says_when_the_longest_run_is_too_short(self):
