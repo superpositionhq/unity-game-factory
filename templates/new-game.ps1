@@ -106,7 +106,9 @@ foreach ($f in Get-ChildItem -LiteralPath $template -Recurse -File -Force) {
 
 # workflow.jsonl, first row: the operation this script just performed.
 $scriptSha = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$templateCommit = (& git -C $repo rev-parse --short=12 HEAD 2>$null)
+# null when this folder is no git work tree (a copy, or one git refuses): under 'Stop' the line git writes to stderr
+# would end the script here, with the skeleton half made
+$templateCommit = & { $ErrorActionPreference = 'Continue'; & git -C $repo rev-parse --short=12 HEAD 2>$null }
 $rowId = '{0}-{1:D5}' -f $IdPrefix, 1
 $row = [ordered]@{
     schema = 'unity-workflow/v0'; id = $rowId; seq = 1; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
