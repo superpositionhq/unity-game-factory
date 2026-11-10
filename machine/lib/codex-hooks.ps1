@@ -116,7 +116,7 @@ function Set-UGFCodexTrustState([string]$ConfigToml, $Entries) {
         if (-not $skip -and $line -ne $script:CodexTrustMarker) {
             # A key of ours outside a [hooks.state."<key>"] header (a dotted key, an inline table): adding its table
             # again would make the whole file invalid, and Codex then starts without its config. Only the whole key in
-            # its quotes counts: the \\?\ spelling of a key holds the plain one, and stopped bootstrap on its own tables.
+            # its quotes counts: the \\?\ spelling of a key holds the plain one (bootstrap stopped on its own tables).
             foreach ($k in $keys.Keys) {
                 if ($line.Contains("'$k'") -or $line.Contains('"' + $k.Replace('\', '\\') + '"')) { throw "$ConfigToml holds the trust entry $k in a form this script does not edit: nothing was written to it; remove that entry, then run bootstrap again" }
             }
