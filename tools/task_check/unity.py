@@ -46,6 +46,10 @@ ASSETS_METHOD = "TaskProbe.EditorTools.AssetPass.Run"
 SPEC_FORMAT = "unity-probe-play/1"
 # A crash in a player log. A managed exception the game survives isn't one: log_absent checks for those.
 FATAL = r"Crash!!!|OUTPUTTING STACK TRACE|Fatal error|Out of memory"
+# Unity without an active licence logs this and exits 198 (templates/unity-game/Scripts/unity.ps1). Not "Licensing ...
+# Error" lines: every log on a licensed machine has some.
+UNLICENSED = "No valid Unity Editor license"
+UNLICENSED_EXIT = 198
 
 
 @dataclass
@@ -167,8 +171,24 @@ def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
                   round(waited, 3))
 
 
-class LimiterRefused(RuntimeError):
+class MachineError(RuntimeError):
+    """The machine can't run Unity's jobs: the run's error, never a verdict on the game."""
+
+
+class LimiterRefused(MachineError):
     """The machine's job limiter couldn't be started at all."""
+
+
+class Unlicensed(MachineError):
+    """Unity has no active licence."""
+
+
+def _licensed(found, log):
+    """Raises Unlicensed when the batchmode Unity job `found` (`log`: its output and log) stopped for want of a
+    licence."""
+    if found.exit_code == UNLICENSED_EXIT or (found.exit_code not in (0, None) and UNLICENSED in log):
+        raise Unlicensed(f'Unity has no active licence (exit {found.exit_code}, "{UNLICENSED}"): sign in to Unity Hub, '
+                         "check the licence there (Settings > Licenses; a free Personal one will do), and run again")
 
 
 def _ps_quote(value):
@@ -269,6 +289,8 @@ class Project:
                                        "result": result.as_posix()}, indent=2), encoding="utf-8")
         argv = self._batch(log) + ["-executeMethod", BUILD_METHOD, "-taskProbeBuild", request]
         found = self.machine.job(f"task-check build {self.label}", argv, self.folder, timeout)
+        output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
+        _licensed(found, output)
         report = _read_json(result)
         self.report = report
         code, said = found.exit_code, ""
@@ -276,8 +298,7 @@ class Project:
             code = 1
             said = ("[task-check] Unity exited 0 but the build wrote no result\n" if report is None else
                     f"[task-check] Unity exited 0 but the build's result says it failed: {report.get('error')}\n")
-        output = said + (found.output + "\n" if found.output.strip() else "") + _read_text(log)
-        return Result(code, cut(output), found.seconds, found.timed_out, found.waited, report)
+        return Result(code, cut(said + output), found.seconds, found.timed_out, found.waited, report)
 
     def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
         """The built player for `seconds` of game time through the probe: windowed at 960x540 on its own desktop, a fixed
@@ -323,6 +344,7 @@ class Project:
         argv = self._batch(log) + ["-executeMethod", ASSETS_METHOD, "-taskProbeAssets", asked]
         found = self.machine.job(f"task-check editor {self.label}", argv, self.folder, timeout)
         output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
+        _licensed(found, output)
         return Result(found.exit_code, cut(output), found.seconds, found.timed_out, found.waited)
 
     def read(self, relative):

@@ -408,6 +408,25 @@ class Whole(unittest.TestCase):
             self.assertTrue(result["reasons"][0].startswith("start: ProjectSettings/ProjectVersion.txt names Unity "
                                                             "6000.0.40f1"), result["reasons"])
 
+    def test_a_machine_that_cant_run_unity_is_an_error_never_a_verdict(self):
+        def unlicensed(*args, **kwargs):
+            raise unity.Unlicensed('Unity has no active licence (exit 198, "No valid Unity Editor license")')
+
+        def editor(request, timeout):
+            return ran(""), {"nonce": request["nonce"], "measures": {i: {"value": 1} for i in request["measures"]}}
+
+        asset = {"probe": "asset", "asset": "Assets/Materials/Road.mat", "field": "shader:_Cull"}
+        task = task_with({"kind": "build", "name": "player_builds"},
+                         probe("road", play="editor", measure=asset, expect={"op": "==", "value": 1}))
+        for side_, job in (("start", "build"), ("reference", "build"), ("reference", "editor_assets")):
+            with tempfile.TemporaryDirectory() as tmp:  # the reference's jobs are rows of its grade: never failed ones
+                projects = {"start": FakeProject(measuring(-500), editor=editor),
+                            "reference": FakeProject(measuring(100), editor=editor)}
+                setattr(projects[side_], job, unlicensed)
+                result = self.check(json.loads(json.dumps(task)), projects, tmp)
+                self.assertEqual(result["verdict"], "ERROR", (side_, job))
+                self.assertIn("exit 198", result["reasons"][0])
+
     def test_the_scenes_a_task_plays_are_built_and_the_assets_they_lack_are_noted(self):
         with tempfile.TemporaryDirectory() as tmp:
             play = {"name": "arena", "seconds": 8, "scene": "Assets/Scenes/Arena.unity"}
@@ -667,6 +686,33 @@ class Plays(unittest.TestCase):
             machine.code = 3
             result = {"ok": True}
             self.assertEqual(project.build(60, []).exit_code, 3)
+
+    def test_a_unity_without_a_licence_is_the_machines_error_not_a_failed_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def answer(argv, cwd):
+                Path(after(argv, "-logFile")).write_text(log, encoding="utf-8")
+                if "-taskProbeBuild" in argv:
+                    request = json.loads(Path(after(argv, "-taskProbeBuild")).read_text(encoding="utf-8"))
+                    Path(request["result"]).write_text('{"ok": true}', encoding="utf-8")
+                return ""
+
+            machine = FakeMachine(answer=answer, code=198)
+            project = unity.Project(tmp, machine, "t")
+            log = ("[Licensing::Module] Error: Access token is unavailable; failed to update\n"
+                   "No valid Unity Editor license found. Please activate your license.\n")
+            with self.assertRaisesRegex(unity.Unlicensed, "exit 198"):
+                project.build(60, [])
+            with self.assertRaisesRegex(unity.Unlicensed, "Unity Hub"):
+                project.editor_assets(probes.editor_request([], "n0nce"), 60)
+            machine.code = 1
+            with self.assertRaises(unity.Unlicensed, msg="the line with another failing exit code"):
+                project.build(60, [])
+            log = "[Licensing::Module] Error: Access token is unavailable\nerror CS0103: The name 'x' does not exist\n"
+            self.assertEqual(project.build(60, []).exit_code, 1, "a licensed machine's Licensing errors are no sign")
+            machine.code, log = 0, "No valid Unity Editor license found.\n"
+            self.assertEqual(project.build(60, []).exit_code, 0, "a job that went on and built is no failure")
+        self.assertTrue(issubclass(unity.Unlicensed, unity.MachineError))
+        self.assertTrue(issubclass(unity.LimiterRefused, unity.MachineError))
 
     def test_the_editor_pass_writes_its_request_and_reads_its_result(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -404,6 +404,8 @@ class Grade:
             else:
                 try:
                     ok, detail = self.check(check)
+                except unity.MachineError:
+                    raise  # the machine can't run Unity (its limiter, the licence): no verdict on the game
                 except (OSError, RuntimeError, ValueError) as exc:
                     ok, detail = False, f"the checker failed ({type(exc).__name__}: {str(exc)[:200]})"
             passed[check["name"]] = bool(ok)
