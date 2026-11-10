@@ -814,11 +814,12 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
 ```
 
 - At a point `xz`: `height` (m), the y where a ray straight down from 2000 m up first meets a collider (every collider
-  but triggers, those on the Ignore Raycast layer and the player's); `hit` (1 when it met anything).
+  but triggers, those on the Ignore Raycast layer and the player's); `hit` (1 when it met anything; when it met
+  nothing, `height` has no value).
 - Over a `box` `[x0, z0, x1, z1]` (x0 < x1, z0 < z1), the same on a `grid` x `grid` lattice (2-32, default 8; corners
   and edges included): `min`, `max`, `mean` of the heights, `range` (max - min, the relief: rolling hills against a
-  flat plain), `hits` (how many points met ground). The value also holds `points` (grid x grid), for the logs. A
-  measure takes `xz` or `box`, and only that one's fields.
+  flat plain), `hits` (how many points met ground; when none did, only `hits` (0) has a value). The value also holds
+  `points` (grid x grid), for the logs. A measure takes `xz` or `box`, and only that one's fields.
 - `select` (an object select, optional): only colliders of the objects it matches, or of their descendants, are
   ground; anything else (trees, rocks, roofs) is traced through. The player's colliders are always skipped, with or
   without `select`.
