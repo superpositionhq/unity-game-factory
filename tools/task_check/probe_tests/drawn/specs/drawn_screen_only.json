@@ -1,0 +1,25 @@
+{
+ "seconds": 16,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/Scenes/DrawnTest.unity",
+ "sound": false,
+ "player": null,
+ "inputs": [],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.5,
+  "queries": [
+   {
+    "id": "qScreen",
+    "kind": "screen",
+    "rect": [
+     0,
+     0,
+     1,
+     1
+    ]
+   }
+  ]
+ }
+}
