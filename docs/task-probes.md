@@ -117,15 +117,17 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       a test spot. The probe doesn't move it to the ground or out of a collider afterwards: take the point from where
       the player stands in a play (the `track` of its `probe.json`);
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
-      "face": <Point>}` places the player `distance` m (default 2) from the object the select matches nearest to the
-      player, position to position (the player and its own children left out; of two as near, the first in hierarchy
-      order), on the player's side (behind the object, on the side its back is to, when the player stands right above
-      it) and level with it, plus `offset` (default none), facing `face` (a point, section 2.13) or else that object
-      (with nothing to face within a centimetre on the ground, it keeps its own yaw). The way to reach a spot each
-      build chooses itself (the ore a fix placed, a door it moved).
+      "face": <Point>}` places the player `distance` m (default 2; 0 to 1000) from the object the select matches
+      nearest to the player, position to position (the player and its own children left out; of two as near, the
+      first in hierarchy order), on the player's side (behind the object, on the side its back is to, when the player
+      stands right above it) and level with it, plus `offset` (default none), facing `face` (a point, section 2.13)
+      or else that object (with nothing to face within a centimetre on the ground, it keeps its own yaw). The way to
+      reach a spot each build chooses itself (the ore a fix placed, a door it moved).
       **Level is pivot to pivot**: the player's own position goes to the height of the object's position plus
       `offset`'s y, and nothing then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up,
-      `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). **A select matches every
+      `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). The offset is the task's, the
+      same for every build: where each build chooses the height (a thing the task adds), no offset fits them all, so
+      leave it out when the game takes a player level with the thing. **A select matches every
       object that fits it, and the nearest wins**: `{"name": "Coin*"}` also takes a `CoinSpawner`, and a player
       standing beside the spawner goes there; select the instances themselves, by their exact name or their own
       component where the start has them too, and by what they carry (`has`) where the task adds them, since another
@@ -340,7 +342,7 @@ renderers, else its position.
     Because a part may sit on a descendant, an object that holds others (a spawner that parents what it spawns, a
     pool, a manager) matches whatever one of its children matches: keep it out with a `component` on the object
     itself that it lacks (`{"component": "MeshRenderer", "has": {"lit": true}}`: an object that draws a mesh itself
-    and gives light), a `near` or a height band.
+    and gives light), a `near` or a height band (section 2.13).
     `"simulating": true` (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an
     object by what it can do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object
     a player can shove, whichever component a build used.
@@ -659,6 +661,9 @@ the window).
 - `spawned`: an object carrying the component became active in the hierarchy (instantiated, activated, or in a scene
   loaded during the play); `destroyed`: one was destroyed or deactivated. The probe compares every frame with the one
   before.
+- Where the task itself adds the things, no component is sure to sit once per thing in every solution: count instead
+  how often the number of objects that carry what the brief asks for rises, an `objects` `count` over a `has` select
+  with `"agg": "rises"` (section 2.1).
 - Objects already there when the play's clock starts are not counted as spawned.
 - Pooled objects reused with `SetActive` count as instantiated clones do: a pooled projectile that is deactivated and
   reused counts each time it comes and goes.
@@ -864,9 +869,12 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   distance / max distance.
 - `field`: `count` (how many sources), `audible` (how many at 0.001, -60 dB, or louder), `volume` (their volumes'
   sum), `max_volume` (the loudest), and `level` (the RMS of the listener's mixed output since the previous sample,
-  mixers and effects included: everything the player would hear, whatever plays it). The probe puts its tap on every
-  enabled listener from its first frame, and on a new one in the frame it comes on; a sample before which no sound
-  reached the tap (a play's first sample can be one) has no `level`. No listener: no value at all.
+  mixers and effects included: everything the player would hear, whatever plays it). `count`, `audible`, `volume` and
+  `max_volume` are of the sources playing at the sample itself, so a sound shorter than the time between two samples
+  can fall between them: sample oftener (a task play's `every`), or read `level`, which covers the whole time since
+  the previous sample. The probe puts its tap on every enabled listener from its first frame, and on a new one in
+  the frame it comes on; a sample before which no audio reached the tap at all (a play's first sample can be one)
+  has no `level`, while silence reads 0. No listener: no value at all.
 - While `AudioListener.pause` is on, every source reads as not playing (`count` and `level` 0); with `timeScale` 0
   sounds keep playing.
 - The sample's value also holds `loudest` (the loudest source's clip name), `peak` and `listener` (its object's name),
@@ -1008,10 +1016,11 @@ One reading for what is drawn at a spot, whatever draws it: a mesh, a particle s
 surface whose material pans or animates, no name needed. Every renderer drawn in game (enabled, active, not forced
 off, not drawing shadows only) and every terrain whose world bounds reach the place, none on the UI layer, is
 rendered alone, by a camera of the probe's own that shows only those: orthographic, from fixed views (four around a
-point at 64 x 64, two across a line at 128 x 128), lit by a flat white ambient light alone, with no Lights, shadows,
-lightmaps, light probes, reflections, fog, post-processing or anti-aliasing, so a still scene renders the same every
-sample. At most 1024 are rendered, the first in hierarchy order. A renderer or terrain whose bounds enclose the whole
-place and are at least 20 times its size (a sky dome, a room seen from inside) is left out.
+point at 64 x 64, slanted from the corners of a tetrahedron, two of them from above and two from below; two across a
+line at 128 x 128), lit by a flat white ambient light alone, with no Lights, shadows, lightmaps, light probes,
+reflections, fog, post-processing or anti-aliasing, so a still scene renders the same every sample. At most 1024 are
+rendered, the first in hierarchy order. A renderer or terrain whose bounds enclose the whole place and are at least
+20 times its size (a sky dome, a room seen from inside) is left out.
 A pixel is in the place when its depth puts it there, or when it shows colour with nothing opaque behind it
 (translucent particles); the views reach no further than the place's far side, so an opaque wall behind the place
 doesn't hide translucent particles in front of it. Everything the render changes is put back before the sample

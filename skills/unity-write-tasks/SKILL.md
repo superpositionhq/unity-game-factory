@@ -50,7 +50,9 @@ git -C <root>/games/<slug> worktree add <root>/tasks/<slug> tasks    # creates l
 ```
 
 Then write the tasks in `<root>/tasks/<slug>/Tasks/`, commit there (`git -C <root>/tasks/<slug> commit`) and push
-when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `git push` after.
+when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `git push` after. In that worktree on
+Windows the word `tasks` also names the folder `Tasks/` (the disk ignores case), and git calls it ambiguous: write
+`git log tasks --`.
 
 - Never add `Tasks/` (or any task file) to main, never merge or cherry-pick between `tasks` and main, never point
   main's code, docs, README or `workflow.jsonl` at the tasks branch. The validator fails a repo whose main tracks
@@ -110,9 +112,11 @@ A thread qualifies only when all of these hold (the validator enforces the numbe
    (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted inputs reach it
    (Input System control paths, mouse buttons, mouse axes and the cursor included, widget clicks and teleports). The
    plays drive the Input System only: a game that reads the old Input Manager (`Input.GetKey`) takes no keys in them.
-   A thread no probe can measure is not a task.
+   A thread no probe can measure is not a task. One issue of a compound thread that no probe can measure fairly
+   stays in the brief and gets a `judge` in `quality` (section 5), never a required check.
 
-**Never make a task easier (permanent).** After a task is first written, these are banned if they lower the bar:
+**Never make a task easier (permanent).** After a task is first written (committed on the tasks branch), these are
+banned if they lower the bar:
 widening a threshold or window, making a required probe optional, removing a probe, removing a requirement from the
 brief or narrowing what it asks. A plainly broken probe may be fixed only so that it asks at least as much as the
 brief. Otherwise drop the whole task and say so; fewer tasks is an acceptable result.
@@ -319,6 +323,10 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or
   `{"op": ">=", "calibrate": 0.5}` for continuous quantities: the grader measures the start and the reference in the
   grading environment and puts the threshold that fraction of the way from start to fix; `op` points to the fix's side.
+  Where the reference is only one fair way of reaching the outcome (most features and changes: how fast a new thing
+  spins, how bright it glows), a calibrated threshold would hold every solution to the reference's own tuning: set it
+  relative to the start instead, `{"op": ">=", "start_plus": 30}` or `"start_times"` (docs/task-probes.md, section
+  1.2).
 
 Write probes from the game's own code at `seed.commit` and `seed.reference`: the real component types, tags, layers,
 scene paths and UI element names. **Test the outcome a player sees, never the implementation**: another valid fix must
@@ -436,7 +444,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a menu that pages on real time (`Time.unscaledTime`, `Time.realtimeSinceStartup`) never reached its later pages in a play | a task-play input `{"t": ..., "wait": seconds}`: the play's clock holds while the game runs on in real time |
 | a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
-| `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script, when the start has it too; in a task that adds the thing, a component every solution has once per thing) |
+| `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script, when the start has it too); in a task that adds the thing no such component is sure, so count how often an `objects` `count` over a `has` select rises (docs/task-probes.md, section 2.9) |
 | `teleport_to` a hovering target left the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
 | a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `level` in an audio play, or select the source by `owner` |
 | a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |

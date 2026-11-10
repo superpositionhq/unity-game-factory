@@ -75,7 +75,8 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
   assets, and several times longer while the machine runs other Unity jobs (the same two tasks then took 45 and 74
   minutes). Half of it or more is the builds (2 to 5 minutes each in the short runs, 24 and 28 in the longest): a
   scratch copy's first build imports every asset into the copy's own `Library/`. A commit shared by several tasks of
-  one run is built once.
+  one run is built once. A task with `asset` measures adds one editor pass per side, an editor start of its own (6
+  to 40 s in the short runs, 5 and 11 minutes in the longest).
   A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
   build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
   `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
@@ -152,9 +153,9 @@ it waited for a machine slot (`unity-heavy.ps1`).
 - `{"op": ">=", "value": 1}`: a literal.
 - `{"op": ">=", "calibrate": 0.5}`: `s + 0.5 * (r - s)` between the start's measure `s` and the reference's `r`.
   If the start measured nothing (its play crashed, often the bug itself; or nothing the measure selects is there yet,
-  the usual case in a task that adds it), the threshold is `r` moved a quarter of `|r|` toward the start's side (an
-  `r` of 0 gives no margin: uncalibrated). If the reference measured nothing, or
-  both sides measure the same, the probe fails as **uncalibrated**.
+  the usual case in a task that adds it), the threshold is `r` moved a quarter of `|r|` off the passing side
+  (`r - 0.25 * |r|` for `>`/`>=`, `r + 0.25 * |r|` for `<`/`<=`; an `r` of 0 gives no margin: uncalibrated). If the
+  reference measured nothing, or both sides measure the same, the probe fails as **uncalibrated**.
 - `{"op": ">=", "start_times": 1.3}` / `{"op": ">=", "start_plus": 5}`: `s * 1.3` / `s + 5` from the start (for an
   outcome the reference is only one fair way of reaching, or a task with no reference: task-probes.md, section 1.2).
   A start that measured nothing leaves no threshold (uncalibrated).
@@ -221,11 +222,12 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
   The result doesn't name a check's play: it is the check's `play` in the task file. Each holds `probe.json`
   (below), `play_spec.json` (what the play was given: its seconds, scene and inputs, and its queries with their ids,
   kinds and selects or places; a `look` that a boot served has its queries in the boot's), `probe.log` (the probe's
-  own lines: where each teleport put the player, each click, wait and error, each line `<play time> [<real time> s]
-  ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play),
-  `play.log` (the game's own player log) and `output.txt` (what the play's job printed, the machine slot's waits
-  among it). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's log of a build that failed.
-  Read these when a value surprises you. Checking a task again replaces its folder.
+  own lines: where each teleport put the player, each click, wait and error, and every 10 samples what a `drawn`
+  measure cost, `drawn <id>: N ms this sample ...`; each line `<play time> [<real time> s] ...`), the screenshots
+  `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play), `play.log` (the game's own
+  player log) and `output.txt` (what the play's job printed, the machine slot's waits among it; empty when it
+  printed nothing, as under `--direct`). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's
+  log of a build that failed. Read these when a value surprises you. Checking a task again replaces its folder.
 - A play's `probe.json` holds, per sample time: in `track` a row `[t, x, y, z]`, the player's position (`[t]` alone
   while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
@@ -344,8 +346,9 @@ select that also matches another object can take the player there instead:
 `6.00 [6.5 s] teleported next to CoinSpawner: asked (0.00, 0.00, 0.30) yaw 180.0, now at (0.00, 0.00, 0.30)` is a
 `{"name": "Coin*"}` that found the spawner, not a coin. Select the things themselves: by their own component
 (`"component": "Coin"`) or their full name (`Coin(Clone)`) when the start has them too; when the task adds them (a
-feature, a change), another solution would name them otherwise, so select by what they carry (`has`), and keep out a
-parent that holds them with a `component` on the object itself (task-probes.md, section 2.4). `teleport_to skipped
+feature, a change), another solution would name them otherwise, so select by what they carry (`has`: a part the
+brief itself asks for, as coins that shine are `lit`), and keep out a parent that holds them with a `component` on
+the object itself (task-probes.md, section 2.4). `teleport_to skipped
 (no object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain
 boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
 `reference fails X: build failed (exit N: ...)` means the reference doesn't build as committed; every check that
