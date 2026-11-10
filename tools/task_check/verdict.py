@@ -17,7 +17,7 @@ A task is VALID when
   file_exists, probes that aren't required) are notes, never decisive; the start fails every required probe
   outside still_works (or doesn't build by design);
 - without a reference: the start fails every required probe outside still_works (or doesn't build by design), and
-  each has a threshold (one the start leaves uncalibrated, no solution could pass);
+  every required probe has a threshold (one the start leaves uncalibrated, no solution could pass);
 - either way, every required probe of the task's `still_works` milestone already passes at the start: what still works
   must hold there, or the probe is broken and would fail every correct solution. A still-works probe the start has no
   samples for (its play crashed or ended early: the task's own bug) is no sign of a broken probe; one that finds
@@ -141,7 +141,7 @@ def verdict(task, reference, start):
                 notes.append(f"reference fails {c['name']} ({c['kind']}): {str(c['detail'])[:160]}")
     else:  # an uncalibrated probe is no start failing it: no solution could pass it (with a reference, its row says so)
         why.extend(f"{c['name']} has no threshold: {str(c['detail'])[:160]}" for c in start["checks"]
-                   if c["name"] in required - still and str(c["detail"]).startswith("uncalibrated"))
+                   if c["name"] in required and str(c["detail"]).startswith("uncalibrated"))
     earned, names = noop_score(task, start)
     told = (required - still) | ({build["name"]} if build is not None else set())  # those have their own reasons below
     if earned and set(names) - told:

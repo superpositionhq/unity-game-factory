@@ -105,6 +105,14 @@ class Verdict(unittest.TestCase):
         valid, why, _ = verdict.verdict(task, None, record(checked("hero_on_ground", "probe", False, detail)))
         self.assertFalse(valid)
         self.assertEqual(why, [f"hero_on_ground has no threshold: {detail[:160]}"])
+        kept = task_with(milestones=[{"name": "done", "checks": [probe("roofs")]},
+                                     {"name": "still_works", "checks": [probe("fps_kept", weight=0, expect={
+                                         "op": ">=", "start_times": 0.9})]}], seed=NO_FIX)
+        unset = detail.replace("hero_on_ground", "fps_kept")
+        self.assertEqual(verdict.verdict(kept, None, record(checked("roofs", "probe", False),
+                                                            checked("fps_kept", "probe", False, unset))),
+                         (False, [f"fps_kept has no threshold: {unset[:160]}"], []),
+                         "a still-works one too: the crash excuses its failing at the start, not its missing threshold")
 
     def test_the_reference_must_build_and_boot_and_its_other_checks_are_notes(self):
         task = task_with(probe(), {"kind": "file_exists", "name": "route_left", "glob": "Tests/*.json"},
