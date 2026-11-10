@@ -545,6 +545,46 @@ class Units(unittest.TestCase):
                    '25\t5\tAssets/Scripts/Hero.cs\n')
         self.assertEqual(vg.thread_size(numstat), (40 + 25 + 5, 3))   # code, scene, material
 
+    def test_what_a_run_would_refuse(self):
+        """What the probe or the checker refuses at run time (or stops on) is refused when the task is written."""
+        def errs(measure, play='look', expect=None):
+            c = {'name': 'p', 'kind': 'probe', 'describe': 'x', 'play': play, 'measure': measure,
+                 'expect': expect or {'op': '>=', 'calibrate': 0.5}}
+            return ' | '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [c]}])))
+        scene = {'probe': 'asset', 'scene': 'Assets/Scenes/Main.unity', 'field': 'count'}
+        for select in ({'player': True}, {'near': {'point': {'player': True}, 'radius': 2}},
+                       {'near': {'point': {'object': {'near': {'point': {'camera': True, 'forward': 2}, 'radius': 1}}},
+                                 'radius': 2}}):
+            self.assertIn('a scene as saved has no player or camera', errs(dict(scene, select=select), 'editor'), select)
+        self.assertEqual(errs(dict(scene, select={'near': {'point': {'xyz': [0, 0, 0]}, 'radius': 2}}), 'editor'), '')
+        self.assertIn('a screen rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1',
+                      errs({'probe': 'screen', 'rect': [0.75, 0.25, 0.25, 0.75], 'field': 'luminance'}))
+        dist = {'probe': 'player', 'field': 'dist', 'agg': 'min'}
+        self.assertIn("a player measure's dist is the distance to its `to` point, which it lacks", errs(dist))
+        self.assertEqual(errs(dict(dist, to={'xyz': [0, 0, 0]})), '')
+        self.assertIn('`to_angle` or `to_axis`, not both',
+                      errs({'probe': 'camera', 'field': 'yaw', 'to_angle': 90, 'to_axis': 0}, expect={'op': '<=', 'value': 5}))
+        literal = {'op': '>=', 'value': 1}
+        for measure in ({'probe': 'log', 'pattern': '([unclosed'}, {'probe': 'widgets', 'select': {'text': '[a'}},
+                        {'probe': 'objects', 'select': {'name': 'Hud'}, 'field': 'prop:Hud.label', 'match': '(', 'of': 'first'}):
+            self.assertIn("isn't a regular expression", errs(measure, expect=literal), measure)
+        absent = {'name': 'clean', 'kind': 'log_absent', 'pattern': 'Exception('}
+        self.assertIn("'Exception(' isn't a regular expression",
+                      ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [absent]}]))))
+
+    def test_schema_first(self):
+        """A task the schema refuses gets the schema's errors, never a traceback from the rules that read its values."""
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][2]['checks'][0]['weight'] = '3'
+        t['milestones'][2]['checks'][1]['measure']['select']['rect'] = ['a', 0, 1, 1]
+        t['milestones'][3]['checks'][0]['name'] = ['hero_moves']
+        rep = vg.Report()
+        self.assertFalse(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
+        self.assertTrue(errors(rep), rep.items)
+        rep = vg.Report()
+        self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', task('a' * 40, 'b' * 40), SLUG, None))
+        self.assertEqual(errors(rep), [])
+
 
 # ---- the schema against the contract's examples ----------------------------------------------------------------------
 def probe_check(measure, play='look', expect=None):
@@ -554,12 +594,17 @@ def probe_check(measure, play='look', expect=None):
 
 class Schema(unittest.TestCase):
     S = vg.SCHEMAS['game-task']
+    KINDS = ('player', 'objects', 'components', 'widgets', 'camera', 'light', 'grading', 'spawns', 'log', 'asset',
+             'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn')   # the probe kinds (contract section 2)
+    MEASURE = {kind: ref.split('/')[-1]
+               for kind, ref in S['$defs']['Probe']['properties']['measure']['discriminator']['mapping'].items()}
 
     def ok(self, value, ref):
         return list(vg.check_schema(value, self.S['$defs'][ref], self.S))
 
     def test_contract_fields(self):
-        """Every measure field the contract (section 3) lists, with its prefixed forms, and nothing Unreal."""
+        """Every measure field the contract (section 3) lists, with its prefixed forms, and nothing Unreal: each kind's
+        good fields in a whole probe check, its bad ones against its field alone (so each fails for itself)."""
         good = {
             'player': ['x', 'y', 'z', 'speed', 'moved', 'dist'],
             'camera': ['distance', 'height', 'pitch', 'yaw', 'fov', 'occluded', 'player_on_screen'],
@@ -568,7 +613,10 @@ class Schema(unittest.TestCase):
                         'bounds_change', 'pose_change', 'lit', 'glow', 'prop:Health.current', 'prop:Inventory.items[2].count',
                         'prop:name', 'bone:Animator.LeftHand.y', 'rel_yaw:Turret', 'world_yaw:Head',
                         'world_pitch:Head', 'world_roll:Head', 'forward:Spot.z', 'facing_vs_velocity', 'anim:Speed',
-                        'clip'],
+                        'clip',
+                        # names as Unity has them: Mixamo's, a duplicate's, Blender's (contract section 2)
+                        'bone:SkinnedMeshRenderer.mixamorig:Hips.y', 'rel_yaw:Lamp (1)', 'bone:Animator.hand.L.x',
+                        'forward:Cube.001.z', 'world_roll:upper_arm.R', 'anim:Is Grounded'],
             'components': ['count', 'active', 'visible', 'x', 'y', 'z', 'speed', 'spin', 'extent_x', 'extent_y',
                            'extent_z', 'simulating', 'changed', 'bounds_change', 'pose_change', 'lit', 'glow',
                            'intensity', 'on', 'prop:range', 'prop:colors[0].r'],
@@ -577,70 +625,115 @@ class Schema(unittest.TestCase):
             'ui': ['count', 'text', 'x', 'y', 'w', 'h', 'signature', 'number', 'clock'],
             'screen': ['luminance', 'luma'], 'light': ['illuminance', 'exposure', 'brightness'],
             'grading': ['grey', 'cast', 'warmth', 'tint', 'saturation', 'contrast', 'post:Bloom.intensity',
-                        'post:Vignette.intensity', 'post:ColorAdjustments.postExposure'],
+                        'post:Vignette.intensity', 'post:ColorAdjustments.postExposure',
+                        # a colour's or vector's channel, one more part (GradingQuery.Post)
+                        'post:Vignette.color.r', 'post:LiftGammaGain.lift.w', 'post:Vignette.center.x'],
             'pieces': ['count', 'visible', 'components', 'objects', 'triangles', 'visible_triangles'],
             'audio': ['count', 'audible', 'volume', 'max_volume', 'level'],
             'ground': ['height', 'hit', 'min', 'max', 'mean', 'range', 'hits'],
             'drawn': ['drawn', 'motion', 'base_r', 'base_g', 'base_b', 'base_change', 'reach', 'length'],
+            # the editor pass reads a colour's or vector's channel by either name (.r-.a, .x-.w), a texture's name, the
+            # shader's name and, per material slot, a keyword (TaskProbe/Editor/AssetValues.cs MaterialValue)
             'asset': ['prop:m_Shader', 'import:maxTextureSize', 'import:m_PlatformSettings.Array.data[0].maxTextureSize',
-                      'shader:_BaseColor.r', 'shader:_Smoothness', 'keyword:_EMISSION', 'count', 'material_default',
-                      'material:_BaseColor', 'mesh_collision', 'prop:MeshRenderer.receiveShadows'],
-            'spawns': ['spawned', 'destroyed'], 'log': ['count']}
-        bad = {'player': ['pawn_on_screen'], 'camera': ['pawn_on_screen'], 'objects': ['bb:Speed', 'actors'],
-               'pieces': ['actors'], 'grading': ['post:BloomIntensity'], 'asset': ['shader:_BaseColor.x'],
-               'components': ['prop:']}
+                      'shader:_BaseColor.r', 'shader:_BaseColor.x', 'shader:_Offset.w', 'shader:_Smoothness',
+                      'shader:_BaseMap', 'shader:_BaseMap.name', 'shader:name', 'keyword:_EMISSION', 'count',
+                      'material_default', 'material:_BaseColor', 'material:_BaseColor.g', 'material:_BaseMap.name',
+                      'material:shader', 'material:keyword:_EMISSION', 'mesh_collision',
+                      'prop:MeshRenderer.receiveShadows'],
+            'spawns': ['spawned', 'destroyed'], 'log': ['count'],
+            'trace': ['built_after_last_change', 'played_after_last_change', 'read_before_first_edit',
+                      'build_ok_at_end', 'edits_outside_project']}
+        # the original's names, another kind's fields, a value's other keys, and prefixes without their name
+        bad = {'player': ['pawn_on_screen', 'yaw'], 'camera': ['pawn_on_screen', 'roll'],
+               'objects': ['bb:Speed', 'actors', 'prop:', 'bone:Hand.x', 'forward:Spot', 'clip:Run', 'world_yaw:.L'],
+               'components': ['prop:', 'hidden', 'clip', 'anim:Speed'], 'widgets': ['slate', 'enabled'],
+               'ui': ['kind', 'source'], 'screen': ['brightness'], 'light': ['lux', 'local'],
+               'grading': ['post:BloomIntensity', 'post:Bloom', 'white_temp', 'post:Vignette.color.rgb',
+                           'post:Vignette.color.r.g', 'post:Vignette.color.linear'],
+               'pieces': ['actors', 'instances'],
+               'audio': ['loudest', 'peak'], 'ground': ['points', 'z'], 'drawn': ['pixels', 'primitives'],
+               'asset': ['shader:_BaseColor.q', 'shader:_BaseColor.rgb', 'material:_BaseMap.name.r', 'keyword:',
+                         'import:', 'material:'],
+               'spawns': ['count'], 'log': ['lines'], 'trace': ['built']}
         extra = {'objects': {'select': {'component': 'Enemy'}}, 'components': {'select': {'component': 'Light'}},
                  'widgets': {'select': {'component': 'Slider'}}, 'spawns': {'component': 'Projectile'},
                  'light': {'point': {'xyz': [0, 1, 0]}}, 'log': {'pattern': 'Error'}, 'asset': {'asset': 'Assets/x.mat'}}
+        self.assertEqual(sorted(self.MEASURE), sorted(self.KINDS))
+        self.assertEqual((sorted(good), sorted(bad)), (sorted(self.KINDS), sorted(self.KINDS)))
+
+        def key(probe):
+            return 'fact' if probe == 'trace' else 'field'
+
         def check(probe, f):
-            return self.ok(probe_check(dict({'probe': probe, 'field': f}, **extra.get(probe, {}))), 'Probe')
+            plays = {'asset': 'editor', 'trace': 'trace'}
+            measure = dict({'probe': probe, key(probe): f}, **extra.get(probe, {}))
+            return self.ok(probe_check(measure, plays.get(probe, 'look'), {'op': '>=', 'value': 1}), 'Probe')
+
         for probe, fields in good.items():
             for f in fields:
                 self.assertEqual(check(probe, f), [], f'{probe} {f}')
         for probe, fields in bad.items():
+            schema = self.S['$defs'][self.MEASURE[probe]]['properties'][key(probe)]
             for f in fields:
-                self.assertNotEqual(check(probe, f), [], f'{probe} {f}')
+                self.assertNotEqual(list(vg.check_schema(f, schema, self.S)), [], f'{probe} {f}')
         for unreal in ('pawn', 'actors'):
             self.assertNotEqual(check(unreal, 'x'), [])
 
     def test_contract_shapes(self):
-        """Points, near, selects and inputs as the contract (sections 1-4) writes them."""
+        """Points, near, selects and inputs as the contract (sections 1-4) writes them: every key of each select, every
+        input row, and none of the original's keys Unity names otherwise or doesn't have."""
+        x = {'xyz': [0, 0, 0]}
         sel = {'component': 'UnityEngine.UI.Button', 'tag': 'Player', 'layer': 'Ignore Raycast', 'name': 'Enemy (Clone)',
                'near': {'point': {'object': {'name': 'Kiln*'}, 'offset': [0, 1, 0]}, 'radius': 2.0,
                         'y_min': -1, 'y_max': 3, 'y_relative': True},
-               'has': {'component': 'Light', 'lit': True, 'visible': True, 'simulating': True, 'movable': True},
+               'has': {'component': 'Light', 'lit': True, 'visible': True, 'near': {'point': x, 'radius': 1},
+                       'simulating': True, 'movable': True},
                'player': True, 'inactive': True}
         self.assertEqual(self.ok(sel, 'Select'), [])
         for point in ({'xyz': [1, 2, 3]}, {'player': True, 'offset': [0, 1, 0]}, {'camera': True, 'forward': 5},
                       {'object': {'tag': 'Lamp'}, 'offset': [0, 0, 1]}):
             self.assertEqual(self.ok({'point': point, 'radius': 1}, 'Near'), [], point)
-        self.assertNotEqual(self.ok({'point': {'pawn': True}, 'radius': 1}, 'Near'), [])
-        self.assertNotEqual(self.ok({'point': {'xyz': [0, 0, 0]}, 'radius': 1, 'z_min': 0}, 'Near'), [])
-        self.assertEqual(self.ok({'component': 'ParticleSystem', 'effect': True, 'name': 'Smoke*',
-                                  'owner': {'tag': 'Kiln'}, 'near': {'point': {'xyz': [0, 0, 0]}, 'radius': 3},
-                                  'mesh': 'Cube', 'visible': True}, 'ComponentSelect'), [])
-        self.assertEqual(self.ok({'component': 'Slider', 'name': 'Health*', 'text': '^\\d+$', 'visible': True},
-                                 'WidgetSelect'), [])
-        self.assertNotEqual(self.ok({'slate': 'STextBlock'}, 'WidgetSelect'), [])
-        self.assertEqual(self.ok({'kind': 'image', 'text': None, 'rect': [0, 0, 1, 0.2]}, 'UiSelect'), [])
-        self.assertNotEqual(self.ok({'kind': 'line'}, 'UiSelect'), [])
-        self.assertEqual(self.ok({'sound': 'Footstep*', 'sound_class': 'SFX', 'owner': {'player': True}},
-                                 'AudioSelect'), [])
-        self.assertEqual(self.ok({'component': 'MeshRenderer', 'name': 'Wall*', 'mesh': 'Brick', 'owner': {'tag': 'Town'},
-                                  'near': {'point': {'xyz': [0, 0, 0]}, 'radius': 50}}, 'PieceSelect'), [])
-        self.assertEqual(self.ok({'probe': 'ground', 'xz': [3, 4], 'field': 'height', 'select': {'layer': 'Ground'}},
-                                 'GroundMeasure'), [])
-        self.assertEqual(self.ok({'probe': 'ground', 'box': [0, 0, 10, 10], 'grid': 8, 'field': 'range'},
-                                 'GroundMeasure'), [])
-        self.assertNotEqual(self.ok({'probe': 'ground', 'xy': [3, 4], 'field': 'height'}, 'GroundMeasure'), [])
-        self.assertEqual(self.ok({'probe': 'asset', 'scene': 'Assets/Scenes/Town.unity',
+        for ref, value in (
+                ('ComponentSelect', {'component': 'ParticleSystem', 'effect': True, 'name': 'Smoke*',
+                                     'owner': {'tag': 'Kiln'}, 'near': {'point': x, 'radius': 3}, 'mesh': 'Cube',
+                                     'visible': True, 'inactive': True}),
+                ('WidgetSelect', {'component': 'Slider', 'name': 'Health*', 'text': '^\\d+$', 'visible': True}),
+                ('UiSelect', {'kind': 'image', 'text': None, 'rect': [0, 0, 1, 0.2]}),
+                ('AudioSelect', {'sound': 'Footstep*', 'sound_class': 'SFX', 'owner': {'player': True}}),
+                ('PieceSelect', {'component': 'MeshRenderer', 'name': 'Wall*', 'mesh': 'Brick', 'owner': {'tag': 'Town'},
+                                 'near': {'point': x, 'radius': 50}}),
+                ('GroundMeasure', {'probe': 'ground', 'xz': [3, 4], 'field': 'height', 'select': {'layer': 'Ground'}}),
+                ('GroundMeasure', {'probe': 'ground', 'box': [0, 0, 10, 10], 'grid': 8, 'field': 'range'}),
+                ('AssetMeasure', {'probe': 'asset', 'scene': 'Assets/Scenes/Town.unity',
                                   'select': {'component': 'MeshRenderer', 'tag': 'Terrace'}, 'field': 'material_default',
-                                  'of': 'all'}, 'AssetMeasure'), [])
-        self.assertEqual(self.ok({'probe': 'asset', 'prefab': 'Assets/Prefabs/Hero (Variant).prefab',
-                                  'select': {'name': 'Body'}, 'field': 'mesh_collision'}, 'AssetMeasure'), [])
-        self.assertEqual(self.ok({'probe': 'spawns', 'component': 'Projectile', 'field': 'spawned'}, 'SpawnsMeasure'), [])
-        self.assertEqual(self.ok({'probe': 'drawn', 'line': {'from': {'player': True}, 'to': {'camera': True, 'forward': 20},
-                                                             'radius': 0.5}, 'field': 'reach'}, 'DrawnMeasure'), [])
+                                  'of': 'all'}),
+                ('AssetMeasure', {'probe': 'asset', 'prefab': 'Assets/Prefabs/Hero (Variant).prefab',
+                                  'select': {'name': 'Body'}, 'field': 'mesh_collision'}),
+                ('AssetMeasure', {'probe': 'asset', 'asset': 'Assets/Characters/Hero@Run.fbx',
+                                  'field': 'import:importAnimation'}),
+                ('SpawnsMeasure', {'probe': 'spawns', 'component': 'Projectile', 'field': 'spawned'}),
+                ('DrawnMeasure', {'probe': 'drawn', 'line': {'from': {'player': True}, 'to': {'camera': True, 'forward': 20},
+                                                             'radius': 0.5}, 'field': 'reach'}),
+                ('DrawnMeasure', {'probe': 'drawn', 'near': {'point': {'player': True}, 'radius': 1, 'y_min': 0,
+                                                             'y_relative': True}, 'field': 'motion'}),
+                ('LightMeasure', {'probe': 'light', 'point': {'camera': True, 'forward': 2}, 'field': 'brightness'}),
+                ('PlayerMeasure', {'probe': 'player', 'field': 'dist', 'to': {'object': {'name': 'Gate'},
+                                                                              'offset': [0, 0, 1]}})):
+            self.assertEqual(self.ok(value, ref), [], (ref, value))
+        for ref, value in (
+                ('Select', {'class': 'BP_Wall_C'}), ('Has', {'class': 'PointLightComponent'}),
+                ('ComponentSelect', {'class': 'NiagaraComponent'}), ('PieceSelect', {'class': 'StaticMeshComponent'}),
+                ('WidgetSelect', {'class': 'TextBlock'}), ('WidgetSelect', {'slate': 'STextBlock'}),
+                ('UiSelect', {'kind': 'line'}), ('Near', {'point': {'pawn': True}, 'radius': 1}),
+                ('Near', {'point': x, 'radius': 1, 'z_min': 0}), ('AtObject', {'actor': {'tag': 'Lamp'}}),
+                ('GroundMeasure', {'probe': 'ground', 'xy': [3, 4], 'field': 'height'}),
+                ('AssetMeasure', {'probe': 'asset', 'map': '/Game/Maps/L_Level6', 'select': {'tag': 'Terrace'},
+                                  'field': 'count'}),
+                ('AssetMeasure', {'probe': 'asset', 'asset': '/Game/Materials/M_Road', 'field': 'prop:two_sided'}),
+                ('AssetMeasure', {'probe': 'asset', 'asset': 'Assets/.hidden/M_Road.mat', 'field': 'shader:_Cull'}),
+                ('SpawnsMeasure', {'probe': 'spawns', 'class': 'BP_Coin_C', 'field': 'spawned'}),
+                ('Has', {}), ('Has', {'lit': False}), ('Select', {'player': False})):
+            self.assertNotEqual(self.ok(value, ref), [], (ref, value))
         inputs = [{'t': 1, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'key': '<Keyboard>/leftShift', 'press': True},
                   {'t': 1, 'key': '<Keyboard>/f2', 'press': True}, {'t': 1, 'key': '<Mouse>/leftButton', 'press': True},
                   {'t': 1, 'key': '<Gamepad>/buttonSouth', 'press': False},
@@ -655,10 +748,17 @@ class Schema(unittest.TestCase):
         play = {'name': 'route', 'seconds': 30, 'every': 0.5, 'inputs': inputs, 'scene': None, 'args': []}
         self.assertEqual(self.ok(play, 'TaskPlay'), [])
         for bad in ({'t': 1, 'key': 'W', 'press': True}, {'t': 1, 'key': '<Keyboard>/w'},
-                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}):
+                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 121, 'key': '<Keyboard>/w', 'press': True},
+                    {'t': 2, 'key': 'MouseX', 'axis': 4.0}, {'t': 2, 'key': '<Mouse>/delta/x', 'axis': 1001},
+                    {'t': 3, 'widget': 'RetryButton', 'click': False}, {'t': 3, 'widget': 'Hud/Retry', 'click': True},
+                    {'t': 4, 'cursor': [1.5, 0.5]}, {'t': 4, 'cursor': [0.5]},
+                    {'t': 5, 'teleport': [1, 2]}, {'t': 5, 'teleport': [1, 2, 3], 'hold': 0},
+                    {'t': 5, 'teleport': [1, 2, 3], 'yaw': 361}, {'t': 6, 'teleport_to': {'actor': 'Ore'}},
+                    {'t': 6, 'teleport_to': {'tag': 'Ore'}, 'distance': -1}, {'t': 7, 'wait': 0}, {'t': 7, 'wait': 301}):
             self.assertNotEqual(self.ok(dict(play, inputs=[bad]), 'TaskPlay'), [], bad)
         self.assertNotEqual(self.ok(dict(play, map='/Game/Maps/L_X'), 'TaskPlay'), [])
         self.assertNotEqual(self.ok(dict(play, scene='Assets/Scenes/X.scene'), 'TaskPlay'), [])
+        self.assertNotEqual(self.ok(dict(play, args=['-x'] * 17), 'TaskPlay'), [])
 
     def test_task_level(self):
         S = self.S
@@ -667,21 +767,118 @@ class Schema(unittest.TestCase):
         self.assertEqual(S['properties']['engine']['const'], 'unity-6000.3')
         self.assertNotIn('template', S['properties'])
         for bad in ({'engine': '5.7'}, {'template': 'blank-cpp'}, {'play_scene': '/Game/Maps/L_X'},
-                    {'play_args': ['-scenario', 'two words']}, {'play_args': ['x'] * 17}):
+                    {'play_scene': 'Assets/' + 'a' * 288 + '.unity'}, {'play_args': ['-scenario', 'two words']},
+                    {'play_args': ['x'] * 17}, {'play_args': ['-' + 'x' * 61]}, {'player': {'class': 'BP_Hero_C'}},
+                    {'play_map': '/Game/Maps/L_X'}):
             self.assertNotEqual(list(vg.check_schema(dict(t, **bad), S)), [], bad)
-        self.assertEqual(list(vg.check_schema(dict(t, play_scene=None, play_args=[]), S)), [])
+        for good in ({'play_scene': None, 'play_args': []}, {'play_scene': 'Assets/Scenes/Level (2).unity'},
+                     {'play_scene': 'Assets/' + 'a' * 287 + '.unity'}, {'play_args': ['-x'] * 16},
+                     {'player': {'name': 'Hero', 'component': 'Game.HeroController'}}, {'player': None}):
+            self.assertEqual(list(vg.check_schema(dict(t, **good), S)), [], good)
         self.assertEqual(vg.task_semantic_errors(t), [])
 
     def test_contract_inline_examples(self):
-        """The contract's inline task examples: section 1's play_args, section 4's inputs as written there."""
+        """The contract's inline task examples: section 1's play_args, section 4's inputs as written there; and the
+        examples the schema's own descriptions show."""
         text = read(CONTRACT) if os.path.isfile(CONTRACT) else ''
         if not text:
             self.skipTest('no CONTRACT.md')
-        args = json.loads(re.search(r'`play_args` \(`(\[.*?\])`\)', text).group(1))
-        self.assertEqual(list(vg.check_schema(args, self.S['properties']['play_args'], self.S)), [])
-        for path in set(re.findall(r'`(<(?:Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]+)`', text)):
-            self.assertRegex(path, self.S['$defs']['Key']['properties']['key']['pattern'])
+        shown = re.search(r'`play_args` \(`(\[.*?\])`\)', text)
+        self.assertIsNotNone(shown, 'section 1 shows play_args as `play_args` (`[...]`)')
+        self.assertEqual(list(vg.check_schema(json.loads(shown.group(1)), self.S['properties']['play_args'], self.S)), [])
+        key = self.S['$defs']['Key']['properties']['key']['pattern']
+        paths = set(re.findall(r'`(<(?:Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]+)`', text))
+        self.assertGreater(len(paths), 5, paths)
+        for path in paths:
+            self.assertRegex(path, key)
         self.assertEqual(self.ok({'t': 1, 'widget': 'RetryButton', 'click': True}, 'Click'), [])
+        # the schema's own: control paths (not the <Mouse>/delta/* kind), play_args and a judge's route
+        described = json.dumps(self.S)
+        own = set(re.findall(r'<(?:Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]*[A-Za-z0-9](?![A-Za-z0-9/*])', described))
+        self.assertGreater(len(own), 4, own)
+        for path in own:
+            self.assertRegex(path, key)
+        args = re.search(r'\[.*?\]', self.S['properties']['play_args']['description']).group(0)
+        self.assertEqual(list(vg.check_schema(json.loads(args), self.S['properties']['play_args'], self.S)), [])
+        route = re.search(r'e\.g\. ([^\s);]+)', self.S['$defs']['Judge']['description']).group(1)
+        self.assertEqual(list(vg.check_schema(route, self.S['$defs']['Judge']['properties']['route'], self.S)), [])
+
+    def test_check_names_its_kind(self):
+        """A check without `kind` passed (build, boot and package take a name alone, and the checks' discriminator hides a
+        second match) and the checker then had no kind to run it by: every check names its kind."""
+        for check in ({'name': 'builds'}, {'name': 'boots', 'seconds': 60}, {'name': 'files', 'glob': '*.cs'}):
+            self.assertNotEqual(self.ok({'name': 'm', 'checks': [check]}, 'Milestone'), [], check)
+        for kind in ('build', 'boot', 'package'):
+            self.assertEqual(self.ok({'name': 'm', 'checks': [{'name': 'c', 'kind': kind}]}, 'Milestone'), [], kind)
+
+    def test_limits_in_metres(self):
+        """The original's limits in centimetres, scaled to metres as its defaults are (contract section 1: 200 cm -> 2 m,
+        2 km -> 2000 m): a value at its limit passes, one past it fails."""
+        x = {'xyz': [0, 0, 0]}
+        for ref, key, limit, rest in (('AtCamera', 'forward', 1000, {'camera': True}),
+                                      ('Line', 'radius', 100, {'from': x, 'to': x}),
+                                      ('Near', 'radius', 100000, {'point': x}),
+                                      ('Near', 'y_max', 100000, {'point': x, 'radius': 1}),
+                                      ('Near', 'y_min', -100000, {'point': x, 'radius': 1}),
+                                      ('TeleportTo', 'distance', 1000, {'t': 0, 'teleport_to': {'tag': 'Ore'}})):
+            past = limit + (0.5 if limit > 0 else -0.5)
+            self.assertEqual(self.ok(dict(rest, **{key: limit}), ref), [], (ref, key, limit))
+            self.assertNotEqual(self.ok(dict(rest, **{key: past}), ref), [], (ref, key, past))
+
+    def test_defaults_are_the_checkers(self):
+        """A key left out means the schema's default: what the checker fills in for it (tools/task_check/tasks.py)."""
+        tasks = load('task_check_tasks', os.path.join('task_check', 'tasks.py'))
+        d = self.S['$defs']
+
+        def default(ref, key):
+            return d[ref]['properties'][key]['default']
+
+        turn, beside = tasks.inputs([{'t': 0, 'teleport': [0, 0, 0]}, {'t': 0, 'teleport_to': {'tag': 'Ore'}}])
+        self.assertEqual(turn['yaw'], default('Teleport', 'yaw'))
+        self.assertEqual(beside['distance'], default('TeleportTo', 'distance'))
+        self.assertEqual(tasks.point({'camera': True})['forward'], default('AtCamera', 'forward'))
+        ground = tasks.measure({'probe': 'ground', 'field': 'range', 'box': [0, 0, 1, 1]})
+        self.assertEqual(ground['grid'], default('GroundMeasure', 'grid'))
+        self.assertEqual(tasks.measure({'probe': 'log', 'pattern': 'x'})['field'], default('LogMeasure', 'field'))
+        for probe, rest in (('objects', {'select': {}}), ('components', {'select': {'effect': True}}),
+                            ('widgets', {'select': {}}), ('ui', {}), ('asset', {'asset': 'Assets/x.mat'})):
+            m = tasks.measure(dict({'probe': probe, 'field': 'count'}, **rest))
+            self.assertEqual((m['of'], m['match']), (default(self.MEASURE[probe], 'of'),
+                                                     default(self.MEASURE[probe], 'match')), probe)
+        build = tasks.check({'name': 'b', 'kind': 'build'})
+        for key in ('required', 'weight', 'fails_at_start'):
+            self.assertEqual(build[key], default('Build', key), key)
+        self.assertEqual(tasks.check({'name': 'b', 'kind': 'boot'})['seconds'], default('Boot', 'seconds'))
+        self.assertEqual(tasks.check({'name': 'f', 'kind': 'file_exists', 'glob': '*'})['min_count'],
+                         default('FileExists', 'min_count'))
+        top = self.S['properties']
+        self.assertEqual(tasks.place({}, 'look'), (top['play_scene']['default'], top['play_args']['default']))
+        self.assertEqual(tasks.player({}), top['player']['default'])
+
+    def test_unity_words(self):
+        """Titles and descriptions name Unity's things in Unity's words (contract section 1), and no definition keeps a
+        key of the original's that Unity names otherwise or doesn't have."""
+        texts, keys = [], set()
+
+        def walk(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k in ('title', 'description', '$comment') and isinstance(v, str):
+                        texts.append(v)
+                    else:
+                        if k == 'properties' and isinstance(v, dict):
+                            keys.update(v)
+                        walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+
+        walk(self.S)
+        unreal = re.compile(r'\b(actors?|pawns?|UMG|Slate|Blueprints?|Niagara|Cascade|cm|Z up|play_map|uproject)\b|'
+                            r'/Game/|`map`', re.I)
+        self.assertEqual([m.group(0) for t in texts for m in unreal.finditer(t)], [])
+        self.assertEqual(keys & {'actor', 'pawn', 'class', 'slate', 'map', 'play_map', 'template', 'xy', 'z_min', 'z_max',
+                                 'z_relative'}, set())
 
 
 # ---- the dataset ----------------------------------------------------------------------------------------------------
