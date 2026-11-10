@@ -103,7 +103,7 @@ history or of the task's own start branch `starts/<task name>` and Unity `6000.3
 (`ProjectSettings/ProjectVersion.txt`), and that each is a long thread: `medium` or `hard`, tagged `long-thread`, with
 `seed.reference`, at least 3 required outcome probes outside `still_works`, and from start to reference at least 5
 game files (a `.meta` never counts on its own), 100 code lines and 2 systems, and for a seed on main 4 commits that
-change the game (`tools/unity_tasks.py` holds the numbers).
+change the game (`tools/validate-game.py` holds the numbers).
 
 ## The dataset (`unity-dataset-layout/v1`)
 

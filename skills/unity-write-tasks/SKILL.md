@@ -75,8 +75,7 @@ held. Strong agents finish a single fix, one cause in one place, in minutes, how
 task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "medium"` or `"hard"`,
 with the tag `long-thread`.
 
-A thread qualifies only when all of these hold (`tools/unity_tasks.py` holds the numbers; thread-stats.py and the
-validator count with it):
+A thread qualifies only when all of these hold (the validator enforces the numbers, section 6):
 
 1. **Many edits.** From `seed.commit` to `seed.reference`, at least 4 commits change the game itself (`Assets/`,
    `Packages/`, `ProjectSettings/`), and the reference changes at least 5 game files against the start (a `.meta`
