@@ -19,6 +19,7 @@ Unity locks a project while it has it open, so a scratch copy runs one job at a 
   saved."""
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,7 @@ import ugfroot  # noqa: E402  (unity-game-factory's machine root and Unity resol
 
 SHOT_SIZE = (960, 540)
 OUTPUT_CHARS = 30_000
+CAUSE_CHARS = 200  # a failed build's cause, as its reason quotes it
 WRAPPER_GRACE = 60  # seconds unity-heavy.ps1 gets to release its slot once the job it runs is killed
 QUEUE_POLL = 5  # seconds between looks at whether the wrapper has started its job
 LOGS = "Logs/TaskProbe"  # in the copy: requests, results, logs and the play's folder (Logs/ is never the game's)
@@ -60,6 +62,7 @@ class Result:
     timed_out: bool = False
     waited: float = 0.0  # of `seconds`, waiting for a unity-heavy.ps1 slot before the job started
     report: dict | None = None  # a build's result file (ok, exe, scenes, missing, ...); None when it wrote none
+    cause: str | None = None  # a failed build's first cause, one line (_cause)
 
 
 @dataclass
@@ -249,6 +252,18 @@ def _read_text(path):
         return ""
 
 
+def _cause(report, log):
+    """A failed build's first cause in one line, for its reason (the log stays the evidence): its result's error, else
+    the log's first compiler error as Unity prints it (`<file>(<line>,<column>): error CS<n>: ...`), else its first
+    `## Script Compilation Error for:` line (an assembly a post-processor failed on), else None."""
+    error = report.get("error") if isinstance(report, dict) else None
+    found = error.strip() if isinstance(error, str) and error.strip() else None
+    for pattern in (r"^.*\berror CS\d+\b.*$", r"^## Script Compilation Error for:.*$"):
+        line = None if found else re.search(pattern, log, re.M)
+        found = found or (line.group(0).strip() if line else None)
+    return found if found is None or len(found) <= CAUSE_CHARS else found[:CAUSE_CHARS - 3] + "..."
+
+
 def _fresh(path):
     """`path` (a file) gone and its folder there: what a job writes is never an earlier job's."""
     path = Path(path)
@@ -299,7 +314,8 @@ class Project:
             said = "[task-check] Unity exited 0 but the build wrote no result\n"
         if code == 0 and said:
             code = 1
-        return Result(code, cut(said + output), found.seconds, found.timed_out, found.waited, report)
+        return Result(code, cut(said + output), found.seconds, found.timed_out, found.waited, report,
+                      _cause(report, output) if code not in (0, None) else None)
 
     def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
         """The built player for `seconds` of game time through the probe: windowed at 960x540 on its own desktop, a fixed

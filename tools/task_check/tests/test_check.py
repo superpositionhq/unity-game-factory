@@ -751,6 +751,40 @@ class Plays(unittest.TestCase):
             self.assertTrue(unbuilt.output.startswith("[task-check] the build's result says it failed: no scene to "
                                                       "build"), "Unity's own log never says it: only the result does")
 
+    def test_a_failed_builds_reason_names_its_first_cause(self):
+        compiled = "Assets/Scripts/Coin.cs(12,24): error CS0103: The name 'coins' does not exist in the current context"
+        ilpp = ("## Script Compilation Error for: ILPostProcess Library/Bee/artifacts/1900b0aE.dag/post-processed/"
+                "Unity.RenderPipelines.Core.Editor.Shared.dll (+pdb)")
+        unbuilt = "no scene to build: the project lists no enabled build scene and the task plays none"
+        cases = [  # (the build's result file, its log, the cause its reason names)
+            ({"ok": False, "error": unbuilt}, "Build Finished, Result: Failure.\n", unbuilt),
+            (None, f"[ScriptCompilation] Requested script compilation\n{compiled}\n"
+                   "Assets/Scripts/Coin.cs(30,9): error CS1002: ; expected\nScripts have compiler errors.\n", compiled),
+            (None, "*** Tundra build failed (119.78 seconds - 0:01:59), 739 items updated, 798 evaluated\n"
+                   f"{ilpp}\n## CmdLine: \"Unity.ILPP.Trigger.exe\" @\"Library\\Bee\\artifacts\\rsp\\1729.rsp\"\n"
+                   "Scripts have compiler errors.\n", ilpp),
+            (None, "Aborting batchmode due to failure:\nExecuting method failed\n", None),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            def answer(argv, cwd):
+                Path(after(argv, "-logFile")).write_text(log, encoding="utf-8")
+                if result is not None:
+                    request = json.loads(Path(after(argv, "-taskProbeBuild")).read_text(encoding="utf-8"))
+                    Path(request["result"]).write_text(json.dumps(result), encoding="utf-8")
+                return "Aborting batchmode due to failure:\nScripts have compiler errors.\n"
+
+            project = unity.Project(tmp, FakeMachine(answer=answer, code=1), "t")
+            task = task_with({"kind": "build", "name": "player_builds"}, probe())
+            for result, log, cause in cases:
+                why = check.Side("reference", project, task, 60, 60, None, lambda *a: None).why_unbuilt()
+                self.assertEqual(why, "the reference game didn't build (exit 1" + (f": {cause}" if cause else "") + ")")
+            result, log = None, f"{compiled}\n"
+            row = grade(task, "reference", side("start", FakeProject(), task), side("reference", project, task))
+            self.assertEqual(row["checks"][0]["detail"], f"build failed (exit 1: {compiled})")
+            log = "Assets/" + "Deep/" * 60 + "Coin.cs(1,1): error CS0246: The type 'Coin' could not be found\n"
+            cut = project.build(60, []).cause
+            self.assertEqual((len(cut), cut[-3:]), (unity.CAUSE_CHARS, "..."), "one short clause")
+
     def test_a_unity_without_a_licence_is_the_machines_error_not_a_failed_build(self):
         with tempfile.TemporaryDirectory() as tmp:
             def answer(argv, cwd):

@@ -56,6 +56,15 @@ def fatal(log):
     return bool(re.search(unity.FATAL, log or ""))
 
 
+def failed(build):
+    """How a build failed, for a reason: "timed out", or its exit code and first cause (the build log is the
+    evidence; a bare exit code sent every reader to it)."""
+    if build.timed_out:
+        return "timed out"
+    cause = getattr(build, "cause", None)
+    return f"exit {build.exit_code}" + (f": {cause}" if cause else "")
+
+
 def first_seconds(probe, seconds):
     """`probe` (a play's probe.json) as a play of only its first `seconds` would have written it: rows and samples after
     that play's last one (at seconds + OVERRUN) dropped, its length cut to them."""
@@ -205,7 +214,7 @@ class Side:
         r = self.build()
         what = {"start": "the game as the task started", "reference": "the reference game"}.get(
             self.name, f"the agent's game ({self.name})")
-        return f"{what} didn't build ({'timed out' if r.timed_out else f'exit {r.exit_code}'})"
+        return f"{what} didn't build ({failed(r)})"
 
     def missing_assets(self):
         """{scene: {"missing": [asset GUIDs], "names": how many it names}} of the scenes this task plays that name
@@ -372,8 +381,7 @@ class Grade:
         side = self.side
         if kind == "build":
             r = side.build()
-            return r.exit_code == 0, "built" if r.exit_code == 0 else \
-                f"build failed ({'timed out' if r.timed_out else f'exit {r.exit_code}'})"
+            return r.exit_code == 0, "built" if r.exit_code == 0 else f"build failed ({failed(r)})"
         if kind == "boot":
             if not side.built():
                 return False, f"{side.why_unbuilt()}, so it wasn't played"
