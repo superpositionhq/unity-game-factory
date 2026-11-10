@@ -183,11 +183,11 @@ fixed path per game means one prompt per game instead of one per build. Per run 
    display is already off, `SetThreadExecutionState` doesn't turn it back on, and Desktop Duplication delivers no frames
    (ddagrab hangs, gdigrab gets ~4 fps). An unanswered Windows Firewall prompt dims the whole screen and blocks capture
    until it is answered. **Idle override:** `builds\_queue\_idle-override.txt` (JSON `{idle_minutes, reason}`, written
-   by the coordinator once the recorder is here) replaces the default when `-IdleMinutes` isn't given; `idle_minutes` 0 = record right away. It is
-   standing (the user's "record now" instruction) unless it has `"one_drain": true`, which the drainer retires when the
-   queue empties. The privacy guard and the display wake apply either way. Before launching, it also waits while more
-   than 4096 MB of VRAM is in use (nvidia-smi total; per-process numbers are N/A under WDDM); after 120 min the run
-   fails.
+   by the coordinator once the recorder is here) replaces the default when `-IdleMinutes` isn't given; `idle_minutes`
+   0 = record right away. It is standing (the user's "record now" instruction) unless it has `"one_drain": true`, which
+   the drainer retires when the queue empties. The privacy guard and the display wake apply either way. Before
+   launching, it also waits while more than 4096 MB of VRAM is in use (nvidia-smi total; per-process numbers are N/A
+   under WDDM); after 120 min the run fails.
 1. Launch the player from `_run\` with the contract's flags (autoplay-contract.md section 1) plus `-goTimeout 300`,
    windowed 1920x1080, `-logFile <raw>\game.log`.
 2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (games re-center their
@@ -321,11 +321,12 @@ enough good runs of that commit (unless forced), then builds and records per sce
 so other work can interleave between steps.
 
 **Queueing (the coordinator owns the queue).** Game sessions never enqueue; once the queue is here they ask the
-coordinating session, and until then they only report what is ready. The queue tool refuses (exit 2, red message, nothing queued) unless the request says the coordinator made it, and records
-who did. It returns at once; one hidden drainer works through `builds\_queue\*.json` in file-name order (the
-coordinator reorders by renaming; a request being processed must not be renamed). Dropping a queued request: move it
-to `builds\_queue\done\` with a `result` note (status `dropped`). The drainer holds the recordings' GPU flag for each
-whole job (from its first build step to the end of its last run) and removes it when the queue is empty.
+coordinating session, and until then they only report what is ready. The queue tool refuses (exit 2, red message,
+nothing queued) unless the request says the coordinator made it, and records who did. It returns at once; one hidden
+drainer works through `builds\_queue\*.json` in file-name order (the coordinator reorders by renaming; a request being
+processed must not be renamed). Dropping a queued request: move it to `builds\_queue\done\` with a `result` note
+(status `dropped`). The drainer holds the recordings' GPU flag for each whole job (from its first build step to the
+end of its last run) and removes it when the queue is empty.
 
 AutoPlay time limit: 600 s per run by default (the game gets `-maxSeconds`, the recorder kills it 90 s later), per
 scenario as `1=300,2=600,3=900` (unlisted ones keep 600; `*=700` changes the rest) or one value for every scenario;
