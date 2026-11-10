@@ -10,9 +10,9 @@ pipeline's scripts are `tools/unity-pipeline/` (Windows PowerShell 5.1).
 > creation replay ([Creation replay](#creation-replay)) and the dataset packager
 > ([Dataset packager](#dataset-packager)). A game is recorded once it has the AutoPlay drop-in and its own scenario
 > wiring and bot ([autoplay-contract.md](autoplay-contract.md)); only the coordinator queues recordings
-> ([Queue](#queue)). The recorder makes each scenario's gameplay video and the creation replay makes `ReplayScripts/`,
-> but the packager does not take them yet: every dataset is pending, without `Gameplay/` and `ReplayScripts/`, and
-> nobody assembles a dataset by hand. The task checker's own builds and plays (a scratch copy's player, started on a
+> ([Queue](#queue)). The recorder makes each scenario's gameplay video and the creation replay makes `ReplayScripts/`;
+> the packager takes both, with the pipeline's release build, into a complete `Dataset.zip`, and nobody assembles a
+> dataset by hand. The task checker's own builds and plays (a scratch copy's player, started on a
 > Windows desktop of its own) are in [task-check.md](task-check.md).
 
 | Script | Does |
@@ -201,7 +201,8 @@ Dynamic guards on top of the counts:
 4. Leak scan of the build folder (`Windows\`): a case-insensitive byte search (ASCII and UTF-16LE) for the Windows user
    name inside paths (`\<name>\`, `/<name>/`) and for superposition / game-factory / game_factory / gamefactory /
    game factory / claude / anthropic / openai (`$ForbiddenNamePatterns` in `common.ps1`), one read per file; hits are
-   warned about and recorded in `leak_scan` (a build with hits can still be recorded but must not be handed out).
+   warned about and recorded in `leak_scan` (a build with hits can still be recorded but must not be handed out: the
+   dataset packager refuses it).
    `leak-scan.ps1 <dir>` runs the same scan by hand. The clone sits under `<ugb>` because a player carries the folder
    it was built in: measured on a template game's IL2CPP build, `GameAssembly.dll` names the clone's path once and
    Unity's `*_BurstDebugInformation_DoNotShip` and `*_BackUpThisFolder_ButDontShipItWithYourGame` folders thousands of
@@ -444,8 +445,8 @@ scenario, build {status, short_sha, output, backend, autoplay_version, leak_scan
 status, result}, status `ok` / `partial` / `failed` / `skipped`, note), `runs.jsonl`,
 `builds\_queue\done\<request>.json`.
 The job summary's `build.leak_scan_hits` lists the build's leak-scan hits (`[]` = clean); warn-only here: a build with
-hits can be recorded but must not be handed out. If the session is locked (`LogonUI` running), recording is skipped and
-the row says so. There is no nightly run: runs are queued on demand (the user's decision).
+hits can be recorded, but the dataset packager refuses it. If the session is locked (`LogonUI` running), recording is
+skipped and the row says so. There is no nightly run: runs are queued on demand (the user's decision).
 
 ### Games started before the pipeline
 
@@ -472,7 +473,7 @@ scripts run from the checkout, so a pull is enough for them.
   carry machine paths and the user name: `metadata.json` (build path, exe, ffmpeg command), `raw\game.log`,
   `raw\ffmpeg-<mode>.log`, `raw\ready.json`. Per AGENTS.md (leak scan for `C:\Users\…`, real names, e-mails), a
   publish step must rewrite or drop these and re-hash `manifest.json` before any upload; the dataset itself takes only
-  `gameplay.mp4`.
+  `gameplay.mp4` (and a few stills when the game has no screenshot of its own).
 
 ## Creation replay
 
@@ -497,25 +498,47 @@ headless (a general slot, never a GPU slot), and each commit replays on the edit
 `ProjectSettings/ProjectVersion.txt` names. The live replay, which every game's post-commit hook starts after each
 commit (only for `<root>\games\<slug>`, at low priority with `-Low`), reports what keeps the history from replaying at
 the session's next commit (`[replay] ...` lines). `python tools/unity-replay/unity_replay.py release --game <slug>`
-makes the dataset's `ReplayScripts/` at the release commit, in `<out>\_replay\<slug>\<sha8>\`; the packager does not
-take it yet. The game's settings are its `ReplayConfig.json`. Everything else is in [unity-replay.md](unity-replay.md).
+makes the dataset's `ReplayScripts/` at the release commit, in `<out>\_replay\<slug>\<sha8>\`, where the packager
+takes it ([Dataset packager](#dataset-packager)). The game's settings are its `ReplayConfig.json`. Everything else is in
+[unity-replay.md](unity-replay.md).
 
 ## Dataset packager
 
 `python tools/package-dataset.py <slug>` builds a game's dataset in layout `unity-dataset-layout/v1`
 ([game-format.md](game-format.md), [dataset-layout-v1.json](dataset-layout-v1.json), manifest
-[schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)). It is the first version: it packs
-everything except `Gameplay/` and `ReplayScripts/`, which the recorder (each validated run's `gameplay.mp4`) and the
-creation replay above make but it does not take yet. Every dataset it makes therefore has status `pending`, lists both
-in `pending`, and is written as `<repo>\Dataset.pending.zip`; a complete `Dataset.zip` needs the packager to take both.
-Nobody assembles a dataset or `Dataset.zip` by hand, and before the packager's first run on a game its `Dataset/` stays
-as the template made it and `tools/validate-game.py`'s "not packaged yet" warning is expected.
+[schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)). It writes `<repo>\Dataset.zip` (status
+`complete`) when the release has a gameplay video and its creation replay; otherwise `<repo>\Dataset.pending.zip`, with
+each missing entry (`Gameplay/`, `ReplayScripts/`) listed in `pending`. Nobody assembles a dataset or `Dataset.zip` by
+hand, and before the packager's first run on a game its `Dataset/` stays as the template made it and
+`tools/validate-game.py`'s "not packaged yet" warning is expected.
 
-It reads three things: the game repo `<root>\games\<slug>` at the release commit (`--repo` names a repo elsewhere,
-`--commit` another commit than `HEAD`), the game's recording `<root>\.recording\<slug>\` (`--recording`) and its player
-build `<repo>\Build\Windows`, made with `Scripts\unity.ps1 build` (`--build` names another folder). Run it once the game
-has its tasks and a player build: without a build, a brief, a design doc or a task it refuses before it writes
-anything, and `--dry-run` prints what would go in and what is missing. What it packs:
+It reads the game repo `<root>\games\<slug>` at the release commit (`--repo` names a repo elsewhere, `--commit` another
+commit than `HEAD`), the game's recording `<root>\.recording\<slug>\` (`--recording`) and three products of the
+release:
+
+- **The player.** The pipeline's release build ([Build](#build)): `builds\<slug>\<sha8>\Windows\` with its
+  `build_info.json` (status `ok`, config `release`), the release commit's own or, without one, the nearest earlier
+  commit's (a warning names it). A build whose leak scan found anything (`build_info.json` `leak_scan.hits`), or one not
+  in the release commit's history, refuses the package. Without a pipeline build it takes `<repo>\Build\Windows`
+  (`Scripts\unity.ps1 build`; a warning when a commit after the build changed `Assets/` or `Packages/`). `--build` names
+  a pipeline build folder or a player folder. A development player, or a player of another product (its
+  `<Product>_Data\app.info` against the commit's `productName`), refuses the package.
+- **The videos.** Per scenario, the first valid recording of the release commit ([Bundle](#bundle)):
+  `recordings\<slug>\<run>\` with `validation.json` `ok` or `warn`, no `FAILED` or `INVALID`, and `metadata.json`
+  `build.commit` the release commit. Its `gameplay.mp4` goes in as `Gameplay/<slug>_S<n>.mp4`, checked with the
+  pipeline's ffprobe (H.264 1920x1080 and AAC) where one is found. The result (win, lose, timeout) is metadata, never a
+  reason to pick a run, and one video is enough. `manifest.json` `scenarios[]` take the scenario, its name, the result,
+  the length, the audio offset and `capture_notes`; the README gets a table of the videos and a "Recording note" per
+  capture note. `--exclude-runs` leaves runs out; the runs not taken are listed with the reason.
+- **The replay.** `<out>\_replay\<slug>\<release sha8>\ReplayScripts\`, once `READY` is beside it
+  ([Creation replay](#creation-replay); `--replay` names another folder). It is copied without `__pycache__`, scrubbed
+  like every text file, and its commit ids are mapped to the delivered history; `replay_verification` comes from its
+  `Verification/report.json`, and the README says PASS or FAIL. A FAIL dataset is complete too; a report of another
+  commit refuses the package.
+
+While `build.ps1` or `record.ps1` works on the game (its lock `builds\_pipeline-<slug>.lock` is held), the packager
+refuses to start. Without a player, a brief, a design doc or a task it refuses before it writes anything, and
+`--dry-run` prints what would go in and what is missing. What it packs:
 
 | Entry | What goes in |
 |---|---|
@@ -525,27 +548,39 @@ anything, and `--dry-run` prints what would go in and what is missing. What it p
 | `git.log` | every commit of the delivered history up to the release, oldest first, with full diffs |
 | `workflow.jsonl` | the creation record at the release commit |
 | `UnityProject/` | the delivered tree at the release commit, LFS files as their real content, without `Dataset/` |
-| `Tasks/` | the tasks of the repo's tasks branch (`--tasks-ref` names another ref), seeds mapped to the delivered history, each split into `task.json` and `grader.json` by the rule of `tools/split-tasks.py`, plus `README.md` |
-| `Brief/` | `brief.md` and `design.md`: the files given with `--brief` and `--design`, else the game repo's `Brief/<kind>.md` or `Docs/<Kind>.md`, else this repo's `docs/briefs/original/game-<slug>.md`, then `docs/briefs/games/<slug>.md`, for the brief and `docs/games/<slug>.md` for the design doc |
-| `Screenshots/` | the images the game's `README.md` shows |
-| `Build/` | the Windows player, without `.pdb` files and Unity's "DoNotShip" and "BackUpThisFolder" folders |
+| `Tasks/` | the tasks of the repo's tasks branch (`--tasks-ref` names another ref), seeds mapped to the delivered history (`seed.history` `dataset`), each split into `task.json` and `grader.json` by the rule of `tools/split-tasks.py`, plus `README.md` |
+| `Brief/` | `brief.md` and `design.md`: the files given with `--brief` and `--design`, else the game repo's `Brief/<kind>.md` or `Docs/<Kind>.md` as the release commit has them (the working tree's, with a warning, when the commit has none), else this repo's `docs/briefs/original/game-<slug>.md`, then `docs/briefs/games/<slug>.md`, for the brief and `docs/games/<slug>.md` for the design doc |
+| `Gameplay/<slug>_S<n>.mp4` | the videos above |
+| `ReplayScripts/` | the replay above |
+| `Screenshots/` | the images the game's `README.md` shows, else the project's `Docs/screenshots/`, else up to four stills of the recordings taken |
+| `Build/` | the player above, without `.pdb` files and Unity's "DoNotShip" and "BackUpThisFolder" folders |
 | `README.md`, `manifest.json` | written by the packager (`--version` gives the release version) |
 
 Every text file of the delivery is scrubbed (the studio and tool names, agent, model and provider names, the account
 and machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a
 name left in a text file or a path refuses the package (exit 2, nothing zipped; the hits are in
-`<repo>\.dataset\<slug>.refused-hits.tsv`). Binary files are never changed: names found in them are listed in
-`<repo>\.dataset\<slug>.binary-hits.tsv` and refuse the package only with `--strict-binaries`. Commit ids change with
-the rewrite: the delivery uses the new ids everywhere, and `<repo>\.dataset\<slug>.commit-map.tsv` keeps original ->
-delivered.
+`<repo>\.dataset\<slug>.refused-hits.tsv`). The account name counts as a word, a path segment, or at a lower -> upper
+boundary (`OwnerNameDesktop`), and the delivered commits that `git.log` does not show (a task's start branch) are
+scanned too. Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv`,
+and one inside a string (8 or more printable characters in a row) refuses the package too (a short account name counts
+only as a word of its own); `--lenient-binaries` lists them without refusing, to review a refusal. Commit ids change
+with the rewrite: the delivery uses the new ids everywhere, and `<out>\<slug>\<slug>_<sha8>.commit-map.tsv` keeps
+original -> delivered for each delivered release (`<sha8>`: the delivered release commit's; `<out>`: env `UGF_OUT`,
+config `out`, else `<root>\deliverables`).
 
 It ends with the checks a consumer runs: the dataset checks of `tools/validate-game.py` and, where PowerShell is
 installed, `tools/validate-dataset.ps1`. An error refuses the package. Then it writes the zip (`--no-zip` stops after
 the checks) and, unless `--no-repo-dataset`, the repo's `Dataset/` folder (`README.md`, `git.log`, `workflow.jsonl`,
-`Brief/`, `Screenshots/`, `manifest.json`), which the game session then commits. It never commits and never changes the
-game repo's history. Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts them and the zip in
-another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50). Standard
-library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
+`Brief/`, `Gameplay/`, `ReplayScripts/`, `Screenshots/`, `manifest.json`, and a `.gitattributes` that keeps them byte
+for byte as `manifest.json` lists them: no line-ending conversion, videos and images in Git LFS), which the game
+session then commits. It never commits and never changes the game repo's history, and one run per game works at a time
+(a lock in `<out>\<slug>\`). Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts them and the
+zip in another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50).
+Standard library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
+
+Measured on a template test game with one recorded scenario, its pipeline build (IL2CPP, 1.2 GB with Unity's
+"DoNotShip" folders, 114 MB without) and its replay (PASS): 0.6 min, a 49 MB `Dataset.zip` that both validators call
+VALID.
 
 ## Names that must not reach the games
 

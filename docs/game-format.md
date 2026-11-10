@@ -38,19 +38,25 @@ python tools/package-dataset.py <slug>
 ```
 
 Builds the dataset of the game at `<root>\games\<slug>` from its repo at the release commit (`--commit <rev>`, default
-`HEAD`), its recording `<root>\.recording\<slug>\` and its player build `<repo>\Build\Windows` (made with
-`Scripts\unity.ps1 build`), and writes `<repo>\Dataset.pending.zip` and the repo's `Dataset/` folder, which the game
-session commits. It is the first version: `Gameplay/` and `ReplayScripts/` are not packed yet (the recorder and the
-creation replay are not available yet), so every dataset it makes is `pending`; a complete `Dataset.zip` needs both.
+`HEAD`), its recording `<root>\.recording\<slug>\` and the release's player, recordings and creation replay: the
+pipeline's release build (`<root>\builds\<slug>\<sha8>\`, else the repo's `Build\Windows` from `Scripts\unity.ps1
+build`), the first valid recording of the release commit for each scenario (`<root>\recordings\<slug>\`) and
+`<out>\_replay\<slug>\<sha8>\ReplayScripts\` once `READY` is beside it. It writes `<repo>\Dataset.zip` (status
+`complete`) when the release has a gameplay video and the replay, else `<repo>\Dataset.pending.zip` (`pending`), and the
+repo's `Dataset/` folder, which the game session commits (with a `.gitattributes` that keeps its files byte for byte as
+`manifest.json` lists them: no line-ending conversion, videos and images in Git LFS).
 
 It scrubs every text file of the delivery, then scans: a name left in a text file or a path refuses the package (exit
-2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv` and
-refuse the package only with `--strict-binaries`. It ends with the dataset checks of [Validate](#validate), and an
-error there refuses the package too. It never commits and never changes the game repo's history; its scratch and
-reports are in `<repo>\.dataset\`. Options: `--repo <folder>` (a game repo elsewhere), `--commit <rev>`,
-`--version <n>`, `--build <folder>`, `--brief <file>` and `--design <file>` (else the repo's `Brief/brief.md` and
+2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv`, and
+one inside a string (8 or more printable characters in a row) refuses the package too; `--lenient-binaries` lists
+them without refusing, to review a refusal. A pipeline build whose leak scan found anything, and a pipeline job working
+on the game, refuse it as well. It ends with the dataset checks of [Validate](#validate), and an error there refuses
+the package too. It never commits and never changes the game repo's history; its scratch and reports are in
+`<repo>\.dataset\`. Options: `--repo <folder>` (a game repo elsewhere), `--commit <rev>`, `--version <n>`,
+`--build <folder>` (a pipeline build folder or a player folder), `--replay <folder>` (the replay's package folder),
+`--exclude-runs <run ids>`, `--brief <file>` and `--design <file>` (else the release commit's `Brief/brief.md` and
 `Brief/design.md`), `--tasks-ref <ref>`, `--exclude-sessions <ids>`, `--recording <folder>`, `--out <folder>`,
-`--strict-binaries`, `--no-repo-dataset`, `--no-zip`, `--dry-run` (print what would go in, write nothing). Standard
+`--lenient-binaries`, `--no-repo-dataset`, `--no-zip`, `--dry-run` (print what would go in, write nothing). Standard
 library Python 3.10+, `git` and `git-lfs`. What it does, entry by entry:
 [unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager).
 
@@ -100,8 +106,8 @@ branch `starts/<task name>`.
 
 No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
 any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;
-the packager scans binaries too, but it never changes a binary, it only lists the names it finds there, so keep the
-names out of binary files yourself). The build
+the packager scans binaries too and refuses a delivery whose binaries carry a name in their strings, but it never
+changes a binary, so keep the names out of binary files yourself). The build
 machine's account name (machine paths carry it) counts too: the validator reads it at run time and enforces it
 everywhere except in scripts that already ran (`Scripts/`, `Assets/Editor/Steps/`, and
 `.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay unchanged: the packager scrubs them in every
@@ -132,8 +138,8 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 ## The dataset (`unity-dataset-layout/v1`)
 
 `<repo>\Dataset.zip`, one top folder `<game>/`, made by the packager ([Package](#package);
-[unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager) says what it does; today it makes
-`Dataset.pending.zip`, see "Complete vs pending" below):
+[unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager) says what it does; `Dataset.pending.zip`
+while an entry is missing, see "Complete vs pending" below):
 
 | Entry | In the repo's `Dataset/` | What |
 |---|---|---|
@@ -153,8 +159,10 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 **The history is rewritten for delivery** (the game repos are not changed): authors and committers become `dev_NN`,
 agent trailer lines go, the scrub rules apply to every message and text blob. Commit ids therefore differ from the
 private repo; the dataset uses the delivered ids everywhere (`manifest.json` `commit`, `git.log`, `ReplayScripts/`,
-the tasks' seeds), and the packager keeps the old -> new map in its scratch folder
-(`<repo>\.dataset\<slug>.commit-map.tsv`), never in the package. Restore a commit:
+the tasks' seeds), and the packager keeps the old -> new map, never in the package, in
+`<out>\<slug>\<slug>_<sha8>.commit-map.tsv`, one per delivered release (`<sha8>`: the delivered release commit's;
+`<out>`: env `UGF_OUT`, config `out`, else `<root>\deliverables`), and in its scratch folder
+(`<repo>\.dataset\<slug>.commit-map.tsv`, emptied by the next run). Restore a commit:
 
 ```bash
 git clone History/<game>.bundle <game>
@@ -207,8 +215,8 @@ history); it sees only the brief and that snapshot. The grader's half never reac
 `Verification/report.json` included; `pending` while `ReplayScripts/` or `Gameplay/` is missing (listed in `pending`;
 the zip is then `Dataset.pending.zip`). The replay is required but need not pass (user rule): a FAIL verdict is
 metadata, like a gameplay run's result: manifest `replay_verification.pass` false (equal to the report's
-`verdict.pass`) and the README says FAIL. Every dataset the packager makes today is pending: it packs neither
-`Gameplay/` nor `ReplayScripts/` yet ([Package](#package)).
+`verdict.pass`) and the README says FAIL. The packager writes the complete `Dataset.zip` once the release has a
+gameplay video and its replay ([Package](#package)).
 
 ## For a contractor
 
@@ -223,10 +231,11 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
    `unity-write-tasks` skill), each seeded on commits of main's history (or its own `starts/<task>` branch).
 5. `python tools/validate-game.py <repo>` VALID. Its warning "Dataset/ has no manifest.json: not packaged yet" is
    expected only before the packager's first run.
-6. A player build in `Build/Windows` (`Scripts/unity.ps1 build`), then `python tools/package-dataset.py <slug>`
-   (`--repo <repo>` when the repo is not `<root>/games/<slug>`). It runs the dataset checks itself and refuses on an
-   error. Commit the `Dataset/` folder it writes; `Dataset.pending.zip`, written next to it, is never committed:
-   deliver it beside the repo.
+6. A release player (`tools/unity-pipeline/build.ps1 <slug>`, or `Scripts/unity.ps1 build` into `Build/Windows`),
+   then `python tools/package-dataset.py <slug>` (`--repo <repo>` when the repo is not `<root>/games/<slug>`). It
+   runs the dataset checks itself and refuses on an error. Commit the `Dataset/` folder it writes; `Dataset.zip`
+   (`Dataset.pending.zip` while the gameplay video or the creation replay is missing), written next to it, is never
+   committed: deliver it beside the repo.
 
 Your agent sessions use only the unity-game-factory skills (`unity-commit-always`, `unity-game-session`,
 `unity-sound`, `unity-write-tasks`, installed by `machine/setup.ps1`): never install, enable or invoke any other

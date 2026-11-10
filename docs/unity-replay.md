@@ -332,7 +332,8 @@ makes it. What the dataset takes from it: the folder itself, copied, scrubbed li
 delivery and with its commit ids mapped to the delivered history (so `report.json` `final_commit` equals the manifest's
 `commit`), and the manifest's `replay_verification` from `ReplayScripts/Verification/report.json` (`verdict.pass`,
 `verdict.criteria` with their `result`, `verdict.exclusions` as `{id, what, count}`; `report`:
-`ReplayScripts/Verification/report.md`). Until the packager (`tools/package-dataset.py`) takes it, a dataset lists
+`ReplayScripts/Verification/report.md`). The packager (`tools/package-dataset.py`) takes it from there
+([unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager)); without `READY` a dataset lists
 `ReplayScripts/` as pending. The replay is required but need not pass: a FAIL is packaged as metadata (manifest
 `replay_verification.pass` false, the README says FAIL), and the dataset is complete with it as with a PASS
 ([game-format.md](game-format.md), "Complete vs pending").
