@@ -324,6 +324,10 @@ them; the checker never adds files from other commits.
 fails (`build\build.log`: the `error CS` lines first). Pick a start that builds, or, when making it build is the task,
 set `"fails_at_start": true` on the build check (then no threshold may be relative to the start).
 
+**`start: ProjectSettings/ProjectVersion.txt names Unity ...: a task's commits must be Unity 6000.3 projects as
+committed`** (or `reference: ...`). That commit was made on another Unity, and the checker never upgrades a project.
+Pick a start and a reference from the part of the game's history made on 6000.3.
+
 **`... LFS object(s) ... aren't in ...'s local store`** (an ERROR line, not a verdict): fetch them,
 `git -C <repo> lfs fetch origin <commit>`, and run again.
 
