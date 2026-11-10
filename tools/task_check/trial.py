@@ -413,7 +413,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
             if not keep:
                 discard(scratch / label, log)
         return finish("DONE")
-    except (OSError, RuntimeError, ValueError) as exc:
+    except Exception as exc:  # any error of the try's own: this task's ERROR, never a traceback over the other tasks
         return finish("ERROR", [f"the try couldn't run: {type(exc).__name__}: {str(exc)[:400]}"])
     finally:
         # Stopped (Ctrl+C), the try's own Unity jobs run on in their process groups, and what the agent left too.

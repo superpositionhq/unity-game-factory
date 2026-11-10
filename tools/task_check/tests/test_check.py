@@ -461,6 +461,22 @@ class Whole(unittest.TestCase):
                 self.assertEqual(result["verdict"], "ERROR", (side_, job))
                 self.assertIn("exit 198", result["reasons"][0])
 
+    def test_a_probe_file_the_checker_cant_read_is_the_tasks_error_not_the_end_of_the_run(self):
+        """The probe writes rows as a list; a file that holds something else there (a broken or tampered one) raised
+        a TypeError out of the reduction, past the task, and a run of many tasks ended in a traceback."""
+        task = task_with(probe("towers", measure={"probe": "objects", "select": {"name": "Tower*"}, "field": "y",
+                                                  "of": "max", "at": "end"}))
+
+        def broken(seconds, shots, queries):
+            found, log = measuring(100)(seconds, shots, queries)
+            found["measures"] = {q["id"]: [{"t": 0.5, "rows": 3.5}] for q in (queries or {}).get("queries", [])}
+            return found, log
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.check(task, {"start": FakeProject(broken), "reference": FakeProject(broken)}, tmp)
+        self.assertEqual(result["verdict"], "ERROR")
+        self.assertIn("the checker couldn't check it: TypeError", result["reasons"][0])
+
     def test_a_build_with_no_word_about_the_game_is_an_error_never_a_verdict(self):
         """Stopped twice with no compiler error and no result, or killed at its time limit: a fails_at_start start too
         (it counts as not building only on the game's own failure), and the reason names the log it kept."""

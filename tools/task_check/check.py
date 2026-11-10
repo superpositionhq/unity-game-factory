@@ -585,7 +585,7 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         result.update(probes=probe_values(task, ref_grade, start_grade), start_checks=start_grade["checks"],
                       reference_checks=ref_grade["checks"] if ref_grade else [])
         return finish("VALID" if valid else "INVALID", why, notes)
-    except (OSError, RuntimeError, ValueError) as exc:
+    except Exception as exc:  # any error of the checker's own: this task's ERROR, never the end of a run of many
         return finish("ERROR", [f"the checker couldn't check it: {type(exc).__name__}: {str(exc)[:400]}"])
     finally:
         if own and not keep:
