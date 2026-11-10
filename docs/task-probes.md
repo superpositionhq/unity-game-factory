@@ -688,10 +688,14 @@ the window).
 - Objects already there when the play's clock starts are not counted as spawned.
 - Pooled objects reused with `SetActive` count as instantiated clones do: a pooled projectile that is deactivated and
   reused counts each time it comes and goes.
-- What counts is each GameObject carrying the component (or a component of a type derived from it): a prefab instance
+- What counts is each GameObject carrying the component, named as an object select's `component` (section 2.4: a
+  type derived from it counts, and the components implementing it when it is an interface): a prefab instance
   counts once for each of its objects that carries it. Name a component that sits once per thing (the coin's own
   script), not one its children also carry (`MeshRenderer`), or each child counts too.
-- A component type the build doesn't have (one a feature adds, at the start) gives no value, not 0.
+- An object given the component during the play counts as one that appeared, and one that loses it as one that went;
+  an object that appears and goes within one frame is not seen.
+- A component type the build doesn't have (one a feature adds, at the start) gives no value, not 0, and the play's
+  `query_errors` says `spawns <id>: no component type <T>`.
 - In a play's `probe.json` a sample holds the running totals since the play started (`spawned` 1, 1, 2, ...); the
   checker reads each sample's rise over the one before, so don't add the samples up yourself.
 
