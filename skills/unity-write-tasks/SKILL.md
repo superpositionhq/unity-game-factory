@@ -53,8 +53,8 @@ when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `gi
 - The recording hooks ignore commits on the `tasks` branch, and the delivered history leaves it out, so committing
   tasks costs the game's record nothing.
 - Seeds (`seed.commit`, `seed.reference`) are commits of main's history (ancestors of main's head) or of the task's
-  own start branch `starts/<task name>` (section 2); pick them in the game checkout (`git -C <root>/games/<slug> log`),
-  never on the tasks branch.
+  own start branch `starts/<task name>` (section 2, "Starts on the engine"); pick them in the game checkout
+  (`git -C <root>/games/<slug> log`), never on the tasks branch.
 
 Check every task after committing it on the tasks branch:
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` (it reads the committed `tasks`
@@ -132,12 +132,13 @@ its ends.
 
 ## 2. Picking the commits
 
-**Starts on the game's editor.** The checker opens a start exactly as committed, with the Unity version its
-`ProjectSettings/ProjectVersion.txt` names (6000.3.x): it never upgrades, patches or rewrites a game, and it refuses a
-start that isn't a 6000.3 project. So `seed.commit` and `seed.reference` must both be 6000.3 commits that compile and
-build as they are (the validator checks the version). When a thread's real start can't
-be used as it is (it predates a package upgrade the reference depends on, or an unrelated later fix is needed for it to
-compile), give it a made start:
+### Starts on the engine
+
+The checker opens a start exactly as committed, with the Unity version its `ProjectSettings/ProjectVersion.txt` names
+(6000.3.x): it never upgrades, patches or rewrites a game, and it refuses a start that isn't a 6000.3 project. So
+`seed.commit` and `seed.reference` must both be 6000.3 commits that compile and build as they are (the validator
+checks the version). When a thread's real start can't be used as it is (it predates a package upgrade the reference
+depends on, or an unrelated later fix is needed for it to compile), give it a made start:
 
 - **B** = main's head. **S** (`seed.commit`) = B with the thread's change taken back out of the game itself
   (`Assets/`, `Packages/`, `ProjectSettings/`), re-created by hand where later work moved the code: the issue must
@@ -163,17 +164,19 @@ compile), give it a made start:
 - **Chains and splits merge**: a person complained again after a fix ("still too low"): one task from before the first
   fix to the last. A direction with several issues fixed in separate commits: one compound task, one required probe
   per issue.
-- **Spans may overlap; issues may not.** Two tasks may share commits, overlap or nest. Different threads that ran at
-  the same time (a camera rework during a HUD pass) are separate tasks over the same commits. What never repeats is an
-  issue: two tasks never test the same outcome, so dedupe against the game's existing tasks by issue (their briefs and
-  required probes), not by commits. Merging still wins over splitting one thread into short tasks (section 1).
+- **Spans may overlap; issues may not.** Two tasks may share commits, overlap or nest: one task's start or reference
+  may be another's, and a long feature span may contain a shorter thread that settled different issues. Different
+  threads that ran at the same time (a camera rework during a HUD pass) are separate tasks over the same commits. What
+  never repeats is an issue: two tasks never test the same outcome, so dedupe against the game's existing tasks by
+  issue (their briefs and required probes), not by commits. Merging still wins over splitting one thread into short
+  tasks (section 1).
 - **Measure the thread on its own commits.** The validator measures everything from `seed.commit` to `seed.reference`,
   so a short thread inside another thread's stretch can pass the floors on the other thread's work. Which commits are
-  the thread's own is your call; list them and count them: `python <UGF_ROOT>/unity-game-factory/tools/thread-stats.py
-  <UGF_ROOT>/games/<slug> <commit> <commit> ... --span <seed.commit>..<seed.reference>` (git only, seconds). A thread
-  whose own commits are below the floors (section 6) is too short, whatever the span says: extend it, merge it with
-  its neighbouring issues, or drop it. When you tell the person a task is ready, give its own line from the tool
-  (commits, files, code lines, systems).
+  the thread's own is your call (the commits that answer its directions or work on its issues); list them and count
+  them: `python <UGF_ROOT>/unity-game-factory/tools/thread-stats.py <UGF_ROOT>/games/<slug> <commit> <commit> ...
+  --span <seed.commit>..<seed.reference>` (git only, seconds). A thread whose own commits are below the floors
+  (section 6) is too short, whatever the span says: extend it, merge it with its neighbouring issues, or drop it. When
+  you tell the person a task is ready, give its own line from the tool (commits, files, code lines, systems).
 - Asset-only fixes are fine (the agent can make the same change through editor steps or code); drop one only when its
   outcome cannot be seen.
 
