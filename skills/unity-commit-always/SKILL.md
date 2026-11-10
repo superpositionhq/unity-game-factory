@@ -6,12 +6,13 @@ description: 'Commit discipline for every unity-game-factory session (game build
 # Commit always
 
 The git history is the product: a game's `git.log` and `workflow.jsonl` are the creation record the dataset is built
-from, and uncommitted work is invisible to the coordinator, the pipeline (it builds from commits) and the packager.
+from, and uncommitted work is invisible to the coordinator, the pipeline and the packager (not available yet; both
+will build from commits).
 The user's standing rule: **every session commits its work continuously.**
 
 ## When
 
-- After every meaningful step: a system compiles and plays, an editor step ran and changed content, a scene or asset
+- After every meaningful step: a system compiles and runs, an editor step ran and changed content, a scene or asset
   set is imported, a bug is fixed and verified, a doc section is written, a tool change passes its test. At least
   every ~15 minutes of active work.
 - Before anything risky (a Unity version upgrade, a render pipeline conversion, a mass rename or move of assets,
@@ -33,7 +34,7 @@ The user's standing rule: **every session commits its work continuously.**
 
 - Subject: what changed, imperative, specific (`Add frost tower slow stacking and its tuning asset`), under ~72
   chars.
-- Body: why, how it was verified (compile/test/play result), anything left open.
+- Body: why, how it was verified (build/test/run result), anything left open.
 - Game repos: end with the workflow rows the commit covers: `workflow: td-00412..td-00431`. A commit that acts on a
   human direction also names it: `Direction: td-00398 (<the direction in a few words>)`.
 - Game repos: no AI attribution trailers or footers (`Co-Authored-By: <agent> ...`, `Generated with <tool>`) and never
@@ -45,8 +46,7 @@ The user's standing rule: **every session commits its work continuously.**
 
 - Rows are written **when the operation happens**, not at commit time (schema `unity-workflow/v0`: `schema, id, seq,
   time` (ISO 8601 ms + offset), `actor:"agent", op, target, params, reason` (intent at that moment),
-  `reason_source:"agent_note", status` (`observed`/`failed`/`reverted`), `source {script, sha256, commit}`;
-  [docs/schemas/workflow-row.schema.json](../../docs/schemas/workflow-row.schema.json)).
+  `reason_source:"agent_note", status` (`observed`/`failed`/`reverted`), `source {script, sha256, commit}`).
 - Commit `workflow.jsonl` together with the work it describes; the row ids go in the message. Many games also log an
   `op:"vcs.commit"` row (sha, subject, files) right after committing; it rides along in the next commit.
 - Never edit, delete, reorder or backfill rows. Missed something: one `op:"log.gap"`, `status:"unrecorded"` row saying
@@ -58,10 +58,10 @@ The user's standing rule: **every session commits its work continuously.**
   edited rows. `python <UGF_ROOT>/unity-game-factory/tools/scrub-workflow-rows.py <repo>` does exactly this (dry run
   first, then `--apply`; it prints the commit message line). Write new rows without such names in the first place
   (relative paths, neutral words). The account name is enforced in every non-script file (workflow.jsonl, configs,
-  docs, data); editor steps that already ran keep it (never edited; the packager scrubs them), new ones use relative
-  paths.
-- Every editor step that ran (`Assets/Editor/Steps/*.cs`) stays unchanged (a new step class instead of overwriting),
-  so `source.script` + `source.sha256` point at the real code (unity-game-session skill, "Replay-friendly work").
+  docs, data); scripts and editor steps that already ran keep it (never edited; the packager scrubs them), new ones
+  use relative paths.
+- Every editor step that ran stays in `Assets/Editor/Steps/` unchanged (a new step in a new file instead of
+  overwriting), so `source.script` + `source.sha256` point at the real code.
 - **Human directions (user rule: "not direct user messages, more like user directions"; "you should rewrite that and
   save to the workflow.jsonl").** Whoever receives a user message REWRITES it as a direction: what to change and why,
   one or two neutral sentences, without tone, profanity, names or chat wording (a game session for a message to it;
@@ -93,17 +93,18 @@ on the next import and every reference to it breaks (pink materials, missing scr
 committed without its asset is an orphan Unity deletes. So: commit them together, move and rename assets only through
 Unity (`AssetDatabase.MoveAsset` / `RenameAsset` in an editor step, which moves the `.meta` too) or with `git mv` of
 both files, never delete a `.meta` by hand, and after any batch import check `git status` for `.meta` files without
-their asset or assets without their `.meta`. The template sets Visible Meta Files and Force Text serialization
-(`ProjectSettings/EditorSettings.asset`): keep both; scenes, prefabs, materials and ScriptableObjects then commit as
-diffable YAML.
+their asset or assets without their `.meta`. The template and its first open set Force Text serialization
+(`ProjectSettings/EditorSettings.asset`) and Visible Meta Files (`ProjectSettings/VersionControlSettings.asset`): keep
+both; scenes, prefabs, materials and ScriptableObjects then commit as diffable YAML.
 
 **Store packs are committed, the repo stays private (user rule).** Every Unity Asset Store or other store pack the
-game uses is committed (any folder under `Assets/`, e.g. `Assets/ThirdParty/<Pack>/`, with its `.meta` files) and listed
-in `assets.manifest.json` (one format for every game: `assets-manifest/v1`): never git-ignore store content (no
-`.gitignore` entry, no "import it yourself" step), so a clone opens and builds the game. The licences allow that only
-in a private repo: game repos are never made public, forked to a public place or shared outside the org, and store
-files are never uploaded anywhere else. Packages that come from a registry (`com.unity.*` in
-`Packages/manifest.json`) are committed as the manifest entry and lock file only; Unity downloads them.
+game uses is committed (any folder under `Assets/`, e.g. `Assets/ThirdParty/<Pack>/`, with its `.meta` files, its
+binaries through Git LFS) and listed in `assets.manifest.json` (one format for every game: `assets-manifest/v1`,
+docs/game-format.md): never git-ignore store content (no `.gitignore` entry, no "download it yourself" step), so a clone
+builds the game. The licences allow that only in a private repo: game repos are never made public, forked to a public
+place or shared outside the org, and store files are never uploaded anywhere else. Packages that come from a registry
+(`com.unity.*` in `Packages/manifest.json`) are committed as the manifest entry and lock file only; Unity downloads
+them.
 
 **Binaries go through Git LFS.** `.gitattributes` from `templates/unity-game` covers every binary type
 case-insensitively (textures, models, audio, video, fonts, `LightingData.asset`, `.unitypackage`...); Unity's YAML
@@ -126,8 +127,15 @@ NavMesh data) gets its own LFS pattern before its first commit.
   downloaded binaries (`machine/get-ffmpeg.ps1` fetches them), GPU recordings.
 - In game repos: the names Superposition / game-factory / unity-game-factory anywhere (code, comments,
   `ProjectSettings` such as `companyName`, editor steps, docs). The user's absolute profile path where avoidable
-  (Unity writes few absolute paths, but a `ModelImporter` or an Asset Store pack can carry one: search
-  `git grep -n -i "<account name>"` before a commit that will be recorded or packaged).
+  (`tools/validate-game.py` names every tracked text file that holds the account name: run it before a commit that
+  will be recorded or packaged; the coordinator asks for it).
+
+## The replay after every commit (game repos)
+
+Not available yet: the creation replay, and with it `ReplayConfig.json` and the post-commit hook's `[replay] ...`
+lines, comes with the recording pipeline; until then nothing replays your commits. Work so that it can (the
+unity-game-session skill, "Replay-friendly work"), and never amend or rebase a commit you already made: the replay has
+to go back and redo everything after it.
 
 ## Push policy
 
@@ -140,9 +148,9 @@ NavMesh data) gets its own LFS pattern before its first commit.
 
 ## The WIP auto-commit
 
-The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a game
-repo as `WIP` at the end of every turn.
+The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a
+game repo as `WIP` at the end of every turn.
 It is a safety net so nothing is lost, not a way of working: a `WIP` commit carries no reason and no row ids, and it
 reads as sloppy in the dataset's `git.log`. If one of yours appears, say in your next commit's body what the WIP
-commit contained. Don't squash or amend it away; the history is the record. Never amend or rebase a commit you already
-made. The hook does not cover unity-game-factory: helpers and the coordinator must commit there themselves.
+commit contained. Don't squash or amend it away; the history is the record. The hook does not cover
+unity-game-factory: helpers and the coordinator must commit there themselves.
