@@ -119,6 +119,10 @@ by hand under these rules, or ask.
   subscribe to `AssetDatabase.importPackageCompleted` and `importPackageFailed`, and call `EditorApplication.Exit` from
   there and after a time limit: a run without `-quit` ends only when the step exits (the template's
   `ProjectSetup.ImportTextEssentials` is the pattern).
+- `EditorSceneManager.SaveScene` makes no folder: into a missing one it saves nothing, returns false and only logs an
+  error, and a step that goes on to log its row records a scene that is not there (the template's first example step
+  did). Create the folder first (`Directory.CreateDirectory`, as the template's `UrpSetup` does) and check what
+  `SaveScene` returns.
 - Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
   the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
 - **Art (user rule):** premium, coherent, never primitives or flat colours in the final game. Use the bought and
