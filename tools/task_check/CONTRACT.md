@@ -21,7 +21,7 @@ a field means is there; this file holds what an implementer needs beyond it.
 | pawn (the player pawn) | **player**: the first object the task's `player` select matches (when it matches nothing there is no player: no fallback), else the first in hierarchy order (section 3) of the active objects tagged `Player` (`GameObject.FindGameObjectsWithTag`), else of those with a `PlayerInput`, else of those with a `CharacterController` (`FindObjectsByType`), so the same one in every play; else the root of the player camera (next row); looked up again before the game's scripts, after their Updates and after their LateUpdates (`Probe.Stamp`, `Probe.FindPlayer`) |
 | player camera | `Camera.main` (an enabled camera tagged MainCamera), else the enabled camera of highest depth that renders to the screen (no target texture) |
 | map, `play_map` (`/Game/Maps/L_X?Scenario=2`) | scene: `play_scene` (`Assets/Scenes/X.unity`) and `play_args` (`["-scenario", "2"]`) |
-| component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component`, a `has`, a components, pieces or widgets select, a widget click and a Part match the type, its base types and its interfaces; `spawns`' `component` must name a Component type, which its subtypes match (an interface gives "spawns: no component type <name>") |
+| component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component` (a component on the object itself), a `has`, a components, pieces or widgets select, `spawns`, a widget click and a Part match the type, its base types and its interfaces (an interface: the components that implement it), and a short name two types share means both; a name no component can be of matches nothing and says so once (`<kind> <id>: no component type <name>`) |
 | UMG / Slate widget | **widget**: a uGUI component's object or a UI Toolkit element |
 | cm, cm/s | **m, m/s** (Unity units). Every default and limit scales: 200 cm -> 2 m, 1 cm -> 0.01 m, 2 km -> 2000 m; a near's radius up to 100,000 m (its `y_min`/`y_max` within +-100,000), a teleport's `distance` and a camera point's `forward` up to 1000 m, a line's radius up to 100 m |
 | Z up; yaw about Z | **Y up**. `yaw`, `pitch`, `roll` are the euler Y, X and Z angles of the world rotation (`transform.eulerAngles`; the Inspector shows a child's local rotation), normalised to (-180, 180]; a positive `pitch` looks down (Unreal's looks up) |
@@ -175,17 +175,26 @@ what it writes for the logs beyond the fields, and what was measured. The reduct
 `match`, `to_angle`, `to_axis`; every match counted past the 200 rows through the sample's `total` and `full`) is the
 original's, unchanged (`probes.py`).
 
-- **Selects and rows** (`Find`, `Reflect`, `RowSet`). Matches come in hierarchy order: by scene (its build index, then
-  its handle), then the root's place in the scene's root list (a built player reports every root's sibling index as
-  0), then sibling indices (`Find.SortByHierarchy`): the same in every play of one build. Every match is read;
-  `RowSet` keeps the first 200 as rows and sums every match's numbers into `full`. A select that matches nothing
-  writes an empty `rows` (no `total`, no error): the checker reads a `count` of 0 and no value for any other field.
-  Every row has `name` and `class`, for the logs: an object row's `class` is its first MonoBehaviour's type, else its
-  first Behaviour or Renderer, else its first other component (Transform and MeshFilter aside), else `GameObject`
-  (`ObjectRead.ClassOf`); a component row's `class` is its type, and its `name` and `owner` are both its object's name
-  (a Unity component has no name of its own). A field with no value is left out of its row. Every trace the probe casts
-  (the camera's, the light's wall checks, the ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the
-  Ignore Raycast layer never blocks one.
+- **Selects and rows** (`Find`, `Reflect`, `RowSet`). Matches come in hierarchy order, as the Hierarchy window lists a
+  playing game (`Find.SortByHierarchy`): the scenes in the order they were loaded (SceneManager's list), the
+  DontDestroyOnLoad scene last; in a scene, its roots in the player's own root list (`Scene.GetRootGameObjects`, neither
+  the editor's Hierarchy order nor the order they were made in; a built player reports every root's sibling index as 0),
+  then sibling indices; several components of one object in the Inspector's order. The lists are read once a pass
+  (`Probe.Stamp`), and the order is the same in every play of one build. An object select's `component` is a component
+  on the object itself (`Reflect.ComponentNamed(go, name, false)`); a `has` takes the components of the object and of
+  its descendants active in the hierarchy (any descendant with `inactive`), its Transform among them and the probe's own
+  never, and tests `lit` last, as the original does, since it may render (`Find.Carries`). A tag is looked up once
+  (`TagHandle`): one the project doesn't define matches nothing and writes nothing into the game's log. Points nest as
+  deep as the original's (`Find.MaxDepth` 3: two object selects inside a select's points, the second without a point of
+  its own); a point tries its forms in the original's order (`xyz`, `player`, `camera`, `object`). Every match is read;
+  `RowSet` keeps the first 200 as rows and, when more matched, writes `total` and `full`, an entry for every field asked
+  for, in the order asked. A select that matches nothing writes an empty `rows` (no `total`, no error): the checker
+  reads a `count` of 0 and no value for any other field. Every row has `name` and `class`, for the logs: an object row's
+  `class` is its first MonoBehaviour's type, else its first Behaviour or Renderer, else its first other component
+  (Transform and MeshFilter aside), else `GameObject` (`ObjectRead.ClassOf`); a component row's `class` is its type, and
+  its `name` and `owner` are both its object's name (a Unity component has no name of its own). A field with no value is
+  left out of its row. Every trace the probe casts (the camera's, the light's wall checks, the ground's) uses
+  `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never blocks one.
 - **player**, **camera** (the original's pawn and player camera manager): the checker computes every field but two from
   the track rows `[t, x, y, z]` (the player's transform position, its pivot; `[t]` without a player) and the camera
   rows `[t, x, y, z, pitch, yaw, fov]` of the player camera (section 1) the probe writes every sample (`probes.series`;
