@@ -243,28 +243,33 @@ original's, unchanged (`probes.py`).
   (`Effects.Live`) and an AudioSource's `isPlaying`.
 - **lit, glow** (`Glow`, `DrawnRender.Glow`; the original reads light components, mesh components through their
   material graphs, and particle systems):
-  - the sources: a Light that is on (`Glow.LightOn`); a drawn mesh part; a live particle system with a drawn renderer.
-    Sprites, lines and trails are no source. A Light's glow is its intensity in Unity's own units (the original's:
-    candelas) times its colour's luminance (Rec. 709, linear), times its temperature's colour when the project
-    (`GraphicsSettings.lightsUseColorTemperature`) and the Light use it;
-  - a mesh renderer is read from its material properties when every material's shader has an interface the probe
-    knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original evaluates its material
-    graphs): unlit (a name containing `unlit` in any case, with `_BaseColor` or `_Color`: that colour times the mean of
-    `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a declared `_EMISSION` keyword: with the keyword
-    enabled, the emission colour times the mean of `_EmissionMap`). A shader named `Shader Graphs/...` has neither,
-    whatever its properties. MaterialPropertyBlocks count (the slot's, then the renderer's); colours are linear in a
-    linear project; a texture's mean is read on the GPU (halved down to 16 x 16, so an unreadable texture reads too).
-    The brightest material counts over the renderer's whole local bounds: lit above a luminance of 0.01 (`Glow.Floor`,
-    the original's), glow that luminance times a quarter of the surface of its local bounds, scaled (m2);
-  - any other shader, and every particle system: as rendered (`DrawnRender.Glow`, the `drawn` render below; the
-    original's scene capture): the renderer alone with every Light off and a black ambient, from the four corners of a
-    tetrahedron in its own frame (a mesh's local box turned and scaled with it, a skinned mesh's in its root bone's
-    frame, a particle system's world box), orthographic, 128 x 128, HDR. Lit when its brightest pixel's luminance is
-    above 0.01; glow the views' luminance x pixel area summed, over the area of the box they see, times a quarter of
-    the box's surface. At most 64 such renders a frame across every query (`DrawnRender.GlowBudget`), each renderer
-    once a frame; past that a source has no value that sample;
+  - the sources: a Light that is on (`Find.LightOn`); a drawn part (the objects' parts above); a live effect with a
+    drawn renderer (`Effects.Live`: a particle system playing or holding particles, a TrailRenderer drawing points, a
+    VisualEffect holding particles; a decal is no source). A Light's glow is its intensity in Unity's own units (the
+    original's: candelas) times its colour's luminance (Rec. 709, linear), times its temperature's colour when the
+    project (`GraphicsSettings.lightsUseColorTemperature`) and the Light use it;
+  - a mesh (MeshRenderer, SkinnedMeshRenderer) is read from its material properties when every material's shader has
+    an interface the probe knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original
+    evaluates its material graphs), and no texture is on the property read: unlit (a name containing `unlit` in any
+    case, with `_BaseColor` or `_Color`, its texture `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a
+    declared `_EMISSION` keyword: the emission colour when the keyword is enabled, its texture `_EmissionMap`). A Shader
+    Graph (a shader named `Shader Graphs/...`, or tagged `ShaderGraphShader`) has neither, whatever its properties.
+    MaterialPropertyBlocks count (the slot's, then the renderer's); colours are linear in a linear project. The
+    brightest material counts over the renderer's whole local bounds: lit above a luminance of 0.01 (`Glow.Floor`, the
+    original's), glow that luminance times a quarter of the surface of its local bounds, scaled (m2);
+  - a mesh with a texture on the property read (unless its colours alone are at or under the floor: dark) or with
+    another shader, any other part (a sprite, a line: what it draws is its own, not its material's), and every live
+    effect: as rendered (`DrawnRender.Glow`, the `drawn` render below; the original's scene capture): the renderer alone
+    with every Light off and a black ambient, from the four corners of a tetrahedron in its own frame (a mesh's local
+    box turned and scaled with it, a skinned mesh's in its root bone's frame, anything else's world box), orthographic,
+    128 x 128, HDR. Lit when its brightest pixel's luminance is above 0.01; glow the views' luminance x pixel area
+    summed, over the area of the box they see, times a quarter of the box's surface. At most 64 such renders a frame
+    across every query (`DrawnRender.GlowBudget`), each renderer once a frame, none on the UI layer; past that a mesh
+    whose materials have the interface reads the bound they give (a texture taken as white), anything else no value that
+    sample;
   - a row with `lit` or `glow` carries `glow_sources` (the kinds lit: `light`, `emissive`, `unlit`, `effect`) and
-    `glow_read` (`props`, `render`, or `unread`: no way to read one; the original's `graph`, `render`, `bound`);
+    `glow_read` (`props`, `render`, `bound`, or `unread`: no way to read one; the original's `graph`, `render`,
+    `bound`);
   - measured: about 3 ms a glow render.
 - **widgets** (the original's UMG widgets; `WidgetsQuery`, `UiScan`): uGUI (`UnityEngine.UI` Graphics and Selectables,
   TextMeshPro) on every canvas of the loaded scenes, world-space ones included (their rect projected through the
