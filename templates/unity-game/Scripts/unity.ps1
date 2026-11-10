@@ -1,4 +1,4 @@
-# __TITLE__: headless Unity runs through the machine-wide job limiter (<root>\tools\unity-heavy.ps1).
+# __TITLE__: heavy Unity jobs through the machine-wide limiter (<root>\tools\unity-heavy.ps1).
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 setup                       (first open: packages, URP, settings)
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 compile                     (open, import, compile, quit)
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 step -Method <Ns.Class.Method> -Reason "..." [-Render] [-NoQuit]
@@ -32,7 +32,7 @@ $ErrorActionPreference = 'Continue'
 $Proj = Split-Path $PSScriptRoot -Parent
 $Root = if ($env:UGF_ROOT) { $env:UGF_ROOT } else { Split-Path (Split-Path $Proj -Parent) -Parent }
 $Heavy = Join-Path $Root 'tools\unity-heavy.ps1'
-if (-not (Test-Path $Heavy)) { Write-Error "job limiter not found: $Heavy (run machine\bootstrap.ps1)"; exit 2 }
+if (-not (Test-Path $Heavy)) { Write-Error "job limiter not found: $Heavy (run machine/bootstrap.ps1)"; exit 2 }
 $VersionFile = Join-Path $Proj 'ProjectSettings\ProjectVersion.txt'
 $Version = if ((Get-Content $VersionFile -Raw) -match 'm_EditorVersion:\s*(\S+)') { $Matches[1] } else { '' }
 $Unity = $env:UNITY_EDITOR
@@ -60,7 +60,7 @@ function Show-Errors([string]$Log) {
     Select-Object -Last 40 | ForEach-Object { $_.Line.Trim() }
   # Unity exits 198 without a licence: say so plainly, it is the person's to fix, not the game's
   if (Select-String -Path $Log -Pattern 'No valid Unity Editor license' -Quiet) {
-    Write-Host 'LICENCE: no activated Unity licence. Unity Hub > sign in > Settings > Licenses > Add (a free Personal licence is fine), then run this again.'
+    Write-Host 'LICENCE: no activated Unity licence. Unity Hub > sign in > Settings > Licenses > Add (Unity Personal where its terms allow, otherwise the seat your org gives you), then run this again.'
   }
 }
 function Done([int]$Code) { Write-Host "exit code $Code ($([int]((Get-Date) - $t0).TotalSeconds) s)"; exit $Code }
@@ -105,6 +105,7 @@ switch ($Mode) {
     $log = Join-Path $Logs "tests_$Platform.log"
     $more = @('-runTests', '-testPlatform', $Platform, '-testResults', $xml)
     if ($Filter) { $more += @('-testFilter', $Filter) }
+    Remove-Item -LiteralPath $xml -ErrorAction SilentlyContinue   # an earlier run's results would pass for this run's
     $code = Invoke-Unity "test $Platform" $log $more
     if (Test-Path $xml) {
       $run = ([xml](Get-Content $xml -Raw)).'test-run'
@@ -128,15 +129,24 @@ switch ($Mode) {
     $exe = Join-Path $Proj 'Build\Windows\__PROJECT__.exe'
     if (-not (Test-Path $exe)) { Write-Error "no player build at $exe (run: unity.ps1 build)"; exit 2 }
     $log = Join-Path $Logs "play_$Tag.log"
+    Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue   # a player that never starts must not show an old log
     $a = @('-logFile', $log)
     if ($Render) { $a += @('-screen-fullscreen', '0', '-screen-width', '1280', '-screen-height', '720') } else { $a += @('-batchmode', '-nographics') }
     if ($Scenario -gt 0) { $a += @('-scenario', "$Scenario") }
     $a += ($Extra -split ' ' | Where-Object { $_ })
-    # a player runs until the game quits: a small wrapper stops it after -Seconds, so the slot is always released
+    # a player runs until the game quits: a small wrapper stops it after -Seconds, so the slot is always released.
+    # -Seconds counts from the player's start: on a busy PC a headless player was still loading after 20 s.
+    # Process.Start, not Start-Process: Start-Process splits an argument holding a space (the log path under
+    # C:\Users\First Last\...) and loses the exit code of a player that ends before the wait starts.
     $wrap = Join-Path $Logs "play_$Tag.ps1"
-    $argText = ($a | ForEach-Object { "'" + ($_ -replace "'", "''") + "'" }) -join ', '
+    $argLine = ($a | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' '
     [IO.File]::WriteAllText($wrap, @"
-`$p = Start-Process -FilePath '$($exe -replace "'", "''")' -ArgumentList @($argText) -WorkingDirectory '$((Split-Path $exe) -replace "'", "''")' -PassThru
+`$psi = New-Object Diagnostics.ProcessStartInfo '$($exe -replace "'", "''")', '$($argLine -replace "'", "''")'
+`$psi.UseShellExecute = `$false
+`$psi.WorkingDirectory = '$((Split-Path $exe) -replace "'", "''")'
+`$psi.RedirectStandardOutput = `$true; `$psi.RedirectStandardError = `$true
+`$p = [Diagnostics.Process]::Start(`$psi)
+`$p.BeginOutputReadLine(); `$p.BeginErrorReadLine()   # the player's console lines are read and dropped: its log is the file
 if (-not `$p.WaitForExit($Seconds * 1000)) { Stop-Process -Id `$p.Id -Force; exit 124 }
 exit `$p.ExitCode
 "@)
