@@ -100,9 +100,9 @@ Under Codex, the shell tool is recorded as `Bash` whatever shell ran the command
 `user.direction` rows that the session writes itself (unity-commit-always skill): neither agent's hooks store the
 messages.
 
-Commands in these docs are written as PowerShell reads them. Typed in Git Bash (the shell of Claude Code's Bash tool
-on Windows), put each Windows path in single quotes: bash drops unquoted backslashes, so `C:\Users\<you>\UnityWork`
-arrives as `C:Users<you>UnityWork` and the command fails.
+Commands with Windows paths in these docs are written as PowerShell reads them. Typed in Git Bash (the shell of Claude
+Code's Bash tool on Windows), put each Windows path in single quotes: bash drops unquoted backslashes, so
+`C:\Users\<you>\UnityWork` arrives as `C:Users<you>UnityWork` and the command fails.
 
 ## Rules
 
