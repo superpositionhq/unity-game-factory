@@ -22,9 +22,9 @@ Words used here:
 - **an object**: a GameObject. Its **parts** are the components on it and on its descendants;
 - **the player**: the first object the task's `player` select matches (an object select, section 2.4), when the task
   has one; then nothing else is tried, so a select that matches nothing leaves the play without a player. Else an
-  active object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController`, else the root
-  object of the camera below. Where that could find the wrong object (two tagged `Player`, say), name it with the
-  task's `player`;
+  active object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController` (of several, the
+  first in hierarchy order, the same in every play: section 2.1), else the root object of the camera below. Where that
+  could find the wrong object (two tagged `Player`, say), name it with the task's `player`;
 - **the camera**: `Camera.main` (tagged `MainCamera`, enabled), else the enabled camera of highest depth that renders
   to the screen.
 
