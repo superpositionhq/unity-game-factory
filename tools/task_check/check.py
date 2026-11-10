@@ -15,7 +15,7 @@ A run of several tasks shares one scratch copy per commit (Builds): a commit tha
 reference, or two tasks' start, is materialized and built once and kept until the last task that needs it is done.
 The copy is the commit exactly as committed either way, so sharing it changes no result. A player holds only the
 scenes its build was given, so a later task that plays a scene the shared build lacks has the copy built again with
-every scene asked for so far (Built.build).
+every scene asked for so far (Built.build); a build that failed serves no task but the one it was made for.
 
 The plays a probe names: "look", the idle play (20 s, no input, 6 screenshots); "drive", the scripted drive (22 s:
 <Keyboard>/w 1-6 s, /d 6-8 s, /w 8-13 s with a jump (/space) at 9 s, /a 13-15 s, /w 15-21 s; 8 screenshots); a task
