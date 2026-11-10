@@ -156,7 +156,7 @@ namespace __PROJECT__.EditorTools
                 // JSON has no NaN or Infinity: a row holding one would not parse, and rows are never edited
                 case float f: sb.Append(float.IsNaN(f) || float.IsInfinity(f) ? "null" : f.ToString("R", CultureInfo.InvariantCulture)); break;
                 case double d: sb.Append(double.IsNaN(d) || double.IsInfinity(d) ? "null" : d.ToString("R", CultureInfo.InvariantCulture)); break;
-                case IFormattable n when v is int || v is long || v is short || v is byte || v is uint || v is ulong || v is decimal:
+                case IFormattable n when v is int || v is long || v is short || v is byte || v is sbyte || v is uint || v is ulong || v is ushort || v is decimal:
                     sb.Append(n.ToString(null, CultureInfo.InvariantCulture)); break;
                 case IDictionary dict:
                     var pairs = new List<KeyValuePair<string, object>>();
