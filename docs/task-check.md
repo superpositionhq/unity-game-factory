@@ -3,9 +3,8 @@
 A task (a GameTask JSON in `Tasks/` on the game repo's orphan `tasks` branch, schema
 [schemas/game-task.schema.json](schemas/game-task.schema.json)) is only useful when its checks tell a broken game from a
 fixed one. The task checker proves that on your machine before you hand the task in: it builds the game at the task's
-start (`seed.commit`) and at its reference (`seed.reference`, the change that solves it) as Windows players with the
-TaskProbe package in them, plays both, measures every probe ([task-probes.md](task-probes.md)), and says **VALID** or
-**INVALID** with the reasons.
+start (`seed.commit`) and at its reference (`seed.reference`, the change that solves it), plays both with the TaskProbe
+package, measures every probe, and says **VALID** or **INVALID** with the reasons.
 
 ```powershell
 python tools\task-check.py C:\Users\<you>\UnityWork\games\<slug> --task <task-name>
@@ -14,26 +13,25 @@ python tools\task-check.py C:\Users\<you>\UnityWork\games\<slug> --all
 python tools\task-check.py C:\Users\<you>\UnityWork\games\<slug> --task C:\Users\<you>\UnityWork\tasks\<slug>\Tasks\<task-name>.json
 ```
 
-Run it from the unity-game-factory folder (`%UGF_ROOT%\unity-game-factory`). A task is read from the repo's `tasks`
-branch by name; give the path of a `.json` file instead to check a task you haven't committed yet.
+Run it from the unity-game-factory folder (`%UGF_ROOT%\unity-game-factory`, where `%UGF_ROOT%` is the machine root,
+`C:\Users\<you>\UnityWork` by default). A task is read from the repo's `tasks` branch by name (its file name in
+`Tasks/` without `.json`); give the path of a `.json` file instead to check a task you haven't committed yet.
 
 **Check a game's tasks in one run** (`--all`, or several `--task`). The run makes one scratch copy per commit and
-builds it once, so a commit that is one task's start and another's reference, or two tasks' start, costs one build
-(and one import of every asset, the long part), and a later copy starts from the import cache of a copy already built
-(see "Time" below); each copy is deleted after the last task that needs it (or when the
-disk runs below the floor, then rebuilt if a later task needs it). A shared copy is the commit exactly as committed,
-so sharing changes no result. A run of 10 tasks takes hours, so start it where it can run on its own and come back; a
-game session starts it as its own process (unity-write-tasks skill, section 5). `<out>\progress.txt` (and
-`progress.json`) is rewritten after every task: how many are done, each one's verdict and minutes, and which is
-running; it says `finished` at the end. Progress lines carry the time of day, and each build and play logs how long
-it took.
+builds it once (again only when a later task plays a scene the build lacks: a player holds only the scenes it was
+built with), so a commit that is one task's start and another's reference, or two tasks' start, costs one build; each
+copy is deleted after the last task that needs it (or when the disk runs below the floor, then rebuilt if a later task
+needs it). A shared copy is the commit exactly as committed, so sharing changes no result. A run of 10 tasks takes
+hours, so start it where it can run on its own and come back; a game session starts it as its own process
+(unity-write-tasks skill, section 5). `<out>\progress.txt` (and `progress.json`) is rewritten after every task: how many
+are done, each one's verdict and minutes, and which is running; it says `finished` at the end. Progress lines carry
+the time of day, and each build and play logs how long it took.
 
-Run it from PowerShell (the machine's `unity-heavy.ps1` is a PowerShell script; see "Requirements"). Without `--task`
-or `--all` it lists the tasks on the branch. Each task prints one line, and the exit code is 0 only when every task is
-VALID:
+Without `--task` or `--all` it lists the tasks on the branch. Each task prints one line, and the exit code is 0 only
+when every task is VALID (2 when the run couldn't start: a usage error):
 
 ```
-VALID   harbor-run-corr-chase-camera-and-fog
+VALID   metro-runner-corr-cell-and-dead-meter
 INVALID island-survival-fix-hut-door: start already passes every required probe
 ```
 
@@ -45,51 +43,59 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
 ## Requirements
 
 - Windows with the Unity editor the project names: each commit's `ProjectSettings/ProjectVersion.txt`
-  (`m_EditorVersion: 6000.3.x`) picks the install through the machine config (`unity_editors`, else
-  `<unity_hub_editors>\<version>\Editor\Unity.exe`; [machine/README.md](../machine/README.md)). A version that isn't
-  installed is an error naming it: install it through Unity Hub. Every start and reference must be a Unity 6.3 LTS
-  (`6000.3.*`) project as committed: the checker never upgrades, ports or patches a game, and refuses any other
-  version. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
-- **An active Unity licence** (Unity Hub, signed in). A batchmode run without one exits with code 198 and the check
-  stops: sign in to Unity Hub again and rerun. It is not a game bug.
+  (`m_EditorVersion: 6000.3.x`) picks the install through the machine config (`unity_editors` in
+  `%USERPROFILE%\.unity-game-factory\config.json`, else `<unity_hub_editors>\<version>\Editor\Unity.exe`;
+  [machine/README.md](../machine/README.md)). A version that isn't installed is an ERROR naming it: install it through
+  Unity Hub. Every start and reference must be a Unity 6.3 LTS (`6000.3.*`) project as committed: the checker never
+  upgrades, ports or patches a game, and refuses any other version. The build is a Mono player, so the IL2CPP module
+  and Visual Studio's C++ workload are not needed.
+- **An active Unity licence** (Unity Hub, signed in). A batchmode Unity run without one exits with code 198 (its log
+  says `No valid Unity Editor license`) and the check of that task stops with an ERROR: sign in to Unity Hub again and
+  rerun. It is never a game bug.
 - Python 3.12 (standard library only), git and Git LFS. The checker reads the game's files straight from its git objects
   and its local LFS store, so the LFS objects of both commits must be there: `git -C <repo> lfs fetch origin <commit>`
   when it says one is missing.
 - **Short paths.** Unity fails on paths past 260 characters, and a project's `Library/` nests deep, so the checker
-  refuses a scratch project folder longer than 90 characters and says so. Pass `--scratch` with a short folder on the
-  repo's drive (`--scratch C:\tc`).
+  refuses a scratch project folder longer than 90 characters. A copy's folder is `<scratch>\<run>\<commit>` (8 and 12
+  characters), so `--scratch` may be at most 68 characters long: when it says so, pass a short folder on the repo's
+  drive (`--scratch C:\tc`).
 - Disk: each task needs up to two copies of the game plus their `Library/` folders (the imported assets, often larger
   than the project; a copy seeded from another's import cache holds its own copy of it) and their builds, deleted
-  after the last task of the run that needs them. The copies go on the repo's own drive (its
-  resolved path, junctions followed), so LFS files are hardlinks of the repo's own objects and cost no disk; `--scratch`
-  on another drive makes them copies. It refuses to start below the machine's free-space floor (`min_free_gb`).
+  after the last task of the run that needs them. The copies go on the repo's own drive (its resolved path,
+  junctions followed), so LFS files are hardlinks of the repo's own objects and cost no disk; `--scratch` on another
+  drive makes them copies. It refuses to start below the machine's free-space floor (`min_free_gb` in the machine
+  config, else 50 GB; the environment variable `UGF_MIN_FREE_GB` overrides both), and a run that falls below it stops
+  once it has deleted every copy the current task doesn't need.
 - **One Unity process per project.** Unity locks a project folder while it has it open (`Temp/UnityLockfile`). The
-  checker opens only its own scratch copies, never your checkout, so an editor open on the game doesn't stop it; but
-  close any editor you opened on a scratch copy (after `--keep`) before the next run uses it.
-- Time: two builds and a few plays, typically 20-60 minutes per task. Most of a build is a scratch copy's first build
-  importing every asset into the copy's own `Library/`: about 5 minutes for a near-empty URP project on the machine
-  this was measured on, much longer for a real game with many or large assets. Within one run, a later copy starts
-  from the import cache of a copy that was already built (Unity's cache is keyed by each asset's content and import
-  settings, and is never part of the game: both copies stay exactly as committed), so it imports only what differs. A
-  commit shared by several tasks of one run is built once. A 20 s play takes a few seconds of real time; the first
-  play after a build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass
-  goes through `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the
-  machine's job slots with everything else; its timeouts count from when a job starts, not the wait for a slot. If
-  PowerShell refuses to load `unity-heavy.ps1` (an `AllSigned` execution policy), run the checker from a PowerShell
-  session that may run the machine's scripts, or pass `--direct`.
+  checker opens only its own scratch copies, one job at a time, never your checkout, so an editor open on the game
+  doesn't stop it.
+- Time: two builds and a few plays per task: 7 minutes for a near-empty URP project and 18 for a small game (the
+  factory's sample, nine plays) on the machine this was measured on, much longer for a real game with many or large
+  assets. Most of a build is a scratch copy's first build importing every asset into the copy's own `Library/` (2 to 5
+  minutes in those two). Within one run, a later copy starts from the import cache of a copy that was already built
+  (Unity's cache is keyed by each asset's content and import settings, and is never part of the game: both copies stay
+  exactly as committed), so it imports only what differs. A commit shared by several tasks of one run is built once.
+  A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
+  build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
+  `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
+  with everything else; its timeouts count from when a job starts, not the wait for a slot. The checker starts that
+  script itself, from any shell; if PowerShell still refuses to run it (an execution policy your organisation set),
+  each task's line is an ERROR that says so: pass `--direct`.
 
 ## What it does
 
 1. Reads the task from the `tasks` branch (else `origin/tasks`) and validates it like
-   [tools/validate-game.py](../tools/validate-game.py) does; a task that doesn't validate is INVALID.
+   [tools/validate-game.py](../tools/validate-game.py) does (the schema and the task format's own rules; the
+   validator's long-thread bar is the validator's alone); a task that doesn't validate is INVALID.
 2. Materializes the start and the reference into a scratch folder outside the repo, on its drive (default
    `<root>\.task-check\` when the machine root is on the repo's drive, else a `.task-check` folder beside the folder
-   that holds the repo): every file of that commit exactly as committed, LFS files hardlinked from the repo's store
-   (copied across drives), without `Tasks/`, `History/`, `Dataset/` or `Dataset.zip`. The TaskProbe package is added
-   as `Packages/com.taskprobe/` (an embedded package, so `Packages/manifest.json` stays untouched); nothing else is
-   added or changed, and nothing comes from another commit (no port, no patch). Your checkout is never touched. When a
-   scene the task plays names assets (by GUID) the commit doesn't hold (a store pack committed only later, say), the
-   result says so in a note: that is the task's commit to fix.
+   that holds the repo; each copy in a `<run>\<commit>` folder under it): every file of that commit exactly as
+   committed, LFS files hardlinked from the repo's store (copied across drives), without `Tasks/`, `History/`,
+   `Dataset/` or `Dataset.zip`. The TaskProbe package is added as `Packages/com.taskprobe/` (an embedded package, so
+   `Packages/manifest.json` stays untouched); nothing else is added or changed, and nothing comes from another commit
+   (no port, no patch). Your checkout is never touched. When a scene the task plays names assets (by GUID) the commit
+   doesn't hold (a store pack committed only later, say), the result says so in a note: that is the task's commit to
+   fix.
 3. Builds the start: `Unity.exe -batchmode -nographics -quit -projectPath <copy> -executeMethod
    TaskProbe.EditorTools.Build.Player`, a Windows x64 Mono non-development player in `<copy>\Build\TaskProbe\`, with
    every scene the task's plays open added after the project's own enabled build scenes. For the plays only, the
@@ -100,31 +106,25 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
    its build check says so (`"fails_at_start": true`: making it build is the task); then the start failing to build is
    the start failing the task, and it is never played.
 4. Checks the reference as if it were a solution: the task's checks in order (a check whose `needs` failed doesn't run
-   and fails): build, boot (a play of `seconds` that must end without a crash: a player log line matching `Crash!!!`,
-   `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`), `log_absent`, `file_exists`, and every probe against
-   its threshold.
+   and fails: `not run: needs X`): build, boot (a play of `seconds` that must run to its end without a crash: a player
+   log line matching `Crash!!!`, `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`), `log_absent`,
+   `file_exists`, and every probe against its threshold.
 5. Checks the start on its probes.
-6. Writes the result and deletes the scratch copies (unless `--keep`).
+6. Writes the result and deletes the scratch copies (unless `--keep`), with the saved data their plays left outside
+   them: the registry key `HKEY_CURRENT_USER\Software\TaskProbe.<hash>` and the folder
+   `%USERPROFILE%\AppData\LocalLow\TaskProbe_<hash>` of each copy's own company name (step 3).
 
 ### The plays
 
-Each play is the built player started windowed at 960x540 (`-screen-fullscreen 0 -screen-width 960 -screen-height
-540`) **on a Windows desktop of its own** (`tools/task_check/desk.py`): nothing shows on your screen, the play can't
-take your keyboard, and a game that locks the mouse cursor can't grab yours. The game counts itself focused for the
-whole play (`Application.isFocused` is true, no `OnApplicationFocus(false)`), so a game that pauses on focus loss plays
-on, and the frame read back is the same as a normal window's. (Only a player you start by hand on your own desktop,
-to try a play, has its window moved off-screen and deactivated by the probe instead; that one does see itself lose
-focus.) The probe opens the task's `play_scene` with the task's `play_args` (or the task play's own `scene` and
-`args`; `play_args` apply to every play, look, drive and boot included) and runs it on a fixed 30 fps clock (play time
-is frames / 30) from the moment the scene has loaded; the clock holds while any scene is still loading and during a
-`wait`, and keeps counting when the game pauses itself (`timeScale` 0). It samples every 0.5 s (a task play's
-`every`). The game's first build scene gets `Awake` and `OnEnable` but is replaced before its `Start`
-(task-probes.md, section 1.1). Every play starts from clean saved data: the probe clears the copy's own PlayerPrefs and
-persistent data folder when a play starts, and the checker deletes them with the copy. Each play is played once per
-side, with the measures of every probe that names it. Keys, buttons and axes go through the probe's own virtual Input
-System devices; your keyboard and mouse are never read. A play with an `audio` measure is paced to real time; in every
-play the probe's tap on the AudioListener measures the mix and silences it, so no play is ever heard
-(task-probes.md, section 2.16).
+Each play is the built player started windowed at 960x540 **on a Windows desktop of its own**
+(`tools/task_check/desk.py`: nothing shows on your screen, and the play can't take your keyboard or mouse) on a fixed
+30 fps clock, on the task's `play_scene` with its `play_args` (or the task play's own `scene` and `args`), with the
+TaskProbe package sampling every 0.5 s (a task play's `every`). Each play is played once per side, with the measures of
+every probe that names it. A play with an `audio` measure is paced to real time and every other play runs as fast as
+the machine renders; the probe silences every play once it has measured the sound, so no play is ever heard
+(task-probes.md, section 2.16). What a play does to the game (its focus, its clock, the first build scene, saved data,
+inputs) is in task-probes.md, section 1.1. Only a player you start by hand on your own desktop, to rerun a play of a
+kept copy, has its window moved off-screen and deactivated by the probe instead; that one does see itself lose focus.
 
 | `play` | What |
 |---|---|
@@ -132,14 +132,14 @@ play the probe's tap on the AudioListener measures the mix and silences it, so n
 | `"drive"` | 22 s, 8 screenshots: `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s, `<Keyboard>/w` 8-13 s with `<Keyboard>/space` at 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s |
 | `{"name": ..., "seconds": ..., "inputs": [...]}` | a task play: keys, axes, widget clicks, cursor moves, teleports, teleports next to an object and waits at their times, its own `scene`, `args` and `every`; 2 screenshots |
 | `"editor"` | one batchmode editor pass per side over every `asset` measure (the project as saved) |
-| a boot check | `seconds` of play, no input; `log_absent` reads a 60 s boot's log |
+| a boot check | `seconds` of play, no input, 2 screenshots; `log_absent` reads a 60 s boot's log |
 
 A boot is the same idle game as `"look"`, only longer, so on the side that boots (the reference; a start is never
-booted) one 60 s idle play with look's queries serves both: the boot check reads all of it and `"look"` reads only its
-first 20 s, exactly what a 20 s play would have measured. That saves a game launch per task. A look probe that reads
-the log (`"probe": "log"`) keeps its own 20 s play, because a log covers the whole play. The kept files are then under
-`boot_60s\`, not `look\`. Each play's progress line says how long it took, and how much of that it waited for a
-machine slot (`unity-heavy.ps1`).
+booted) one 60 s idle play with look's queries and screenshots serves both: the boot check reads all of it and
+`"look"` reads only its first 20 s, exactly what a 20 s play would have measured. That saves a game launch per task. A
+look probe that reads the log (`"probe": "log"`) keeps its own 20 s play, because a log covers the whole play. The kept
+files are then under `boot_60s\`, not `look\`. Each play's progress line says how long it took, and how much of that
+it waited for a machine slot (`unity-heavy.ps1`).
 
 ### Thresholds
 
@@ -162,9 +162,10 @@ A task is **VALID** when all of this holds:
 - every required probe in the `still_works` milestone already passes at the start. What must keep working has to work
   before the change, or the probe is broken and would fail every correct solution. A still-works probe the start
   measured nothing for (its play crashed, which is often the task's own bug) doesn't count against it;
-- a no-op scores zero: no deterministic check the start passes carries weight, required or not, so build, boot and
-  `still_works` checks, and any probe the start already passes (a `"required": false` one too), take `"weight": 0`.
-  Judges and trace probes aren't measured here, so their weights aren't covered by this rule.
+- a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
+  `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other probe the start
+  already passes, a `"required": false` one too (the task check measures that). Judges and trace probes aren't
+  measured here, so their weights aren't covered by this rule.
 
 Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
@@ -176,24 +177,49 @@ a reference (unity-write-tasks section 1; `tools/validate-game.py` rejects one w
 
 ## Results
 
-- One line per task on the console; progress goes to stderr.
-- `<repo>\.task-checks\<task>.json` (format `task-check/1`): `verdict`, `reasons` (why INVALID), `notes`, the `start`
-  and `reference` commits and whether they built, `probes` (per probe: its milestone, `required`, `op`, `expect`, the
-  `start` and `reference` measures, the `threshold`, and whether each side passed), every check's row on each side
-  (`start_checks`, `reference_checks`: `passed` and a `detail` such as `... | measured 1.18, threshold >= 1.193 (start
-  1.18, fix 1.205)`), `missing_assets` (per side, the played scenes' asset GUIDs the commit has no asset for), and the
-  task file's `task_sha256`.
-- `<repo>\.task-checks\<task>\<side>\<play>\`: each play's `probe.json` (the track, the camera rows, every measure's
-  samples, `query_errors`), `probe.log` (the probe's own lines: teleports, clicks, waits and errors, each with play
-  time and real time), its screenshots (960x540 PNGs, UI included) and `play.log`, the game's own player log;
-  `build\build.log` (Unity's
-  editor log of the build) when a build failed. Read these when a value surprises you.
+- One line per task on the console: the verdict (`VALID`, `INVALID`, or `ERROR` when the checker couldn't check it),
+  the task, and its reasons joined by `; `. Progress goes to stderr.
+- `<repo>\.task-checks\<task>.json` (format `task-check/1`; `--out` moves the folder):
+  - `verdict`, `reasons` (why INVALID or ERROR), `notes` (the reference's failures that don't decide, written
+    `reference fails X (<kind>): <detail>`, and scenes that name assets the commit lacks); a reason or note carries at
+    most 160 characters of a check's detail, the whole of it is in that check's row;
+  - `start` and `reference`: the side's `commit`, whether it `built`, its `missing_assets` (per scene the task plays,
+    the asset GUIDs it names that the commit has no asset for, and how many assets it names), and how its copy was
+    made (`files`, `lfs_linked`, `lfs_copied`, `engine`: the Unity.exe used, `slots`: `unity-heavy` or `direct`);
+  - `probes`: per probe its milestone (`group`), `required`, `op`, `expect`, the `start` and `reference` measures, the
+    `threshold`, and whether each side passed (`start_passed`, `reference_passed`);
+  - `start_checks`, `reference_checks`: every check's row on each side (`name`, `kind`, `group`, `required`, `weight`,
+    `passed` and a `detail`). A probe's detail is its `describe`, then `| measured V, threshold OP T`, with what the
+    start and the reference measured when the threshold came from them, and why it has no value: `... | measured 0,
+    threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing, threshold >= 1: no value in the window
+    (...)`. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
+    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
+    counts for nothing;
+  - `task_sha256` (the task file's), `task`, `game`, `at` (when, UTC), `seconds` (how long the check took) and
+    `evidence` (the task's folder of play files, below).
+- `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
+  `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
+  Each holds `probe.json` (the track, the camera rows, every measure's samples, `query_errors`), `probe.log` (the
+  probe's own lines: where each teleport put the player, each click, wait and error, each line `<play time> [<real
+  time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play),
+  `play.log` (the game's own player log) and `output.txt` (what the play's job printed, the machine slot's waits
+  among it). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's log of a build that failed.
+  Read these when a value surprises you. Checking a task again replaces its folder.
+- `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
+  finished task's console line with its minutes (`(18 min)`), and `checking <task>, then N more`. `progress.json`
+  (format `task-check-progress/1`) holds the same: `started` and `updated` (seconds since 1970), `tasks` (in order),
+  `done` (each finished task's `task`, `verdict`, `reasons` and `seconds`) and `finished`.
 - `.task-checks\` is git-ignored: new games have it in `.gitignore` (templates/unity-game); for an older game the
   checker adds it to the repo's own `.git\info\exclude`. Never commit results.
 
 ## Common reasons and fixes
 
-**`start already passes every required probe`.** The bug doesn't show in what the probes measure.
+An entry in code font is the line as the checker prints it (`X` a check's name, `N` a number, `...` the rest). A line
+that says its own fix (`fetch it, or fix the task`, `install it through Unity Hub`, `pass --direct`, `name one with
+--task NAME`) has no entry: do what it says.
+
+**`start already passes every required probe`** (or **`start already passes required probe X`**, for some of them).
+The bug doesn't show in what the probes measure.
 - The play never reaches the situation: the idle `look` stands at the spawn, the `drive` walks a fixed pattern. Write a
   task play that gets there: a `teleport` input (`{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` places the player,
   in metres, y up; take the coordinates from the editor, or from the `track` in a play's `probe.json`), its own
@@ -207,30 +233,33 @@ a reference (unity-write-tasks section 1; `tools/validate-game.py` rejects one w
 **`uncalibrated: ... the start and the reference both measure X`.** The measures are equal on both sides, so there is
 nothing to put a threshold between: the probe doesn't see the change. Measure something the fix changes (a
 different field, window or play), or use a literal value when the fact is a count or a boolean. A probe that isn't
-required and can't be calibrated fails as a note, never as a reason for INVALID.
+required and can't be calibrated fails as a note, never as a reason for INVALID. `uncalibrated: X: the reference
+measured nothing (...)` (or, for a threshold relative to the start, `the start measured nothing (...)`): read the
+reason in brackets as below.
 
 **`no samples in the window (the play ended at X s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
-never got to play (a crash at load, a scene that doesn't exist at that commit).
+never got to play (a crash at load: see the play's `play.log` and `output.txt`). A scene the commit doesn't have
+doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
 has that field. `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an instantiated
 prefab's object is named `<Prefab>(Clone)`, so select it by `name` with a wildcard (`Projectile*`); only objects active
 in the hierarchy match unless the select says `"inactive": true`; a component's member is
-`prop:<Component>.<member>`; `; the probe said: ...` quotes what the probe couldn't read (`query_errors`). The `rows`
-in the play's `probe.json` show what was found, and `probe.log` beside it what the probe did (a `teleport_to` that
-found nothing, a widget click that matched no button). Some fields have no value at first by design: `spin` on the
-first sample an object is seen in, `speed` of an object with no velocity of its own then too, audio `level` in the
-play's first frames.
+`prop:<Component>.<member>`. `; the probe said: ...` quotes the first line of the play's `query_errors` (what the probe
+couldn't read), which may come from another probe of the same play: each line starts with its query's kind
+(`spawns: no component type Coin`). The `rows` in the play's `probe.json` show what was found, and `probe.log` beside
+it what the probe did (a `teleport_to` that found nothing, a widget click that matched no button). Some fields have no
+value at first by design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of
+its own then too, audio `level` in the play's first frames.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,
-or a select using `player`, `has` or a `near` around the player or the camera (task-probes.md, section 2.11).
-
-**Keys do nothing.** The probe drives the Input System only. A game that reads the old Input Manager
-(`Input.GetKey`, `Input.GetAxis`) takes no input in a play; the `track` in `probe.json` stays put through the
-`drive`. Such a game's tasks can only use outcomes that need no input (teleports and idle plays), or a start that
-reads the Input System.
+or a select using `player`, `has` or a `near` around the player or the camera (task-probes.md, section 2.11). `the
+property has no number`: the value isn't a number, a boolean or an enum (a string needs `match`); `no selected object
+has a value`: none of the selected objects has it. `the editor pass gave no result (exit N)`: the pass itself failed
+(its log is `editor\output.txt`); `the project didn't build, so the editor couldn't open it`: see `start doesn't
+build`.
 
 **`of` defaults to `count`.** For `objects`, `components`, `widgets`, `ui` and scene `asset` measures, `of` combines
 the selected rows of one sample, and without it a field like `y` counts the rows whose value isn't 0 instead of
@@ -256,33 +285,67 @@ input actions' processors, its sensitivity setting, whatever its code multiplies
 few degrees and another a whole turn. Check the camera's `yaw` in the start play's `probe.json` and scale the axis
 values to the turn you need.
 
+**Keys do nothing.** The probe drives the Input System only. A game that reads the old Input Manager
+(`Input.GetKey`, `Input.GetAxis`) takes no input in a play; the `track` in `probe.json` stays put through the
+`drive`. Such a game's tasks can only use outcomes that need no input (teleports and idle plays), or a start that
+reads the Input System.
+
 **`start fails still-works X`.** The game works at the start, so a still-works probe that fails there is broken: it
 doesn't find the HUD, the object or the value it looks for. Fix the probe (see the play's `probe.json`), never the
 threshold.
 
 **`reference fails X`.** The reference doesn't do what the probe asks (a threshold on the wrong side: check `op`), or
-the reference's play doesn't reach the situation either. `reference fails boots_clean: crashed` means the reference
-crashes in a plain boot.
+the reference's play doesn't reach the situation either. The play's folder (`.task-checks\<task>\reference\<play>\`,
+see "Results") tells which: its screenshots, the `track` in `probe.json`, and `probe.log`, which says where each
+teleport put the player and what each click hit. A `teleport_to` goes next to the match nearest the player, so a
+select that also matches another object can take the player there instead:
+`6.00 [6.5 s] teleported next to CoinSpawner: asked (0.00, 0.00, 0.30) yaw 180.0, now at (0.00, 0.00, 0.30)` is a
+`{"name": "Coin*"}` that found the spawner, not a coin (select by `component`, or narrow the name); `teleport_to
+skipped (no object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a
+plain boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
 
-**`start: Assets/Scenes/X.unity names N assets that the commit doesn't have`** (a note). The scene refers to asset
-GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`; in the
-plays they load as missing (pink materials, empty mesh slots, missing scripts), which can make probes measure the
-wrong thing. Pick a commit that has the assets, or commit them (each with its `.meta`) so the task's commits hold them;
-the checker never adds files from other commits.
+**`start: Assets/Scenes/X.unity names N of its M assets that the commit doesn't have`** (a note). The scene refers to
+asset GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`;
+in the plays they load as missing (pink materials, empty mesh slots, missing scripts), which can make probes measure
+the wrong thing. Pick a commit that has the assets, or commit them (each with its `.meta`) so the task's commits hold
+them; the checker never adds files from other commits.
 
 **`start doesn't build`.** The start's scripts don't compile on its 6000.3 editor as committed, or the player build
 fails (`build\build.log`: the `error CS` lines first). Pick a start that builds, or, when making it build is the task,
 set `"fails_at_start": true` on the build check (then no threshold may be relative to the start).
 
-**`repo: README: shows no gameplay image`, or another `repo:` error from the validator.** That is
-`tools/validate-game.py` checking the game repo itself, not a task. The task check needs only the task to validate
-(the schema and the task rules beyond it); fix the repo for packaging, but it doesn't change a task's verdict.
-
-**Exit code 198, or a licence error in `build.log`** (an ERROR line, not a verdict): Unity has no active licence.
-Sign in to Unity Hub, check the licence there, and run again.
-
-**`... scratch project folder ... longer than 90 characters`** (an ERROR line): pass a short `--scratch` on the
-repo's drive (`--scratch C:\tc`).
-
 **`... LFS object(s) ... aren't in ...'s local store`** (an ERROR line, not a verdict): fetch them,
 `git -C <repo> lfs fetch origin <commit>`, and run again.
+
+**`ERROR   <task>: the checker couldn't check it: ...`.** The checker itself failed on that task, so the line says
+nothing about the task; the run goes on with the next one, and the exit code is 1. The rest of the line says why: a
+missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a disk error.
+Fix that and run again. One check's row reading `the checker failed (...)` is the same for that check alone.
+
+**`a no-op scores N, not 0: give X "weight": 0, or drop them`.** Those checks already pass at the start (`still_works`
+probes, probes that aren't required), so a run that changes nothing would score `N` (the weighted share of checks
+passed). Give each `"weight": 0` (a required one still gates), or drop it.
+
+**`no required probe outside still_works to check the start with`.** Nothing is left to show the start failing: every
+required probe is in `still_works`, or none is required. Add a required probe outside `still_works` for each issue of
+the thread (unity-write-tasks skill, section 5).
+
+**`start builds, though X says it doesn't (fails_at_start)`.** The start built, though its build check says making it
+build is the task. Drop `fails_at_start`, or pick the commit where the build broke.
+
+**`the task doesn't validate: ...`.** The task breaks its schema or a rule of the task format (up to five problems,
+worded as `tools/validate-game.py` words them for the task; `... is not JSON (...)`: the file doesn't even parse). Fix
+the task file and check it again. The validator checks more than this: the long-thread bar and the no-op weights of
+each task, and on its `repo:` lines the game repo itself (`repo: README: shows no gameplay image`). Those never change
+a task check's verdict, but a game is delivered only with the validator's VALID too ([game-format.md](game-format.md)).
+
+**Exit code 198** (`exit 198`), or `No valid Unity Editor license` in `build.log`: Unity has no active licence, and the
+check of that task says nothing about it. Sign in to Unity Hub, check the licence there, and run again. Every Unity log
+also holds `[Licensing::...]` lines with `Error` in them when the licence works: those mean nothing.
+
+**`task-check.py: error: the scratch project folder ... is longer than 90 characters (N): ...`** (a usage error, exit
+code 2: nothing ran). Pass a `--scratch` of at most 68 characters on the repo's drive (`--scratch C:\tc`).
+
+**`task check: only N GB free on C: (floor 50 GB; UGF_MIN_FREE_GB / min_free_gb). ...`** (exit code 1). The scratch
+copies' drive is below the machine's floor ("Requirements"): the run didn't start, or stopped after the tasks it had
+finished. Free space on that drive, or pass `--scratch` on a drive with room (its LFS files are then copies).
