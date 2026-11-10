@@ -808,9 +808,9 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   80 m with max 50); linear falls to 0 at max distance; a custom curve runs over distance / max distance.
 - `field`: `count` (how many sources), `audible` (how many at 0.001, -60 dB, or louder), `volume` (their volumes'
   sum), `max_volume` (the loudest), and `level` (the RMS of the listener's mixed output since the previous sample,
-  mixers and effects included: everything the player would hear, whatever plays it). For the first frames of a play,
-  and for up to 4 frames after the listener changes, there is no tap on it yet: `level` has no value then. No
-  listener: no value at all.
+  mixers and effects included: everything the player would hear, whatever plays it). The probe puts its tap on the
+  listener from its first frame, and on a new listener in the frame it comes on; a sample before which no sound
+  reached the tap (a play's first sample can be one) has no `level`. No listener: no value at all.
 - While `AudioListener.pause` is on, every source reads as not playing (`count` and `level` 0); with `timeScale` 0
   sounds keep playing.
 - The sample's value also holds `loudest` (the loudest source's clip name), `peak` and `listener` (its object's name),
