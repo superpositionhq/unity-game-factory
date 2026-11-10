@@ -227,9 +227,10 @@ original's, unchanged (`probes.py`).
   - a **Part** (`rel_yaw:`, `world_yaw:`/`world_pitch:`/`world_roll:`, `forward:`; the original names a component):
     `Reflect.Part`, a transform in the object (itself and inactive ones included) of exactly that name, else the object
     in it that carries a component of that type name. A Light shines along its forward;
-  - `anim:<Parameter>` (the original's `bb:<Key>`, an AI blackboard Unity doesn't have) and `clip`: the first enabled
-    Animator with a controller in the object (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the heaviest
-    clip on layer 0 (`GetCurrentAnimatorClipInfo(0)`);
+  - `anim:<Parameter>` (the original's `bb:<Key>`, an AI blackboard Unity doesn't have) and `clip`: the object's first
+    Animator on an active object (`GetComponentInChildren`), when it is enabled and has a controller, else no value
+    (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the heaviest clip on layer 0
+    (`GetCurrentAnimatorClipInfo(0)`);
   - measured: a whole-scene sample of 3000 objects takes about 20 ms.
 - **components** (`ComponentsQuery`; the original's registered components of a class): with `component`, the
   components whose type, a base type or an interface has that name (`Find.Components`: `FindObjectsByType` of that
@@ -345,18 +346,18 @@ original's, unchanged (`probes.py`).
   tree instances 1 each (Unity's counterpart of instanced meshes; detail grass and `Graphics.RenderMesh*` draws aren't
   renderers and count 0); which renderers count, and a piece's triangles: task-probes.md 2.14 (`PiecesQuery` caches
   each mesh's triangle count; trees are read from their prototypes).
-- **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled
-  and playing (and matching the select) at its volume at the listener (the first enabled AudioListener on an active
-  object): its `volume` (0 when muted) x ((1 - `spatialBlend`) + `spatialBlend` x its rolloff at the listener's
-  distance: logarithmic min distance / distance, linear down to 0 at max distance, or its custom curve over distance /
-  max distance). Mixer group volumes and `AudioListener.volume` are left out (the original multiplies its sound
-  classes' and mixes' volumes in). `level` has no counterpart in the original: the RMS of the listener's mixed output
-  since the previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on the enabled listener
-  (it looks again every 4 frames), which sums the final mix (mixers and effects applied) and then zeroes it, in every
-  play, so no play is ever heard. A play that measures audio is paced to real time at 30 fps (the play spec's
-  `sound`); every other play runs as fast as the machine renders. The value's other keys, and what was measured of
-  Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer volumes), are in
-  `docs/task-probes.md` section 2.16.
+- **audio** (`AudioQuery`, `AudioTap`; the original's active sounds of the audio device): every AudioSource enabled and
+  playing (and matching the select) at its volume at the listener (the first enabled AudioListener on an active object):
+  its `volume` (0 when muted) x ((1 - `spatialBlend`) + `spatialBlend` x its rolloff at the listener's distance:
+  logarithmic min distance / distance, linear down to 0 at max distance, or its custom curve over distance / max
+  distance). Mixer group volumes and `AudioListener.volume` are left out (the original multiplies its sound classes' and
+  mixes' volumes in). `level` has no counterpart in the original: the RMS of the listener's mixed output since the
+  previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on the enabled listener (it looks
+  again before and after the game's scripts every frame, `AudioTap.Follow`), which sums the final mix (mixers and
+  effects applied) and then zeroes it, in every play, so no play is ever heard. A play that measures audio is paced to
+  real time at 30 fps (the play spec's `sound`); every other play runs as fast as the machine renders but for its waits
+  and scene loads (section 4). The value's other keys, and what was measured of Unity's audio (one-shot sounds, rolloff
+  past max distance, `AudioListener.pause`, mixer volumes), are in `docs/task-probes.md` section 2.16.
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from
   y = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept); which colliders count, the
