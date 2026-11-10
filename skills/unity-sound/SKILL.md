@@ -11,11 +11,11 @@ Use the **unity-commit-always** skill for every commit.
 
 ```
 S=<UGF_ROOT>/unity-game-factory/tools/sfx.py
-python $S search "<English query>"                 # key, title, seconds, dl=downloads, rating=average(votes), licence, description
-python $S search "<English query>" --license cc0   # CC0 only; the default also lists CC BY
-python $S search "<English query>" --sort short    # also: downloads, rating; --urls adds preview links
-python $S get <repo> --used-for "<cue>" [--mono] fs:<id> ...   # WAV in Assets/Audio/SFX/, manifest and credits written
-python $S measure Assets/Audio/SFX/<file>.wav      # seconds, channels, rate, peak_db, rms_db, attack_ms, tail_ms
+python "$S" search "<English query>"                 # key, title, seconds, dl=downloads, rating=average(votes), licence, description
+python "$S" search "<English query>" --license cc0   # CC0 only; the default also lists CC BY
+python "$S" search "<English query>" --sort short    # also: downloads, rating; --urls adds preview links
+python "$S" get <repo> --used-for "<cue>" [--mono] fs:<id> ...   # WAV in Assets/Audio/SFX/, manifest and credits written
+python "$S" measure Assets/Audio/SFX/<file>.wav      # seconds, channels, rate, peak_db, rms_db, attack_ms, tail_ms
 ```
 
 ## 1. List the cues first
