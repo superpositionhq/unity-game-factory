@@ -36,7 +36,8 @@ MARGIN = 0.25  # a calibrated threshold whose start measured nothing: the refere
 
 class Uncalibrated(Exception):
     """A probe whose threshold can't be made (a start and reference measuring the same; a side that must be measured
-    measuring nothing): the task can't be graded by it. `start`, `fix`: what each side measured."""
+    measuring nothing; a reference of 0 to anchor on): the task can't be graded by it. `start`, `fix`: what each side
+    measured."""
 
     def __init__(self, message, start=None, fix=None):
         super().__init__(message)
