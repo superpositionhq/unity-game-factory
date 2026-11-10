@@ -17,8 +17,9 @@ A task is VALID when
   outside still_works (or doesn't build by design);
 - without a reference: the start fails every required probe outside still_works (or doesn't build by design);
 - either way, every required probe of the task's `still_works` milestone already passes at the start: what still works
-  must hold there, or the probe is broken and would fail every correct solution. A still-works probe the start
-  measured nothing for (its play crashed: the task's own bug) is no sign of a broken probe;
+  must hold there, or the probe is broken and would fail every correct solution. A still-works probe the start has no
+  samples for (its play crashed or ended early: the task's own bug) is no sign of a broken probe; one that finds
+  nothing to measure in a start that ran is;
 - a no-op scores zero (owner, 2026-11-04): no check the start passes carries weight. The cloud's score is the weighted
   share of checks passed, so build, boot and still-works checks and anything else true of the start take `"weight": 0`.
 Judges (judge, code_judge, actions_judge) never take part, and neither do trace probes or packaging."""
@@ -122,7 +123,7 @@ def verdict(task, reference, start):
     for c in start["checks"]:
         detail = str(c["detail"])
         if c["name"] in still and not c["passed"] and not detail.startswith("not asked") \
-                and "measured nothing" not in detail:  # a crash the task fixes leaves nothing to measure
+                and "no samples in the window" not in detail:  # a crash the task fixes leaves nothing to measure
             why.append(f"start fails still-works {c['name']}: {detail[:160]}")
     if reference is not None:
         for c in reference["checks"]:

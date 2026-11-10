@@ -131,10 +131,26 @@ class Verdict(unittest.TestCase):
                                "start already passes every required probe"], "a still-works failure is no gate")
         good = record(checked("roofs", "probe", False), checked("hud_shown", "probe", True))
         self.assertEqual(verdict.verdict(task, None, good), (True, [], []))
-        crashed = record(checked("roofs", "probe", False, "x | measured nothing, threshold >= 1: the play wrote no "
-                                                         "probe file"),
-                         checked("hud_shown", "probe", False, "x | measured nothing, threshold >= 1: no samples"))
+        crashed = record(checked("roofs", "probe", False, "x | measured nothing, threshold >= 1: no samples in the "
+                                                         "window (the play wrote no probe file)"),
+                         checked("hud_shown", "probe", False, "x | measured nothing, threshold >= 1: no samples in the "
+                                                             "window (the play ended at 3.1 s)"))
         self.assertEqual(verdict.verdict(task, None, crashed), (True, [], []), "a start the bug crashes measures nothing")
+
+    def test_a_still_works_probe_that_finds_nothing_at_a_start_that_ran_is_broken(self):
+        """Only a play that left no samples (it crashed, ended early, wrote no probe file) excuses a still-works probe:
+        one whose select finds nothing in a start that ran is the broken probe the rule is there for."""
+        task = task_with(milestones=[{"name": "done", "checks": [probe("roofs")]},
+                                     {"name": "still_works", "checks": [probe("hud_shown", weight=0)]}], seed=NO_FIX)
+        empty = "x | measured nothing, threshold >= 1: no value in the window (nothing it selects was measured)"
+        valid, why, _ = verdict.verdict(task, None, record(checked("roofs", "probe", False),
+                                                           checked("hud_shown", "probe", False, empty)))
+        self.assertFalse(valid)
+        self.assertEqual(why, [f"start fails still-works hud_shown: {empty[:160]}"])
+        unread = "uncalibrated: hud_shown: the start measured nothing (no value in the window (nothing it selects " \
+                 "was measured)), and the threshold is relative to it"
+        self.assertFalse(verdict.verdict(task, None, record(checked("roofs", "probe", False),
+                                                            checked("hud_shown", "probe", False, unread)))[0])
 
     def test_a_still_works_probe_counts_with_a_reference_too(self):
         task = task_with(milestones=[{"name": "fixed", "checks": [probe("fixed")]},
