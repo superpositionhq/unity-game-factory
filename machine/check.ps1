@@ -240,7 +240,9 @@ Try-Check 'Job slots' {
 }
 Try-Check 'UnityWork layout' {
     $missing = @('games', 'tasks', 'builds\_queue', 'builds\_logs', 'recordings', '.recording', 'deliverables', 'asset-library', 'tools') | Where-Object { -not (Test-Path (Join-Path $Root $_)) }
-    if (-not $missing) { Add-Result PASS 'UnityWork layout' $Root } else { Add-Result FAIL 'UnityWork layout' "missing: $($missing -join ', ')" 'machine\bootstrap.ps1' }
+    # the release builds' private clones and temp folder, outside the user profile (tools/unity-pipeline/build.ps1)
+    $ugb = @((Join-Path $cfg.ugb 'src'), (Join-Path $cfg.ugb 'tmp')) | Where-Object { -not (Test-Path $_) }
+    if (-not $missing -and -not $ugb) { Add-Result PASS 'UnityWork layout' "$Root + $($cfg.ugb)" } else { Add-Result FAIL 'UnityWork layout' "missing: $(@($missing) + @($ugb) -join ', ')" 'machine\bootstrap.ps1' }
 }
 Try-Check 'unity-game-factory clone' {
     $exp = Join-Path $Root 'unity-game-factory'

@@ -10,8 +10,10 @@
 # ({"6000.3.28f1": "<path to Unity.exe>", ...}), "record_extra_projects" (top-level folders under the root that the
 # recording hooks treat as projects besides games\<slug>), "github_org" (the GitHub organisation or user that owns
 # unity-game-factory and the private unity-game-<slug> repos; Get-UGFOrg), "agents" (the coding agents bootstrap.ps1
-# wired up: "claude", "codex") and "hooks_dir" (where the recording hooks live, shared by both agents;
-# Get-UGFHooksDir). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this file next to them.
+# wired up: "claude", "codex"), "hooks_dir" (where the recording hooks live, shared by both agents;
+# Get-UGFHooksDir) and "ugb" (default C:\UGB: the release builds' private clones and build temp, outside the user profile
+# so the user name is not compiled into a player). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this
+# file next to them.
 #
 # Another factory may run on the same machine with its own root and config (%USERPROFILE%\.game-factory\).
 # The two never share a root, a config or a hooks folder; they share only the machine-wide job slots (the mutexes
@@ -30,6 +32,7 @@ function Get-UGFConfig {
         root                  = (Join-Path $env:USERPROFILE 'UnityWork')
         unity_hub_editors     = 'C:\Program Files\Unity\Hub\Editor'
         unity_version         = $script:UGFDefaultUnityVersion
+        ugb                   = 'C:\UGB'
         record_extra_projects = @()
     }
     $path = Get-UGFConfigPath
@@ -40,7 +43,7 @@ function Get-UGFConfig {
         foreach ($p in $json.PSObject.Properties) { $cfg[$p.Name] = $p.Value }
     }
     if ($env:UGF_ROOT) { $cfg.root = $env:UGF_ROOT }
-    foreach ($k in 'root', 'unity_hub_editors') {
+    foreach ($k in 'root', 'unity_hub_editors', 'ugb') {
         $v = ([string]$cfg[$k]).TrimEnd('\', '/')
         if ($v -match '^[A-Za-z]:$') { $v += '\' }
         $cfg[$k] = [IO.Path]::GetFullPath($v)

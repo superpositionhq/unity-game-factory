@@ -3,12 +3,13 @@
   Set up a Windows machine for unity-game-factory sessions (idempotent: run it again any time; it only changes what
   differs).
 .DESCRIPTION
-  1. Machine root and config: writes %USERPROFILE%\.unity-game-factory\config.json (root, unity_hub_editors,
+  1. Machine root and config: writes %USERPROFILE%\.unity-game-factory\config.json (root, ugb, unity_hub_editors,
      unity_version, and the job slots heavy_slots / gpu_slots computed from the hardware by lib\ugf-root.ps1
      Get-UGFComputedSlots, recorded in slots_auto; values set by hand stay unless -Force) and creates the UnityWork
      layout under the root (games, tasks, builds\_queue, builds\_logs, recordings, .recording, deliverables,
      asset-library, tools; builds, recordings and deliverables wait for the recording pipeline and the packagers, which
-     are not available yet).
+     are not available yet) plus <ugb>\src and <ugb>\tmp (the release builds' private clones and their temp folder,
+     outside the user profile so the user name is not compiled into a player).
   2. Tools: <root>\tools\unity-heavy.ps1 (+ ugf-root.ps1) and the pinned ffmpeg
      (machine\get-ffmpeg.ps1, downloaded and SHA-256 verified, never committed).
   3. Coding agents (-Agent claude|codex|both; default: the config's "agents", else the ones installed, else both;
@@ -33,13 +34,15 @@
   powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1
   powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1 -Root D:\UnityWork -CloneGames
   # scratch test that leaves the real profile alone:
-  powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1 -Root C:\ugf-test\UnityWork `
+  powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1 -Root C:\ugf-test\UnityWork -Ugb C:\ugf-test\UGB `
       -ClaudeDir C:\ugf-test\home\.claude -CodexDir C:\ugf-test\home\.codex -AgentsSkillsDir C:\ugf-test\home\.agents\skills `
       -HooksDir C:\ugf-test\home\.unity-game-factory\hooks -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Agent both -FfmpegArchive <.7z>
 #>
 param(
     # default: UGF_ROOT / existing config / %USERPROFILE%\UnityWork
     [string]$Root,
+    # default: config / C:\UGB (private build clones and build temp, outside the user profile)
+    [string]$Ugb,
     # default: config / C:\Program Files\Unity\Hub\Editor
     [string]$UnityHubEditors,
     # default: config / 6000.3 (its newest installed patch; new games)
@@ -77,6 +80,7 @@ $cfg = Get-UGFConfig
 $Root = $cfg.root
 if (-not $UnityHubEditors) { $UnityHubEditors = $cfg.unity_hub_editors }
 if (-not $UnityVersion) { $UnityVersion = [string]$cfg.unity_version }
+$Ugb = if ($Ugb) { [IO.Path]::GetFullPath($Ugb.TrimEnd('\', '/')) } else { [string]$cfg.ugb }
 if (-not $CodexDir) { $CodexDir = Get-UGFCodexHome }
 if (-not $HooksDir) { $HooksDir = Get-UGFHooksDir $cfg }
 $HooksDir = [IO.Path]::GetFullPath($HooksDir)
@@ -139,10 +143,11 @@ if (-not $Org -and [Environment]::UserInteractive -and -not [Console]::IsInputRe
     $Org = (Read-Host 'GitHub organisation (or user) that owns unity-game-factory and the unity-game-<slug> repos').Trim()
 }
 $want = [ordered]@{ root = $Root; unity_hub_editors = $UnityHubEditors; unity_version = $UnityVersion
-    record_extra_projects = @($cfg.record_extra_projects); agents = @($Agents); hooks_dir = $HooksDir }
+    record_extra_projects = @($cfg.record_extra_projects); agents = @($Agents); hooks_dir = $HooksDir; ugb = $Ugb }
 if ($Org) { $want['github_org'] = $Org }
 $have = if (Test-Path -LiteralPath $cfgPath) { [IO.File]::ReadAllText($cfgPath) | ConvertFrom-Json } else { $null }
 $same = $have -and ($have.root -eq $want.root) -and ($have.unity_hub_editors -eq $want.unity_hub_editors) -and
+    ($have.PSObject.Properties['ugb'] -and $have.ugb -eq $want.ugb) -and
     ($have.unity_version -eq $want.unity_version) -and
     ((@($have.record_extra_projects) -join '|') -eq (@($want.record_extra_projects) -join '|')) -and
     ((@($have.agents) -join '|') -eq (@($want.agents) -join '|')) -and ($have.hooks_dir -eq $want.hooks_dir) -and
@@ -154,7 +159,7 @@ else {
         Copy-Item -LiteralPath $cfgPath "$cfgPath.bak-$stamp"
     }
     Write-JsonFile $cfgPath $want
-    Note $(if ($have) { 'changed' } else { 'added' }) "config $cfgPath" "root=$Root unity_version=$UnityVersion github_org=$Org agents=$($Agents -join ',') hooks_dir=$HooksDir"
+    Note $(if ($have) { 'changed' } else { 'added' }) "config $cfgPath" "root=$Root ugb=$Ugb unity_version=$UnityVersion github_org=$Org agents=$($Agents -join ',') hooks_dir=$HooksDir"
 }
 if (-not $Org) { Note warn 'github_org' 'not set: run bootstrap.ps1 -Org <GitHub org or user> (new-game.ps1, -CloneGames and check.ps1 need it)' }
 # Job slots from the hardware (lib\ugf-root.ps1 Get-UGFComputedSlots; unity-heavy.ps1 reads the config). The computed
@@ -194,6 +199,7 @@ if ($kept) { Note warn 'job slots set by hand' (($kept -join '; ') + '; -Force r
 
 $dirs = @('games', 'tasks', 'builds', 'builds\_queue', 'builds\_logs', 'recordings', '.recording', 'deliverables', 'asset-library', 'tools') |
     ForEach-Object { Join-Path $Root $_ }
+$dirs += @((Join-Path $Ugb 'src'), (Join-Path $Ugb 'tmp'))
 $new = @($dirs | Where-Object { -not (Test-Path -LiteralPath $_) })
 foreach ($d in $new) { New-Item -ItemType Directory -Force $d | Out-Null }
 Note $(if ($new.Count) { 'added' } else { 'ok' }) 'UnityWork layout' $(if ($new.Count) { "created $($new.Count) folder(s)" } else { "$($dirs.Count) folders present" })
