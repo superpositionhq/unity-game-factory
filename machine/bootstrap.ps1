@@ -171,7 +171,9 @@ $next['slots_auto'] = [ordered]@{
 $before = ($now | ConvertTo-Json -Depth 32 -Compress)
 $after = ([pscustomobject]$next | ConvertTo-Json -Depth 32 -Compress)
 if ($before -ne $after) {
-    Copy-Item -LiteralPath $cfgPath "$cfgPath.bak-$stamp" -Force
+    # one backup a run, of the config as this run found it: the write above may have made it already, and a config this
+    # run created has none
+    if ($have -and -not (Test-Path -LiteralPath "$cfgPath.bak-$stamp")) { Copy-Item -LiteralPath $cfgPath "$cfgPath.bak-$stamp" }
     Write-JsonFile $cfgPath $next
     Note changed 'job slots' ("heavy_slots={0} gpu_slots={1} ({2})" -f $next['heavy_slots'], $next['gpu_slots'], $next['slots_auto'].basis)
 } else { Note ok 'job slots' ("heavy_slots={0} gpu_slots={1}" -f $next['heavy_slots'], $next['gpu_slots']) }
