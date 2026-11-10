@@ -71,8 +71,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
               {"t": 6.2, "key": "<Mouse>/leftButton", "press": false},
               {"t": 8.0, "widget": "RetryButton", "click": true}]}
   ```
-  - `name`: lowercase letters, digits and `_`, at most 32, and not `look`, `drive`, `editor` or `trace`. Plays with
-    the same name in one task must be identical.
+  - `name`: lowercase letters, digits and `_`, at most 32, and not `look`, `drive`, `editor` or `trace`. A check
+    can't point at another check's play by its name: every check that reads a task play carries the whole play, and
+    plays with the same name in one task must be identical (the play then runs once per side for all of them).
   - `seconds`: a whole number, 5-120. No input at or after the end.
   - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
@@ -191,6 +192,9 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
 - **The build.** The player is the checker's own build of the commit (task-check.md, "What it does", step 3): without
   static batching, so each renderer keeps its own mesh name and triangle count for `mesh` selects and `pieces`, and not
   a development build, so no watermark sits on the frame.
+- **The end.** When the play's time is up the probe writes its files and ends the process at once: the game's own
+  `OnApplicationQuit` and `OnDestroy` don't run at the end of a play, so nothing a game does only on quitting can be
+  measured. A game that quits by itself ends the play there.
 
 ### 1.2 Thresholds (`expect`)
 
@@ -209,7 +213,10 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   written into the task.
 - **Relative to the start**, for an outcome the fix is only one fair way of reaching (most features and changes), or a
   task with no fix: `{"op": ">=", "start_times": 1.3}` (threshold `s * 1.3`) or `{"op": ">=", "start_plus": 5}`
-  (threshold `s + 5`), measured on the start.
+  (threshold `s + 5`), measured on the start. It needs a value at the start: a measure that selects only what the
+  task adds measures nothing there and is left without a threshold (below), so select what the start has too (the
+  fastest spin among every drawn object has a value at the start, 0 where nothing turns; the spin of the new things
+  alone has none).
 
 Where the number depends on what a build chose, the threshold is calibrated or relative to the start, never a literal
 value, and `tools/validate-game.py` refuses a literal: `objects` `spread`, `bounds_change`, `pose_change`, `glow` and
@@ -940,7 +947,9 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   ground; anything else (trees, rocks, roofs) is traced through. The player's colliders are always skipped, with or
   without `select`.
 - The ray is 3D: 2D colliders are never ground (a 2D game's ground isn't read this way). A height comes from a
-  single-precision ray from 2000 m up: it is good to about 0.1 mm.
+  single-precision ray from 2000 m up: it is good to about 0.1 mm. In a project without Unity's Physics module the
+  ray meets nothing, and the play's `query_errors` says "ground <id>: the project has no Physics module: no ground
+  is read".
 - **A `range` threshold is calibrated or relative to the start, never a literal value**; heights take a literal, as
   an object's `y` does.
 

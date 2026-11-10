@@ -285,9 +285,10 @@ set. The usual order:
    readability of text over the scene), a `code_judge` for code quality, and the standard `actions_judge`
    `worked_well` (or `trace` probes, `"required": false`). A judge is written
    `{"name": ..., "kind": "actions_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
-   `"required": false` (the task schema has the rest). The standard `worked_well` question and rubric are not in
-   this repo yet: leave that check out unless the coordinator gives you its text (one with words of your own is not
-   the standard one).
+   `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set
+   `"before": true` to be shown the start beside the result, and `route` and `reference` (the task schema's `Judge`
+   says what each does). The standard `worked_well` question and rubric are not in this repo yet: leave that check
+   out unless the coordinator gives you its text (one with words of your own is not the standard one).
 
 A probe names one measurement and its threshold:
 
@@ -326,7 +327,9 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   Where the reference is only one fair way of reaching the outcome (most features and changes: how fast a new thing
   spins, how bright it glows), a calibrated threshold would hold every solution to the reference's own tuning: set it
   relative to the start instead, `{"op": ">=", "start_plus": 30}` or `"start_times"` (docs/task-probes.md, section
-  1.2).
+  1.2). Such a threshold needs a value at the start, and what the task adds isn't there yet: measure over what the
+  start has too (the fastest spin of any drawn object, 0 at the start), not over the new things alone, which leave a
+  required probe without a threshold and the task INVALID.
 
 Write probes from the game's own code at `seed.commit` and `seed.reference`: the real component types, tags, layers,
 scene paths and UI element names. **Test the outcome a player sees, never the implementation**: another valid fix must

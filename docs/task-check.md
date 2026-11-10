@@ -188,9 +188,10 @@ a run counts as solved only when every required check passes, so a required one 
 solution like the reference can pass. Fix its pattern, or make it `"required": false`.
 
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
-`still_works` (thresholds relative to the start, or literals; a relative one the start measured nothing for has no
-threshold, and no solution could pass it), and pass its still-works probes. Every shipped task has a reference
-(unity-write-tasks section 1; `tools/validate-game.py` rejects one without), so this is for drafts only.
+`still_works` and pass its still-works probes, and every required probe, a still-works one too, needs a threshold
+(relative to the start, or a literal; a relative one the start measured nothing for has none, and no solution could
+pass it). Every shipped task has a reference (unity-write-tasks section 1; `tools/validate-game.py` rejects one
+without), so this is for drafts only.
 
 ## Results
 
@@ -295,9 +296,10 @@ found nothing, a widget click that matched no button). A `drawn` measure has no 
 the place alone (no graphics device, or a render pipeline other than URP with its Universal Renderer, URP's 2D
 Renderer among them), and `lit` or `glow` of a source the probe reads as rendered then reads its bound or nothing:
 the play's `query_errors` (in `probe.json`) holds one `rendering: ...` line saying why (task-probes.md, section
-2.19). Some fields have no value at first by design: `spin` on the first sample an object is seen in, `speed` of an
-object with no velocity of its own then too, audio `level` in the play's first frames, the grading fields and a
-light's `exposure` and `brightness` at a play's first sample.
+2.19), and such a measure's reason quotes it after `; the probe said:`. Some fields have no value at first by
+design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of its own then too,
+audio `level` in the play's first frames, the grading fields and a light's `exposure` and `brightness` at a play's
+first sample.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,
