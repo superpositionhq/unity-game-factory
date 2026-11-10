@@ -147,8 +147,9 @@ it waited for a machine slot (`unity-heavy.ps1`).
   If the start measured nothing (its play crashed: often the bug itself), the threshold is `r` moved a quarter of
   `|r|` toward the start's side (an `r` of 0 gives no margin: uncalibrated). If the reference measured nothing, or
   both sides measure the same, the probe fails as **uncalibrated**.
-- `{"op": ">=", "start_times": 1.3}` / `{"op": ">=", "start_plus": 5}`: `s * 1.3` / `s + 5` from the start (for a
-  task with no reference). A start that measured nothing leaves no threshold (uncalibrated).
+- `{"op": ">=", "start_times": 1.3}` / `{"op": ">=", "start_plus": 5}`: `s * 1.3` / `s + 5` from the start (for an
+  outcome the reference is only one fair way of reaching, or a task with no reference: task-probes.md, section 1.2).
+  A start that measured nothing leaves no threshold (uncalibrated).
 
 ## VALID and INVALID
 
