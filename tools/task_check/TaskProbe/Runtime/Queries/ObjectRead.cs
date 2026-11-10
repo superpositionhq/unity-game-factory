@@ -50,7 +50,9 @@ namespace TaskProbe
             return have;
         }
 
-        /// <summary>spread: the diagonal of the box around its drawn renderers' bounds centres; 0 with one, null with none.</summary>
+        /// <summary>spread: the diagonal of the box around its drawn renderers' bounds centres, a skinned mesh whose bones
+        /// carry several Rigidbodies (a ragdoll) by each body's place; 0 with one, null with none. A whole object reads
+        /// its parts' own layout; one broken into pieces that fell or flew apart reads more.</summary>
         public static object Spread(GameObject go)
         {
             var have = false;
@@ -58,10 +60,34 @@ namespace TaskProbe
             foreach (var r in go.GetComponentsInChildren<Renderer>(false))
             {
                 if (!Geometry(r)) continue;
+                var bodies = 0;
+#if TASKPROBE_PHYSICS
+                // a ragdoll is one skinned mesh over bones that carry the bodies: its bounds stay one box however far
+                // its limbs fly
+                if (r is SkinnedMeshRenderer skinned) bodies = Bodies(skinned, ref box, ref have);
+#endif
+                if (bodies > 0) continue;
                 if (have) box.Encapsulate(r.bounds.center); else { box = new Bounds(r.bounds.center, Vector3.zero); have = true; }
             }
             return have ? (object)(double)box.size.magnitude : null;
         }
+
+#if TASKPROBE_PHYSICS
+        static int Bodies(SkinnedMeshRenderer skinned, ref Bounds box, ref bool have)
+        {
+            var bones = skinned.bones;
+            var found = 0;
+            foreach (var bone in bones)
+                if (bone != null && bone.gameObject.activeInHierarchy && bone.TryGetComponent<Rigidbody>(out _)) found++;
+            if (found < 2) return 0;  // one body is no layout: the mesh counts by its bounds centre
+            foreach (var bone in bones)
+            {
+                if (bone == null || !bone.gameObject.activeInHierarchy || !bone.TryGetComponent<Rigidbody>(out _)) continue;
+                if (have) box.Encapsulate(bone.position); else { box = new Bounds(bone.position, Vector3.zero); have = true; }
+            }
+            return found;
+        }
+#endif
 
         /// <summary>hidden: inactive, or it has renderers and none is drawn.</summary>
         public static bool Hidden(GameObject go)
@@ -103,6 +129,11 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- Parts by name (rel_yaw:, world_yaw:, forward:, bone:)
 
+#if TASKPROBE_ANIMATION
+        static readonly string[] HumanNames = Enum.GetNames(typeof(HumanBodyBones));
+        static readonly HumanBodyBones[] HumanBones = (HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones));
+#endif
+
         /// <summary>bone:&lt;Component&gt;.&lt;Bone&gt;.x|y|z: the world position of a bone of a SkinnedMeshRenderer, a human
         /// bone of an Animator, or a descendant transform of that name (under the component, else under the object).</summary>
         public static object Bone(GameObject go, string path)
@@ -120,9 +151,13 @@ namespace TaskProbe
                 foreach (var b in smr.bones)
                     if (b != null && b.name == boneName) { bone = b; break; }
 #if TASKPROBE_ANIMATION
-            if (bone == null && component is Animator animator && animator.isHuman &&
-                Enum.TryParse<HumanBodyBones>(boneName, true, out var human) && human != HumanBodyBones.LastBone)
-                bone = animator.GetBoneTransform(human);
+            if (bone == null && component is Animator animator && animator.isHuman)
+            {
+                // a human bone by its name only (Enum.TryParse would take "5" or "Hips, Spine" too, and an id out of
+                // range throws)
+                var i = Array.FindIndex(HumanNames, n => string.Equals(n, boneName, StringComparison.OrdinalIgnoreCase));
+                if (i >= 0 && HumanBones[i] != HumanBodyBones.LastBone) bone = animator.GetBoneTransform(HumanBones[i]);
+            }
 #endif
             if (bone == null) bone = Descendant(component.transform, boneName) ?? Descendant(go.transform, boneName);
             if (bone == null) return null;
@@ -288,6 +323,10 @@ namespace TaskProbe
             }
 #if TASKPROBE_PHYSICS
             if (t.TryGetComponent<Rigidbody>(out var body) && !body.isKinematic) return body.angularVelocity.magnitude * Mathf.Rad2Deg;
+#endif
+#if TASKPROBE_PHYSICS2D
+            if (t.TryGetComponent<Rigidbody2D>(out var body2) && body2.bodyType == RigidbodyType2D.Dynamic && body2.simulated)
+                return (double)Mathf.Abs(body2.angularVelocity);  // deg/s already
 #endif
             return null;
         }
