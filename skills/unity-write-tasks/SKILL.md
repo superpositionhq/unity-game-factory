@@ -14,7 +14,9 @@ shipped task). Up to about 10 per game, every one a long thread of multiple edit
 filling the count with short ones. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
 repos' tasks branches, and the packager ships them in the dataset split into the agent's and the grader's halves
 (docs/game-format.md). Write tasks with this skill and the unity-game-factory tools only, never with another skill
-(AGENTS.md, "Only these skills").
+(AGENTS.md, "Only these skills"). `<root>` and `<UGF_ROOT>` below are the machine root (`%UGF_ROOT%`); every `docs/...`
+and `tools/...` path named here is in the unity-game-factory folder under it, `<UGF_ROOT>/unity-game-factory` (the
+links lead there too: they work in that folder, not in an installed copy of this skill).
 
 ## 0. Where tasks live: the orphan `tasks` branch
 
@@ -413,3 +415,64 @@ reaches it. So:
 | a bug that never shows in the grader's plays | a scenario or a task play that triggers the moment |
 | a brief rejected by a content filter (injury wording) | neutral technical words: mesh, bones, pose, hit, reaction |
 | a reverted asset kept its newer `.meta` and lost its references | an asset and its `.meta` always move together |
+
+## 9. Examples
+
+One whole task, to show the file format and the probe style only. Its game and its commits are made up, so it has
+passed the schema and the validator's rules for a task, never the task check: copy its shape, never its names or
+thresholds.
+
+```json
+{
+  "name": "harbor-run-corr-chase-camera-and-lap-count",
+  "title": "The chase camera crowds the boat and the lap count never changes",
+  "instruction": "QA played scenario 2 (the harbor circuit; W and S throttle, A and D steer) and reports three things.\n1. The camera rides so close behind the boat that the course ahead can hardly be seen. It should sit well back and above the boat.\n2. In turns the boat's own hull or the quay cuts off the view of the boat. The boat should stay in clear view all the way round.\n3. The lap count at the top of the screen stays at LAP 1/3 after the boat rounds the last buoy. It should show the lap the boat is on.\nSteering, throttle and the rest of the HUD must keep working as they do now.",
+  "engine": "unity-6000.3",
+  "seed": {"game": "harbor-run", "kind": "correction",
+           "commit": "1111111111111111111111111111111111111111",
+           "reference": "2222222222222222222222222222222222222222"},
+  "play_scene": "Assets/Scenes/Harbor.unity",
+  "play_args": ["-scenario", "2"],
+  "difficulty": "medium",
+  "tags": ["long-thread"],
+  "limits": {"max_turns": 400, "max_minutes": 480, "max_usd": 150, "tool_timeout_seconds": 1800},
+  "milestones": [
+    {"name": "builds", "checks": [
+      {"name": "player_builds", "kind": "build", "weight": 0}]},
+    {"name": "boots", "checks": [
+      {"name": "boots_clean", "kind": "boot", "seconds": 60, "weight": 0, "needs": ["player_builds"]},
+      {"name": "no_exceptions", "kind": "log_absent", "pattern": "Exception", "weight": 0, "needs": ["boots_clean"]}]},
+    {"name": "fixed", "checks": [
+      {"name": "camera_back_from_boat", "kind": "probe", "weight": 3, "needs": ["boots_clean"],
+       "describe": "While the boat is driven, the camera stays well back from it instead of riding just behind it.",
+       "play": "drive",
+       "measure": {"probe": "camera", "field": "distance", "window": [8, 21], "agg": "mean"},
+       "expect": {"op": ">=", "calibrate": 0.5}},
+      {"name": "boat_stays_in_view", "kind": "probe", "weight": 2, "needs": ["boots_clean"],
+       "describe": "Through the whole drive nothing stands between the camera and the boat.",
+       "play": "drive",
+       "measure": {"probe": "camera", "field": "occluded", "window": [2, 21], "agg": "max"},
+       "expect": {"op": "<=", "value": 0}},
+      {"name": "lap_count_updates", "kind": "probe", "weight": 3, "needs": ["boots_clean"],
+       "describe": "After the boat is put beside the last buoy and driven on past it, the HUD shows lap 2 of 3.",
+       "play": {"name": "round_last_buoy", "seconds": 12,
+                "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1},
+                           {"t": 4, "key": "<Keyboard>/w", "press": true},
+                           {"t": 9, "key": "<Keyboard>/w", "press": false}]},
+       "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "LAP\\s*2/3", "of": "any",
+                   "at": "end"},
+       "expect": {"op": ">=", "value": 1}}]},
+    {"name": "still_works", "checks": [
+      {"name": "boat_still_moves", "kind": "probe", "weight": 0, "needs": ["boots_clean"],
+       "describe": "The boat still travels under the drive's keys.",
+       "play": "drive",
+       "measure": {"probe": "player", "field": "moved", "agg": "max"},
+       "expect": {"op": ">=", "value": 5}}]}
+  ]
+}
+```
+
+`builds`, `boots` and `still_works` carry `"weight": 0` because the start already passes them; the three probes of
+`fixed`, one per issue of the brief, carry the weight. The task play reaches its spot with `teleport_to` an object
+by its whole name, then drives on. `limits` are written out: left out, the schema's lower defaults apply. The
+optional `quality` milestone is left out.
