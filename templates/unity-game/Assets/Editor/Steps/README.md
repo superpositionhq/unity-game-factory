@@ -16,11 +16,11 @@ The creation replay (not available yet) will run these steps again to rebuild th
 - reach files through the project: asset paths (`"Assets/Scenes/Harbor.unity"`), `Application.dataPath`, or the
   current directory (the project root in batchmode); never an absolute path to this folder;
 - steps that only look (probes, checks) are named `Inspect*`, `Measure*`, `Check*`, `Analyze*`, `Scan*` or contain
-  `Probe`;
+  `Probe`; one that also writes something later work reads is named otherwise;
 - every run logs at least one row: `WorkflowLog.Row(op, target, parameters)` (`Assets/Editor/Tools/WorkflowLog.cs`);
 - a step that fails calls `EditorApplication.Exit(1)` after logging a `"failed"` row, so the run's exit code says so;
 - build content from code (`EditorSceneManager`, `PrefabUtility`, `AssetDatabase`, `SerializedObject` for private
-  fields), never by editing scene or prefab YAML by hand.
+  fields), never by editing the YAML of scenes, prefabs, materials or `.asset` files by hand.
 
 What the editor does that a step must allow for:
 
