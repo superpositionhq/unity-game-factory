@@ -221,10 +221,11 @@ captioned gallery (one line per image saying what it shows). Every image the REA
 pushing, open the repo page on github.com and check that each image renders (a link to a file that was never committed
 shows as a broken image).
 
-**Game format (docs/game-format.md).** Before calling the game content-complete, the game repo must hold the required
-files: `assets.manifest.json` in `assets-manifest/v1` with every listed file committed, every asset with its `.meta`,
-`workflow.jsonl` rows, README images, no banned names. The dataset adds your design doc and the original brief
-(`Brief/`) and the full history.
+**Game format (docs/game-format.md).** Before calling the game content-complete,
+`python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` must say VALID: required files,
+`assets.manifest.json` in `assets-manifest/v1` with every listed file committed, every asset with its `.meta` and no
+orphan `.meta`, `workflow.jsonl` rows, README images, no banned names. The dataset adds your design doc and the
+original brief (`Brief/`) and the full history.
 
 **Tasks (unity-write-tasks skill).** A game is complete when its repo has `Tasks/` on the tasks branch: tasks an agent
 can be given on this game, one `Tasks/<game>-<kind>-<slug>.json` each in the task format `GameTask`, up to about 10,
@@ -232,8 +233,13 @@ every one a long thread of multiple edits from your real history (a bug that too
 took several rounds, a feature or look pass built over many commits), never a single fix. They live on the repo's
 orphan `tasks` branch, checked out as a worktree outside the game folder (`<root>/tasks/<slug>`), committed and pushed
 there, never on main: task work never enters the game's history (the hooks ignore that branch). Seeds point at main's
-commits. Follow the unity-write-tasks skill; never point the game's code or docs at `Tasks/`. Judge each task's
-difficulty in the session against the bar (unity-write-tasks skill); never run a task with another coding agent.
+commits. Follow the unity-write-tasks skill (the branch and worktree, seeds, the brief written from context, the play
+scene, deterministic probe checks, what must never reach the agent); never point the game's code or docs at `Tasks/`.
+validate-game.py checks their format, and `tools/task-check.py <games>/<slug> --all` (docs/task-check.md), started
+once all the tasks are written as a background process the person can leave running (unity-write-tasks section 5),
+checks them on the engine: a task ships only when the task check says VALID. Judge each task's difficulty in the
+session against the bar (unity-write-tasks skill, section 6); never run a task with another coding agent
+(`tools/task-try.py` is ours, run on submitted tasks).
 
 ## Working with the coordinator
 

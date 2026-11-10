@@ -42,7 +42,7 @@ game gets made must follow these rules only; another skill brings instructions a
 the creation record, and the Unreal skills give Unreal answers to Unity questions)_
 
 Session briefs: [docs/briefs/](docs/briefs/README.md). New machine: [docs/new-machine.md](docs/new-machine.md).
-Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md).
+Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md). Checking a game's tasks: [docs/task-check.md](docs/task-check.md).
 
 **Priorities (user decision).** What ships is what matters, in this order: the game plays; the game builds (editor and
 the Windows release player); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
@@ -72,7 +72,7 @@ changes.
 | machine setup, recording hooks, job limiter (`machine/`) | ported to Unity |
 | game template + `new-game.ps1` (`templates/`) | ported to Unity |
 | sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | ported to Unity |
-| task verifier: task schema, `validate-game.py`, probe plugin, `task-check.py` | not yet: comes next |
+| task verifier: the task schema, `validate-game.py`, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | ported to Unity: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
 | AutoPlay drop-in, recording pipeline, creation replay, dataset packager | not yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
 
 Where a skill names a tool that is not here yet, it says so; do that part by hand or report it as open, never with a

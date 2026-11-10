@@ -1,7 +1,8 @@
 # Unity editor, build and recording pipeline
 
 How heavy Unity work runs on a shared machine, and the plan for the recording pipeline. The parts marked **later**
-come with the recording pipeline (after the task verifier); everything else is in the repo now.
+come with the recording pipeline; everything else is in the repo now. The task checker's own builds and plays
+(a scratch copy's player, started on a Windows desktop of its own) are in [task-check.md](task-check.md).
 
 ## Paths
 
