@@ -15,7 +15,7 @@
 # this existed: the rows go in just before that session's first row. Each session is backfilled at most once
 # (recording-backfill.json next to this file), and a call already in actions.jsonl is never written twice.
 # On Stop, leftover changes in a game repo are committed ("WIP") so no work stays uncommitted (not while conflicts
-# are unresolved: that commit would hold the conflict markers).
+# are unresolved or HEAD is detached: that commit would hold the conflict markers, or land on no branch).
 # Nothing is recorded when UGF_NO_RECORDING (or the Unreal factory's GF_NO_RECORDING) is set: tools/task-try.py sets
 # both for the agent it runs on a task.
 # The Unreal game-factory's record-action.ps1 may run on the same calls (same agent settings): each factory maps only
@@ -274,8 +274,10 @@ try {
     if ((Test-Path (Join-Path $repo '.git')) -and -not (Test-Path (Join-Path $repo '.git\index.lock'))) {
       $dirty = git -C $repo status --porcelain
       # unresolved conflicts (a merge, a stash that did not apply cleanly): `add -A` marked them resolved and the WIP
-      # commit concluded the merge with the conflict markers in the files. Left for the session to resolve.
-      if (@($dirty) -match '^(DD|AU|UD|UA|DU|AA|UU) ') { }
+      # commit concluded the merge with the conflict markers in the files. A detached HEAD (a rebase or a bisect under
+      # way): the WIP commit took the place of the commit being rebased, or was left on no branch when the bisect ended.
+      # Both are left for the session to finish.
+      if ((@($dirty) -match '^(DD|AU|UD|UA|DU|AA|UU) ') -or -not (git -C $repo symbolic-ref -q HEAD)) { }
       elseif ($dirty) {
         $before = git -C $repo rev-parse -q --verify HEAD
         git -C $repo add -A 2>$null | Out-Null
@@ -284,9 +286,12 @@ try {
         if ($held) { $mutex.ReleaseMutex() }
         git -C $repo commit -q -m "WIP" 2>$null | Out-Null
         if ($held) { $held = Enter-UGFMutex $mutex 30000 }
-        # a commit the repo refused (a hook said no) is not recorded as one: the row then carries no auto_commit
-        $sha = git -C $repo rev-parse -q --verify HEAD
-        if ($sha -and $sha -ne $before) { $row.auto_commit = [ordered]@{ sha = $sha; files = @($dirty).Count } }
+        # the WIP commit is the one whose parent is the HEAD before it, not HEAD: while the mutex was free another
+        # session's commit could land on top of it. A commit the repo refused (a hook said no) is not recorded as one:
+        # the row then carries no auto_commit.
+        $sha = @(git -C $repo rev-list --parents -n 10 HEAD) | Where-Object { @($_ -split ' ')[1] -eq $before } |
+          ForEach-Object { @($_ -split ' ')[0] } | Select-Object -First 1
+        if ($sha -and (git -C $repo log -1 --format=%s $sha) -eq 'WIP') { $row.auto_commit = [ordered]@{ sha = $sha; files = @($dirty).Count } }
       } else { $row.auto_commit = $null }
     }
   } else {
