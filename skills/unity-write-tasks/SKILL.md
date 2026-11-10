@@ -255,7 +255,10 @@ set. The usual order:
    scene still loads its scenario).
 5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
    readability of text over the scene), a `code_judge` for code quality, and the standard `actions_judge`
-   `worked_well` (or `trace` probes, `"required": false`).
+   `worked_well` (or `trace` probes, `"required": false`). A judge is written
+   `{"name": ..., "kind": "actions_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
+   `"required": false` (the task schema has the rest). The standard `worked_well` question and rubric are not in this repo yet: leave
+   that check out unless the coordinator gives you its text (one with words of your own is not the standard one).
 
 A probe names one measurement and its threshold:
 
