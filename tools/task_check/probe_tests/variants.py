@@ -110,7 +110,9 @@ class Compiler:
                                       "-nowarn:1701,1702,0618,0649,0169,0414", f"-out:{Path(work) / 'TaskProbe.dll'}",
                                       f"-define:{';'.join(PLAYER + on)}"]
                                      + [f'-reference:"{r}"' for r in refs] + [f'"{s}"' for s in self.sources]), encoding="utf-8")
-            ran = subprocess.run([str(self.dotnet), str(self.csc), f"@{rsp}"], capture_output=True, text=True, check=False)
+            # run in the package's folder: the compiler names a file by its path from where it runs
+            ran = subprocess.run([str(self.dotnet), str(self.csc), f"@{rsp}"], capture_output=True, text=True, check=False,
+                                 cwd=str(self.package))
         errors = [line.replace(str(self.package) + "\\", "") for line in (ran.stdout + ran.stderr).splitlines() if "error" in line]
         return ran.returncode == 0, errors
 
