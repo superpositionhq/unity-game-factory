@@ -96,8 +96,10 @@ above-normal priority during a recording.
 
 Every heavy job of every session goes through one limiter, `<root>\tools\unity-heavy.ps1` (rows in
 `.recording\_heavy-jobs.jsonl`): `& <root>\tools\unity-heavy.ps1 -Label "<slug> <what>" [-Gpu] [-Low] -- <exe> <args>`.
-From Git Bash, wrap it in `powershell -Command "& '<path>' ... ; exit $LASTEXITCODE"` (`powershell -File ... --`
-misparses `--`).
+From Git Bash, wrap it in `powershell -ExecutionPolicy Bypass -Command "& '<path>' ... ; exit \$LASTEXITCODE"`
+(`powershell -File ... --` misparses `--`; without `-ExecutionPolicy Bypass` Windows' default policy refuses the
+script, and with the dollar sign unescaped bash expands `$LASTEXITCODE` to nothing: either way the call returns 0
+whatever the job did).
 
 Each slot is a named mutex (`machine/lib/ugf-root.ps1` `Get-UGFSlotMutexes`, `Enter-UGFSlot`). A job that is killed
 before it releases its slot (a cancelled tool call, a killed editor) leaves the mutex abandoned, and the next job takes
