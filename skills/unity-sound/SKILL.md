@@ -70,9 +70,10 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
 
 ## 5. Into the engine
 
-- The WAVs live in `Assets/Audio/SFX/` and are committed through Git LFS (the template's `.gitattributes` covers them;
-  check with `git check-attr filter -- <file>`). Unity imports them as AudioClips and writes each one's `.meta` on the
-  next editor run: commit every WAV together with its `.meta`, never one without the other.
+- The WAVs are committed in `Assets/Audio/SFX/` (Git LFS; the template's `.gitattributes` covers them). Check with
+  `git check-attr filter -- <file>`. Unity imports each as an AudioClip on the next editor run and writes its `.meta`
+  (the first clip also `Assets/Audio.meta` and `Assets/Audio/SFX.meta`): commit every WAV with its `.meta`, never one
+  without the other.
 - Set the import settings with a committed editor step, e.g. `Assets/Editor/Steps/ImportSfx.cs`, run through
   `Scripts/unity.ps1 step -Method <Namespace>.ImportSfx.Run -Reason "..."`: `AudioImporter` per clip (`forceToMono`
   for world sounds; `loadType` DecompressOnLoad for short clips, CompressedInMemory for medium ones, Streaming for
