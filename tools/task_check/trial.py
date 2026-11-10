@@ -36,7 +36,6 @@ LIMITS = {"max_turns": 200, "max_minutes": 240}  # the schema's defaults (game-t
 # holds the agent's editor state (build profiles with their own defines and scenes, compiled scripts, build caches),
 # which a game's files never carry; the grade imports everything again, as the task check does for each copy.
 BUILT = ("Library", "Temp", "Obj", "Logs", "Build", "Builds")
-GAME = ("Assets", "Packages", "ProjectSettings")  # the game's own folders: a grade reads and writes inside them
 NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-action hooks record nothing when set
 # Nothing points the agent at a machine root, its config (which names the root), its deliverables (every game's history)
 # or the organisation that holds the game repos.
@@ -267,6 +266,29 @@ def outside(path, folders):
     return True
 
 
+def linked(folder):
+    """The first symbolic link or junction among the game's files in the workspace `folder`, or None. A grade puts the
+    probe package into Packages/ and its Unity writes among the rest (.meta files, the project's and the user's
+    settings, the package lock): through a link, into someone else's folder. The build outputs (BUILT) are not looked
+    into, since they are removed without following a link, nor is .git, which Unity never opens."""
+    skipped = {".git", *(name.lower() for name in BUILT)}
+    stack = [str(folder)]
+    while stack:
+        top = stack.pop()
+        try:
+            entries = list(os.scandir(top))
+        except OSError:  # gone since it was listed
+            continue
+        for entry in entries:
+            if top == str(folder) and entry.name.lower() in skipped:
+                continue
+            if entry.is_symlink() or entry.is_junction():
+                return Path(entry.path)
+            if entry.is_dir(follow_symlinks=False):
+                stack.append(entry.path)
+    return None
+
+
 def score(task, grade):
     """What a run reached: solved (every required check passed), its score (the weighted share of checks passed, as the
     cloud scores it, judges left out since a try doesn't run them), required checks passed, milestones reached."""
@@ -390,10 +412,10 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
             try:
                 if outside(folder, [scratch]):  # the agent swapped its folder for a link: nothing there is the try's
                     raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
-                for name in GAME:  # the probe package and the grade's Unity would write through such a link
-                    if os.path.islink(folder / name) or os.path.isjunction(folder / name):
-                        raise FileNotFoundError(f"{name} is now a link to {os.path.realpath(folder / name)}: not "
-                                                "graded")
+                link = linked(folder)  # the probe package and the grade's Unity would write through it
+                if link is not None:
+                    raise FileNotFoundError(f"{link.relative_to(folder).as_posix()} is now a link to "
+                                            f"{os.path.realpath(link)}: not graded")
                 for d in BUILT:  # (one the agent made a link goes as the link: seeds.remove never follows one)
                     seeds.remove(folder / d)
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
