@@ -91,7 +91,7 @@ namespace TaskProbe
                 var go = c.gameObject;
                 if (name != null && !Find.Wild(name, go.name)) continue;
                 if (near != null && !near.Contains(centre, c.transform.position)) continue;
-                if (mesh != null && !Find.Wild(mesh, Find.MeshOf(c)?.name)) continue;
+                if (mesh != null && !Find.Wild(mesh, MeshName(c))) continue;
                 if (visibleOnly && !Visible(c)) continue;
                 if (effect && !Effects.Live(c)) continue;
                 if (owners != null && !Find.OwnedBy(c, owners)) continue;
@@ -99,6 +99,14 @@ namespace TaskProbe
             }
             found.Clear();
             Find.SortByHierarchy(matched);
+        }
+
+        /// <summary>The name of the mesh a component draws or collides with; null without one (a mesh destroyed while a
+        /// renderer still holds it is null too: Unity's ==, not ?., which would throw on it).</summary>
+        static string MeshName(Component c)
+        {
+            var m = Find.MeshOf(c);
+            return m != null ? m.name : null;
         }
 
         /// <summary>visible: a Renderer drawn; any other component, its object active.</summary>
