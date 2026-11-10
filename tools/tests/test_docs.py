@@ -683,9 +683,12 @@ EXCHANGED_FILES = ('play spec', 'probe.json', 'probe.log', 'player command line'
                    'editor-pass result')
 
 
-def written(function):
-    """What a function of tools/task_check/unity.py spells out: ([the keys of each dict], its flags, its files)."""
-    node = next(n for n in ast.walk(ast.parse(read(UNITY_PY))) if isinstance(n, ast.FunctionDef) and n.name == function)
+def written(function=None):
+    """What a function of tools/task_check/unity.py spells out: ([the keys of each dict], its flags, its files); with
+    no function, the whole module (a file's name may be a constant of the module)."""
+    node = ast.parse(read(UNITY_PY))
+    if function:
+        node = next(n for n in ast.walk(node) if isinstance(n, ast.FunctionDef) and n.name == function)
     words = [n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
     dicts = [[k.value for k in d.keys if isinstance(k, ast.Constant)] for d in ast.walk(node) if isinstance(d, ast.Dict)]
     return dicts, {w for w in words if w.startswith('-')}, {w for w in words if w.endswith(('.json', '.log'))}
@@ -866,13 +869,12 @@ def command_problems(block):
     else:
         return 'command line', [f'it starts neither the player ({unity.PLAYER}), the build ({unity.BUILD_METHOD}) nor '
                                 f'the editor pass ({unity.ASSETS_METHOD})']
-    flags, files = set(), set()
+    flags, files = set(), written()[2]
     for part in parts:
         flags |= written(part)[1]
-        files |= written(part)[2]
     shown = set(re.findall(r'(?<!\S)-[A-Za-z][\w-]*', text))
     out = [] if shown == flags else [f'its flags are {sorted(shown)}; unity.py passes {sorted(flags)}']
-    out += [f'unity.py names no file {f} for it' for f in sorted(set(re.findall(r'\b[\w.]+\.(?:json|log)\b', text)) - files)]
+    out += [f'unity.py names no file {f}' for f in sorted(set(re.findall(r'\b[\w.]+\.(?:json|log)\b', text)) - files)]
     if job == 'player command line' and not all(f'-screen-{side} {n}' in text
                                                 for side, n in zip(('width', 'height'), unity.SHOT_SIZE)):
         out.append(f'its window is not unity.SHOT_SIZE, {unity.SHOT_SIZE}')

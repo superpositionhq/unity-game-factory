@@ -333,10 +333,12 @@ see "Results") tells which: its screenshots, the `track` in `probe.json`, and `p
 teleport put the player and what each click hit. A `teleport_to` goes next to the match nearest the player, so a
 select that also matches another object can take the player there instead:
 `6.00 [6.5 s] teleported next to CoinSpawner: asked (0.00, 0.00, 0.30) yaw 180.0, now at (0.00, 0.00, 0.30)` is a
-`{"name": "Coin*"}` that found the spawner, not a coin (select the coins by their own component,
-`"component": "Coin"`, or their full name, `Coin(Clone)`: task-probes.md, section 2.4); `teleport_to skipped (no
-object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain boot
-(`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
+`{"name": "Coin*"}` that found the spawner, not a coin. Select the things themselves: by their own component
+(`"component": "Coin"`) or their full name (`Coin(Clone)`) when the start has them too; when the task adds them (a
+feature, a change), another solution would name them otherwise, so select by what they carry (`has`), and keep out a
+parent that holds them with a `component` on the object itself (task-probes.md, section 2.4). `teleport_to skipped
+(no object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain
+boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
 `reference fails X: build failed (exit N: ...)` means the reference doesn't build as committed; every check that
 `needs` it then fails `not run: needs X`, and so on down the chain. The reason names the first cause and
 `reference\build\build.log` holds the rest, as for `start doesn't build` below.

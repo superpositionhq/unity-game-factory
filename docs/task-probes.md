@@ -125,8 +125,10 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       `offset`'s y, and nothing then moves it to the ground or out of a collider (next to a coin hovering 0.8 m up,
       `"offset": [0, -0.8, 0]` puts a player whose pivot is at its feet on the ground). **A select matches every
       object that fits it, and the nearest wins**: `{"name": "Coin*"}` also takes a `CoinSpawner`, and a player
-      standing beside the spawner goes there; select the instances themselves (their exact name, their own component,
-      or `has`: section 2.4). No match: nothing happens. The play's `probe.log` says what each one did,
+      standing beside the spawner goes there; select the instances themselves, by their exact name or their own
+      component where the start has them too, and by what they carry (`has`) where the task adds them, since another
+      solution would name them otherwise (section 2.4). No match: nothing happens. The play's `probe.log` says what
+      each one did,
       `teleported next to <name>: asked (x, y, z) yaw <degrees>, now at (x, y, z)` or
       `teleport_to skipped (no object matches)`: check it in the fix's play;
     - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 120) puts the player back
@@ -325,6 +327,10 @@ renderers, else its position.
     to select by what an object does ("an object that gives light", "an object with a drawn mesh near here") rather
     than by the type or name a build gave it. It works in every object select: these, other measures' (`owner`,
     `ground`), points (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`.
+    Because a part may sit on a descendant, an object that holds others (a spawner that parents what it spawns, a
+    pool, a manager) matches whatever one of its children matches: keep it out with a `component` on the object
+    itself that it lacks (`{"component": "MeshRenderer", "has": {"lit": true}}`: an object that draws a mesh itself
+    and gives light), a `near` or a height band.
     `"simulating": true` (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an
     object by what it can do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object
     a player can shove, whichever component a build used.
