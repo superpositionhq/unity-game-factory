@@ -31,14 +31,14 @@ by hand under these rules, or ask.
    `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\templates\new-game.ps1 -Slug <slug> -Path <UGF_ROOT>\games\<slug> -Title "<Title>" -Description "<one line>"`
    with `<UGF_ROOT>` written out as the absolute path (e.g. `C:\Users\<you>\UnityWork`), never `%UGF_ROOT%` or
    `$env:UGF_ROOT`: the hooks match the command text. new-game.ps1 refuses any other -Path (typed in Git Bash, put
-   each Windows path in single quotes: bash drops unquoted backslashes). Calls made before this one
-   (reading docs, drafting the design) are imported from your transcript when the session is mapped (status
-   `from_transcript`). It writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text, the editor
-   tools assembly, LFS for every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row, the commit
-   recorder hook, the first commit, the first editor open (packages, URP, Input System, TextMeshPro's essential
-   resources, player settings; a second commit) when the editor is installed, and the private repo
-   `<org>/unity-game-<slug>` (`github_org` in the machine config; not pushed). When it says the first open did not run
-   or failed (no editor, no licence), run `Scripts/unity.ps1 setup` once that is fixed, then commit.
+   each Windows path in single quotes: bash drops unquoted backslashes). Calls made before this one (reading docs,
+   drafting the design) are imported from your transcript when the session is mapped (status `from_transcript`). It
+   writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text, the editor tools assembly, LFS for
+   every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row, the commit recorder hook, the first
+   commit, the first editor open (packages, URP, Input System, TextMeshPro's essential resources, player settings; a
+   second commit) when the editor is installed, and the private repo `<org>/unity-game-<slug>` (`github_org` in the
+   machine config; not pushed). When it says the first open did not run or failed (no editor, no licence), run
+   `Scripts/unity.ps1 setup` once that is fixed, then commit.
 3. Write the design doc + story bible in unity-game-factory `docs/games/<slug>.md` before building: systems, classes,
    ScriptableObjects, scenes, scenarios 1..n (start state + win/lose), art and audio direction, acceptance checklist.
    Keep its status section current. It is the only unity-game-factory file you edit.
@@ -67,8 +67,9 @@ by hand under these rules, or ask.
 - Toolchain facts: the editor needs an activated licence (Unity Hub, a Unity ID; Personal is fine) even in batchmode,
   or every run exits with a licensing error. IL2CPP player builds need the Windows Build Support (IL2CPP) module and
   Visual Studio 2022's C++ workload; Mono builds need neither. `-runTests` must not be combined with `-quit` (the test
-  run quits by itself; with `-quit` the editor exits 0 before the run and writes no results). A batchmode run with compile errors aborts before your method runs: read `error CS` lines in its
-  log first. `-nographics` cannot render: no screenshots, no lightmap bake, no shader warm-up from it.
+  run quits by itself; with `-quit` the editor exits 0 before the run and writes no results). A batchmode run with
+  compile errors aborts before your method runs: read `error CS` lines in its log first. `-nographics` cannot render:
+  no screenshots, no lightmap bake, no shader warm-up from it.
 - The first player build changes tracked files, and that is expected: URP writes its shader-stripping choices into
   the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
   Unity writes the platform's batching entry into `ProjectSettings.asset`. Commit them with the build's row; later
@@ -89,10 +90,10 @@ by hand under these rules, or ask.
   input handling, **Cinemachine 3** for cameras. The template's first open sets these up.
 - **C# for gameplay** (`Assets/Scripts/`, in its own assembly definition: a test assembly cannot reference Unity's
   default one), ScriptableObjects for tuning data, prefabs for everything placed more than once. **Editor work through
-  committed C# editor steps** (`Assets/Editor/Steps/`), run
-  headless with `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."` (Unity `-batchmode
-  -executeMethod`). Never hand-edit the YAML of scenes, prefabs, materials or `.asset` files: one wrong `fileID` or
-  GUID silently breaks references. Build scenes, prefabs and materials from code (`EditorSceneManager`,
+  committed C# editor steps** (`Assets/Editor/Steps/`), run headless with
+  `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."` (Unity `-batchmode -executeMethod`). Never
+  hand-edit the YAML of scenes, prefabs, materials or `.asset` files: one wrong `fileID` or GUID silently breaks
+  references. Build scenes, prefabs and materials from code (`EditorSceneManager`,
   `PrefabUtility`, `AssetDatabase`, `SerializedObject` for private fields).
 - `new Color(255, 0, 0)` is not red: `Color` takes 0..1 floats, and 255 is a blinding HDR value (light colours,
   tints). Use 0..1 floats, or `Color32` for bytes.
@@ -119,12 +120,12 @@ by hand under these rules, or ask.
   downloaded Unity Asset Store packs and the animation packs (library `<UGF_ROOT>\asset-library\`); characters and
   creatures animated. Store content in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed with
   its `.meta` files, through Git LFS where binary, and never git-ignored (the repo stays private; unity-commit-always
-  skill, "Store packs are committed"); import a `.unitypackage` with an editor step (`AssetDatabase.ImportPackage(path,
-  false)`, run with `-NoQuit`: above); adapt it (materials, kitbash, set dressing, lighting). Record every external
-  asset in `assets.manifest.json` (format `assets-manifest/v1`, docs/game-format.md: URL, licence, version, the repo
-  paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as a normal developer would. Need
-  more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP support, what it replaces) in your
-  design doc and message the coordinator.
+  skill, "Store packs are committed"); import a `.unitypackage` with an editor step
+  (`AssetDatabase.ImportPackage(path, false)`, run with `-NoQuit`: above); adapt it (materials, kitbash, set dressing,
+  lighting). Record every external asset in `assets.manifest.json` (format `assets-manifest/v1`, docs/game-format.md:
+  URL, licence, version, the repo paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as
+  a normal developer would. Need more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP
+  support, what it replaces) in your design doc and message the coordinator.
 - **Sound:** every sound effect comes through the **unity-sound** skill (read it before writing the audio direction):
   cues listed in the design doc, clips chosen by their numbers and measured with `tools/sfx.py`, CC0 or CC BY only,
   recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep.
@@ -213,14 +214,15 @@ bind the day it arrives; until then, do what each bullet says to do today.
   `StartScenario(n)` (load scenario n's scene), calls `ScenarioStarted(name)` and `FinishRun(result)`, and has a bot
   that acts **only** through the drop-in's input calls (Input System injection), Skill-scaled and human-like (no
   snapping camera, no jump spam).
-- With the drop-in, test once by hand per the contract's section 7 with a rendered run through `Scripts/unity.ps1
-  play`; then the run checker (not available yet) must pass (the run's files are well formed; the bot plays like a
-  human, but its score never holds up a release). Tag `milestone/autoplay-<n>` (scenarios 1..n work).
+- With the drop-in, test once by hand per the contract's section 7 with a rendered run through
+  `Scripts/unity.ps1 play`; then the run checker (not available yet) must pass (the run's files are well formed; the
+  bot plays like a human, but its score never holds up a release). Tag `milestone/autoplay-<n>` (scenarios 1..n work).
 - **Framing gate:** take 8-10 screenshots of one short rendered run (open areas, narrow spaces, crouched, against
   walls) and check the camera rules above. Until the drop-in is here the run is not a bot run (not available yet): run
-  the built player once per scenario at most with `Scripts/unity.ps1 play -Render -Scenario <n> -Seconds <s> -Extra
-  "<flag>"`, where `<flag>` is a command-line argument of the game's own choosing that makes it save its own frames as
-  JPG (`ScreenCapture.CaptureScreenshotAsTexture` after `WaitForEndOfFrame`, then `EncodeToJPG`;
+  the built player once per scenario at most with
+  `Scripts/unity.ps1 play -Render -Scenario <n> -Seconds <s> -Extra "<flag>"`, where `<flag>` is a command-line
+  argument of the game's own choosing that makes it save its own frames as JPG
+  (`ScreenCapture.CaptureScreenshotAsTexture` after `WaitForEndOfFrame`, then `EncodeToJPG`;
   `ScreenCapture.CaptureScreenshot` writes PNG); no retakes for looks. They are the README's screenshots too.
 - **Never queue a recording yourself.** Only the coordinator queues recordings (one GPU recording at a time); the
   queue is not available yet, so never request or wait for one. Message the coordinator what is ready: commit sha,
