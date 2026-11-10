@@ -98,8 +98,10 @@ def clock(t, play):
                 t.eq(f"HP at {at:.2f} s: the checker's number", probes.ui_number(probes.ui_text(rows)), float(number))
         t.eq(f"the regex select at {at:.2f} s", [(r.get("source"), r.get("text")) for r in play.rows("clock_regex", at)],
              [("ocr", text)])
-    t.eq("the frame as displayed: the camera's background, set as 0.08, 0.08, 0.12, is the bytes 20, 20, 31",
-         play.image("shot_00.png").at(600, 500), (20, 20, 31))
+    background = play.image("shot_00.png").at(600, 500)
+    t.ok("the frame as displayed is sRGB: the camera's background, set as 0.08, 0.08, 0.12 (20.4, 20.4, 30.6 of 255), is "
+         "within a step of it (linear bytes would be 2, 2, 3)", all(abs(a - b) <= 1 for a, b in zip(background, (20, 20, 31))),
+         background)
     t.eq("and the strokes are white", play.image("shot_00.png").at(52, 40), (255, 255, 255))
 
 
@@ -158,7 +160,8 @@ def limits(t, play):
     refuses(t, "HP 42 eleven levels brighter than the background", at("faint"),
             "ink less than 40 from the background is too faint")
     refuses(t, "HP 42 with a rule across it", at("ruled"), "a mark that crosses the line refuses it")
-    read("HP 42 inside a frame", "framed", "HP 42")
+    # inside the frame's 2 px rim (x 26-236, y 406-476): the line's box is its glyphs', the frame is set aside
+    reads(t, "HP 42 inside a frame", at("framed"), "HP 42", play, "shot_00.png", (29, 409, 233, 473))
     refuses(t, "HP 42 on a background that grows lighter", at("shaded"), "the rect's edge is not one even colour")
     refuses(t, "HP 42 at 8 px", at("small"), "too small for its strokes: the loose distance is over 0.15")
 
@@ -206,7 +209,7 @@ def cap(t, play):
     left = [ink(play, "shot_00.png", (col * 66 + 4, row * 26 + 4, col * 66 + 50, row * 26 + 30))[0]
             for row in range(20) for col in range(14)]
     t.near("full x sums every match's x: each item's ink, left edge over 960", full.get("sum"), sum(left) / W, 1e-9)
-    t.eq("the rows kept are the first 200 lines, from the top", [box_of(r)[0] for r in rows], left[:200])
+    t.eq("the rows kept are the first 200 lines, from the top", [round(r["x"] * W) for r in rows], left[:200])
 
 
 PLAYS = {

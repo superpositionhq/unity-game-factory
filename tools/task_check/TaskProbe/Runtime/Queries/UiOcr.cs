@@ -655,10 +655,13 @@ namespace TaskProbe
                 if (!isAside)
                 {
                     var inner = 0;
-                    for (var j = 0; j < all.Count; j++)
+                    // the marks come in the order of their top rows: one inside m starts below m's top, so after it in
+                    // the list, and above m's bottom. The same result as looking at every mark, without the square of
+                    // their number (a frame of 32,400 dots took 25 s to read)
+                    for (var j = i + 1; j < all.Count && all[j].Y0 < m.Y1; j++)
                     {
                         var o = all[j];
-                        if (j != i && o.Pixels.Count > 2 && o.X0 > m.X0 && o.X1 < m.X1 && o.Y0 > m.Y0 && o.Y1 < m.Y1) inner = Math.Max(inner, o.H);
+                        if (o.Pixels.Count > 2 && o.X0 > m.X0 && o.X1 < m.X1 && o.Y0 > m.Y0 && o.Y1 < m.Y1) inner = Math.Max(inner, o.H);
                     }
                     if (inner >= 0.25 * m.H && m.H >= 1.4 * inner)
                     {
@@ -683,7 +686,7 @@ namespace TaskProbe
                 return k;
             }
             for (var a = 0; a < kept.Count; a++)
-                for (var b = a + 1; b < kept.Count; b++)
+                for (var b = a + 1; b < kept.Count && all[kept[b]].Y0 <= all[kept[a]].Y1; b++)  // later ones start lower still: no overlap
                 {
                     var ma = all[kept[a]];
                     var mb = all[kept[b]];

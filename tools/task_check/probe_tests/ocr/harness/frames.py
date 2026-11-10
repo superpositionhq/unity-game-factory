@@ -7,14 +7,17 @@ widths), and frames for each of the reader's rules (edges, spacing, refusals, re
                                  cases.txt (one line a reading: <name>.raw x0 y0 x1 y1, the rect in viewport fractions)
 
 Deterministic (the same bytes on every machine). Standard library only."""
+import json
 import math
 import os
 import re
 import struct
 import sys
 
-UIOCR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "TaskProbe", "Runtime", "Queries", "UiOcr.cs")
-TABLE = re.findall(r"S\('(.)', \"([^\"]*)\"\)", open(UIOCR, encoding="utf-8").read())
+# the original's glyph table (TaskProbeQueries.cpp 4298-4418), one ["character", "lines"] a line: kept here, not read
+# from the UiOcr.cs under test, so a changed table can't change the frames it is tested on
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "table.txt"), encoding="utf-8") as _table:
+    TABLE = [tuple(json.loads(line)) for line in _table if line.strip()]
 assert len(TABLE) == 121, len(TABLE)
 FIRST = {}
 for _c, _s in TABLE:

@@ -29,7 +29,7 @@ against the ink in the screenshot of the same frame, pixel for pixel.
   and the clock again in GL quads, change at every sample and read at every sample, through a select of text in a
   rect and through a regex with a rect; the checker's `clock` and `number` (`probes.ui_clock`, `probes.ui_number`) read
   them. The screenshots show the frame holds the displayed sRGB bytes (the background colour set as 0.08, 0.08, 0.12
-  reads 20, 20, 31).
+  reads 20, 20, 30: within a step of 20.4, 20.4, 30.6; linear bytes would be 2, 2, 3).
 - `glyphs16`, `glyphs24`, `glyphs36`: every character the reader knows, two of a kind (a sign beside a 4), each in a
   query of its own, drawn with OnGUI at 16, 24 and 36 px. Each reads as itself, or nothing where the reader can't tell
   it for sure (an O is a 0 without its slash; at some sizes D, Q, B, S, I, W and a 2 drawn this way): never as another
@@ -52,5 +52,10 @@ The reader outside Unity, against the original: `python harness/check.py` draws 
 `harness/frames.py` (every shape of the reader's table, HUD strings at HUD sizes, every cap style, anti-aliased and
 not, every rule's case, rects of every kind), compiles `UiOcr.cs` with the Unity editor's own compiler, reads them on
 the editor's Mono (a player's runtime), and compares each reading with what the Unreal original read of the same frame
-(`harness/expected.txt`, recorded by compiling the original's own lines). About a minute; no player build. Run it after
-any change to `UiOcr.cs`: the plays check the reader in the engine, this checks it is still the original's.
+(`harness/expected.txt`, recorded by compiling the original's own lines). About two and a half minutes; no player
+build. Run it after any change to `UiOcr.cs`: the plays check the reader in the engine, this checks it is still the
+original's. It first checks that the reader's glyph table is the original's 121 entries (`harness/table.txt`, which
+the frames are drawn from) and that `harness/Read.cs` reads a frame as `Query.cs` does. What it doesn't pin: the order
+of marks that start in one column (the sort is a port of the original's, compared once with it line by line and by
+traces; no frame is known whose reading depends on it), and many of the reader's thresholds (of 101 one-token changes
+tried, 29 changed a reading here): a change to a threshold needs frames of its own on both sides of it.
