@@ -26,15 +26,16 @@ What the editor does that a step must allow for:
 
 - opening a scene in Single mode (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets loaded or created
   before it: one of them assigned afterwards through `SerializedObject` (`objectReferenceValue`) reads back null at
-  once and saves as `{fileID: 0}`, with no warning (it cost one game three commits). Open the scene first, then load
-  the assets you assign (`AssetDatabase.LoadAssetAtPath` after the open), read each reference back before saving, and
-  prove what was saved with an `Inspect*` step;
+  once and saves as `{fileID: 0}`, with no warning (one game's camera and HUD never got their data assets: three
+  commits). Open the scene first, then load the assets you assign (`AssetDatabase.LoadAssetAtPath` after the open),
+  and read each reference back before saving;
 - `-nographics` draws nothing, without an error (a camera capture comes out one flat grey): a step that renders
   (screenshots, lightmap bakes, shader warm-up) runs with `-Render`;
-- a package import (`AssetDatabase.ImportPackage`) imports nothing inside the method that calls it, and with `-quit`
-  the editor leaves with nothing imported: run that step with `-NoQuit`, wait for
-  `AssetDatabase.importPackageCompleted` / `importPackageFailed`, and call `EditorApplication.Exit` from there and
-  after a time limit (a run without `-quit` ends only when the step exits; `ProjectSetup.ImportTextEssentials` in
+- `AssetDatabase.ImportPackage` (a `.unitypackage`) imports nothing inside the method that calls it: right after it,
+  even after `AssetDatabase.Refresh`, no file is there, and with `-quit` the editor leaves with nothing imported (one
+  game's first import step logged a failure and imported nothing). Run that step with `-NoQuit`, subscribe to
+  `AssetDatabase.importPackageCompleted` and `importPackageFailed`, and call `EditorApplication.Exit` from there and
+  after a time limit: a run without `-quit` ends only when the step exits (`ProjectSetup.ImportTextEssentials` in
   `Assets/Editor/Tools/` is the pattern).
 
 A step looks like this, run with `Scripts/unity.ps1 step -Method __PROJECT__.EditorSteps.BuildHarbor.Run -Reason "..."`:
