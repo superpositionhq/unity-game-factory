@@ -8,9 +8,10 @@
 .DESCRIPTION
   Placeholders replaced in file names and contents: __PROJECT__ (C# namespace / assembly prefix / exe name), __SLUG__,
   __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. The editor version is -UnityVersion, else the config's unity_version
-  (default 6000.3: the newest installed 6000.3 editor; an exact version pins it); with no 6.3 LTS editor installed it
-  stops. The first workflow.jsonl row (op project.create) is written at the moment the project is created; the first
-  commit names it. Pushing is left to the coordinator's go-ahead (unity-commit-always skill).
+  (default 6000.3: the newest installed 6000.3 editor; an exact version pins it); with no such editor installed it
+  stops, unless -UnityVersion names one. The first workflow.jsonl row (op project.create) is written at the moment the
+  project is created; the first commit names it. Pushing is left to the coordinator's go-ahead (unity-commit-always
+  skill).
   -Path is required: the absolute project folder <root>\games\<slug>, written out in the command (the recording hooks
   see the command text, so %UGF_ROOT% or $env:UGF_ROOT would not map the session). That call files this session under
   the game, and the hooks import its earlier calls from the transcript.
@@ -69,9 +70,13 @@ if ((Test-Path -LiteralPath $Path) -and @(Get-ChildItem -LiteralPath $Path -Forc
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'git not found (run machine\bootstrap.ps1 first)' }
 
 # The editor: -UnityVersion, else the config's unity_version (Get-UGFUnityVersion: 6000.3, its newest installed patch,
-# unless set to an exact version). ProjectVersion.txt needs an exact version: without one installed, stop here.
-if (-not $UnityVersion) { $UnityVersion = Get-UGFUnityVersion }
-if (-not $UnityVersion) { throw 'no Unity 6.3 LTS editor is installed: install the newest 6000.3 patch through Unity Hub (Installs > Install Editor, with Windows Build Support (IL2CPP)), or pass -UnityVersion 6000.3.<patch>' }
+# unless set to an exact version). ProjectVersion.txt needs an exact version, and a game's first commit must not name
+# an editor the PC does not have: without it installed, stop here (-UnityVersion may name one that comes later).
+if (-not $UnityVersion) {
+    $UnityVersion = Get-UGFUnityVersion
+    if (-not $UnityVersion) { throw 'no Unity 6.3 LTS editor is installed: install the newest 6000.3 patch through Unity Hub (Installs > Install Editor, with Windows Build Support (IL2CPP)), or pass -UnityVersion 6000.3.<patch>' }
+    if (-not (Get-UGFUnityForVersion $UnityVersion)) { throw "Unity $UnityVersion (unity_version in the config) is not installed: install it through Unity Hub (with Windows Build Support (IL2CPP)), set unity_version to 6000.3 for the newest installed patch, or pass -UnityVersion <version>" }
+}
 if ($UnityVersion -cnotmatch '^6000\.3\.\d+[abfp]\d+$') { throw "Unity $UnityVersion is not 6.3 LTS (6000.3.x)" }
 
 $template = Join-Path $PSScriptRoot 'unity-game'

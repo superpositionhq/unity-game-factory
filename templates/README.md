@@ -19,8 +19,8 @@ Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes
 string literals).
 
 The editor version: `-UnityVersion`, else the config's `unity_version` (default `6000.3`: the newest installed
-`6000.3.*` editor; an exact version such as `6000.3.28f1` pins it). With no 6.3 LTS editor installed, new-game.ps1
-stops: install one through Unity Hub first.
+`6000.3.*` editor; an exact version such as `6000.3.28f1` pins it); with no such editor installed it stops, unless
+`-UnityVersion` names one: install it through Unity Hub first.
 
 What the skeleton carries, and why:
 
