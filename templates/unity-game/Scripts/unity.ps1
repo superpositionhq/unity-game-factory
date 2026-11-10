@@ -3,7 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 compile                     (open, import, compile, quit)
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 step -Method <Ns.Class.Method> -Reason "..." [-Render] [-NoQuit]
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 test [-Platform EditMode|PlayMode] [-Filter <name>]
-#   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 build [-Development] [-Backend mono|il2cpp]
+#   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 build [-Development] [-Backend mono|il2cpp] [-Reason "..."]
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 play [-Scenario <n>] [-Render] [-Seconds 60] [-Extra "..."]
 # `step` runs one editor step (a static method under Assets/Editor/Steps/) with -batchmode -executeMethod. Keep this call
 # shape: the creation replay recognises "unity.ps1 step -Method <Ns.Class.Method>" in the recorded command. The step
@@ -66,11 +66,12 @@ function Done([int]$Code) { Write-Host "exit code $Code ($([int]((Get-Date) - $t
 
 switch ($Mode) {
   'setup' {
-    # three runs: each needs what the run before it installed (Assets/Editor/Tools/ProjectSetup.cs)
-    $env:UNITY_RUN_REASON = if ($Reason) { $Reason } else { 'First open: add the start packages, make URP the pipeline, set the shared player settings' }
+    # four runs: each needs what the run before it installed (Assets/Editor/Tools/ProjectSetup.cs)
+    $env:UNITY_RUN_REASON = if ($Reason) { $Reason } else { 'First open: add the start packages, make URP the pipeline, import the text essentials, set the shared player settings' }
     $steps = @(
       @('packages', @('-executeMethod', '__PROJECT__.EditorTools.ProjectSetup.AddPackages'), $false),
       @('urp', @('-executeMethod', '__PROJECT__.EditorTools.Urp.UrpSetup.Apply'), $true),
+      @('text', @('-executeMethod', '__PROJECT__.EditorTools.ProjectSetup.ImportTextEssentials'), $false),
       @('configure', @('-executeMethod', '__PROJECT__.EditorTools.ProjectSetup.Configure'), $true)
     )
     foreach ($s in $steps) {
@@ -114,6 +115,7 @@ switch ($Mode) {
   }
   'build' {
     $log = Join-Path $Logs 'build.log'
+    $env:UNITY_RUN_REASON = $Reason   # the build's workflow row carries it
     $more = @('-executeMethod', '__PROJECT__.EditorTools.BuildPlayer.BuildWindows', '-buildOut', (Join-Path $Proj 'Build\Windows'))
     if ($Development) { $more += '-development' }
     if ($Backend) { $more += @('-backend', $Backend) }

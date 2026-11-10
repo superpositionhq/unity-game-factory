@@ -29,7 +29,7 @@ namespace __PROJECT__.EditorTools
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
             if (scenes.Length == 0)
             {
-                WorkflowLog.Row("build.player", exe, new Dictionary<string, object> { ["error"] = "no enabled scene in the build list" }, status: "failed");
+                WorkflowLog.Row("build.player", Relative(exe), new Dictionary<string, object> { ["error"] = "no enabled scene in the build list" }, status: "failed");
                 EditorApplication.Exit(1);
                 return;
             }
@@ -64,7 +64,7 @@ namespace __PROJECT__.EditorTools
 
             var summary = report.summary;
             var ok = summary.result == BuildResult.Succeeded;
-            WorkflowLog.Row("build.player", exe.Replace('\\', '/'), new Dictionary<string, object>
+            WorkflowLog.Row("build.player", Relative(exe), new Dictionary<string, object>
             {
                 ["result"] = summary.result.ToString(),
                 ["configuration"] = development ? "development" : "release",
@@ -76,6 +76,14 @@ namespace __PROJECT__.EditorTools
                 ["bytes"] = (long)summary.totalSize,
             }, status: ok ? "observed" : "failed");
             EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        /// <summary>A path as the workflow row names it: relative to the project, never a machine path.</summary>
+        static string Relative(string path)
+        {
+            var full = Path.GetFullPath(path).Replace('\\', '/');
+            var root = WorkflowLog.ProjectRoot.Replace('\\', '/').TrimEnd('/') + "/";
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full.Substring(root.Length) : Path.GetFileName(full);
         }
 
         static string Arg(string[] args, string name)

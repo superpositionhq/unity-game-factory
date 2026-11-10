@@ -1,12 +1,15 @@
 // The project's first open (Scripts/unity.ps1 setup, run once by new-game.ps1 or by the session when the editor was
-// missing at creation), in three batchmode runs because each needs what the one before it installed:
-//   1. ProjectSetup.AddPackages   (no -quit: waits for the Package Manager, then exits itself)
-//   2. Urp.UrpSetup.Apply         (needs the URP package compiled: creates the pipeline asset, makes it the default)
-//   3. ProjectSetup.Configure     (player and editor settings: company, colour space, Input System only, windowing)
+// missing at creation), in four batchmode runs because each needs what the one before it installed:
+//   1. ProjectSetup.AddPackages          (no -quit: waits for the Package Manager, then exits itself)
+//   2. Urp.UrpSetup.Apply                (needs the URP package compiled: creates the pipeline asset, makes it the default)
+//   3. ProjectSetup.ImportTextEssentials (no -quit: TextMeshPro's fonts and settings; a package import finishes on the
+//                                         editor's update loop, never inside the method that starts it)
+//   4. ProjectSetup.Configure            (player and editor settings: company, colour space, Input System only, windowing)
 // Each run logs its own workflow.jsonl row. Packages are added by name so the Package Manager picks the versions that
 // ship with this editor; the resulting Packages/manifest.json and packages-lock.json are committed.
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.PackageManager;
@@ -62,6 +65,48 @@ namespace __PROJECT__.EditorTools
             if (ok) p["installed"] = request.Result.Select(x => $"{x.name}@{x.version}").ToArray();
             else p["error"] = error;
             WorkflowLog.Row("project.packages", "Packages/manifest.json", p, status: ok ? "observed" : "failed");
+            EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        const string TextEssentials = "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage";
+        const string TextSettings = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
+
+        /// <summary>TextMeshPro's essential resources (its settings, default font asset and shaders) into
+        /// Assets/TextMesh Pro: without them TMP text draws nothing. Run without -quit: it exits when the import is done.</summary>
+        public static void ImportTextEssentials()
+        {
+            if (File.Exists(TextSettings))
+            {
+                EditorApplication.Exit(0);
+                return;
+            }
+            started = DateTime.UtcNow;
+            AssetDatabase.importPackageCompleted += TextImported;
+            AssetDatabase.importPackageFailed += TextFailed;
+            EditorApplication.update += WaitForText;
+            AssetDatabase.ImportPackage(Path.GetFullPath(TextEssentials), false);
+        }
+
+        static void TextImported(string name) => FinishText(null);
+
+        static void TextFailed(string name, string error) => FinishText(error ?? "the import failed");
+
+        static void WaitForText()
+        {
+            if ((DateTime.UtcNow - started).TotalMinutes > 10) FinishText("the import did not finish in 10 minutes");
+        }
+
+        static void FinishText(string error)
+        {
+            EditorApplication.update -= WaitForText;
+            AssetDatabase.importPackageCompleted -= TextImported;
+            AssetDatabase.importPackageFailed -= TextFailed;
+            AssetDatabase.Refresh();
+            var present = File.Exists(TextSettings);
+            var p = new Dictionary<string, object> { ["package"] = "TMP Essential Resources", ["settings_present"] = present };
+            if (error != null) p["error"] = error;
+            var ok = error == null && present;
+            WorkflowLog.Row("asset.import", "Assets/TextMesh Pro", p, status: ok ? "observed" : "failed");
             EditorApplication.Exit(ok ? 0 : 1);
         }
 

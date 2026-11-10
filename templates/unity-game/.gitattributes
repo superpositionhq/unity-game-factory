@@ -23,18 +23,21 @@
 *.terrainlayer text eol=lf
 *.spriteatlas text eol=lf
 *.spriteatlasv2 text eol=lf
-*.cs text diff=csharp
+# C# is checked out with LF everywhere: an editor step's sha256 in workflow.jsonl is of the file's bytes, and it must
+# be the same on every machine whatever its autocrlf setting.
+*.cs text eol=lf diff=csharp
 
 # Every binary type goes through Git LFS (GitHub refuses files over 100 MB, and binary history bloats clones).
 # Patterns are case-insensitive ([pP][nN][gG]) so FOO.PNG from a store pack is caught too.
 # Add a type here BEFORE committing the first file of a new binary type (git lfs migrate rewrites history).
 
 # Unity data that stays binary even under Force Text (baked lighting, terrain heightmaps, NavMesh), and asset bundles.
-# These come after "*.asset text" above: the later line wins.
-**/LightingData.asset filter=lfs diff=lfs merge=lfs -text
-**/*[lL]ighting[dD]ata*.asset filter=lfs diff=lfs merge=lfs -text
-**/NavMesh*.asset filter=lfs diff=lfs merge=lfs -text
-**/[tT]errain[dD]ata*.asset filter=lfs diff=lfs merge=lfs -text
+# These come after "*.asset text" above: the later line wins. Under Assets/ only: ProjectSettings/NavMeshAreas.asset
+# is plain YAML.
+Assets/**/LightingData.asset filter=lfs diff=lfs merge=lfs -text
+Assets/**/*[lL]ighting[dD]ata*.asset filter=lfs diff=lfs merge=lfs -text
+Assets/**/NavMesh*.asset filter=lfs diff=lfs merge=lfs -text
+Assets/**/[tT]errain[dD]ata*.asset filter=lfs diff=lfs merge=lfs -text
 *.[bB][yY][tT][eE][sS] filter=lfs diff=lfs merge=lfs -text
 *.[bB][uU][nN][dD][lL][eE] filter=lfs diff=lfs merge=lfs -text
 *.[sS][pP][eE][eE][dD][tT][rR][eE][eE] filter=lfs diff=lfs merge=lfs -text

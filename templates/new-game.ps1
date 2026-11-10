@@ -123,7 +123,8 @@ function Commit-All([string]$Message) {
 }
 $sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), root-anchored .gitignore, LFS for every binary type.`n`nworkflow: $rowId"
 
-# The first editor open: packages, URP, shared settings (Scripts\unity.ps1 setup), committed with the files it made.
+# The first editor open: packages, URP, TextMeshPro's essential resources, shared settings (Scripts\unity.ps1 setup),
+# committed with the files it made.
 $setup = 'skipped (-NoSetup): run Scripts\unity.ps1 setup, then commit'
 if (-not $NoSetup) {
     if (-not $editor) { $editor = Get-UGFUnity $Path -ErrorAction SilentlyContinue }
@@ -133,7 +134,7 @@ if (-not $NoSetup) {
         if ($LASTEXITCODE -eq 0) {
             $rows = @(Get-Content -LiteralPath (Join-Path $Path 'workflow.jsonl') | Where-Object { $_.Trim() } | ForEach-Object { ($_ | ConvertFrom-Json).id })
             $span = if ($rows.Count -gt 1) { "$($rows[1])..$($rows[-1])" } else { $rowId }
-            $sha = Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline, Linear`ncolour, Input System only, run in background. Generated .meta files and`nproject settings committed.`n`nworkflow: $span"
+            $sha = Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background. Generated .meta files and project settings committed.`n`nworkflow: $span"
             $setup = "done, commit $sha"
         } else {
             $setup = "FAILED (exit $LASTEXITCODE): read Logs\unity-ps1\setup_*.log, fix (licence? editor?), run Scripts\unity.ps1 setup again, then commit"
