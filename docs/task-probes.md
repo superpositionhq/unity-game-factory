@@ -172,6 +172,9 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
 - **Focus.** The player runs windowed at 960x540 on a Windows desktop of its own ([task-check.md](task-check.md),
   "The plays"), where it counts itself focused for the whole play (`Application.isFocused` is true, no object gets
   `OnApplicationFocus(false)`): a game that pauses when it loses focus plays on.
+- **The build.** The player is the checker's own build of the commit (task-check.md, "What it does", step 3): without
+  static batching, so each renderer keeps its own mesh name and triangle count for `mesh` selects and `pieces`, and not
+  a development build, so no watermark sits on the frame.
 
 ### 1.2 Thresholds (`expect`)
 
@@ -647,6 +650,8 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
 - Errors: the probe fails with "the editor couldn't measure it: " and the editor's message, one of these (`<...>` stands
   for the names in question):
   - `no asset <path>`, `no scene <path>`, `no prefab <path>`;
+  - `the scene <path> couldn't be opened: <type>: <message>`, `the prefab <path> couldn't be loaded: <type>:
+    <message>` (the file is there, but Unity can't open it);
   - `no property <path> on <asset type> <asset path>` (a `prop:` of an asset);
   - `no import setting <path> on <importer type> <asset path>`, `no importer for <asset path>`;
   - `<asset path> is not a material (<asset type>)` (`shader:` or `keyword:` on another asset);
@@ -657,7 +662,8 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   - "`player` selects need a running game: the editor pass can't match them";
   - "`has` needs a running game: the editor pass can't match it";
   - "a `near` point on the player or the camera needs a running game: use {"xyz": [x, y, z]}".
-  A value that reads no number fails too: "the property has no number" (an `asset` field without a value, or a
+  Any other failure in the pass reads as its exception's type and message (`<type>: <message>`). A value that reads no
+  number fails too: "the property has no number" (an `asset` field without a value, or a
   string read without `match`), "no selected object has a value" (rows without a value, or none, under `of` `min`,
   `max`, `mean` or `first`).
 - Floats come back as stored (`_BaseColor.r` set to 0.2 reads 0.19999995827674866): compare with a tolerance
