@@ -871,7 +871,6 @@ class Plays(unittest.TestCase):
                              {"scene": None, "player": None, "inputs": [], "every": 0.5, "sound": False})
             self.assertEqual(specs[1]["queries"], {"format": "game-probe-queries/1", "every": 0.5, "queries": []})
 
-    @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
     def test_a_plays_evidence_holds_its_spec_so_a_query_id_names_its_select(self):
         task = task_with(probe("tower", measure={"probe": "objects", "select": {"name": "Tower_1"}, "field": "y",
                                                  "at": "end"}),
@@ -914,6 +913,7 @@ class Plays(unittest.TestCase):
             crashed = unity.Project(tmp, FakeMachine(answer=lambda argv, cwd: "", code=1), "t").play(5, 2, 60)
             self.assertEqual((crashed.exit_code, crashed.probe), (1, None))
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
     def test_a_play_after_a_killed_one_waits_for_its_files_and_never_reads_them(self):
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Build" / "TaskProbe" / "Game.exe"
