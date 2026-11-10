@@ -182,7 +182,8 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
 
 - One line per task on the console: the verdict (`VALID`, `INVALID`, or `ERROR` when the checker couldn't check it),
   the task, and its reasons joined by `; `. Progress goes to stderr.
-- `<repo>\.task-checks\<task>.json` (format `task-check/1`; `--out` moves the folder):
+- `<repo>\.task-checks\<task>.json` (format `task-check/1`; `--out` moves the folder; a task file that isn't JSON gets
+  none, only its console line and its row in `progress.json`):
   - `verdict`, `reasons` (why INVALID or ERROR), `notes` (the reference's failures that don't decide, written
     `reference fails X (<kind>): <detail>`, and scenes that name assets the commit lacks); a reason or note carries at
     most 160 characters of a check's detail, the whole of it is in that check's row;
