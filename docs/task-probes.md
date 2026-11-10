@@ -466,26 +466,29 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
 - **`intensity`, `extent_*`, `bounds_change`, `pose_change`, `glow` and `spin` thresholds are calibrated or relative
   to the start, never a literal value**; `on`, `lit`, `simulating`, `changed`, positions and speeds take a literal.
 
-How `lit` and `glow` read a mesh renderer, one of two ways; which one depends on its materials' shaders alone, never
-on their values. A renderer that isn't drawn (disabled, inactive, forced off) reads dark without being read either
-way.
+How `lit` and `glow` read a mesh renderer, one of two ways; which one depends on its materials' shaders and textures
+alone, never on their colours. A renderer that isn't drawn (disabled, inactive, forced off) reads dark without being
+read either way.
 - **From its material properties**, when every material it draws with has a shader of one of two kinds (a Shader
   Graph is neither, whatever its properties; the probe knows one by its shader's name, `Shader Graphs/...`, which a
-  graph keeps unless its author changes its path): a shader whose name contains `unlit` in any case (URP's
-  `Universal Render Pipeline/Unlit`) and that has `_BaseColor` or `_Color` gives that colour times its main texture's
-  mean; a shader with `_EmissionColor` that declares an `_EMISSION` keyword gives, when the material has the keyword
-  enabled, its emission colour times the mean of its `_EmissionMap` when one is set (keyword off: no light, whatever
-  the colour). Colours are read in linear space, as the shader gets them (an HDR emission colour the material holds
-  as (4, 3, 2) has a luminance of 12.9). MaterialPropertyBlock overrides on the renderer count. The brightest material
-  counts, over the renderer's whole local bounds; lit above a luminance of 0.01. `glow_read` is `props`.
-- **As rendered**, when any material has another shader (a Shader Graph, or a custom shader whose glow comes from its
-  own code): the renderer is drawn alone with every light off, ambient black, reflections and fog off, orthographic
-  from four fixed views around it (128 x 128, in HDR), so what is left is what it gives off itself. The views frame
-  its own local bounds box (a skinned mesh's in its root bone's frame). `lit`: its brightest pixel's luminance above
-  0.01. `glow`: the views' luminance x pixel area summed, over the area of its bounds box they see, times a quarter of
-  the box's surface: the same amount as from the properties for a mesh glowing all over, that part's share for a mesh
-  glowing in part (a lamp that is one region of a larger mesh's material, say). `glow_read` is `render`. What such a
-  render can't switch off, and its other limits: section 2.19.
+  graph keeps unless its author changes its path) and no texture on the colour it gives: a shader whose name contains
+  `unlit` in any case (URP's `Universal Render Pipeline/Unlit`) and that has `_BaseColor` or `_Color` gives that
+  colour (its texture: `_BaseMap` or `_MainTex`); a shader with `_EmissionColor` that declares an `_EMISSION` keyword
+  gives, when the material has the keyword enabled, its emission colour (its texture: `_EmissionMap`; keyword off: no
+  light, whatever its colour and texture). Colours are read in linear space, as the shader gets them (an HDR emission
+  colour the material holds as (4, 3, 2) has a luminance of 12.9). MaterialPropertyBlock overrides on the renderer
+  count, their textures too. The brightest material counts, over the renderer's whole local bounds; lit above a
+  luminance of 0.01. `glow_read` is `props`.
+- **As rendered**, when any material has a texture on the colour it gives (a texture may be an atlas, or dark but for
+  a spot) or another shader (a Shader Graph, or a custom shader whose glow comes from its own code): the renderer is
+  drawn alone with every light off, ambient black, reflections and fog off, orthographic from four fixed views around
+  it (128 x 128, in HDR), so what is left is what it gives off itself. The views frame its own local bounds box (a
+  skinned mesh's in its root bone's frame). `lit`: its brightest pixel's luminance above 0.01. `glow`: the views'
+  luminance x pixel area summed, over the area of its bounds box they see, times a quarter of the box's surface: the
+  same amount as from the properties for a mesh glowing all over, that part's share for a mesh glowing in part (a lamp
+  that is one region of a larger mesh's material, say). `glow_read` is `render`. A mesh whose shaders are all of the
+  two kinds and whose colours are at or under 0.01 is dark whatever its textures, and isn't rendered (`glow_read`
+  `bound`). What such a render can't switch off, and its other limits: section 2.19.
 
 Limits:
 - a renderer read from its properties counts its brightest material over its whole bounds, so a lamp post with a small
