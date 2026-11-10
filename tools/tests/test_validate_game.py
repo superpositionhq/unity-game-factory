@@ -1000,6 +1000,17 @@ class Schema(unittest.TestCase):
              'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn')   # the probe kinds (contract section 2)
     MEASURE = {kind: ref.split('/')[-1]
                for kind, ref in S['$defs']['Probe']['properties']['measure']['discriminator']['mapping'].items()}
+    SHAPE = {kind: ref.split('/')[-1]   # the check kinds' definitions
+             for kind, ref in S['$defs']['Milestone']['properties']['checks']['items']['discriminator']['mapping'].items()}
+    RUBRIC = [{'key': 'k', 'criterion': 'x'}]
+    # a valid check of each kind, given its name and kind where it is used
+    CHECKS = {'build': {}, 'boot': {'seconds': 60}, 'package': {}, 'log_absent': {'pattern': 'Error'},
+              'file_exists': {'glob': '*.cs'}, 'judge': {'question': 'q', 'rubric': RUBRIC},
+              'code_judge': {'question': 'q', 'rubric': RUBRIC}, 'actions_judge': {'question': 'q', 'rubric': RUBRIC},
+              'probe': probe_check({'probe': 'log', 'pattern': 'Error'})}
+    # every character a play argument (one at its 60) and a scene's path may hold (contract section 2)
+    ARGS = ['-Level=Yard_2', '--seed:7,8', '-config/night.cfg', 'X', 'x' * 60]
+    SCENE = 'Assets/Scenes/Town_2-b.Night (1).unity'
 
     def ok(self, value, ref):
         return list(vg.check_schema(value, self.S['$defs'][ref], self.S))
@@ -1057,6 +1068,15 @@ class Schema(unittest.TestCase):
                'asset': ['shader:_BaseColor.q', 'shader:_BaseColor.rgb', 'material:_BaseMap.name.r', 'keyword:',
                          'import:', 'material:'],
                'spawns': ['count'], 'log': ['lines'], 'trace': ['built']}
+        # every prefix that names a Part, bone or parameter takes every character the contract lists, up to 64; a
+        # channel goes by either spelling wherever one is read
+        for form in ('rel_yaw:{}', 'world_yaw:{}', 'world_pitch:{}', 'world_roll:{}', 'anim:{}', 'forward:{}.x',
+                     'bone:Rig_2.{}.y'):
+            good['objects'] += [form.format(n) for n in ('mixamorig:Upper_Arm.L (1)-2', '_Hips', '2' + 'a' * 63)]
+            bad['objects'].append(form.format('2' + 'a' * 64))
+        for c in 'rgbaxyzw':
+            good['asset'] += ['shader:_BaseColor.' + c, 'material:_BaseColor.' + c]
+            good['grading'].append('post:Vignette.color.' + c)
         extra = {'objects': {'select': {'component': 'Enemy'}}, 'components': {'select': {'component': 'Light'}},
                  'widgets': {'select': {'component': 'Slider'}}, 'spawns': {'component': 'Projectile'},
                  'light': {'point': {'xyz': [0, 1, 0]}}, 'log': {'pattern': 'Error'}, 'asset': {'asset': 'Assets/x.mat'}}
@@ -1122,6 +1142,23 @@ class Schema(unittest.TestCase):
                 ('PlayerMeasure', {'probe': 'player', 'field': 'dist', 'to': {'object': {'name': 'Gate'},
                                                                               'offset': [0, 0, 1]}})):
             self.assertEqual(self.ok(value, ref), [], (ref, value))
+        # wherever a select takes them: a type by its full name, a wildcard with every character the contract lists;
+        # and every character an asset's, a scene's and a prefab's path may hold
+        full, wild = 'Game_2.UI.RetryButton3', 'Lamp_2.b (Clone)-?*'
+        for ref, value in (
+                ('Select', {'component': full, 'name': wild}), ('Has', {'component': full}),
+                ('ComponentSelect', {'component': full, 'name': wild, 'mesh': wild}),
+                ('WidgetSelect', {'component': full, 'name': wild}),
+                ('AudioSelect', {'sound': wild, 'sound_class': wild}),
+                ('PieceSelect', {'component': full, 'name': wild, 'mesh': wild}),
+                ('SpawnsMeasure', {'probe': 'spawns', 'component': full, 'field': 'spawned'}),
+                ('Click', {'t': 3, 'widget': wild, 'click': True}),
+                ('AssetMeasure', {'probe': 'asset', 'asset': 'Packages/com.game.kit-2/Art/Lit_2 (b)@x.mat',
+                                  'field': 'shader:_BaseColor.r'}),
+                ('AssetMeasure', {'probe': 'asset', 'scene': self.SCENE, 'select': {'name': 'Body'}, 'field': 'count'}),
+                ('AssetMeasure', {'probe': 'asset', 'prefab': 'Packages/com.game.kit-2/Prefabs/Hero_1 (Variant).prefab',
+                                  'select': {'name': 'Body'}, 'field': 'count'})):
+            self.assertEqual(self.ok(value, ref), [], (ref, value))
         for ref, value in (
                 ('Select', {'class': 'BP_Wall_C'}), ('Has', {'class': 'PointLightComponent'}), ('Has', {'movable': True}),
                 ('ComponentSelect', {'class': 'NiagaraComponent'}), ('PieceSelect', {'class': 'StaticMeshComponent'}),
@@ -1161,6 +1198,8 @@ class Schema(unittest.TestCase):
         self.assertNotEqual(self.ok(dict(play, map='/Game/Maps/L_X'), 'TaskPlay'), [])
         self.assertNotEqual(self.ok(dict(play, scene='Assets/Scenes/X.scene'), 'TaskPlay'), [])
         self.assertNotEqual(self.ok(dict(play, args=['-x'] * 17), 'TaskPlay'), [])
+        self.assertNotEqual(self.ok(dict(play, args=['x' * 61]), 'TaskPlay'), [])
+        self.assertEqual(self.ok(dict(play, args=self.ARGS, scene=self.SCENE), 'TaskPlay'), [])
 
     def test_task_level(self):
         S = self.S
@@ -1170,11 +1209,12 @@ class Schema(unittest.TestCase):
         self.assertNotIn('template', S['properties'])
         for bad in ({'engine': '5.7'}, {'template': 'blank-cpp'}, {'play_scene': '/Game/Maps/L_X'},
                     {'play_scene': 'Assets/' + 'a' * 288 + '.unity'}, {'play_args': ['-scenario', 'two words']},
-                    {'play_args': ['x'] * 17}, {'play_args': ['-' + 'x' * 61]}, {'player': {'class': 'BP_Hero_C'}},
-                    {'play_map': '/Game/Maps/L_X'}):
+                    {'play_args': ['x'] * 17}, {'play_args': ['-' + 'x' * 61]}, {'play_args': ['x' * 61]},
+                    {'player': {'class': 'BP_Hero_C'}}, {'play_map': '/Game/Maps/L_X'}):
             self.assertNotEqual(list(vg.check_schema(dict(t, **bad), S)), [], bad)
         for good in ({'play_scene': None, 'play_args': []}, {'play_scene': 'Assets/Scenes/Level (2).unity'},
                      {'play_scene': 'Assets/' + 'a' * 287 + '.unity'}, {'play_args': ['-x'] * 16},
+                     {'play_scene': self.SCENE, 'play_args': self.ARGS},
                      {'player': {'name': 'Hero', 'component': 'Game.HeroController'}}, {'player': None}):
             self.assertEqual(list(vg.check_schema(dict(t, **good), S)), [], good)
         self.assertEqual(vg.task_semantic_errors(t), [])
@@ -1207,11 +1247,14 @@ class Schema(unittest.TestCase):
 
     def test_check_names_its_kind(self):
         """A check without `kind` passed (build, boot and package take a name alone, and the checks' discriminator hides a
-        second match) and the checker then had no kind to run it by: every check names its kind."""
-        for check in ({'name': 'builds'}, {'name': 'boots', 'seconds': 60}, {'name': 'files', 'glob': '*.cs'}):
-            self.assertNotEqual(self.ok({'name': 'm', 'checks': [check]}, 'Milestone'), [], check)
-        for kind in ('build', 'boot', 'package'):
-            self.assertEqual(self.ok({'name': 'm', 'checks': [{'name': 'c', 'kind': kind}]}, 'Milestone'), [], kind)
+        second match) and the checker then had no kind to run it by: every check names its kind, with no default."""
+        self.assertEqual(sorted(self.CHECKS), sorted(self.SHAPE))
+        for kind, rest in self.CHECKS.items():
+            check = dict(rest, name='c', kind=kind)
+            self.assertEqual(self.ok({'name': 'm', 'checks': [check]}, 'Milestone'), [], kind)
+            del check['kind']
+            self.assertNotEqual(self.ok({'name': 'm', 'checks': [check]}, 'Milestone'), [], kind)
+            self.assertNotIn('default', self.S['$defs'][self.SHAPE[kind]]['properties']['kind'], kind)
 
     def test_limits_in_metres(self):
         """The original's limits in centimetres, scaled to metres as its defaults are (contract section 1: 200 cm -> 2 m,
@@ -1221,6 +1264,8 @@ class Schema(unittest.TestCase):
                                       ('Line', 'radius', 100, {'from': x, 'to': x}),
                                       ('Near', 'radius', 100000, {'point': x}),
                                       ('Near', 'y_max', 100000, {'point': x, 'radius': 1}),
+                                      ('Near', 'y_max', -100000, {'point': x, 'radius': 1}),
+                                      ('Near', 'y_min', 100000, {'point': x, 'radius': 1}),
                                       ('Near', 'y_min', -100000, {'point': x, 'radius': 1}),
                                       ('TeleportTo', 'distance', 1000, {'t': 0, 'teleport_to': {'tag': 'Ore'}})):
             past = limit + (0.5 if limit > 0 else -0.5)
@@ -1247,9 +1292,12 @@ class Schema(unittest.TestCase):
             m = tasks.measure(dict({'probe': probe, 'field': 'count'}, **rest))
             self.assertEqual((m['of'], m['match']), (default(self.MEASURE[probe], 'of'),
                                                      default(self.MEASURE[probe], 'match')), probe)
-        build = tasks.check({'name': 'b', 'kind': 'build'})
-        for key in ('required', 'weight', 'fails_at_start'):
-            self.assertEqual(build[key], default('Build', key), key)
+        for kind, rest in self.CHECKS.items():
+            check = tasks.check(dict(rest, name='c', kind=kind))
+            for key in ('required', 'weight'):
+                self.assertEqual(check[key], default(self.SHAPE[kind], key), (kind, key))
+        self.assertEqual(tasks.check({'name': 'b', 'kind': 'build'})['fails_at_start'],
+                         default('Build', 'fails_at_start'))
         self.assertEqual(tasks.check({'name': 'b', 'kind': 'boot'})['seconds'], default('Boot', 'seconds'))
         self.assertEqual(tasks.check({'name': 'f', 'kind': 'file_exists', 'glob': '*'})['min_count'],
                          default('FileExists', 'min_count'))
