@@ -12,7 +12,8 @@
    },
    "fields": [
     "prop:CoreDirector.vsync",
-    "prop:CoreDirector.capture"
+    "prop:CoreDirector.capture",
+    "prop:CoreDirector.target"
    ]
   }
  ]

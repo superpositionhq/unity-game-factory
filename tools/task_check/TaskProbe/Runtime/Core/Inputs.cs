@@ -130,7 +130,7 @@ namespace TaskProbe
             if (game < waitFor || real < waitFor) return;
             Waiting = false;
             probe.Pace(false);
-            Probe.Log($"the wait is over ({game:F1} s of game time, {real:F1} s of real time)");
+            Probe.Log(FormattableString.Invariant($"the wait is over ({game:F1} s of game time, {real:F1} s of real time)"));
         }
 
         /// <summary>After the frame's game logic: a held player goes back to its spot, still.</summary>
@@ -175,7 +175,7 @@ namespace TaskProbe
                     waitFrames = 0;
                     waitStart = Time.realtimeSinceStartup;
                     probe.Pace(true);
-                    Probe.Log($"the play's clock holds at {elapsed:F2} s for {waitFor:F1} s of real time");
+                    Probe.Log(FormattableString.Invariant($"the play's clock holds at {elapsed:F2} s for {waitFor:F1} s of real time"));
                     break;
                 case "key":
                     if (Json.TryNum(row, "axis", out var axis)) Control(Json.Str(row, "key"), (float)axis, true);
@@ -194,7 +194,7 @@ namespace TaskProbe
             fy = Math.Min(Math.Max(fy, 0.0), 1.0);
             pointer.position = new Vector2((float)(fx * Screen.width), (float)((1.0 - fy) * Screen.height));
             QueueMouse();
-            Probe.Log($"cursor to ({fx:F3}, {fy:F3}) = pixel ({pointer.position.x:F0}, {pointer.position.y:F0})");
+            Probe.Log(FormattableString.Invariant($"cursor to ({fx:F3}, {fy:F3}) = pixel ({pointer.position.x:F0}, {pointer.position.y:F0})"));
 #endif
         }
 
@@ -280,7 +280,7 @@ namespace TaskProbe
             if (hold <= 0.0) return;
             holdAt = player.transform.position;
             holdUntil = elapsed + hold;
-            Probe.Log($"holding the player at ({holdAt.x:F2}, {holdAt.y:F2}, {holdAt.z:F2}) for {hold:F1} s");
+            Probe.Log(FormattableString.Invariant($"holding the player at ({holdAt.x:F2}, {holdAt.y:F2}, {holdAt.z:F2}) for {hold:F1} s"));
         }
 
         void TeleportTo(Dictionary<string, object> row, Dictionary<string, object> select, double elapsed)
@@ -313,13 +313,13 @@ namespace TaskProbe
             var yaw = look.x * look.x + look.z * look.z > 1e-4f ? Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg : player.transform.eulerAngles.y;
             Place(player, spot, yaw);
             var now = player.transform.position;
-            Probe.Log($"teleported next to {target.name}: asked ({spot.x:F2}, {spot.y:F2}, {spot.z:F2}) yaw {yaw:F1}, now at ({now.x:F2}, {now.y:F2}, {now.z:F2})");
+            Probe.Log(FormattableString.Invariant($"teleported next to {target.name}: asked ({spot.x:F2}, {spot.y:F2}, {spot.z:F2}) yaw {yaw:F1}, now at ({now.x:F2}, {now.y:F2}, {now.z:F2})"));
             StartHold(row, player, elapsed);
         }
 
         /// <summary>The player at `position`, facing `yaw` when given, standing still: through its CharacterController,
         /// NavMeshAgent or Rigidbody when it has one, so the game's own movement doesn't snap it back.</summary>
-        public static void Place(GameObject player, Vector3 position, float? yaw)
+        static void Place(GameObject player, Vector3 position, float? yaw)
         {
             var t = player.transform;
             var rotation = yaw.HasValue ? Quaternion.Euler(t.eulerAngles.x, yaw.Value, t.eulerAngles.z) : t.rotation;

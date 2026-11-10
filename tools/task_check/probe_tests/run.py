@@ -203,6 +203,8 @@ class Family:
         self.scenes = list(getattr(self.module, "SCENES", []))
         self.plays = dict(getattr(self.module, "PLAYS", {}))
         self.assets = getattr(self.module, "ASSETS", None)
+        specs = {p.stem for p in (folder / "plays").glob("*.json")} if (folder / "plays").is_dir() else set()
+        self.strays = sorted(specs ^ set(self.plays))  # a spec no play uses, a play without its spec
 
 
 def families(only):
@@ -320,8 +322,8 @@ def _steady(probe, varies):
 def _spec(family, name):
     spec = json.loads((family.folder / "plays" / f"{name}.json").read_text(encoding="utf-8"))
     queries = spec.get("queries")
-    if isinstance(queries, dict):
-        queries = queries.get("queries")
+    if isinstance(queries, dict):  # a queries object as the play wrote it: a play of what the probe does with a bad one
+        return spec, queries
     return spec, probes.query_file(queries or [], spec.get("every"))
 
 
@@ -335,12 +337,12 @@ def _play(project, spec, queries, args, timeout):
 def run_play(project, family, name, entry, earlier, once):
     """One play of a family, checked: (Checks, note, seconds)."""
     t = Checks(project.folder)
-    spec, queries = _spec(family, name)
     args, timeout = list(entry.get("args") or []), entry.get("timeout", 240)
     started = time.monotonic()
     try:
+        spec, queries = _spec(family, name)
         played = _play(project, spec, queries, args, timeout)
-    except Exception as exc:  # the play couldn't be started at all: this play's failure, not the run's
+    except Exception as exc:  # no spec to read, or the play couldn't be started at all: this play's failure, not the run's
         t.ok(f"the play started ({type(exc).__name__}: {exc})", False)
         return t, "", time.monotonic() - started
     play = Play(name, spec, played, earlier)
@@ -471,6 +473,9 @@ def main(argv=None):
                 passed = False
         wanted = set(args.play or [])
         for family in chosen:
+            if family.strays:  # a play that is never played would pass in silence
+                passed = False
+                print(f"FAIL  {family.name}: plays/ and PLAYS don't match: {', '.join(family.strays)}", flush=True)
             if family.assets and (not wanted or f"{family.name}.assets" in wanted):
                 passed &= report(f"{family.name}.assets (editor pass)", *run_assets(project, family), args.verbose)
             earlier = {}

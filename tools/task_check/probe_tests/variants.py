@@ -66,10 +66,12 @@ class Compiler:
         self.sources = sorted((package / "Runtime").rglob("*.cs"))
         asmdef = json.loads((package / "Runtime" / "TaskProbe.asmdef").read_text(encoding="utf-8"))
         self.defines = {}  # define: (engine module assemblies, package assemblies) it stands for
+        self.own = set()   # the engine assemblies a define is set for (not those of the modules that need them)
         for entry in asmdef["versionDefines"]:
             modules, packages = self.defines.setdefault(entry["define"], ([], []))
             name = entry["name"]
             if name.startswith("com.unity.modules."):
+                self.own.add(self.modules.get(name, (None, []))[0])
                 modules += [m for m in self._with_dependents(name) if m not in modules]
             else:
                 packages += [a for a in PACKAGES.get(name, []) if a not in packages]
@@ -172,9 +174,8 @@ def main(argv=None):
     variant("without every optional module", {d for d, (modules, _) in c.defines.items() if modules})
     variant("without every package and optional module", set(c.defines))
 
-    guarded = {m for modules, _ in c.defines.values() for m in modules}
     for stem in sorted(stem for stem, _ in c.modules.values() if stem):  # the modules a project can remove
-        if stem in ALWAYS or stem in guarded:
+        if stem in ALWAYS or stem in c.own:  # a module that needs a guarded one (terrain physics, cloth) goes alone too
             continue
         good, errors = c.compile(without={stem})
         if good:

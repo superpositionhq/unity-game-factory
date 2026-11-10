@@ -34,7 +34,7 @@ namespace TaskProbe
         /// <summary>Once, after Def and Fields are set: parse the select. Report a bad definition with Probe.Error.</summary>
         public virtual void Load() { }
 
-        /// <summary>Every frame of the play, its clock running or held by a wait (spin, spawns). `dt`: 1/30 s.</summary>
+        /// <summary>Every frame of the play, its clock running or held (a wait, a scene loading) (spin, spawns). `dt`: 1/30 s.</summary>
         public virtual void Frame(float dt) { }
 
         /// <summary>One sample at play time `t`: fill `sample` ("t" is set): "rows" (with RowSet) or "value".</summary>

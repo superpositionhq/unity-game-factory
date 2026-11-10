@@ -11,12 +11,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -59,7 +59,8 @@ namespace TaskProbe
         int frames, framesWaited, shotsTaken, startFrames, loadFrames, errorsLeftOut;
         double nextSample;
         GameObject player;
-        int playerStamp = -1;
+        Camera view;
+        int playerStamp = -1, viewStamp = -1;
 
         readonly List<string> pendingShots = new List<string>();
         readonly List<KeyValuePair<Query, Dictionary<string, object>>> pendingFrames = new List<KeyValuePair<Query, Dictionary<string, object>>>();
@@ -102,7 +103,11 @@ namespace TaskProbe
             {
                 // no play can come of it: the player ends at once, not at the checker's timeout as a game left running
                 Debug.LogError("TaskProbe: the play spec" + (at + 1 < args.Length ? " " + args[at + 1] : "") + " couldn't be read: " + why);
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+                TerminateProcess(GetCurrentProcess(), 2);  // at once: a quit is asked of the game, which may say no
+#else
                 Application.Quit(2);
+#endif
                 return;
             }
             var go = new GameObject("TaskProbe");
@@ -155,7 +160,7 @@ namespace TaskProbe
                 if (SceneUtility.GetBuildIndexByScenePath(scene) < 0) Error("the play's scene " + scene + " isn't in the build: the game's own first scene is played");
                 else SceneManager.LoadScene(scene, LoadSceneMode.Single);
             }
-            Log($"play: {seconds:F1} s, every {every:F2} s, {shots} shot(s), {queries.Count} query(ies), scene {scene ?? "(the game's own)"}"
+            Log(FormattableString.Invariant($"play: {seconds:F1} s, every {every:F2} s, {shots} shot(s), {queries.Count} query(ies), scene {scene ?? "(the game's own)"}")
                 + (Window.OnOwnDesktop() ? ", on its own desktop" : ", on the user's desktop (window moved off-screen)"));
         }
 
@@ -173,7 +178,17 @@ namespace TaskProbe
             var owner = Path.GetFileName(Path.GetDirectoryName(folder.TrimEnd('/', '\\')) ?? "");
             if (owner != company.Replace('.', '_') && owner != company) return "the saved data is kept: " + folder + " isn't this build's own folder";
             PlayerPrefs.DeleteAll();
-            try { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    // a read-only file would stop the delete half way
+                    foreach (var file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+                    Directory.Delete(folder, true);
+                }
+                // the folder itself stays: Unity made it when the player started, and a game writes into it as it is
+                Directory.CreateDirectory(folder);
+            }
             catch (Exception e) { return "the saved data couldn't be cleared: " + e.Message; }
             return null;
         }
@@ -197,7 +212,11 @@ namespace TaskProbe
                 if (mark != null && typeof(Query).IsAssignableFrom(type) && !type.IsAbstract) kinds[mark.Kind] = type;
             }
             var file = Json.Obj(spec, "queries");
-            if (file == null) return;
+            if (file == null)
+            {
+                if (spec.TryGetValue("queries", out var given) && given != null) Error("the queries are not a JSON object");
+                return;
+            }
             var format = Json.Str(file, "format", "");
             if (format != QueriesFormat) { Error("queries format '" + format + "' is not " + QueriesFormat); return; }
             var asked = Json.Arr(file, "queries");
@@ -252,7 +271,7 @@ namespace TaskProbe
         /// <summary>The probe's own objects are never selected.</summary>
         public static bool IsOwn(GameObject go) => Active != null && go != null && go.transform.root == Active.transform;
 
-        /// <summary>The player object (contract section 1), looked up once a frame; null when the scene has none.</summary>
+        /// <summary>The player object (contract section 1), looked up once a pass (Stamp); null when the scene has none.</summary>
         public GameObject Player
         {
             get
@@ -260,7 +279,13 @@ namespace TaskProbe
                 if (playerStamp != Stamp)
                 {
                     playerStamp = Stamp;
-                    player = FindPlayer();
+                    // a play's samples and its end read the player: a select that throws must stop neither
+                    try { player = FindPlayer(); }
+                    catch (Exception e)
+                    {
+                        player = null;
+                        Failed("the player couldn't be found: {0}", e);
+                    }
                 }
                 return player;
             }
@@ -294,12 +319,16 @@ namespace TaskProbe
         {
             get
             {
-                var main = Camera.main;
-                if (main != null) return main;
-                Camera best = null;
-                foreach (var c in Camera.allCameras)
-                    if (c.targetTexture == null && (best == null || c.depth > best.depth)) best = c;
-                return best;
+                if (viewStamp == Stamp) return view;
+                viewStamp = Stamp;
+                view = Camera.main;
+                if (view != null) return view;
+                // of several at the highest depth the first in the hierarchy: the same one in every play
+                var cameras = new List<Camera>(Camera.allCameras);
+                Find.SortByHierarchy(cameras);
+                foreach (var c in cameras)
+                    if (c.targetTexture == null && (view == null || c.depth > view.depth)) view = c;
+                return view;
             }
         }
 
@@ -326,7 +355,12 @@ namespace TaskProbe
         /// <summary>A line in the play's probe.log (beside probe.json), not in the game's own log.</summary>
         public static void Log(string message)
         {
-            try { logFile?.WriteLine((Active != null ? Active.Elapsed.ToString("F2") : "0.00") + " [" + Time.realtimeSinceStartup.ToString("F1") + " s] " + message); }
+            // numbers as "1.50" whatever the machine's language: the line is read by tools
+            try
+            {
+                logFile?.WriteLine((Active != null ? Active.Elapsed.ToString("F2", CultureInfo.InvariantCulture) : "0.00") + " ["
+                                   + Time.realtimeSinceStartup.ToString("F1", CultureInfo.InvariantCulture) + " s] " + message);
+            }
             catch { }
         }
 
@@ -348,6 +382,7 @@ namespace TaskProbe
 
         void Update()
         {
+            if (Active != this) return;  // only the probe Boot made: the script put on an object by hand does nothing
             Stamp++;
             counted = false;
             if (done) return;
@@ -374,6 +409,7 @@ namespace TaskProbe
             }
             if (inputs.Waiting)
             {
+                Pace(true);  // whatever frame rate the game asked for meanwhile
                 inputs.WaitTick();
                 FrameQueries();
                 return;
@@ -429,6 +465,10 @@ namespace TaskProbe
             // after LateUpdate, so one that came on in this frame has its tap before it is heard
             AudioTap.Follow();
 #endif
+            // again after the game's scripts: the next frame's time step is taken before any script runs, so a game that
+            // sets these in its own Update every frame would else set the play's clock
+            if (Time.captureFramerate != Fps) Time.captureFramerate = Fps;
+            if (QualitySettings.vSyncCount != 0) QualitySettings.vSyncCount = 0;
             if (!started) return;
             if ((Time.frameCount & 15) == 0)
             {
@@ -511,7 +551,14 @@ namespace TaskProbe
                 if (wantPixels)
                 {
                     try { frame = ReadFrame(); }
-                    catch (Exception e) { Failed("the frame couldn't be read: {0}", e); }
+                    catch (Exception e)
+                    {
+                        // once for each query that needed the pixels, by its kind and id: its measure can then say why
+                        // it has no value
+                        foreach (var pending in pendingFrames)
+                            if (pending.Key.Needs == FrameNeed.Pixels) Failed(pending.Key.Kind + " " + pending.Key.Id + ": {0} reading the frame", e);
+                        if (pendingShots.Count > 0) Failed("screenshots: {0} reading the frame", e);
+                    }
                 }
 #if TASKPROBE_IMAGECONVERSION
                 if (frame != null)
@@ -567,7 +614,7 @@ namespace TaskProbe
                 ["track"] = track,
                 ["camera"] = cameraRows,
             };
-            if (queries.Count > 0 || measures.Count > 0)
+            if (queries.Count > 0)
             {
                 var all = new Dictionary<string, object>(StringComparer.Ordinal);
                 foreach (var kv in measures) all[kv.Key] = kv.Value;
@@ -593,12 +640,7 @@ namespace TaskProbe
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             TerminateProcess(GetCurrentProcess(), 0);
 #else
-            new Thread(() =>
-            {
-                Thread.Sleep(5000);
-                try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
-            }) { IsBackground = true }.Start();
-            Application.Quit(0);
+            Application.Quit(0);  // the checker builds Windows players only; never a kill of the editor's own process
 #endif
         }
 

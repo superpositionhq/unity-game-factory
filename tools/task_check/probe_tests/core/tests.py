@@ -84,6 +84,7 @@ def inputs(t, play):
     t.near("W went up at 2 s: z at 2 s", play.track(2.0)[3], 2.0, FLOAT)
     t.near("W down again 3 to 3.5 s: z at 6 s", play.track(6.0)[3], 3.0, FLOAT)
     t.eq("W and D sent in one frame were both down for the 15 frames", walker(play, 6.0, "both"), 15)
+    t.eq("a game's InputAction bound to D was pressed for the same 15 frames", walker(play, 6.0, "action"), 15)
     t.near("a mouse delta of 4 is seen once", walker(play, 6.0, "mouseX"), 4.0, FLOAT)
     t.near("a scroll of 3 is seen once", walker(play, 6.0, "scrollY"), 3.0, FLOAT)
     t.eq("the left button was down for 15 frames", walker(play, 6.0, "left"), 15)
@@ -338,19 +339,30 @@ def errors(t, play):
     t.ok("c253 is the last one kept", "c253" in measures and "c254" not in measures)
 
 
+def no_queries(t, play):
+    """A queries object the probe can't use (another format; no queries array): one error in the original's words, no
+    measures, and the play runs to its end."""
+    t.eq("no measures", play.probe.get("measures"), None)
+    t.eq("the track is whole", len(play.probe.get("track") or []), 4)
+
+
 def settings(t, play):
-    """A game that sets vertical sync, a target frame rate and a capture frame rate of its own in Start: the probe
-    sets its own again before every frame's scripts."""
+    """A game that sets vertical sync, a target frame rate and a capture frame rate of its own, in Start and again in
+    every Update: the probe sets its own again before and after every frame's scripts, so no frame's time step is the
+    game's."""
     row = play.row("director", 2.0, "Director")
     t.eq("vertical sync, as the game's Update finds it", row.get("prop:CoreDirector.vsync"), 0)
     t.eq("the capture frame rate, as the game's Update finds it", row.get("prop:CoreDirector.capture"), 30)
-    t.near("the play's clock is still the game's (but for the one frame the game's 60 was in force)", play.track(2.0)[1], 2.0, 1 / 60 + FLOAT)
+    t.eq("the target frame rate, as the game's Update finds it (none: the play runs as fast as it renders)",
+         row.get("prop:CoreDirector.target"), -1)
+    t.near("the play's clock is still the game's (the game's 60 a second would halve it)", play.track(2.0)[1], 2.0, 1 / 60 + FLOAT)
 
 
 def wipe(t, play):
     """A game that destroys every object it finds (but its hero and camera) after 1 s doesn't find the probe: the play
     goes on to its end."""
-    t.ok("the game's search didn't find the probe", "CORE wipe found the probe=False" in play.log)
+    t.ok("the game's searches, for every object and for every script, didn't find the probe",
+         "CORE wipe found the probe=False scripts=False" in play.log, re.findall(r"CORE wipe.*", play.log))
     t.eq("every sample is there", times(play), [round(x, 6) for x in (1 / 30, 0.5, 1.0, 1.5, 2.0, 2.5)])
 
 
@@ -415,6 +427,8 @@ PLAYS = {
     "load_parked": {"check": load_parked, "args": ["-coreload", "parked"]},
     "saves_a": {"check": saves_a, "args": ["-coresave"]},
     "saves_b": {"check": saves_b},
+    "errors_format": {"check": no_queries, "errors": [r"^queries format 'x/1' is not game-probe-queries/1$"]},
+    "errors_array": {"check": no_queries, "errors": [r"^the queries have no queries array$"]},
     "errors": {"check": errors, "errors": [
         r"^query 'bogus': unknown kind 'nonsense' \(null values\)$", r"^a query has a missing or repeated id 'twice'$",
         r"^a query has a missing or repeated id ''$", r"^a query is not an object$",

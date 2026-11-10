@@ -16,6 +16,7 @@
     "prop:CoreWalker.unfocused",
     "prop:CoreWalker.focusLost",
     "prop:CoreWalker.both",
+    "prop:CoreWalker.action",
     "prop:CoreWalker.mouseX",
     "prop:CoreWalker.scrollY",
     "prop:CoreWalker.left",

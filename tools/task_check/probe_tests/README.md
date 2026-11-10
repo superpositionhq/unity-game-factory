@@ -67,7 +67,9 @@ One folder per family of measures, each with the same layout:
   they make under `Assets/ProbeTests/<family>/Made/` (emptied before every setup), return normally and are
   deterministic.
 - A play spec is the checker's play spec (`tools/task_check/CONTRACT.md` section 5) without `format` and `out`; its
-  `queries` is a list of queries, each with an `id` of your choosing.
+  `queries` is a list of queries, each with an `id` of your choosing (an object in place of the list is given to the
+  probe as it is: a play of what the probe does with a queries object it can't use). Every spec in `plays/` has its
+  entry in `PLAYS` and every entry its spec: the runner fails a family where they don't match.
 - Plays are deterministic: test objects move by game time (`Time.deltaTime`, physics), never by real time or
   unseeded random numbers. A measure that depends on real time by its nature (the audio mix's `level`, anything after
   a `wait`) is named in the play's `varies`, with the reason beside it.

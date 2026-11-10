@@ -20,9 +20,16 @@ namespace ProbeTests.Core
         public int pad;         // 1 when a gamepad is there
         public float stickX;    // its left stick's x
         public int south;       // frames its south button was down
+        public int action;      // frames an InputAction bound to <Keyboard>/d was pressed
         bool drift;
+        InputAction dAction;
 
-        void Awake() { drift = CoreArgs.Has("-coredrift"); }
+        void Awake()
+        {
+            drift = CoreArgs.Has("-coredrift");
+            dAction = new InputAction(binding: "<Keyboard>/d");
+            dAction.Enable();
+        }
 
         void Update()
         {
@@ -36,6 +43,7 @@ namespace ProbeTests.Core
                 if (keys.sKey.isPressed) move.z -= 2f;
                 if (keys.wKey.isPressed && keys.dKey.isPressed) both++;
             }
+            if (dAction.IsPressed()) action++;
             if (drift) move.x += 1f;
             transform.position += move * Time.deltaTime;
             var mouse = Mouse.current;
