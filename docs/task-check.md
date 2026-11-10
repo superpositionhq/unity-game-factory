@@ -246,7 +246,8 @@ never got to play (a crash at load: see the play's `play.log` and `output.txt`).
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
-has that field. `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an object
+has that field, or a `player` or `camera` measure's play never found the player or the camera (name the player with
+the task's `player` select: task-probes.md, "Words used here"). `component` is the C# type name (`Projectile`) or its full name (`MyGame.Projectile`); an object
 instantiated at run time is named `<Prefab>(Clone)` (`Projectile(Clone)`), and a `name` wildcard takes every whole name
 it fits (`Projectile*` takes a `ProjectileSpawner` too), so select the things themselves by their own component or
 their full name (task-probes.md, section 2.4); only objects active in the hierarchy match unless the select says
