@@ -134,6 +134,8 @@ class Brief(unittest.TestCase):
 
     def test_the_task_limits_override_the_schemas_defaults(self):
         self.assertEqual(trial.limits_of(task_with(probe())), {"max_turns": 200, "max_minutes": 240})
+        schema = trial.tasks.validator().SCHEMAS["game-task"]["$defs"]["Limits"]["properties"]
+        self.assertEqual(trial.LIMITS, {name: schema[name]["default"] for name in trial.LIMITS}, "the schema's own")
         task = dict(task_with(probe()), limits={"max_turns": 400, "max_minutes": 480})
         self.assertEqual(trial.limits_of(task)["max_minutes"], 480)
 
