@@ -5,8 +5,9 @@
 //   3. ProjectSetup.ImportTextEssentials (no -quit: TextMeshPro's fonts and settings; a package import finishes on the
 //                                         editor's update loop, never inside the method that starts it)
 //   4. ProjectSetup.Configure            (player and editor settings: company, colour space, Input System only, windowing)
-// Each run logs its own workflow.jsonl row. Packages are added by name so the Package Manager picks the versions that
-// ship with this editor; the resulting Packages/manifest.json and packages-lock.json are committed.
+// Each run logs its own workflow.jsonl row. Packages are added by name, so the Package Manager picks the version it
+// recommends for this editor (6000.3.28f1: Cinemachine 3.1.7 from the registry, where the editor bundles 2.10.7 for
+// offline use); the resulting Packages/manifest.json and packages-lock.json are committed.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -77,6 +78,9 @@ namespace __PROJECT__.EditorTools
         {
             if (File.Exists(TextSettings))
             {
+                // setup run again: nothing to import, but every run logs its row
+                WorkflowLog.Row("asset.import", "Assets/TextMesh Pro", new Dictionary<string, object>
+                    { ["package"] = "TMP Essential Resources", ["settings_present"] = true, ["skipped"] = "already imported" });
                 EditorApplication.Exit(0);
                 return;
             }
@@ -156,6 +160,7 @@ namespace __PROJECT__.EditorTools
                 ["serialization"] = "force-text",
                 ["meta_files"] = "visible",
             }, status: inputSet ? "observed" : "failed");
+            if (!inputSet) EditorApplication.Exit(1);   // a failed row with exit 0 would let new-game.ps1 commit it as done
         }
     }
 }
