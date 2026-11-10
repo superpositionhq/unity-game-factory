@@ -27,7 +27,8 @@ def make_inputs(tmp):
     os.makedirs(os.path.dirname(repo))
     start, ref = base.make_game(repo)
     base.write(repo, 'Docs/Notes.md', f'Built on C:\\Users\\{ACCOUNT}\\UnityWork with unity-game-factory and Claude Code.\n'
-                                      'Mail jane.tester@corp.example. The Opus run went well; libopus stays.\n')
+                                      'Mail jane.tester@corp.example. The Opus run went well; libopus stays.\n'
+                                      f'Git Bash ate the backslashes: cd C:Users{ACCOUNT}UnityWorkgames failed.\n')
     env = dict(base.ENV, GIT_AUTHOR_NAME='Jane Tester', GIT_AUTHOR_EMAIL='jane.tester@corp.example',
                GIT_COMMITTER_NAME='Jane Tester', GIT_COMMITTER_EMAIL='jane.tester@corp.example')
     subprocess.run(['git', '-C', repo, 'add', '-A'], check=True, env=env)
@@ -70,10 +71,23 @@ def make_inputs(tmp):
                 brief=os.path.join(tmp, 'brief.md'), design=os.path.join(tmp, 'design.md'))
 
 
-def run(inp, *extra):
-    env = dict(base.ENV, UGF_ROOT=inp['root'], UGF_MIN_FREE_GB='0', USERNAME=ACCOUNT, COMPUTERNAME='JT-DESKTOP')
+def run(inp, *extra, env=None):
+    # UGF_OUT and UGF_CONFIG inside the test's folder: what the packager keeps in the out folder stays there, and no test
+    # reads this machine's config
+    env = dict(dict(base.ENV, UGF_ROOT=inp['root'], UGF_OUT=os.path.join(inp['root'], 'deliverables'),
+                    UGF_CONFIG=os.path.join(inp['root'], 'no-config.json'), UGF_MIN_FREE_GB='0', USERNAME=ACCOUNT,
+                    COMPUTERNAME='JT-DESKTOP'), **(env or {}))
     return subprocess.run([sys.executable, os.path.join(TOOLS, 'package-dataset.py'), SLUG, '--build', inp['build'], '--brief', inp['brief'],
                            '--design', inp['design'], '--version', '1.0', *extra], capture_output=True, text=True, env=env)
+
+
+def commit(repo, files, message):
+    """Write files ({repo path: text or bytes}) and commit them, by the fixture's dev_1."""
+    for rel, data in files.items():
+        base.write(repo, rel, data)
+    base.git(repo, 'add', '-A')
+    base.git(repo, 'commit', '-q', '-m', message)
+    return base.git(repo, 'rev-parse', 'HEAD')
 
 
 @unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
@@ -125,6 +139,7 @@ class Package(unittest.TestCase):
         notes = self.members()['UnityProject/Docs/Notes.md'].decode()
         self.assertIn('C:\\Users\\dev\\UnityWork with studio-tools and agent-tool', notes)
         self.assertIn('The Model run went well; libopus stays.', notes)
+        self.assertIn('cd C:UsersdevUnityWorkgames failed', notes)   # a path whose separators a shell dropped
 
     def test_history_is_rewritten(self):
         m = json.loads(self.members()['manifest.json'])
@@ -239,16 +254,34 @@ class Refusals(unittest.TestCase):
         vg.check_dataset(rep, os.path.join(repo, 'Dataset'), 'dataset')
         self.assertEqual(base.errors(rep), [])
 
-    def test_a_name_in_a_binary_is_reported_and_refused_only_when_strict(self):
+    def test_a_name_in_a_binary_refuses_unless_lenient(self):
         base.write(self.inp['build'], 'KilnRun_Data/level0', b'\0\1\2' + b'built by unity-game-factory tools' + b'\0\1')
         r = run(self.inp)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('name(s) left', r.stderr)
+        r = run(self.inp, '--lenient-binaries')   # listed only: to review a refusal
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('binary file(s)', r.stdout)
         hits = base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.binary-hits.tsv'))
         self.assertIn('Build/KilnRun_Data/level0', hits)
-        r = run(self.inp, '--strict-binaries')
+
+    def test_a_short_account_name_inside_a_longer_word_is_no_hit(self):
+        # the engine's own files spell a short account name inside longer words and identifiers, in any case; a path
+        # with the name in a binary is a hit
+        base.write(self.inp['build'], 'KilnRun_Data/Managed/System.Core.dll', b'\0\1' + b'.ManorAccess.Minoratoria.' * 3 + b'\0')
+        r = run(self.inp, env={'USERNAME': 'nora'})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        base.write(self.inp['build'], 'KilnRun_Data/level0', b'\0\1\2' + b'C:\\Users\\Nora\\Desktop\\kiln.fbx' + b'\0\1')
+        r = run(self.inp, env={'USERNAME': 'nora'})
         self.assertEqual(r.returncode, 2)
-        self.assertIn('name(s) left', r.stderr)
+        self.assertIn('KilnRun_Data/level0', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.refused-hits.tsv')))
+
+    def test_the_account_name_glued_into_a_word_refuses(self):
+        # OwnerNameDesktop: a lower -> upper boundary is a word's edge, so the name is found where the scrub leaves it
+        commit(self.inp['repo'], {'Docs/Owner.md': f'The shortcut was named Owner{ACCOUNT.capitalize()}Desktop.\n'}, 'Add the owner note')
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('UnityProject/Docs/Owner.md', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.refused-hits.tsv')))
 
     def test_excluded_session(self):
         r = run(self.inp, '--exclude-sessions', S2, '--no-repo-dataset')

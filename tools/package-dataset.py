@@ -273,7 +273,7 @@ def build_rules(user, machine, session_ids, identities):
     if user:
         u = re.escape(user)
         # paths, also ones that lost their separators (C:UsersNameWork) or took a regex backreference (Users\1Name)
-        add('username', 'all', f'(?i)((?:users|home)[\\\\/:0-9]{{1,6}}){u}(?![A-Za-z0-9_])', lambda m: m.group(1) + 'dev', user.lower())
+        add('username', 'all', f'(?i)((?:users[\\\\/:0-9]{{0,6}}|home[\\\\/:0-9]{{1,6}})){u}', lambda m: m.group(1) + 'dev', user.lower())
         if len(user) >= 3:   # a shorter name is too common a word to replace outside a path
             add('username', 'all', f'(?i){WORD_START}{u}(?![A-Za-z0-9_])', 'dev', user.lower())
     add('email', 'all', EMAIL, '<redacted-email>', '@')
@@ -315,8 +315,11 @@ def enforced_pattern(user, identities):
     """What must not be left in a delivered text file or path: the names of the layout's scan list."""
     parts = [r'superposition', r'game[-_ ]?factory', r'claude', r'anthropic', r'openai', OPUS_WORD % 'opus', EMAIL]
     if user and len(user) >= 3:
-        # the account name as a word or path segment of its own, not inside a longer word (a place name)
-        parts.append(r'(?:(?<=\\[nrtfb])|(?<=\\u[0-9a-fA-F]{4})|(?<![A-Za-z]))' + re.escape(user) + r'(?![A-Za-z])')
+        # the account name as a word or path segment of its own, not inside a longer word (a place name); a lower ->
+        # upper boundary counts as a word's edge (OwnerNameDesktop, and C:UsersNameWork: a path whose separators a
+        # shell dropped)
+        parts.append(r'(?:(?<=\\[nrtfb])|(?<=\\u[0-9a-fA-F]{4})|(?<![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))' + re.escape(user) +
+                     r'(?:(?![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))')
     elif user:
         parts.append(r'(?:users|home)[\\/]{1,2}' + re.escape(user) + r'(?![A-Za-z0-9_])')
     for term, _ in identities:
@@ -788,6 +791,23 @@ def find_exe(build):
 
 
 # ---- scan ------------------------------------------------------------------------------------------------------------------
+def short_token(buf, at, n, w):
+    """Whether a short needle (an account name of four or five letters) found at buf[at] with stride w (1 ASCII, 2
+    UTF-16LE) stands as a word of its own: spelled as a word is (name, Name, NAME), after a non-letter or at a lower ->
+    upper boundary, and not followed by a lower-case letter. The engine's own files spell short names inside longer
+    words and identifiers, in any case (System.Core.dll's method names, a word list in mono-2.0-bdwgc.dll)."""
+    if w == 2 and any(buf[at + 2 * k + 1] for k in range(n)):
+        return False
+    s = bytes(buf[at + w * k] for k in range(n)).decode('latin-1')
+    if not (s.islower() or s.isupper() or (s[0].isupper() and s[1:].islower())):
+        return False
+    def char(i):
+        return buf[i] if 0 <= i < len(buf) and (w == 1 or (i + 1 < len(buf) and buf[i + 1] == 0)) else 0
+    prev, nxt = char(at - w), char(at + n * w)
+    letter = lambda c: 65 <= c <= 90 or 97 <= c <= 122   # noqa: E731
+    return (not letter(prev) or (97 <= prev <= 122 and s[0].isupper())) and not 97 <= nxt <= 122
+
+
 def scan_binary(path, needles):
     """[(offset, needle, run)] of needles (lower-case ASCII) found in a binary file as ASCII or UTF-16LE, any case. run =
     the printable characters in a row around the hit: compiled-in strings run long, compressed data seldom past 8."""
@@ -807,7 +827,9 @@ def scan_binary(path, needles):
                     at = low.find(pat)
                     while at >= 0 and len(hits) < 200:
                         off = base - len(carry) + at
-                        if not any(h[0] == off for h in hits):
+                        if len(n) < 6 and not short_token(buf, at, len(n), 2 if w else 1):
+                            pass   # a short name inside a longer word or identifier, or in random bytes
+                        elif not any(h[0] == off for h in hits):
                             st = 2 if w else 1
                             run, a, z = len(n), at - st, at + len(pat)
                             while a >= 0 and run < 64 and 0x20 <= buf[a] <= 0x7e and (not w or buf[a + 1] == 0):
@@ -835,7 +857,9 @@ def main():
     ap.add_argument('--exclude-sessions', default='', help='session ids, comma-separated, whose rows are not creation work')
     ap.add_argument('--recording', help='the recording folder (default <root>/.recording/<slug>)')
     ap.add_argument('--out', help='where the zip and the scratch folder go (default the game repo)')
-    ap.add_argument('--strict-binaries', action='store_true', help='a name found in a binary file refuses the package')
+    ap.add_argument('--lenient-binaries', action='store_true',
+                    help='list the names found in binary files without refusing the package (to review a refusal)')
+    ap.add_argument('--strict-binaries', action='store_true', help=argparse.SUPPRESS)   # the default now
     ap.add_argument('--no-repo-dataset', action='store_true', help='do not write the repo\'s Dataset/ folder')
     ap.add_argument('--no-zip', action='store_true', help='stop after the checks; the delivery stays in the scratch folder')
     ap.add_argument('--dry-run', action='store_true', help='print what would go in; write nothing')
@@ -1085,7 +1109,7 @@ def package(args):
     if bin_hits:
         warnings.append(f'{len(bin_hits)} name(s) in {len({h[0] for h in bin_hits})} binary file(s), {len(strings)} of them inside a string of 8+ '
                         f'characters: review {os.path.join(scratch, game + ".binary-hits.tsv")} (binaries are never changed)')
-    if args.strict_binaries:
+    if not args.lenient_binaries:   # a name in a binary file's strings refuses the package, as one in a text file does
         hits += [(h[0], 'binary', h[1], h[2]) for h in strings]
     errors = [p for p in problems if p.startswith('error:')]
     if hits or errors:
