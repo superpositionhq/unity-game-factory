@@ -73,7 +73,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
   ```
   - `name`: not `look`, `drive`, `editor` or `trace`. Plays with the same name in one task must be identical.
   - `seconds`: 5-120. No input at or after the end.
-  - `every`: the sampling step, 0.1-1.0 s (default 0.5).
+  - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
+    1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
+    0.767, 1.0, ...): keep window edges off the exact moment something happens.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene).
   - `args` (optional): the player's command-line arguments for this play instead of the task's `play_args` (`[]`:
