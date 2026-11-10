@@ -226,6 +226,8 @@ def main():
     try:
         a.fn(a)
     except OSError as e:
+        if not isinstance(e, (urllib.error.URLError, TimeoutError, ConnectionError)):  # get's own files: the manifest
+            sys.exit(str(e))
         sys.exit(f"network error: {getattr(e, 'reason', e)} (check the terminal's proxy settings and that freesound.org answers)")
 
 
