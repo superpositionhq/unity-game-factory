@@ -139,6 +139,8 @@ class Package(unittest.TestCase):
         self.assertNotRegex(log, r'(?i)jane|tester|claude|anthropic')
         self.assertRegex(log, r'dev_\d+\|dev_\d+@example\.invalid')
         self.assertEqual(base.git(work, 'rev-parse', 'refs/heads/main'), m['commit'])
+        self.assertEqual(base.git(work, 'for-each-ref', '--format=%(refname)').split(), sorted(h['refs']))   # no side branch
+        self.assertEqual(base.git(work, 'symbolic-ref', 'HEAD'), 'refs/heads/main')
         self.assertEqual(int(base.git(work, 'rev-list', '--all', '--count')), h['commits'])
         # the task's seeds name commits of the delivered history
         t = json.loads(self.members()[f'Tasks/{SLUG}-fix-hero-hud/task.json'])
