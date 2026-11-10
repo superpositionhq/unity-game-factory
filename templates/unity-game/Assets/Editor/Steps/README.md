@@ -22,7 +22,19 @@ The creation replay (not available yet) will run these steps again to rebuild th
 - build content from code (`EditorSceneManager`, `PrefabUtility`, `AssetDatabase`, `SerializedObject` for private
   fields), never by editing scene or prefab YAML by hand.
 
-A step looks like this:
+What the editor does that a step must allow for:
+
+- opening a scene (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets loaded before it, and a reference
+  to one of them then saves as empty, with no warning (it cost one game three commits): open the scene first, then
+  load or create the assets you assign, and read the saved references back with an `Inspect*` step;
+- `-nographics` draws nothing, without an error (a camera capture comes out one flat grey): a step that renders
+  (screenshots, lightmap bakes, shader warm-up) runs with `-Render`;
+- a package import (`AssetDatabase.ImportPackage`) finishes on the editor's update loop, after the method has
+  returned, and with `-quit` the editor leaves before it: run that step with `-NoQuit`, wait for
+  `AssetDatabase.importPackageCompleted` / `importPackageFailed`, then call `EditorApplication.Exit`
+  (`ProjectSetup.ImportTextEssentials` in `Assets/Editor/Tools/` is the pattern).
+
+A step looks like this, run with `Scripts/unity.ps1 step -Method __PROJECT__.EditorSteps.BuildHarbor.Run -Reason "..."`:
 
 ```csharp
 using System.Collections.Generic;
@@ -31,14 +43,18 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using __PROJECT__.EditorTools;   // WorkflowLog (the project's editor tools assembly)
 
-public static class BuildHarbor
+namespace __PROJECT__.EditorSteps
 {
-    public static void Run()
+    public static class BuildHarbor
     {
-        var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-        // ... place prefabs, set up lighting ...
-        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Harbor.unity");
-        WorkflowLog.Row("scene.build", "Assets/Scenes/Harbor.unity", new Dictionary<string, object> { ["piers"] = 4 });
+        public static void Run()
+        {
+            // the scene first: opening it unloads the assets loaded before it
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            // ... then load or create the assets, place prefabs, set up lighting ...
+            EditorSceneManager.SaveScene(scene, "Assets/Scenes/Harbor.unity");
+            WorkflowLog.Row("scene.build", "Assets/Scenes/Harbor.unity", new Dictionary<string, object> { ["piers"] = 4 });
+        }
     }
 }
 ```
