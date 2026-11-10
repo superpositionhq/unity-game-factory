@@ -181,7 +181,7 @@
       "what": "never inside a game: tool, vendor and owner names (text files of the repo; LFS and binary files are scanned by the packager)",
       "patterns": [
         "(?i)superposition",
-        "(?i)(unity[-_ ]?)?game[-_ ]?factory",
+        "(?i)game[-_ ]?factory",
         "(?i)\\banthropic\\b",
         "(?i)\\bclaude\\b",
         "(?i)\\bopenai\\b"
@@ -192,7 +192,7 @@
       "account_name": {
         "what": "the account (user) name of the machine running the validator, as a word (USERNAME at run time; machine paths carry it): never written in the repo",
         "exempt_paths": "(?i)^Scripts/|^Assets/Editor/Steps/|\\.(ps1|psm1|py|sh|bat|cmd)$",
-        "why": "enforced in workflow.jsonl and every other non-script file; scripts and editor steps that already ran (Scripts/, Assets/Editor/Steps/, and .ps1/.psm1/.py/.sh/.bat/.cmd files anywhere) stay unchanged and are scrubbed at packaging"
+        "why": "user decision (b), 2026-10-15: enforced in workflow.jsonl and every other non-script file; scripts and editor steps that already ran (Scripts/, Assets/Editor/Steps/, and .ps1/.psm1/.py/.sh/.bat/.cmd files anywhere) stay unchanged and are scrubbed at packaging"
       }
     },
     "dataset_folder": "Dataset/ (variant repo-dataset): checked as a dataset when manifest.json is there; a game that is not packaged yet has none",

@@ -20,25 +20,17 @@ import argparse, io, json, os, re, shutil, subprocess, sys, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-
-
-def load_json(path):
-    with open(path, encoding='utf-8-sig') as f:
-        return json.load(f)
+SPEC = json.load(open(os.path.join(REPO, 'docs', 'game-format-v1.json'), encoding='utf-8'))
+SCHEMAS = {n: json.load(open(os.path.join(REPO, 'docs', 'schemas', n + '.schema.json'), encoding='utf-8'))
+           for n in ('workflow-row', 'dataset-manifest', 'replay-report', 'assets-manifest', 'game-task')}
 
 
 def read_text(path):
-    """A text file's content ('' when it isn't there)."""
+    """A text file's content ('' when it isn't there): the Unity settings files, .gitignore, README.md."""
     if not os.path.isfile(path):
         return ''
     with open(path, encoding='utf-8-sig', errors='replace') as f:
         return f.read()
-
-
-SPEC = load_json(os.path.join(REPO, 'docs', 'game-format-v1.json'))
-SCHEMAS = {n: load_json(os.path.join(REPO, 'docs', 'schemas', n + '.schema.json'))
-           for n in ('workflow-row', 'dataset-manifest', 'replay-report', 'assets-manifest', 'game-task')}
-LAYOUT = 'unity-dataset-layout/v1'   # docs/dataset-layout-v1.json: the one Unity layout so far
 
 
 class Report:
@@ -61,6 +53,11 @@ def _is(v, t):
     if t == 'integer': return isinstance(v, int) and not isinstance(v, bool)
     if t == 'number': return isinstance(v, (int, float)) and not isinstance(v, bool)
     return isinstance(v, TYPES[t])
+
+
+def _same(a, b):
+    """JSON equality: true is not 1 (to Python's == it is)."""
+    return a == b and isinstance(a, bool) == isinstance(b, bool)
 
 
 def check_schema(value, schema, root=None, path='$'):
@@ -91,9 +88,9 @@ def check_schema(value, schema, root=None, path='$'):
                 yield f'{path}: matches none of the allowed shapes ({best[0] if best else "?"})'
             elif key == 'oneOf' and ok > 1 and 'discriminator' not in schema:
                 yield f'{path}: matches more than one of the allowed shapes'
-    if 'const' in schema and value != schema['const']:
+    if 'const' in schema and not _same(value, schema['const']):
         yield f'{path}: must be {json.dumps(schema["const"])}, got {json.dumps(value)[:80]}'
-    if 'enum' in schema and value not in schema['enum']:
+    if 'enum' in schema and not any(_same(value, e) for e in schema['enum']):
         yield f'{path}: {json.dumps(value)[:80]} not one of {schema["enum"]}'
     if isinstance(value, str):
         if 'minLength' in schema and len(value) < schema['minLength']:
@@ -239,9 +236,6 @@ def git_ls(repo):
     return [p for p in out.stdout.decode('utf-8', 'replace').split('\0') if p]
 
 
-ASSET_ROOTS = re.compile(r'^(Assets|Packages|RawAssets)/')   # where a game's asset files live
-
-
 def check_assets_manifest(rep, area, data, present):
     """data: parsed assets.manifest.json; present(path) -> True when the file (or, for a path ending in /, any file
     under the folder) is there."""
@@ -265,7 +259,7 @@ def check_assets_manifest(rep, area, data, present):
     for a in data['assets']:
         for f in a['files']:
             n += 1
-            if not ASSET_ROOTS.match(f):
+            if not re.match(r'^(Assets|Packages|RawAssets)/', f):
                 outside.append(f'{a["name"]}: {f}')
             if not present(f):
                 missing.append(f'{a["name"]}: {f}')
@@ -396,7 +390,7 @@ def _check_dataset(rep, v, area):
     # replay_verification is null only while ReplayScripts/ is pending (listed in pending)
     if m.get('replay_verification') is None and not any(str(p).rstrip('/') == 'ReplayScripts' for p in m['pending']):
         rep.error(a, 'replay_verification is null but ReplayScripts/ is not listed as pending')
-    # videos: at least one (user rule: one recorded scenario is enough), unless Gameplay/ is listed as pending
+    # videos: at least one (user rule 2026-10-19: one recorded scenario is enough), unless Gameplay/ is listed as pending
     if not m['scenarios'] and not any(str(p).rstrip('/') == 'Gameplay' for p in m['pending']):
         rep.error(a, 'no scenario videos: a delivery has at least one, or lists Gameplay/ as pending')
     # Brief/, the person's directions, History/, Tasks/ (all part of the first Unity layout)
@@ -537,7 +531,6 @@ GRADER_KEYS = ('milestones',)          # the grader's half of a task, with seed.
 
 # A play's command line (play_args, a task play's args): the player's own arguments, never the checker's
 # (docs/task-probes.md, section 1.1). An element starting with "-" and a letter is a flag, anything else a value.
-PLAY_ARG = re.compile(r'^-?[A-Za-z0-9_.:=,/-]{1,60}$')
 PLAY_FLAG = re.compile(r'^-+([A-Za-z][^=]*)')   # "--x" too: Unity's own parsing is not ours to second-guess
 DENIED_PLAY_ARGS = {'batchmode', 'nographics', 'quit', 'logfile', 'projectpath', 'executemethod', 'popupwindow',
                     'monitor', 'parenthwnd', 'single-instance'}
@@ -871,8 +864,8 @@ def thread_errors(t, outcomes):
 
 
 def noop_errors(t):
-    """Why a no-op would earn something, from the task alone: a no-op scores zero. The score is the weighted share of
-    checks passed, so what is true of the start takes `"weight": 0`. The task check measures the rest."""
+    """Why a no-op would earn something, from the task alone: a no-op scores zero (owner, 2026-11-04). The score is the
+    weighted share of checks passed, so what is true of the start takes `"weight": 0`. The task check measures the rest."""
     errs, earning = [], 0
     for m in t.get('milestones') or []:
         for c in (m.get('checks') or []) if isinstance(m, dict) else []:
@@ -1365,7 +1358,7 @@ def check_repo(rep, repo):
     exempt = [None] * len(rxs)
     # the account name of this machine (machine paths with it included), read at run time, never written in the repo;
     # not enforced in scripts (account_name.exempt_paths: Scripts/, the editor steps that ran and script files
-    # anywhere), which stay unchanged once they ran and are scrubbed at packaging
+    # anywhere), which stay unchanged once they ran and are scrubbed at packaging (user decision b)
     acct = os.environ.get('USERNAME') or os.path.basename(os.path.expanduser('~'))
     if acct and len(acct) >= 4:
         rxs.append(re.compile(r'(?i)(?<![A-Za-z0-9_])' + re.escape(acct) + r'(?![A-Za-z0-9_])'))
@@ -1405,7 +1398,7 @@ def check_repo(rep, repo):
     # assets.manifest.json: unified format, every listed file committed under Assets/, Packages/ or RawAssets/
     if 'assets.manifest.json' in tracked:
         try:
-            data = load_json(os.path.join(repo, 'assets.manifest.json'))
+            data = json.load(open(os.path.join(repo, 'assets.manifest.json'), encoding='utf-8-sig'))
         except ValueError as e:
             rep.error('repo: assets.manifest.json', f'not JSON: {e}')
             data = None
@@ -1446,7 +1439,8 @@ def main():
         if os.path.isfile(os.path.join(ds, 'manifest.json')):
             targets.append((ds, True))
         else:
-            rep.warn('dataset', 'Dataset/ has no manifest.json: not packaged yet')
+            rep.warn('dataset', 'Dataset/ has no manifest.json: not packaged yet (the packager comes with the recording '
+                                'pipeline, docs/unity-pipeline.md; until then a game has no dataset)')
         for z in ('Dataset.zip', 'Dataset.pending.zip'):
             if not a.no_zip and os.path.isfile(os.path.join(repo, z)):
                 targets.append((os.path.join(repo, z), False))

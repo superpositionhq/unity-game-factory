@@ -332,7 +332,9 @@ class RepoRules(Base):
         self.assertTrue(any(e.startswith('Assets/Data/credits.txt') for e in errs), errs)
 
     def test_unity_repo_name_banned(self):
-        self.assertTrue(re.search(vg.SPEC['repo']['banned_names']['patterns'][1], 'cloned unity_game_factory here'))
+        rx = vg.SPEC['repo']['banned_names']['patterns'][1]
+        self.assertTrue(re.search(rx, 'cloned unity_game_factory here'))
+        self.assertFalse(re.search(rx, f'the repo unity-game-{SLUG}'))   # a game's own repo name is no tool name
 
     def test_wrong_editor_and_settings(self):
         write(self.repo, 'ProjectSettings/ProjectVersion.txt', 'm_EditorVersion: 2022.3.62f1\n')
@@ -404,11 +406,17 @@ class RepoRules(Base):
         data = json.loads(read(os.path.join(self.repo, 'assets.manifest.json')))
         data['assets'].append({'name': 'Gone', 'source': 'x', 'url': 'https://x', 'licence': 'CC0',
                                'files': ['Content/Gone/', 'Assets/Gone.fbx']})
+        data['assets'] += [{'name': 'Ours', 'source': 'the studio', 'origin': 'studio', 'licence': 'own',
+                            'files': ['Assets/Scripts/Kiln.cs']},     # the schema's if: studio needs a description
+                           {'name': 'Theirs', 'source': 'x', 'licence': 'CC0',
+                            'files': ['Assets/Scripts/Kiln.cs']}]     # else: an https url
         write(self.repo, 'assets.manifest.json', json.dumps(data))
         commit(self.repo, 'Manifest')
         errs = errors(self.check(), 'repo: assets.manifest.json')
         self.assertIn('asset path outside Assets/, Packages/ or RawAssets/: Gone: Content/Gone/', errs)
         self.assertIn('listed asset file not present: Gone: Assets/Gone.fbx', errs)
+        self.assertIn('$.assets[2] (Ours): origin studio needs a "description"', errs)
+        self.assertTrue(any(e.startswith('$.assets[3] (Theirs): needs an https "url"') for e in errs), errs)
 
     def test_workflow_rows(self):
         with open(os.path.join(self.repo, 'workflow.jsonl'), 'a') as f:
@@ -582,6 +590,43 @@ class Units(unittest.TestCase):
         absent = {'name': 'clean', 'kind': 'log_absent', 'pattern': 'Exception('}
         self.assertIn("'Exception(' isn't a regular expression",
                       ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [absent]}]))))
+
+    def test_schema_keywords(self):
+        """Every keyword the schemas use is one check_schema reads, an annotation, or the if/then/else that
+        check_assets_manifest evaluates by hand (a keyword it ignored would be a rule never checked); each works."""
+        read = {'type', 'required', 'properties', 'additionalProperties', 'minProperties', 'enum', 'const', 'pattern',
+                'minLength', 'maxLength', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'items',
+                'minItems', 'maxItems', '$ref', 'allOf', 'anyOf', 'oneOf', 'discriminator'}
+        notes = {'$schema', '$id', '$defs', '$comment', 'title', 'description', 'default', 'propertyName', 'mapping'}
+        used = set()
+
+        def walk(node, names=False):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    used.update(() if names else (k,))
+                    walk(v, not names and k in ('properties', '$defs', 'mapping'))
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+        for s in vg.SCHEMAS.values():
+            walk(s)
+        self.assertEqual(used - read - notes - {'if', 'then', 'else'}, set())
+        either = [{'type': 'string'}, {'type': 'integer'}]
+        for schema, good, bad in (
+                ({'type': 'integer'}, 3, True), ({'type': ['string', 'null']}, None, 3), ({'required': ['a']}, {'a': 1}, {}),
+                ({'properties': {'a': {'type': 'string'}}}, {'a': 'x'}, {'a': 1}),
+                ({'properties': {'a': {}}, 'additionalProperties': False}, {'a': 1}, {'b': 1}),
+                ({'minProperties': 1}, {'a': 1}, {}), ({'enum': ['a', 1]}, 1, True), ({'const': True}, True, 1),
+                ({'pattern': '^a+$'}, 'aa', 'ab'), ({'minLength': 1}, 'a', ''), ({'maxLength': 1}, 'a', 'ab'),
+                ({'minimum': 0}, 0, -1), ({'maximum': 1}, 1, 2), ({'exclusiveMinimum': 0}, 0.5, 0),
+                ({'exclusiveMaximum': 1}, 0.5, 1), ({'items': {'type': 'string'}}, ['a'], ['a', 1]),
+                ({'minItems': 1}, [1], []), ({'maxItems': 1}, [1], [1, 2]),
+                ({'$defs': {'S': {'type': 'string'}}, '$ref': '#/$defs/S'}, 'a', 1),
+                ({'allOf': [{'minimum': 0}, {'maximum': 1}]}, 0.5, 2), ({'anyOf': either}, 'a', None),
+                ({'oneOf': [{'minimum': 0}, {'maximum': 1}]}, 5, 0.5),   # 0.5 fits both
+                ({'oneOf': either + [{'type': 'number'}], 'discriminator': {'propertyName': 'k'}}, 2, None)):
+            self.assertEqual(list(vg.check_schema(good, schema)), [], (schema, good))
+            self.assertNotEqual(list(vg.check_schema(bad, schema)), [], (schema, bad))
 
     def test_wildcard_takes_one(self):
         """A select that takes one object by a wildcard name alone is a warning, never an error (the sample game's
