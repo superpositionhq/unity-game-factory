@@ -316,18 +316,18 @@ renderers, else its position.
   - `near`: its position (its transform's, the pivot) within `radius` m of a point. `{"player": true}`: the player.
   - `has`: a part the object carries, `{"has": {"component": ..., "lit": true, "visible": true, "near": {"point":
     <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on any of its
-    descendants, inactive ones included) matches every key given. `component` is the part's type or a base type, as a
-    `components` select names it; `lit: true` reads it as the components `lit` field does (a Light that lights the
-    scene; a drawn renderer that gives off light, a mesh read from its material properties or else as rendered, a
-    sprite or a line as rendered; or a live effect that draws light; section 2.5); `visible: true` keeps a Renderer
-    that is drawn, as the components `visible` field reads a Renderer; `near` measures from the part's own place, not
-    the object's. At least one key, and only `true` for `lit`, `visible` and `simulating` (below). The way to select
-    by what an object does ("an object that gives light", "an object with a drawn mesh near here") rather than by the
-    type or name a build gave it. It works in every object select: these, other measures' (`owner`, `ground`), points
-    (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`. `"simulating": true`
-    (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can
-    do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
-    whichever component a build used.
+    descendants, inactive ones included) matches every key given. `component` is the part's type, a base type or an
+    interface, as a `components` select names it; `lit: true` reads it as the components `lit` field does (a Light
+    that lights the scene; a drawn renderer that gives off light, a mesh read from its material properties or else as
+    rendered, a sprite or a line as rendered; or a live effect that draws light; section 2.5); `visible: true` keeps a
+    Renderer that is drawn, as the components `visible` field reads a Renderer; `near` measures from the part's own
+    place, not the object's. At least one key, and only `true` for `lit`, `visible` and `simulating` (below). The way
+    to select by what an object does ("an object that gives light", "an object with a drawn mesh near here") rather
+    than by the type or name a build gave it. It works in every object select: these, other measures' (`owner`,
+    `ground`), points (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`.
+    `"simulating": true` (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an
+    object by what it can do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object
+    a player can shove, whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
 - `field`:
   - `count`: the selection's size (`of` ignored);
