@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Object = UnityEngine.Object;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -38,9 +39,15 @@ namespace ProbeTests.Core
         static void Foreign()
         {
             var company = PlayerSettings.companyName;
+            var backend = PlayerSettings.GetScriptingBackend(NamedBuildTarget.Standalone);
+            var stripping = PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.Standalone);
             try
             {
                 PlayerSettings.companyName = "ProbeTestsForeignCo";
+                // whatever another family set for the project (IL2CPP, stripping): this build needs neither the
+                // IL2CPP module nor the linker's minutes
+                PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+                PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.Disabled);
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = new[] { Made + "/Clock.unity" }, locationPathName = "Build/ProbeTestsForeign/Game.exe",
@@ -48,7 +55,12 @@ namespace ProbeTests.Core
                 });
                 if (report.summary.result != BuildResult.Succeeded) throw new Exception("the foreign player didn't build: " + report.summary.result);
             }
-            finally { PlayerSettings.companyName = company; }
+            finally
+            {
+                PlayerSettings.companyName = company;
+                PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, backend);
+                PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, stripping);
+            }
         }
 
         static Scene New() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

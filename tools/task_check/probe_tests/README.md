@@ -109,7 +109,9 @@ ASSETS = {"measures": "measures.json", "check": saved}    # one editor pass: {"<
 - For every play the runner itself checks: the player's exit code is 0, probe.json was written, `ended`,
   `query_errors`, no exception of the probe's in the player's log, and the second play's probe.json is the first's.
   For an editor pass it checks the editor's exit code, that the result is the pass's own, and that the pass changed
-  no file under `Assets/`, `Packages/` and `ProjectSettings/`.
+  no file under `Assets/`, `Packages/` and `ProjectSettings/`. For the build it checks that no file under `Packages/`
+  and `ProjectSettings/` changed: the checker's build changes player settings and must put them back (`Assets/` is
+  left out: in any player build URP writes into its own assets there).
 
 ## The families
 

@@ -9,7 +9,8 @@ never a game's own folder). The run
 1. adds the package to it as the checker does (Packages/com.taskprobe) and every family's material
    (Assets/ProbeTests/<family>/);
 2. starts the editor once to make every family's scenes (each family's SETUP methods, through Setup.cs);
-3. builds the player once, as the checker builds a scratch copy, with every family's SCENES;
+3. builds the player once, as the checker builds a scratch copy, with every family's SCENES (the build must leave
+   every file under Packages and ProjectSettings as it was);
 4. runs each family's editor pass (ASSETS) and plays (PLAYS) as the checker runs them, each play twice: the second
    must give the same probe.json as the first (two plays of one build measure the same);
 5. checks every value and prints one line per play; exit code 0 when everything passed.
@@ -44,6 +45,10 @@ PARTS = ("Editor", "Scripts", "Assets")
 MADE = "Made"
 SETUP_METHOD = "ProbeTests.Setup.Run"
 KEPT = "Logs/ProbeTests"
+# What the checker's build must leave byte for byte as it was: it changes player settings for the build and puts them
+# back. Assets/ is not compared: any player build has URP write into its own assets there (shader prefiltering fields
+# of each URP asset, the list of resources in the global settings).
+BUILD_KEEPS = ("Packages", "ProjectSettings")
 PROBE_STACK = re.compile(r"^\s*at TaskProbe\.", re.M)  # an exception of the probe's own in the player log
 
 
@@ -374,10 +379,10 @@ def run_play(project, family, name, entry, earlier, once):
     return t, note, time.monotonic() - started
 
 
-def _saved(folder):
-    """{file: sha256} of the project as saved: everything under Assets, Packages and ProjectSettings."""
+def _saved(folder, parts=("Assets", "Packages", "ProjectSettings")):
+    """{file: sha256} of the project as saved: everything under `parts`."""
     found = {}
-    for part in ("Assets", "Packages", "ProjectSettings"):
+    for part in parts:
         for file in (folder / part).rglob("*"):
             if file.is_file():
                 found[file.relative_to(folder).as_posix()] = hashlib.sha256(file.read_bytes()).hexdigest()
@@ -450,14 +455,20 @@ def main(argv=None):
                   f"{time.monotonic() - started:.0f} s" + (f"\n    {why}" if why else ""), flush=True)
             if why:
                 return 1
+            before = _saved(folder, BUILD_KEEPS)
             built = project.build(3600, [s for f in chosen for s in f.scenes])
-            ok = built.exit_code == 0
+            after = _saved(folder, BUILD_KEEPS)
+            changed = sorted(f for f in set(before) | set(after) if before.get(f) != after.get(f))
+            ok = built.exit_code == 0 and not changed
             print(f"{'ok  ' if ok else 'FAIL'}  build: {len((built.report or {}).get('scenes') or [])} scene(s)  "
                   f"{built.seconds:.0f} s", flush=True)
-            if not ok:
+            if built.exit_code != 0:
                 errors = [line.strip() for line in built.output.splitlines() if "error CS" in line or "rror:" in line]
                 print("    " + "\n    ".join(errors[:30] or [built.output[-600:]]))
                 return 1
+            if changed:
+                print("    the build changed files under Packages or ProjectSettings: " + ", ".join(changed[:10]))
+                passed = False
         wanted = set(args.play or [])
         for family in chosen:
             if family.assets and (not wanted or f"{family.name}.assets" in wanted):
