@@ -613,8 +613,8 @@ def schema_words():
 # The words docs/task-probes.md writes in code that are no part of the task format, each for a reason. A word that is
 # neither the schema's nor here is a field or key the page documents and the schema lacks.
 LOGGED = (  # keys and values of probe.json's samples, which the page names "for the logs": no check reads them
-    'query_errors', 'total', 'full', 'class', 'glow_sources', 'glow_read', 'props', 'render', 'unread', 'emissive',
-    'unlit', 'local', 'directional', 'sky', 'lights', 'pixels', 'size', 'primitives', 'points', 'loudest', 'peak',
+    'query_errors', 'total', 'full', 'class', 'glow_sources', 'glow_read', 'props', 'render', 'bound', 'unread',
+    'emissive', 'unlit', 'local', 'directional', 'sky', 'lights', 'pixels', 'size', 'primitives', 'points', 'loudest', 'peak',
     'listener', 'source', 'ugui', 'uitk', 'ocr', 'camera_stack', 'post_processing', 'grading_mode', 'ldr', 'hdr',
     'pipeline', 'hue_shift', 'sun', 'fog', 'mode')
 NOT_OURS = ('true', 'false', 'null',        # JSON's own words
