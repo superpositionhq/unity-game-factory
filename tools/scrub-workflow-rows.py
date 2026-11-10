@@ -152,13 +152,20 @@ def main():
         crs.pop()
     eol = '\r\n' if crs and crs[-1] else '\n'
     body = '\n'.join(l + ('\r' if c else '') for l, c in zip(lines, crs)) + '\n' + json.dumps(corr, ensure_ascii=False) + eol
-    tmp = path + '.tmp'   # written whole, then swapped in: a crash or a full disk leaves workflow.jsonl as it was
+    # written whole, then swapped in: a crash or a full disk leaves workflow.jsonl as it was. The copy is a new file
+    # (never written over another one), and a row an editor step appended meanwhile is not swapped away.
+    tmp, made = path + '.tmp', False
     try:
-        with open(tmp, 'wb') as f:
+        with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_BINARY', 0)), 'wb') as f:
+            made = True
             f.write((b'\xef\xbb\xbf' if bom else b'') + body.encode('utf-8'))
+        if open(path, 'rb').read() != raw:
+            sys.exit('%s changed while it was scrubbed (a row was added): nothing written, run it again' % a.file)
         os.replace(tmp, path)
+    except OSError as e:
+        sys.exit('%s: nothing written (%s)' % (a.file, e))
     finally:
-        if os.path.exists(tmp):
+        if made and os.path.exists(tmp):
             os.remove(tmp)
     print('written %s' % path)
     return 0
