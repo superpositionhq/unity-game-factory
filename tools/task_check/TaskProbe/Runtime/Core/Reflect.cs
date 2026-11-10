@@ -12,8 +12,12 @@ namespace TaskProbe
 {
     public static class Reflect
     {
-        const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+        const int MaxSteps = 16;  // the original's: a path of more steps reads nothing
         static readonly Dictionary<string, Type[]> TypesByName = new Dictionary<string, Type[]>(StringComparer.Ordinal);
+        static readonly Dictionary<Type, Type[]> Implementers = new Dictionary<Type, Type[]>();
+        static readonly Dictionary<Type, HashSet<string>> NamesOfType = new Dictionary<Type, HashSet<string>>();
+        static readonly Dictionary<(Type, string, bool), MemberInfo> MembersByName = new Dictionary<(Type, string, bool), MemberInfo>();
+        static readonly List<Component> Parts = new List<Component>();
 
         /// <summary>A type by its name (`Projectile`) or full name (`Game.Projectile`), in any loaded assembly; null when
         /// there is none. Of several types of one name, a Component type wins, then the first found.</summary>
@@ -47,6 +51,28 @@ namespace TaskProbe
             return TypesByName[name] = found.ToArray();
         }
 
+        /// <summary>The Component types of the loaded assemblies that implement the interface `iface` (generic ones left
+        /// out), but those whose base type is one of them: a search for a type finds its subclasses too.</summary>
+        public static Type[] ComponentsImplementing(Type iface)
+        {
+            if (Implementers.TryGetValue(iface, out var cached)) return cached;
+            var found = new HashSet<Type>();
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try { types = assembly.GetTypes(); }
+                catch (ReflectionTypeLoadException e) { types = e.Types; }
+                catch { continue; }
+                foreach (var t in types)
+                    if (t != null && !t.IsInterface && !t.ContainsGenericParameters && typeof(Component).IsAssignableFrom(t) && iface.IsAssignableFrom(t))
+                        found.Add(t);
+            }
+            var top = new List<Type>();
+            foreach (var t in found)
+                if (t.BaseType == null || !found.Contains(t.BaseType)) top.Add(t);
+            return Implementers[iface] = top.ToArray();
+        }
+
         /// <summary>Whether a component can be of a type named `name`: a Component type, an interface, or one of
         /// Component's own bases (Object) has that name. A select naming anything else matches nothing.</summary>
         public static bool NamesComponent(string name)
@@ -56,31 +82,39 @@ namespace TaskProbe
             return false;
         }
 
-        /// <summary>Whether `type`, one of its base types or one of its interfaces is named `name` (name or full name).</summary>
+        /// <summary>Whether `type`, one of its base types or one of its interfaces is named `name` (name or full name):
+        /// two types of one name in two namespaces both are.</summary>
         public static bool IsA(Type type, string name)
         {
-            for (var t = type; t != null; t = t.BaseType)
-                if (t.Name == name || t.FullName == name) return true;
-            foreach (var i in type.GetInterfaces())
-                if (i.Name == name || i.FullName == name) return true;
-            return false;
+            if (!NamesOfType.TryGetValue(type, out var names))
+            {
+                names = new HashSet<string>(StringComparer.Ordinal);
+                for (var t = type; t != null; t = t.BaseType) Add(names, t);
+                foreach (var i in type.GetInterfaces()) Add(names, i);
+                NamesOfType[type] = names;
+            }
+            return names.Contains(name);
         }
 
-        /// <summary>A component of `go` whose type is named `typeName` (or derives from it); with `descendants`, else the
-        /// first in its descendants (inactive ones included). Null when none.</summary>
+        static void Add(HashSet<string> names, Type t)
+        {
+            names.Add(t.Name);
+            if (t.FullName != null) names.Add(t.FullName);
+        }
+
+        /// <summary>The first component of `go` (in the Inspector's order) whose type is named `typeName` (IsA); with
+        /// `descendants`, else the first in its descendants in hierarchy order, inactive ones included. Null when none;
+        /// never the probe's own.</summary>
         public static Component ComponentNamed(GameObject go, string typeName, bool descendants = true)
         {
             if (go == null || string.IsNullOrEmpty(typeName)) return null;
-            var type = TypeNamed(typeName);
-            if (type != null && typeof(Component).IsAssignableFrom(type))
-            {
-                var own = go.GetComponent(type);
-                if (own != null) return own;
-                return descendants ? go.GetComponentInChildren(type, true) : null;
-            }
-            // an interface, or a name only a base type carries: look at each component
-            foreach (var c in descendants ? go.GetComponentsInChildren<Component>(true) : go.GetComponents<Component>())
-                if (c != null && IsA(c.GetType(), typeName)) return c;
+            go.GetComponents(Parts);
+            foreach (var c in Parts)
+                if (c != null && !Find.IsOwn(c) && IsA(c.GetType(), typeName)) return c;
+            if (!descendants) return null;
+            go.GetComponentsInChildren(true, Parts);
+            foreach (var c in Parts)
+                if (c != null && c.gameObject != go && !Find.IsOwn(c) && IsA(c.GetType(), typeName)) return c;
             return null;
         }
 
@@ -97,17 +131,20 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- member paths
 
-        /// <summary>`path` (member[.member][[i]]...) read from `root`: fields and properties, public or not. `ok` false
-        /// when a step doesn't resolve. An array or list without an index gives its length.</summary>
+        /// <summary>`path` (member[.member][[i]]...) read from `root`: fields and properties, public or not, of the type
+        /// and its bases (static ones and indexers aren't read). `ok` false when a step doesn't resolve. An array or list
+        /// without an index gives its length.</summary>
         public static object ReadPath(object root, string path, out bool ok)
         {
             ok = false;
+            var tokens = path.Split('.');
+            if (tokens.Length > MaxSteps) return null;
             var value = root;
-            foreach (var token in path.Split('.'))
+            foreach (var token in tokens)
             {
                 if (value == null || IsDead(value)) return null;
                 if (!SplitToken(token, out var name, out var index)) return null;
-                if (name.Length > 0 && !ReadMember(value, name, out value)) return null;
+                if (!ReadMember(value, name, out value)) return null;
                 if (index >= 0)
                 {
                     if (!(value is IList list) || index >= list.Count) return null;
@@ -118,13 +155,14 @@ namespace TaskProbe
             return value;
         }
 
+        /// <summary>`name` or `name[i]` (i a whole number); false for anything else (an empty name, a sign, a fraction).</summary>
         static bool SplitToken(string token, out string name, out int index)
         {
             name = token;
             index = -1;
             var open = token.IndexOf('[');
             if (open < 0) return token.Length > 0;
-            if (!token.EndsWith("]", StringComparison.Ordinal)) return false;
+            if (open == 0 || !token.EndsWith("]", StringComparison.Ordinal)) return false;
             name = token.Substring(0, open);
             return int.TryParse(token.Substring(open + 1, token.Length - open - 2), NumberStyles.None, CultureInfo.InvariantCulture, out index);
         }
@@ -132,32 +170,65 @@ namespace TaskProbe
         static bool ReadMember(object target, string name, out object value)
         {
             value = null;
-            for (var t = target.GetType(); t != null; t = t.BaseType)
+            switch (MemberNamed(target.GetType(), name, false))
             {
-                var field = t.GetField(name, Members | BindingFlags.DeclaredOnly);
-                if (field != null)
-                {
+                case FieldInfo field:
                     value = field.GetValue(target);
                     return true;
-                }
-                var property = t.GetProperty(name, Members | BindingFlags.DeclaredOnly);
-                if (property != null && property.CanRead && property.GetIndexParameters().Length == 0)
-                {
+                case PropertyInfo property:
                     try { value = property.GetValue(target, null); }
                     catch { return false; }  // a property that throws (a destroyed object, a missing reference) has no value
                     return true;
-                }
             }
             // a dictionary's entry by key
             if (target is IDictionary dict && dict.Contains(name)) { value = dict[name]; return true; }
             return false;
         }
 
+        /// <summary>A readable field or property of `type` by name, the most derived first (private ones of a base type
+        /// too), indexers left out; with `statics` static ones too. An instancing getter (a renderer's `material` and
+        /// `materials`, a filter's `mesh`, a collider's `material`, TextMeshPro's `fontMaterial` and `fontMaterials`)
+        /// gives the component a copy of the asset of its own, which then no longer follows the shared asset: a property
+        /// that has a shared twin (`shared&lt;Name&gt;`, or `...SharedMaterial...`) is read through it.</summary>
+        static MemberInfo MemberNamed(Type type, string name, bool statics)
+        {
+            var key = (type, name, statics);
+            if (MembersByName.TryGetValue(key, out var found)) return found;
+            found = Declared(type, name, statics);
+            if (found is PropertyInfo && name.Length > 0)
+                foreach (var twin in new[] { "shared" + char.ToUpperInvariant(name[0]) + name.Substring(1), name.Replace("Material", "SharedMaterial") })
+                    if (twin != name && Declared(type, twin, statics) is MemberInfo shared)
+                    {
+                        found = shared;
+                        break;
+                    }
+            return MembersByName[key] = found;
+        }
+
+        static MemberInfo Declared(Type type, string name, bool statics)
+        {
+            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            if (statics) flags |= BindingFlags.Static;
+            for (var t = type; t != null; t = t.BaseType)
+            {
+                try
+                {
+                    var field = t.GetField(name, flags);
+                    if (field != null) return field;
+                    var property = t.GetProperty(name, flags);
+                    if (property != null && property.CanRead && property.GetIndexParameters().Length == 0) return property;
+                }
+                catch (AmbiguousMatchException) { return null; }  // overloaded indexers named Item
+            }
+            return null;
+        }
+
         static bool IsDead(object value) => value is UnityEngine.Object o && o == null;
 
-        /// <summary>A read value as the checker takes it: numbers and bools as numbers, enums as their value, a Unity
-        /// object reference 1 when set and 0 when not, strings as they are (through `match`), an array or list as its
-        /// length; anything else null.</summary>
+        /// <summary>A read value as the checker takes it: numbers and bools as numbers (NaN and infinities as no value),
+        /// enums as their value, strings as they are (through `match`), an array, list, dictionary or set as its count,
+        /// an object reference 1 when set and 0 when not (a destroyed Unity object is not set); a struct (read it by its
+        /// members: `.x`, `.r`) or anything else null.</summary>
         public static object Plain(object value)
         {
             switch (value)
@@ -179,15 +250,26 @@ namespace TaskProbe
                 }
                 catch { return null; }
             }
-            return null;
+            var type = value.GetType();
+            if (value is IEnumerable)
+            {
+                try
+                {
+                    // a set (HashSet) is no ICollection, but has its Count
+                    if (type.GetProperty("Count") is PropertyInfo count && count.PropertyType == typeof(int))
+                        return (double)(int)count.GetValue(value, null);
+                }
+                catch { return null; }
+            }
+            return type.IsValueType ? null : (object)1.0;
         }
 
         /// <summary>prop:&lt;Component&gt;.&lt;member&gt;[.&lt;sub&gt;] or prop:&lt;member&gt; on an object, without the "prop:" (the
         /// component by type name on the object, else the first in its descendants; a single member reads the GameObject,
-        /// else its Transform). Null when it doesn't resolve.</summary>
+        /// else its Transform). Null when it doesn't resolve or has more than 16 steps.</summary>
         public static object Prop(GameObject go, string path)
         {
-            if (go == null || string.IsNullOrEmpty(path)) return null;
+            if (go == null || string.IsNullOrEmpty(path) || path.Split('.').Length > MaxSteps) return null;
             var dot = path.IndexOf('.');
             if (dot > 0)
             {
@@ -217,38 +299,21 @@ namespace TaskProbe
             return ok ? Plain(read) : null;
         }
 
-        // ---------------------------------------------------------------- calling members of optional packages
+        // ---------------------------------------------------------------- members of optional packages
 
-        /// <summary>A public instance or static property or field of `target` (or of `type` when `target` is null), by
-        /// name; null when it has none. For types of packages the probe doesn't reference.</summary>
+        /// <summary>A property or field of `target` (or a static one of `type` when `target` is null), public or not,
+        /// by name, as ReadPath finds members; null when it has none or reading it throws. For types of packages the
+        /// probe doesn't reference.</summary>
         public static object Get(object target, string name, Type type = null)
         {
             var t = target != null ? target.GetType() : type;
             if (t == null) return null;
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
             try
             {
-                var property = t.GetProperty(name, flags);
-                if (property != null && property.CanRead) return property.GetValue(target, null);
-                var field = t.GetField(name, flags);
-                return field != null ? field.GetValue(target) : null;
-            }
-            catch { return null; }
-        }
-
-        /// <summary>Calls a method of `target` (or a static one of `type`) by name with `args`; null when there is none
-        /// or it throws.</summary>
-        public static object Call(object target, string name, Type type, params object[] args)
-        {
-            var t = target != null ? target.GetType() : type;
-            if (t == null) return null;
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
-            try
-            {
-                foreach (var method in t.GetMethods(flags))
+                switch (MemberNamed(t, name, true))
                 {
-                    if (method.Name != name || method.GetParameters().Length != args.Length) continue;
-                    return method.Invoke(target, args);
+                    case FieldInfo f: return f.GetValue(target);
+                    case PropertyInfo p: return p.GetValue(target, null);
                 }
             }
             catch { }
