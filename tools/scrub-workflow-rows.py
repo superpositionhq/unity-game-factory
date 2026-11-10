@@ -121,7 +121,12 @@ def main():
         try:
             row = json.loads(new)
         except ValueError as e:
-            sys.exit('line %d would not parse after the edit (%s): nothing written' % (i + 1, e))
+            try:
+                json.loads(line)
+                how = 'would not parse after the edit'
+            except ValueError:
+                how = 'is not a JSON row'   # cut short by a crash, or typed by hand
+            sys.exit('line %d %s (%s): nothing written' % (i + 1, how, e))
         last = row
         if counts:
             lines[i] = new
