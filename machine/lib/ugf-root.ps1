@@ -34,7 +34,9 @@ function Get-UGFConfig {
     }
     $path = Get-UGFConfigPath
     if (Test-Path -LiteralPath $path) {
-        $json = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+        # a path typed with single backslashes is the usual cause: name the file, not just the parser's complaint
+        try { $json = [IO.File]::ReadAllText($path) | ConvertFrom-Json }
+        catch { throw "$path is not valid JSON ($($_.Exception.Message)): write a Windows path in it with doubled backslashes or forward slashes" }
         foreach ($p in $json.PSObject.Properties) { $cfg[$p.Name] = $p.Value }
     }
     if ($env:UGF_ROOT) { $cfg.root = $env:UGF_ROOT }

@@ -22,7 +22,12 @@ def config():
     p = config_path()
     if os.path.isfile(p):
         with open(p, encoding="utf-8-sig") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except ValueError as e:   # a path typed with single backslashes is the usual cause
+                import sys
+                sys.exit("%s is not valid JSON (%s): write a Windows path in it with doubled backslashes or forward "
+                         "slashes" % (p, e))
     return {}
 
 
@@ -165,10 +170,7 @@ def slot_plan():
 def root():
     if os.environ.get("UGF_ROOT"):
         return os.path.abspath(os.environ["UGF_ROOT"])
-    p = config_path()
-    if os.path.isfile(p):
-        with open(p, encoding="utf-8-sig") as f:
-            r = json.load(f).get("root")
-        if r:
-            return os.path.abspath(r)
+    r = config().get("root")
+    if r:
+        return os.path.abspath(r)
     return os.path.join(os.path.expanduser("~"), "UnityWork")
