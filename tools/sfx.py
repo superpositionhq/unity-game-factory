@@ -94,7 +94,8 @@ def read_sound(key):
         raise ValueError('keys look like fs:<id>')
     body, url = fetch(f'{SITE}/s/{m[1]}/')
     page = body.decode('utf-8')
-    href = re.search(r'title="Go to the full license text" href="([^"]+)"', page)
+    # the link's own tag: the uploader's description comes earlier on the page, its quotes kept as typed
+    href = re.search(r'<a title="Go to the full license text" href="([^"]+)"', page)
     lic = LICENCE.search(href[1]) if href else None
     if not lic:
         raise ValueError(f'licence {href[1] if href else "not found"}: only CC0 and CC BY may ship in a game')
