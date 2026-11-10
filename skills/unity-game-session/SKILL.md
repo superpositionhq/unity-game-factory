@@ -151,9 +151,9 @@ by hand under these rules, or ask.
 ## Names
 
 Never write **Superposition**, **game-factory** or **unity-game-factory** (any spelling: `game_factory`,
-`gamefactory`) anywhere in the game: code, comments, namespaces, `ProjectSettings` (`companyName` becomes the exe's
-company and the `Application.persistentDataPath` folder), editor steps, docs, commit messages, builds, in-game text,
-process arguments. `companyName` is the game's own studio name (the template sets it to the title). Keep agent, model
+`gamefactory`) anywhere in the game: code, comments, namespaces, `ProjectSettings` (`companyName` is written to the
+build's `<Game>_Data\app.info` and names the `Application.persistentDataPath` folder), editor steps, docs, commit
+messages, builds, in-game text, process arguments. `companyName` is the game's own studio name (the template sets it to the title). Keep agent, model
 and provider names (**Claude / Anthropic / Opus**, **OpenAI / Codex CLI / GPT** model ids) out of game content and
 commit messages too (deliverables refuse or scrub them). Recording traces are fine: `workflow.jsonl` stays in the repo,
 row ids in commit messages are fine.
