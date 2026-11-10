@@ -347,9 +347,10 @@ on demand (the user's decision in the Unreal factory).
 
 Not available yet (they apply once the recorder runs):
 
-- Any display and scaling that holds a 1920x1080 window should work: a Unity player is expected to be DPI-aware, so
-  its 1920x1080 is physical pixels at any scaling (to check; in the Unreal factory a DPI-unaware game was stretched to
-  2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
+- Any display and scaling that holds a 1920x1080 window should work: a Unity player declares per-monitor DPI awareness
+  (PerMonitorV2 in its exe's manifest, Mono and IL2CPP players of 6000.3 built from the template), so its 1920x1080
+  should be physical pixels at any scaling (the window itself to check; in the Unreal factory a DPI-unaware game was
+  stretched to 2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
 - The game window sits topmost with its 1920x1080 client area on the primary screen for the run. Runs start only after
   5 min without user input; if you come back mid-run, leave the window alone (moving or covering it stops the run
   safely). Its audio plays on the speakers during runs.
