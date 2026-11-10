@@ -159,11 +159,13 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   boot scene to run is started through its own `play_args` (`["-scenario", "2"]`) with `play_scene` null.
 - **The clock.** A play runs at a fixed 30 frames a second (`Time.captureFramerate`: play time is frames / 30, and
   every `t`, `window` and `at` is play time), as fast as the machine renders. It starts at 0 when the play's scene has
-  loaded, **holds while any scene is still loading** (an async load takes real time, not game time) and during a
-  `wait`, and keeps counting when the game pauses itself (`timeScale` 0). The game's `Time.time` runs on this clock.
-  `Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the system clock follow the wall
-  clock instead: a 20 s play takes a few seconds of them, a different number every time, so whatever a game drives by
-  them hardly advances in a play and differs between two plays. Give it real time with a `wait`.
+  loaded, **holds while any scene is still loading** (an async load takes real time, not game time; for one load at
+  most 300 frames, about 10 s of real time, since a load the game parks never finishes: then the clock goes on and
+  `probe.log` says so) and during a `wait`, and keeps counting when the game pauses itself (`timeScale` 0). The game's
+  `Time.time` runs on this clock. `Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the
+  system clock follow the wall clock instead: a 20 s play takes a few seconds of them, a different number every time,
+  so whatever a game drives by them hardly advances in a play and differs between two plays. Give it real time with a
+  `wait`.
 - **Saved data.** Every play starts from clean saved data. The checker's build gives the copy's player a company name
   of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so its PlayerPrefs and
   `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts.
