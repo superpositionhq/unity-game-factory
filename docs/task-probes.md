@@ -372,12 +372,13 @@ renderers, else its position.
   - `prop:<Component>.<member>[.<sub>]` or `prop:<member>`: read by reflection, instance fields and properties,
     public or not (static members and indexers are not read). The component by type name on the object, else the
     first in its descendants (`prop:Health.current`, `prop:Rigidbody.mass`, `prop:Light.intensity`); `prop:<member>`
-    alone reads the GameObject, else its Transform (`prop:activeSelf`, `prop:localScale.y`). Numbers and booleans as
-    numbers, enums as their number, object references as 1 when set and 0 when not, strings through `match`; an array
-    or list without an index gives its length, `[i]` its element (`prop:Inventory.items[0]`); a dictionary's entry by
-    its key (`prop:Inventory.counts.coins`); a vector's `.x`, `.y`, `.z` and a colour's `.r`, `.g`, `.b`, `.a`. Read a
-    renderer's `sharedMaterial` and a MeshFilter's `sharedMesh`: the plain `material`, `materials` and `mesh` give
-    that object a copy of its own, which changes the game;
+    alone reads the GameObject, else its Transform (`prop:activeSelf`, `prop:localScale.y`), else, when it names a
+    component type, is 1 when the object or a descendant has one and has no value when not (`prop:Rigidbody`). Numbers
+    and booleans as numbers, enums as their number, object references as 1 when set and 0 when not, strings through
+    `match`; an array or list without an index gives its length, `[i]` its element (`prop:Inventory.items[0]`); a
+    dictionary's entry by its key (`prop:Inventory.counts.coins`); a vector's `.x`, `.y`, `.z` and a colour's `.r`,
+    `.g`, `.b`, `.a`. Read a renderer's `sharedMaterial` and a MeshFilter's `sharedMesh`: the plain `material`,
+    `materials` and `mesh` give that object a copy of its own, which changes the game;
   - `bone:<Component>.<Bone>.x|y|z`: the world position of a bone of a SkinnedMeshRenderer, a human bone of an
     Animator (`bone:Animator.Head.y`), or a descendant transform of that name. Bone, Part (below) and Animator
     parameter names are written as Unity has them, dots, spaces, colons, parentheses and hyphens included
