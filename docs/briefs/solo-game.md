@@ -64,7 +64,8 @@ Game: {{GAME_TITLE}} ({{SLUG}} -> {{UGF_ROOT}}\games\{{SLUG}}, project {{PROJECT
 {{UGF_ROOT}}\unity-game-factory\docs\games\{{SLUG}}.md (create it if missing).
 Mode {{MODE}}: NEW = your first tool call creates the project with
   powershell -ExecutionPolicy Bypass -File {{UGF_ROOT}}\unity-game-factory\templates\new-game.ps1 -Slug {{SLUG}} -Path {{UGF_ROOT}}\games\{{SLUG}} -Project {{PROJECT}} -Title "<title>" -Description "<one line>"
-(the absolute path written out: the recording hooks match the command text).
+(the absolute path written out: the recording hooks match the command text; typed in Git Bash, put each Windows path
+in single quotes: bash drops unquoted backslashes).
 CONTINUE = your first tool call is `git -C {{UGF_ROOT}}\games\{{SLUG}} log --oneline -20`; read the design doc's
 status and the last workflow.jsonl rows and carry on.
 

@@ -30,7 +30,8 @@ by hand under these rules, or ask.
    whose path its first such call names). Create the project with it:
    `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\templates\new-game.ps1 -Slug <slug> -Path <UGF_ROOT>\games\<slug> -Title "<Title>" -Description "<one line>"`
    with `<UGF_ROOT>` written out as the absolute path (e.g. `C:\Users\<you>\UnityWork`), never `%UGF_ROOT%` or
-   `$env:UGF_ROOT`: the hooks match the command text. new-game.ps1 refuses any other -Path. Calls made before this one
+   `$env:UGF_ROOT`: the hooks match the command text. new-game.ps1 refuses any other -Path (typed in Git Bash, put
+   each Windows path in single quotes: bash drops unquoted backslashes). Calls made before this one
    (reading docs, drafting the design) are imported from your transcript when the session is mapped (status
    `from_transcript`). It writes the skeleton (Unity 6.3 LTS version pin, Visible Meta Files + Force Text, the editor
    tools assembly, LFS for every binary type, root-anchored `.gitignore`), the first `workflow.jsonl` row, the commit
@@ -48,9 +49,10 @@ by hand under these rules, or ask.
   any run of a built player:
   `& <UGF_ROOT>\tools\unity-heavy.ps1 -Label "<slug> <what>" -- <exe> <args...>` (general slots, plus one of the
   machine-wide GPU slots for anything that renders; waits for GUI programs; returns the job's exit code). From Git Bash:
-  `powershell -ExecutionPolicy Bypass -Command "& '<UGF_ROOT>\tools\unity-heavy.ps1' -Label '...' -- '<exe>' args; exit $LASTEXITCODE"`
+  `powershell -ExecutionPolicy Bypass -Command "& '<UGF_ROOT>\tools\unity-heavy.ps1' -Label '...' -- '<exe>' args; exit \$LASTEXITCODE"`
   (`powershell -File ... --` misparses `--`; without `-ExecutionPolicy Bypass`, Windows' default policy refuses the
-  script and the call still returns 0). The game's `Scripts/unity.ps1` already calls it for you; use that
+  script, and without the backslash bash expands `$LASTEXITCODE` to nothing: either way the call returns 0 whatever
+  the job did). The game's `Scripts/unity.ps1` already calls it for you; use that
   (`powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 <mode> ...` from the project folder; the modes are
   listed at the top of the file). The slots are shared with the Unreal game-factory if this machine runs both (same
   machine-wide mutexes).
@@ -65,7 +67,7 @@ by hand under these rules, or ask.
 - Toolchain facts: the editor needs an activated licence (Unity Hub, a Unity ID; Personal is fine) even in batchmode,
   or every run exits with a licensing error. IL2CPP player builds need the Windows Build Support (IL2CPP) module and
   Visual Studio 2022's C++ workload; Mono builds need neither. `-runTests` must not be combined with `-quit` (the test
-  run quits by itself). A batchmode run with compile errors aborts before your method runs: read `error CS` lines in its
+  run quits by itself; with `-quit` the editor exits 0 before the run and writes no results). A batchmode run with compile errors aborts before your method runs: read `error CS` lines in its
   log first. `-nographics` cannot render: no screenshots, no lightmap bake, no shader warm-up from it.
 - The first player build changes tracked files, and that is expected: URP writes its shader-stripping choices into
   the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
