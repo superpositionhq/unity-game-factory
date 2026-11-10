@@ -60,10 +60,11 @@ check's).
    a `--scratch` inside one of them, or with the results folder inside it, is refused with what to pass instead.
 3. Starts the harness in the workspace with the brief as its prompt: the task's instruction, the scene and arguments
    QA plays (`play_scene`, `play_args`) and where the Unity 6.3 editor is installed. Nothing of the grader's half. The
-   machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, with the Unreal factory's `GF_NO_RECORDING`
-   set too), so a try never enters a game's record. Its environment has no `UGF_ROOT`, `UGF_CONFIG`, `UGF_OUT` or
-   `UGF_ORG` (they point at the machine root, the deliverables and the game repos), and the settings file that turns
-   Claude Code's hooks off lies in the try's own folder, so the agent's command line names no path into the game repo.
+   machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, and `GF_NO_RECORDING` for another factory's
+   hooks that the machine may also have), so a try never enters a game's record. Its environment has no `UGF_ROOT`,
+   `UGF_CONFIG`, `UGF_OUT` or `UGF_ORG` (they point at the machine root, the deliverables and the game repos), and the
+   settings file that turns Claude Code's hooks off lies in the try's own folder, so the agent's command line names no
+   path into the game repo.
 4. When the agent stops (or its time runs out), stops whatever it left running in the workspace (an editor or a
    player: any process whose command line names the workspace), removes the build outputs and `Library/` (`Library/`,
    `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`: besides Unity's import cache, `Library/` holds the agent's editor

@@ -97,9 +97,8 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
    committed, LFS files hardlinked from the repo's store (copied across drives), without `Tasks/`, `History/`,
    `Dataset/` or `Dataset.zip`. The TaskProbe package is added as `Packages/com.taskprobe/` (an embedded package, so
    `Packages/manifest.json` stays untouched); nothing else is added or changed, and nothing comes from another commit
-   (no port, no patch). Your checkout is never touched. When a scene the task plays names assets (by GUID) the commit
-   doesn't hold (a store pack committed only later, say), the result says so in a note: that is the task's commit to
-   fix.
+   (no patch). Your checkout is never touched. When a scene the task plays names assets (by GUID) the commit doesn't
+   hold (a store pack committed only later, say), the result says so in a note: that is the task's commit to fix.
 3. Builds the start: `Unity.exe -batchmode -nographics -quit -projectPath <copy> -executeMethod
    TaskProbe.EditorTools.Build.Player`, a Windows x64 Mono non-development player in `<copy>\Build\TaskProbe\`, with
    every scene the task's plays open added after the project's own enabled build scenes. For the plays only, the
@@ -295,16 +294,16 @@ hierarchy match unless the select says `"inactive": true`; a component's member 
 couldn't read; it starts with the query's kind, and its id when it is about that query alone: `spawns q4f2a91c07e:
 no component type Coin`); a line with the kind alone can be another query's of that kind in the same play. The `rows`
 in the play's `probe.json` show what was found, and `probe.log` beside it what the probe did (a `teleport_to` that
-found nothing, a widget click that matched no button). A `drawn` measure has no value in a player that can't render
-the place alone (no graphics device, or a render pipeline other than URP with its Universal Renderer, URP's 2D
-Renderer among them), and `lit` or `glow` of a source the probe reads as rendered then reads its bound or nothing:
-the play's `query_errors` (in `probe.json`) holds one `rendering: ...` line saying why (task-probes.md, section
-2.19), and such a measure's reason quotes it after `; the probe said:`; an object's or a component's `lit` and
-`glow` also quote, after it, the line of a light source's own render that failed (`lit/glow: <ExceptionType> in a
-render (the exception is in probe.log)`), which a `drawn` measure doesn't. Some fields have no value at first by
-design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of its own then too,
-audio `level` in the play's first frames, the grading fields and a light's `exposure` and `brightness` at a play's
-first sample.
+found nothing, a widget click that matched no button or found no EventSystem). A `drawn` measure has no value in a
+player that can't render the place alone (no graphics device, or a render pipeline other than URP with its Universal
+Renderer, URP's 2D Renderer among them), and `lit` or `glow` of a source the probe reads as rendered then reads its
+bound or nothing: the play's `query_errors` (in `probe.json`) holds one `rendering: ...` line saying why
+(task-probes.md, section 2.19), and such a measure's reason quotes it after `; the probe said:`; an object's or a
+component's `lit` and `glow` also quote, after it, the line of a light source's own render that failed (`lit/glow:
+<ExceptionType> in a render (the exception is in probe.log)`), which a `drawn` measure doesn't. Some fields have no
+value at first by design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of
+its own then too, audio `level` in the play's first frames, the grading fields and a light's `exposure` and
+`brightness` at a play's first sample.
 
 **`the editor couldn't measure it: ...`.** An `asset` measure the editor pass refused: a path it has no asset, scene or
 prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an unknown shader property or member,

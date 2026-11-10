@@ -13,7 +13,7 @@ the brief) is in it.
 | [schemas/workflow-row.schema.json](schemas/workflow-row.schema.json) | one row of `workflow.jsonl` (`unity-workflow/v0`) |
 | [schemas/replay-report.schema.json](schemas/replay-report.schema.json) | `ReplayScripts/Verification/report.json` |
 | [schemas/assets-manifest.schema.json](schemas/assets-manifest.schema.json) | the repo's `assets.manifest.json` (one format for every game) |
-| [schemas/game-task.schema.json](schemas/game-task.schema.json) | one task (`GameTask`, game-task/1, Unity flavour; probe checks: [task-probes.md](task-probes.md)) |
+| [schemas/game-task.schema.json](schemas/game-task.schema.json) | one task (`GameTask`, game-task/1; probe checks: [task-probes.md](task-probes.md)) |
 
 ## Validate
 
@@ -75,12 +75,13 @@ optionally `tasks-workflow.jsonl`. It is checked out as a git worktree outside t
 leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main's history, or of the task's own start
 branch `starts/<task name>`.
 
-No tool, vendor or owner names anywhere in the repo's text: Superposition, game-factory and unity-game-factory (any
-spelling), Claude, Anthropic, OpenAI (the validator scans tracked text files; the packager, not available yet, will
-scan binaries too, so keep the names out of binary files yourself). The build machine's account name (machine paths
-carry it) counts too: the validator reads it at run time and enforces it everywhere except in scripts that already ran
-(`Scripts/`, `Assets/Editor/Steps/`, and `.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay
-unchanged: the packager (not available yet) will scrub them in every delivery. That includes
+No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
+any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;
+the packager, not available yet, will scan binaries too, so keep the names out of binary files yourself). The build
+machine's account name (machine paths carry it) counts too: the validator reads it at run time and enforces it
+everywhere except in scripts that already ran (`Scripts/`, `Assets/Editor/Steps/`, and
+`.ps1`/`.psm1`/`.py`/`.sh`/`.bat`/`.cmd` files anywhere), which stay unchanged: the packager (not available yet) will
+scrub them in every delivery. That includes
 `workflow.jsonl`: it is append-only except that a row naming a banned term is edited in place to a neutral word or
 placeholder, nothing else changed, with one `log.correct` row appended (`params {rows, what}`) and the edited rows
 named in the commit message: `python tools/scrub-workflow-rows.py <repo>` (dry run), then `--apply`.
@@ -115,7 +116,7 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 | `README.md` | yes | the game, how to play, open, replay and restore it; sections in the order of the layout file |
 | `git.log` | yes | every commit up to the release, oldest first: message, `dev_NN` authors, dates, full text diff; binaries as path + sha256 |
 | `workflow.jsonl` | yes | the creation record; **the person's directions are `user.direction` rows** (they replace conversation transcripts) |
-| `Brief/` | yes | `brief.md`, the original brief; `design.md`, the design doc with story bible and status |
+| `Brief/` | yes | `brief.md`, the brief as given; `design.md`, the design doc with story bible and status |
 | `History/` | no | `<game>.bundle` (every commit of every ref except the tasks branch) and `lfs/objects/<aa>/<bb>/<sha256>` (every Git LFS object of every commit) |
 | `Tasks/` | no | the game's tasks, each split: `Tasks/<name>/task.json` (the agent's part) and `Tasks/<name>/grader.json` (milestones, `seed.reference`), plus a generated `README.md` (`tools/split-tasks.py`) |
 | `UnityProject/` | no | the project at the release commit (`Assets/` with every `.meta`, `Packages/`, `ProjectSettings/` on 6000.3; no `Library/`), store content included |

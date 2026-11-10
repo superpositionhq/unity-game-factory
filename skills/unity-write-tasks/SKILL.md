@@ -8,8 +8,8 @@ description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo
 A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an LLM agent can be given on this game,
 fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.json` (`kind`: `fix`, `corr`, `feat`,
 `change`; the whole name in lower-case letters, digits and `-`, at most 63 characters), in the task format `GameTask`
-([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`, Unity flavour:
-`"engine": "unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
+([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`; its `"engine"` is
+`"unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
 shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat
 filling the count with short ones. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
 repos' tasks branches, and the packager (not available yet) will ship them in the dataset split into the agent's and
@@ -82,7 +82,7 @@ a strong agent working about 25 minutes or more. That length is a guide, not a r
 strong agent can't solve it easily. You judge this in the session from the thread itself (section 6); we measure it
 on every submitted task. A task is a stretch of the game's real history where its own sessions needed many commits,
 several attempts or several rounds of directions, touching many files across several systems, before the outcome
-held. Strong agents finish a single fix, one cause in one place, in minutes, however long the original took; such a
+held. Strong agents finish a single fix, one cause in one place, in minutes, however long it took in the game; such a
 task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "medium"` or `"hard"`,
 with the tag `long-thread`.
 
@@ -420,7 +420,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a count stopped at 200 rows and a threshold was set on it | counts and `of` read every match (`total` and `full`) |
 | a light's turn read relative to its own object | `world_yaw:`/`world_pitch:`/`forward:` read the Light's part in the world |
 | a lamp switched off (Light disabled, its object inactive, intensity 0) read as lit | the `light` probe counts only Lights that are on; a lamp's `on` and `intensity` are `components` fields |
-| a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object) still counted as shown | `"visible": true` in a widget select, or `ui`, count only what is on screen |
+| a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object) still counted as shown | `"visible": true` in a widget select counts only what the game shows (its state: a fully transparent widget still counts), `ui` only what is drawn on screen |
 | a sound judged by its AudioSource being enabled, not by what the player hears | `audio`: sources playing at their volume at the listener, and the mix's `level`; volumes and level calibrated or relative to the start |
 | relief judged by the height of one spot | `ground` over a box: `range`, calibrated or relative to the start |
 | a teleport to fixed coordinates missed what each build placed itself | `teleport_to` an object select (nearest match), facing it or a point |
