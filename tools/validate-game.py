@@ -360,7 +360,7 @@ def _check_dataset(rep, v, area):
     if v.has('workflow.jsonl'):
         with v.open_text('workflow.jsonl') as f:
             text = f.read()
-        directions = check_workflow(rep, f'{area}: workflow.jsonl', text.splitlines())
+        directions = check_workflow(rep, f'{area}: workflow.jsonl', io.StringIO(text))   # lines end at \n only
         for p in SPEC['repo']['banned_names']['patterns']:   # a banned name left in a row is an error here too
             n = len(re.findall(p, text))
             if n:

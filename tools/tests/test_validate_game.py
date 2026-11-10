@@ -746,7 +746,8 @@ class Units(unittest.TestCase):
         tmp = tempfile.mkdtemp(prefix='ugfd')
         self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
         ds = os.path.join(tmp, 'Dataset')
-        write(ds, 'workflow.jsonl', workflow_row(1) + '\n')
+        # a line separator inside a string, raw as JSON allows it: one row, as the repo's check reads it
+        write(ds, 'workflow.jsonl', workflow_row(1, reason='Create the project').replace('\\u2028', ' ') + '\n')
         write(ds, 'Brief/brief.md', '# Brief\n')
         write(ds, 'History/x.txt', 'x')
         write(ds, 'Tasks/README.md', 'x')
@@ -771,6 +772,7 @@ class Units(unittest.TestCase):
                      'no Brief/design.md', 'Brief/brief.md is nearly empty', 'a repo Dataset/ has no History/',
                      'a repo Dataset/ has no Tasks/'):
             self.assertIn(what, errs)
+        self.assertNotIn('not JSON', errs)
         warns = ' | '.join(m for s, a, m in rep.items if s == 'warning')
         self.assertIn('status pending: Gameplay', warns)
         self.assertIn('no user.direction rows', warns)
