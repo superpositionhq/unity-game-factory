@@ -118,16 +118,20 @@ Measures:
   `prop:<path>`, plus a channel or `.name` after `material:<property>`, `material:keyword:<NAME>`, `import:<path>`,
   `shader:<Property>` (with a channel `.r`-`.a` or `.x`-`.w`, or `.name`) and `keyword:<NAME>`.
 
-The validator's rules beyond the original's (`probe_errors`):
+The validator's rules beyond the original's (`probe_errors`, `task_semantic_errors`, `task_warnings`):
 
 - an asset measure reads exactly one of `asset`, `scene`, `prefab`, and that one's fields (`prop:`, `import:`,
   `shader:`, `keyword:` of one asset; `count`, `material_default`, `material:`, `mesh_collision`, `prop:` of a scene's
-  or prefab's objects); its select takes no `player` and no `near` around the player or the camera (as the original's
-  takes no `has`), since a scene as saved has neither;
+  or prefab's objects); its select takes no `player` and no `near` around the player or the camera, since a scene as
+  saved has neither, as it takes no `has` (the original's rule);
 - a screen rect has x0 < x1 and y0 < y1; a player measure's `dist` has its `to`; a measure sets `to_angle` or
   `to_axis`, not both;
 - every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`; the original compiles
-  a ui select's only), so none can stop the task check.
+  a ui select's only), so none can stop the task check;
+- the task's `player` select names no `player` and no point on the player (it says which object the player is);
+- a warning, never an error, when a `teleport_to`, an object point or an `"of": "first"` measure takes its one object
+  by a wildcard name and nothing else: a spawner, a pool or a parent named like the things fits too (the sample game's
+  `teleport_to` `Coin*` went to `CoinSpawner`).
 
 Fields whose threshold is never a literal (calibrated or relative to the start only), as in the original with the
 renames, plus audio `level` (`NEVER_LITERAL`, `PIECE_TRIANGLES`): components `intensity`, `extent_*`,
@@ -187,8 +191,8 @@ original's, unchanged (`probes.py`).
   - the drawn box of `extent_*` and `spread`: the renderers drawn (`Find.Drawn`: enabled, active in the hierarchy, not
     `forceRenderingOff`) with non-empty bounds, ParticleSystemRenderers and TrailRenderers left out
     (`ObjectRead.Geometry`); a LODGroup's lower LODs stay enabled, so they count. `spread` counts each renderer by its
-    bounds centre; the original also counts each physics body of a skeletal mesh, which Unity has no counterpart of in
-    one renderer (a ragdoll is one SkinnedMeshRenderer over its bones' Rigidbodies, so it reads one part);
+    bounds centre (the original also counts each physics body of a skeletal mesh by its place; here a ragdoll, one
+    SkinnedMeshRenderer over its bones' Rigidbodies, is one part);
   - the mesh parts of `spin`, `changed`, `bounds_change`, `pose_change` and `lit`: MeshRenderers whose MeshFilter's
     mesh has vertices, and SkinnedMeshRenderers with a mesh, inactive ones included (`Find.MeshParts`);
   - `speed`: the first velocity source the object has (`ObjectRead.OwnVelocity`: a non-kinematic Rigidbody's
