@@ -66,12 +66,13 @@ by hand under these rules, or ask.
   another Unity process (a GUI editor included) has the same project open; it fails with "another Unity instance is
   running with this project open". Never open the GUI editor on the project yourself; the person may, and then your
   batchmode runs fail until they close it: wait, or ask them.
-- Toolchain facts: the editor needs an activated licence (Unity Hub, a Unity ID; Personal is fine) even in batchmode,
-  or every run exits with a licensing error. IL2CPP player builds need the Windows Build Support (IL2CPP) module and
-  Visual Studio 2022's C++ workload; Mono builds need neither. `-runTests` must not be combined with `-quit` (the test
-  run quits by itself; with `-quit` the editor exits 0 before the run and writes no results). A batchmode run with
-  compile errors aborts before your method runs: read `error CS` lines in its log first. `-nographics` cannot render:
-  no screenshots, no lightmap bake, no shader warm-up from it.
+- Toolchain facts: the editor needs an activated licence (Unity Hub, a Unity ID; Unity Personal is fine where its terms
+  allow, otherwise the seat the org gives you) even in batchmode, or every run exits with a licensing error. IL2CPP
+  player builds need the Windows Build Support (IL2CPP) module and Visual Studio 2022's C++ workload; Mono builds need
+  neither. `-runTests` must not be combined with `-quit` (the test run quits by itself; with `-quit` the editor exits 0
+  before the run and writes no results). A batchmode run with compile errors aborts before your method runs: read
+  `error CS` lines in its log first. `-nographics` cannot render: no screenshots, no lightmap bake, no shader warm-up
+  from it.
 - The first player build changes tracked files, and that is expected: URP writes its shader-stripping choices into
   the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
   Unity writes the platform's batching entry into `ProjectSettings.asset`. Commit them with the build's row; later
