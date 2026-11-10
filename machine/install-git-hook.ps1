@@ -2,14 +2,14 @@
 .SYNOPSIS
   Add the commit recorder to a game repo's post-commit hook (idempotent).
 .DESCRIPTION
-  Appends one line to <repo>\.git\hooks\post-commit that runs <hooks dir>\record-unity-commit.ps1, which writes every new
-  commit to <root>\.recording\<repo name>\commits.jsonl. Git LFS's own post-commit lines stay first: when the hook does
-  not exist yet, `git lfs update` creates it before the line is appended. A repo whose hook already calls
-  record-unity-commit.ps1 is left alone (pass -Force to rewrite the line, e.g. after moving the hooks dir). record-unity-commit.ps1
-  exits at once when the committing checkout is on the orphan `tasks` branch (the game's tasks, unity-write-tasks
-  skill): a commit there, e.g. from a tasks worktree, is not recorded.
-  Not ported yet: the Unreal factory's per-commit live creation replay line. The Unity creation replay comes with the
-  verifier; this script will add its post-commit line then (and -Force will rewrite older hooks).
+  Appends one line to <repo>\.git\hooks\post-commit that runs <hooks dir>\record-unity-commit.ps1, which writes every
+  new commit to <root>\.recording\<repo name>\commits.jsonl. Git LFS's own post-commit lines stay first: when the hook
+  does not exist yet, `git lfs update` creates it before the line is appended. A repo whose hook already calls
+  record-unity-commit.ps1 is left alone (pass -Force to rewrite the line, e.g. after moving the hooks dir).
+  record-unity-commit.ps1 exits at once when the committing checkout is on the orphan `tasks` branch (the game's
+  tasks, docs/game-format.md): a commit there, e.g. from a tasks worktree, is not recorded.
+  Not available yet: the per-commit live creation replay line (the Unreal factory has one). This script will add it
+  when the Unity creation replay comes (and -Force will rewrite older hooks).
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\install-git-hook.ps1 %UGF_ROOT%\games\stealth
 #>
@@ -41,7 +41,7 @@ $script = ($HooksDir -replace '\\', '/').TrimEnd('/') + '/record-unity-commit.ps
 # The hook line is silent (a recorder that fails must never print into a commit's output), so a recorder that isn't
 # there is said here: otherwise the repo's commits go unrecorded without a word.
 if (-not (Test-Path -LiteralPath $script)) { Write-Warning "$script is not there (machine\bootstrap.ps1 installs it): this repo's commits are not recorded until it is" }
-$line ="powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" `"`$(pwd -W 2>/dev/null || pwd)`" >/dev/null 2>&1 || true"
+$line = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" `"`$(pwd -W 2>/dev/null || pwd)`" >/dev/null 2>&1 || true"
 $marker = '# recording: append this commit to <root>/.recording/<repo>/commits.jsonl (machine/install-git-hook.ps1)'
 
 $text = if (Test-Path -LiteralPath $hookPath) { [IO.File]::ReadAllText($hookPath) } else { "#!/bin/sh`n" }
