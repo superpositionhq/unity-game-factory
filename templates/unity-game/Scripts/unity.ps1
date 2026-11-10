@@ -47,6 +47,7 @@ New-Item -ItemType Directory -Force $Logs | Out-Null
 $t0 = Get-Date
 
 function Invoke-Unity([string]$Label, [string]$Log, [string[]]$More, [switch]$Graphics, [switch]$Quit) {
+  Remove-Item -LiteralPath $Log -ErrorAction SilentlyContinue   # an editor that never starts must not show an old log
   $a = @('-batchmode', '-projectPath', $Proj, '-logFile', $Log)
   if (-not $Graphics) { $a += '-nographics' }
   if ($Quit) { $a += '-quit' }
