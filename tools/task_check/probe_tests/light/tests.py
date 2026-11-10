@@ -7,9 +7,8 @@ import math
 import re
 import subprocess
 import sys
-from pathlib import Path
 
-from task_check import colour
+from task_check import colour, unity
 
 MADE = "Assets/ProbeTests/light/Made/"
 SETUP = ["ProbeTests.Lighting.LightScenes.Build"]
@@ -20,6 +19,7 @@ FLOAT = 1e-5  # a float of the engine widened to a double, through a few operati
 LUM = colour.LUMA  # URP's luminance weights (core Color.hlsl): the light measure's
 REC709 = (0.2126, 0.7152, 0.0722)  # the screen measure's
 SUN_UP = math.sin(math.radians(50))  # the cosine between an upward card and LightLab's sun (50 degrees up)
+LAB_SUN, SKY_SUN = 0.8, 0.6  # the intensities of LightLab's and SkyLab's suns: no card above 1 in a channel
 
 
 # -- colour and URP's light maths, written out here ---------------------------------------------------------------------
@@ -47,7 +47,8 @@ def lum(rgb, weights=LUM):
 def frame_tol(v):
     """How far the frame's linear luminance can sit from `v` with nothing wrong: URP draws into an HDR target of 11- and
     10-bit floats (red and green rounded to 2^-7 of their value, blue to 2^-6), the screenshot holds 8-bit sRGB (half
-    a step), and the screen measure weighs the channels by Rec. 709's four digits (under 4e-4 of the value)."""
+    a step), and the screen measure weighs the channels by Rec. 709's four digits (under 4e-4 of the value). The frame
+    clips each channel at 1: the scenes keep every card below 1 in each channel."""
     s = encode(v)
     half = (linear(min(1.0, s + 0.5 / 255)) - linear(max(0.0, s - 0.5 / 255))) / 2
     return v * ((LUM[0] + LUM[1]) * 2 ** -7 + LUM[2] * 2 ** -6 + 4e-4) + half
@@ -153,16 +154,18 @@ def lamps(t, play):
     t.eq("a light query without a point: no value", {s.get("value") is None for s in play.samples("nopoint")}, {True})
 
     # shadows switched on for point and spot lights at 7.5 s (in the measure: the build has no shader variants for them,
-    # so the frame can't show them; the sun's shadow shows the rule in the frame)
+    # so the frame can't show them; the sun's shadow shows the rule in the frame), the sun's at strength 0.5 from 7.5 to
+    # 9.5 s: the sun's own checks read 10 s
     t.near("D: a lamp with shadows behind a wall lights through it while URP draws none", at(play, "D", 7.0, "local"), FAR, FLOAT)
-    t.eq("D: ... and once URP draws them the wall stops it", [at(play, "D", 8.0, "local"), at(play, "D", 8.0, "lights")], [0.0, 1.0])
+    t.eq("D: ... and once URP draws them the wall stops it", at(play, "D", 8.0, "local"), 0.0)
+    t.eq("D: ... only the ambient reaches it (10 s: the roof stops the sun)", [at(play, "D", 10.0, "local"), at(play, "D", 10.0, "lights")], [0.0, 1.0])
     t.near("E: shadows of strength 0.5: half its light through the wall", at(play, "E", 8.0, "local"), FAR / 2, FLOAT)
     t.near("C1: a lamp without shadows lights through the wall after it too", at(play, "C1", 8.0, "local"), FAR, FLOAT)
     for qid, stopped in GADGETS.items():
         t.near(f"{qid}: lit before its shadows count", at(play, qid, 7.0, "local"), GADGET, FLOAT)
         t.near(f"{qid}: " + ("stopped" if stopped else "not stopped") + " once they count", at(play, qid, 8.0, "local"),
                0.0 if stopped else GADGET, FLOAT)
-        t.near(f"{qid}: the sun " + ("stopped by it" if stopped else "not stopped"), at(play, qid, 8.0, "directional"),
+        t.near(f"{qid}: the sun " + ("stopped by it" if stopped else "not stopped"), at(play, qid, 10.0, "directional"),
                0.0 if stopped else sun, FLOAT)
 
     # the frame: each card's luminance is what the light measure says reaches it
@@ -208,24 +211,27 @@ def lamps(t, play):
     t.eq("grading's sun: the strongest directional light", [found.get("name"), found.get("use_temperature"), found.get("temperature")],
          ["Sun", 1.0, 4000.0])
     t.ok("grading's sun lit_color: its colour x the engine's 4000 K colour",
-         all(abs(a * 1.2 - b) < FLOAT for a, b in zip(found.get("lit_color") or [9, 9, 9], lights.get("Sun", [0, 0, 0]))), found.get("lit_color"))
+         all(abs(a * LAB_SUN - b) < FLOAT for a, b in zip(found.get("lit_color") or [9, 9, 9], lights.get("Sun", [0, 0, 0]))), found.get("lit_color"))
     t.eq("grading's sky: the flat ambient", [(grade.get("sky") or {}).get("mode"), (grade.get("sky") or {}).get("intensity")], ["Flat", 1.0])
     t.ok("grading's sky colour: the flat colour, linear",
          all(abs(a - linear(b)) < FLOAT for a, b in zip((grade.get("sky") or {}).get("color") or [9, 9, 9], (0.2, 0.3, 0.4))))
 
     # a play that doesn't measure sound (it runs as fast as it renders) is silenced as well
     ears = play.row("ears", 17.0, "LabEars") or {}
-    t.eq("the probe's tap is on the scene's listener", ears.get("prop:AudioTap"), 1.0)
+    t.eq("the probe's tap is on the scene's listener", ears.get("prop:LightEar.tapped"), 1.0)
     t.ok("the hum reaches the tap", (ears.get("prop:LightEar.peak") or 0) > 0.03, ears.get("prop:LightEar.peak"))
     t.eq("nothing leaves the tap", ears.get("prop:LightEarAfter.peak"), 0.0)
     t.ok("... though buffers pass", (ears.get("prop:LightEarAfter.buffers") or 0) > 0, ears.get("prop:LightEarAfter.buffers"))
 
 
 def lamps_builtin(t, play):
-    """Without URP (the pipeline switched off before the first frame): light is still URP's maths, grading neutral and
-    without post: values, and each query says so once."""
+    """Without URP (the pipeline switched off before the first frame): light is still URP's falloff with the light's
+    colour as the engine computes it, grading neutral and without post: values, and each query says so once. URP
+    turns the project's linear light intensity on (GraphicsSettings.lightsUseLinearIntensity); without it a light's
+    intensity counts in gamma: (2 x white).linear, 2^2.2."""
     t.ok("the pipeline was off", "LIGHT builtin: pipeline none" in play.log)
-    t.near("A: the lamp as URP would light it", at(play, "A", 1.0, "local"), POINT_A, FLOAT)
+    t.near("A: URP's falloff, the lamp's colour the engine's without URP (intensity in gamma)", at(play, "A", 1.0, "local"),
+           POINT_A / 2 * gamma_to_linear(2.0), FLOAT)
     grade = play.value("grade", 1.0) or {}
     t.eq("grading: no pipeline, no stack, neutral", [grade.get(k) for k in ("pipeline", "source", "post_processing", "contrast", "post:Bloom.intensity")],
          ["builtin", "none", 0.0, 1.0, None])
@@ -262,8 +268,8 @@ def sky(t, play):
     the scene: an untouched stack is exactly grey 0.18, cast 0 through colour.py."""
     for when in (1.0, 3.0):
         value = play.value("card", when) or {}
-        t.near(f"the sun at {when:g} s: a white sun of intensity 1", value.get("directional"), sum(LUM), FLOAT)
-        frame_is(t, play, when, sum(LUM) * SUN_UP + (value.get("sky") or 0), "the card: the sun and the ambient probe")
+        t.near(f"the sun at {when:g} s: a white sun of intensity {SKY_SUN:g}", value.get("directional"), SKY_SUN * sum(LUM), FLOAT)
+        frame_is(t, play, when, SKY_SUN * sum(LUM) * SUN_UP + (value.get("sky") or 0), "the card: the sun and the ambient probe")
     grade = play.value("grade", 1.0) or {}
     t.eq("grading: the camera's stack, post-processing on", [grade.get("source"), grade.get("post_processing")], ["camera", 1.0])
     found = colour.colour(grade)
@@ -453,6 +459,8 @@ def audio(t, play):
     t.eq("the mixer group by its name", [v("sfx", 1.0, "count"), v("sfx", 1.0, "loudest")], [1.0, "Mixed550"])
     t.eq("... its parent group's name doesn't match", v("master", 1.0, "count"), 0.0)
     t.near("the select's owner", v("owner", 1.0, "volume"), 0.16, FLOAT)
+    t.eq("an owner select naming a component type no project has owns nothing (its query_errors line: PLAYS)",
+         v("ghost", 1.0, "count"), 0.0)
     near = 0.5 / 2
     second = (0.8 / math.dist((0, 0, 5), (100, 0, 0)) + 0.5 + 1.0 + 0.3 + 0.2 + 0.0009 + 0.5 + near)
     t.eq("the second listener alone", [v("all", 15.0, "listener"), v("all", 15.0, "count"), v("all", 15.0, "audible")], ["SecondCamera", 10.0, 7.0])
@@ -466,17 +474,20 @@ def audio(t, play):
         row = play.row("ears", when, name) or {}
         return row.get(field)
     for when, name in ((5.0, "PlayerCamera"), (12.0, "PlayerCamera"), (15.5, "SecondCamera"), (20.0, "Player2Camera")):
-        t.eq(f"{name} at {when:g} s: the probe's tap is on it", ear(when, name, "prop:AudioTap"), 1.0)
+        t.eq(f"{name} at {when:g} s: the probe's tap is on it", ear(when, name, "prop:LightEar.tapped"), 1.0)
         t.ok(f"{name} at {when:g} s: the mix reaches the tap", (ear(when, name, "prop:LightEar.peak") or 0) > 0.05, ear(when, name, "prop:LightEar.peak"))
         t.eq(f"{name} at {when:g} s: nothing leaves the tap", ear(when, name, "prop:LightEarAfter.peak"), 0.0)
         t.ok(f"{name} at {when:g} s: ... though buffers pass", (ear(when, name, "prop:LightEarAfter.buffers") or 0) > 0)
-    t.eq("two listeners on: both have a tap from the frame the second came on", [ear(13.0, "PlayerCamera", "prop:AudioTap"),
-         ear(13.0, "SecondCamera", "prop:AudioTap")], [1.0, 1.0])
-    gained = {name: (ear(14.0, name, "prop:LightEar.buffers") or 0) - (ear(13.0, name, "prop:LightEar.buffers") or 0)
-              for name in ("PlayerCamera", "SecondCamera")}
-    heard = [name for name, n in gained.items() if n > 0]
-    t.eq("two listeners on: Unity mixes through one of them", heard, heard[:1] if heard else ["(none)"])
-    t.eq("... the one the measure reads as the listener", [v("all", 14.0, "listener")], heard[:1])
+    # two listeners on, 13 to 14.5 s (Unity warns): the filters of both run one after the other on the one mix, the
+    # second tap getting the first's silence; Unity places the sound at the listener that came on last (SecondCamera)
+    t.eq("two listeners on: both have a tap from the frame the second came on", [ear(13.0, "PlayerCamera", "prop:LightEar.tapped"),
+         ear(13.0, "SecondCamera", "prop:LightEar.tapped")], [1.0, 1.0])
+    t.eq("... nothing leaves either", [ear(14.0, name, "prop:LightEarAfter.peak") for name in ("PlayerCamera", "SecondCamera")], [0.0, 0.0])
+    t.eq("... the measure's listener: the first in hierarchy order", v("all", 14.0, "listener"), "PlayerCamera")
+    both, alone, near_ms = v("all", 14.0, "level") or 0, v("all", 15.0, "level") or 0, (near * LEVEL) ** 2
+    t.near("... the level is the whole mix Unity makes at SecondCamera: the second alone at 15 s hears it and Near "
+           "(level(15 s)^2 - level(14 s)^2 is Near's; with the second tap's silence counted it came out 0.023)",
+           alone ** 2 - both ** 2, near_ms, near_ms * 0.1)
     t.eq("the game's own FindObjectsByType doesn't find the tap (it is hidden from it); its GetComponents does (the keeper's after-ears)",
          [(play.row("keeper", w, "EarKeeper") or {}).get("prop:LightEarKeeper.seen") for w in (2.0, 14.0, 20.0)], [0.0, 0.0, 0.0])
 
@@ -489,8 +500,8 @@ def audio_again(t, play):
         b = [{k: x for k, x in (s.get("value") or {}).items() if k not in ("level", "peak")} for s in play.samples(qid)]
         t.eq(f"{qid}: the same as the first play but for the mix", b, a)
     t.eq("the taps: on the same listeners at the same times",
-         [[r.get("prop:AudioTap") for r in s.get("rows") or []] for s in play.samples("ears")],
-         [[r.get("prop:AudioTap") for r in s.get("rows") or []] for s in first.samples("ears")])
+         [[(r.get("name"), r.get("prop:LightEar.tapped")) for r in s.get("rows") or []] for s in play.samples("ears")],
+         [[(r.get("name"), r.get("prop:LightEar.tapped")) for r in s.get("rows") or []] for s in first.samples("ears")])
 
 
 ROLLOFF = [1.0, 0.5, 0.25, 0.125, 1 / 80, 1.0, 0.75, 0.5, 0.25, 1 - 0.75 * 0.01 / 20 / 0.5, 0.4, 0.15, 0.625, 1.0, 1.0, 1.0]
@@ -513,15 +524,16 @@ def stray(t, play):
     """The tap acts only in a probe play. In this one it silences the tone; the player started without -taskProbe
     (-lightstray), carrying a tap the game added itself, lets it through (its own LightMute keeps the machine quiet)."""
     row = play.row("ears", 2.0, "StrayCamera") or {}
-    t.ok("in a probe play the tone reaches the tap", (row.get("prop:LightEar.peak") or 0) > 0.03, row.get("prop:LightEar.peak"))
+    t.eq("in a probe play the probe's tap is on the listener", row.get("prop:LightEar.tapped"), 1.0)
+    t.ok("... the tone reaches the tap", (row.get("prop:LightEar.peak") or 0) > 0.03, row.get("prop:LightEar.peak"))
     t.eq("... and nothing leaves it", row.get("prop:LightEarAfter.peak"), 0.0)
+    t.ok("... though buffers pass", (row.get("prop:LightEarAfter.buffers") or 0) > 0, row.get("prop:LightEarAfter.buffers"))
     t.near("... its level: a 0.05 sine at volume 1", at(play, "all", 2.0, "level"), LEVEL / 10, LEVEL / 10 * 0.01)
     exe = t.project / "Build" / "TaskProbe" / "Game.exe"
     log = t.project / "Logs" / "ProbeTests" / "light.stray_run.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.unlink(missing_ok=True)
-    desk = Path(__file__).resolve().parents[2] / "desk.py"
-    subprocess.run([sys.executable, str(desk), str(exe), "-screen-fullscreen", "0", "-screen-width", "960", "-screen-height", "540",
+    subprocess.run([sys.executable, str(unity.DESK), str(exe), "-screen-fullscreen", "0", "-screen-width", "960", "-screen-height", "540",
                     "-logFile", str(log), "-lightstray"], cwd=str(exe.parent), timeout=120)
     text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
     found = re.search(r"LIGHT stray tap=(\S+) before=(\S+) after=(\S+)", text)
@@ -534,15 +546,16 @@ def stray(t, play):
 PLAYS = {
     # the ears hear the mix, which runs in real time
     "lamps": {"check": lamps, "errors": [r"^light nopoint: no point$"], "varies": ["ears"]},
-    "lamps_builtin": {"check": lamps_builtin, "errors": [r"^light A: the render pipeline isn't URP", r"^light F2: the render pipeline isn't URP",
-                                                         r"^grading grade: the render pipeline isn't URP"]},
+    "lamps_builtin": {"check": lamps_builtin, "args": ["-lightbuiltin"],
+                      "errors": [r"^light A: the render pipeline isn't URP", r"^light F2: the render pipeline isn't URP",
+                                 r"^grading grade: the render pipeline isn't URP"]},
     "baked": {"check": baked},
     "sky": {"check": sky},
     "grade": {"check": grade, "errors": GRADE_ERRORS},
     "grade_script": {"check": grade_script, "args": ["-gradescript"], "errors": GRADE_ERRORS},
     "grade_first": {"check": grade_first, "args": ["-gradeexposed"]},
     # audio plays run in real time and the mix's level with it: each is played once, and audio_again compares two
-    "audio": {"check": audio, "varies": True},
+    "audio": {"check": audio, "varies": True, "errors": [r"^audio ghost: no component type NoSuchType$"]},
     "audio_again": {"check": audio_again, "varies": True},
     "rolloff": {"check": rolloff, "varies": True},
     "stray": {"check": stray, "varies": True},

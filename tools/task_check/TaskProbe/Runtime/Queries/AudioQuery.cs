@@ -30,7 +30,7 @@ namespace TaskProbe
             sound = Json.Str(select, "sound");
             soundClass = Json.Str(select, "sound_class");
             var o = Json.Obj(select, "owner");
-            if (o != null) owner = Sel.Parse(o);
+            if (o != null) owner = Sel.Parse(o, Kind + " " + Id);
         }
 
 #if TASKPROBE_AUDIO

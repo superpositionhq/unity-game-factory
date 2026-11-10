@@ -109,7 +109,7 @@
     "prop:LightEar.buffers",
     "prop:LightEarAfter.peak",
     "prop:LightEarAfter.buffers",
-    "prop:AudioTap"
+    "prop:LightEar.tapped"
    ]
   },
   {

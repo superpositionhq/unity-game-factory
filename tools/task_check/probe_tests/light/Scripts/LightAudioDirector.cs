@@ -3,16 +3,22 @@ using UnityEngine.SceneManagement;
 
 namespace ProbeTests.Lighting
 {
-    /// <summary>AudioLab's events, by frame (play time x 30). A clip that ends is 0.55 s long and starts at k.4 s: it is
-    /// playing at k.5 s and over at k+1 s however the real-time pacing drifts (a frame never takes less than 1/30 s of
-    /// real time).</summary>
+    /// <summary>AudioLab's events, by frame (play time x 30). A clip that ends is 0.3 s long and starts at k.4 s: it is
+    /// playing at k.5 s and over at k+1 s, with 0.3 s to spare for the mix's own delay and the real-time pacing's drift
+    /// (measured: a clip of 0.55 s still played at k+1 s in one play of two). Menu ignores AudioListener.pause, set here:
+    /// an AudioSource doesn't save it.</summary>
     public sealed class LightAudioDirector : MonoBehaviour
     {
-        public AudioSource late, pausable, ender, shooter, shooterClip, near;
+        public AudioSource late, menu, pausable, ender, shooter, shooterClip, near;
         public AudioClip shot, point;
         public AudioListener first, second;
         public string next;
         int frames;
+
+        void Awake()
+        {
+            menu.ignoreListenerPause = true;
+        }
 
         void Update()
         {

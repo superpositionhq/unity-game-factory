@@ -42,8 +42,9 @@ namespace ProbeTests.Lighting
                     RenderSettings.ambientGroundColor = new Color(0.05f, 0.05f, 0.05f);
                     break;
                 case 375:
+                    // at 0.5 the card stays below the frame's 1 (at 1.5 the skybox's ambient took it to 1.16)
                     RenderSettings.ambientMode = AmbientMode.Skybox;
-                    RenderSettings.ambientIntensity = 1.5f;
+                    RenderSettings.ambientIntensity = 0.5f;
                     break;
                 case 405: DynamicGI.UpdateEnvironment(); break;
                 case 435:

@@ -7,20 +7,6 @@
   {
    "id": "all",
    "kind": "audio"
-  },
-  {
-   "id": "ears",
-   "kind": "objects",
-   "select": {
-    "name": "*Camera"
-   },
-   "fields": [
-    "prop:LightEar.peak",
-    "prop:LightEar.buffers",
-    "prop:LightEarAfter.peak",
-    "prop:LightEarAfter.buffers",
-    "prop:AudioTap"
-   ]
   }
  ]
 }

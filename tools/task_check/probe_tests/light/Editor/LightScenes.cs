@@ -44,12 +44,15 @@ namespace ProbeTests.Lighting
 
         // ---------------------------------------------------------------- materials, objects
 
-        /// <summary>Simple Lit, white, no specular: a surface lit only diffusely, its colour the light falling on it.</summary>
+        /// <summary>Simple Lit, white, no specular: a surface lit only diffusely, its colour the light falling on it. Simple
+        /// Lit's _SpecularHighlights is its specular source (SimpleLitGUI.SpecularSource: 0 specular colour, 1 none), from
+        /// which URP's material import sets the keywords again; the specular colour black as well.</summary>
         static Material WhiteMaterial()
         {
             var m = new Material(Shader.Find("Universal Render Pipeline/Simple Lit"));
             m.SetColor("_BaseColor", Color.white);
-            m.SetFloat("_SpecularHighlights", 0f);
+            m.SetFloat("_SpecularHighlights", 1f);
+            m.SetColor("_SpecColor", Color.black);
             m.DisableKeyword("_SPECULAR_COLOR");
             m.DisableKeyword("_SPECGLOSSMAP");
             return m;
@@ -181,7 +184,9 @@ namespace ProbeTests.Lighting
             RenderSettings.ambientIntensity = 1f;
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.fog = false;
-            var sun = Sun("Sun", new Vector3(50f, -30f, 0f), Color.white, 1.2f, LightShadows.Soft);
+            // intensity 0.8: no card is lit above 1 in a channel, where the frame clips (at 1.2 the card facing the sun read
+            // red 1.23, and under gradient ambient 1.13)
+            var sun = Sun("Sun", new Vector3(50f, -30f, 0f), Color.white, 0.8f, LightShadows.Soft);
             sun.useColorTemperature = true;
             sun.colorTemperature = 4000f;
 
@@ -301,7 +306,8 @@ namespace ProbeTests.Lighting
                     }
             }
             new GameObject("Probes").AddComponent<LightProbeGroup>().probePositions = probes.ToArray();
-            Lamp("BakedLamp", LightType.Point, new Vector3(0f, 3f, 0f), Color.white, 2f, 6f).lightmapBakeType = LightmapBakeType.Baked;
+            // intensity 1: its light in the probes stays below the frame's 1 (at 2 it read 1.28 and the frame clipped)
+            Lamp("BakedLamp", LightType.Point, new Vector3(0f, 3f, 0f), Color.white, 1f, 6f).lightmapBakeType = LightmapBakeType.Baked;
             Lamp("MixedLamp", LightType.Point, new Vector3(30f, 3f, 0f), Color.white, 2f, 6f).lightmapBakeType = LightmapBakeType.Mixed;
             var cam = MakeCamera("Camera", new Vector3(0f, 2.5f, 0f), Down);
             Tour(cam, Above(0f, 1f, 0f), Above(30f, 1f, 0f), Above(60f, 1f, 0f), Above(0f, 0f, 2.5f), Above(30f, 0f, 2.5f), Above(60f, 0f, 2.5f));
@@ -340,7 +346,8 @@ namespace ProbeTests.Lighting
             RenderSettings.ambientIntensity = 1f;
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.fog = false;
-            Sun("Sun", new Vector3(50f, -30f, 0f), Color.white, 1f, LightShadows.Soft);
+            // intensity 0.6: the card stays below 1 in every channel (at 1 the sky's blue took it to 1.14, clipped)
+            Sun("Sun", new Vector3(50f, -30f, 0f), Color.white, 0.6f, LightShadows.Soft);
             Card("Card", new Vector3(0f, 1f, 0f), 2f);
             MakeCamera("Camera", new Vector3(0f, 2.5f, 0f), Down, post: true);
             new GameObject("Director").AddComponent<LightSkyRefresh>().at = 60;
@@ -381,12 +388,17 @@ namespace ProbeTests.Lighting
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogDensity = 0.001f;
             RenderSettings.fogColor = new Color(0.5f, 0.55f, 0.6f);
+            // two suns of one intensity under one root: SunTwin, made after Sun, first among its siblings is the grading's
+            // sun (a player keeps the order below a root, not the order of a scene's roots: Find's hierarchy order)
+            var suns = new GameObject("Suns").transform;
             var sun = Sun("Sun", new Vector3(45f, 30f, 0f), new Color(1f, 0.95f, 0.9f), 1.5f, LightShadows.None);
             sun.useColorTemperature = true;
             sun.colorTemperature = 5000f;
+            sun.transform.SetParent(suns, true);
+            var twin = Sun("SunTwin", new Vector3(30f, 0f, 0f), Color.white, 1.5f, LightShadows.None).transform;
+            twin.SetParent(suns, true);
+            twin.SetSiblingIndex(0);
             Sun("Fill", new Vector3(60f, 200f, 0f), Color.white, 0.5f, LightShadows.None);
-            // as strong as the sun, made after it, first in the scene's root list: it is the grading's sun
-            Sun("SunTwin", new Vector3(30f, 0f, 0f), Color.white, 1.5f, LightShadows.None).transform.SetSiblingIndex(0);
 
             var player = new GameObject("Player") { tag = "Player" };
             player.transform.position = new Vector3(0f, 1.5f, -30f);
@@ -451,8 +463,8 @@ namespace ProbeTests.Lighting
             ("Tone440", 440f, 2f, 0.5f, false), ("Music220", 220f, 2f, 0.5f, false), ("Muted330", 330f, 2f, 0.5f, false),
             ("Mixed550", 550f, 2f, 0.5f, false), ("Custom770", 770f, 2f, 0.5f, false), ("Stream385", 385f, 2f, 0.5f, true),
             ("Menu495", 495f, 2f, 0.5f, false), ("Pause275", 275f, 2f, 0.5f, false), ("Late660", 660f, 2f, 0.5f, false),
-            ("End1000", 1000f, 0.55f, 0.5f, false), ("Shot880", 880f, 0.55f, 0.5f, false), ("Main605", 605f, 2f, 0.5f, false),
-            ("Point990", 990f, 0.55f, 0.5f, false), ("Near715", 715f, 2f, 0.5f, false), ("Room523", 523f, 2f, 0.5f, false),
+            ("End1000", 1000f, 0.3f, 0.5f, false), ("Shot880", 880f, 0.3f, 0.5f, false), ("Main605", 605f, 2f, 0.5f, false),
+            ("Point990", 990f, 0.3f, 0.5f, false), ("Near715", 715f, 2f, 0.5f, false), ("Room523", 523f, 2f, 0.5f, false),
             ("Quiet440", 440f, 2f, 0.05f, false), ("Faint1100", 1100f, 2f, 0.5f, false),
         };
 
@@ -570,6 +582,11 @@ namespace ProbeTests.Lighting
             Sun("Sun", new Vector3(50f, -30f, 0f), Color.white, 1f, LightShadows.None);
             var first = Listener("Player", Vector3.zero, true);
             var second = Listener("Second", new Vector3(100f, 0f, 0f), false, false);
+            // both under one root, Player first: a player keeps the order below a root, not the order of a scene's
+            // roots, and the measure takes the first enabled listener in hierarchy order
+            var rig = new GameObject("Listeners").transform;
+            first.transform.parent.SetParent(rig, true);
+            second.transform.parent.SetParent(rig, true);
             Source("Loop3D", new Vector3(0f, 0f, 5f), "Tone440", 0.8f, 1f, true);
             Source("Music2D", new Vector3(30f, 0f, 30f), "Music220", 0.5f, 0f, true);
             Source("Muted", new Vector3(0f, 0f, 2f), "Muted330", 1f, 1f, true).mute = true;
@@ -579,7 +596,7 @@ namespace ProbeTests.Lighting
             custom.maxDistance = 20f;
             custom.SetCustomCurve(AudioSourceCurveType.CustomRolloff, Linear(new Keyframe(0f, 1f), new Keyframe(0.5f, 0.25f), new Keyframe(1f, 0f)));
             Source("Stream", Vector3.zero, "Stream385", 0.3f, 0f, true);
-            Source("Menu", Vector3.zero, "Menu495", 0.2f, 0f, true).ignoreListenerPause = true;
+            var menu = Source("Menu", Vector3.zero, "Menu495", 0.2f, 0f, true);  // ignores AudioListener.pause (LightAudioDirector)
             var pausable = Source("Pausable", Vector3.zero, "Pause275", 0.1f, 0f, true);
             Source("Faint", Vector3.zero, "Faint1100", 0.0009f, 0f, true);  // just under the audible floor (0.001)
             var late = Source("Late", new Vector3(10.5f, 0f, 0f), "Late660", 1f, 0.5f, false);
@@ -596,6 +613,7 @@ namespace ProbeTests.Lighting
             Keeper();
             var director = new GameObject("Director").AddComponent<LightAudioDirector>();
             director.late = late;
+            director.menu = menu;
             director.pausable = pausable;
             director.ender = ender;
             director.shooter = shooter;

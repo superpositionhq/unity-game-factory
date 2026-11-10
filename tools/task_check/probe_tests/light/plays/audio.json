@@ -99,6 +99,15 @@
    }
   },
   {
+   "id": "ghost",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "component": "NoSuchType"
+    }
+   }
+  },
+  {
    "id": "ears",
    "kind": "objects",
    "select": {
@@ -109,7 +118,7 @@
     "prop:LightEar.buffers",
     "prop:LightEarAfter.peak",
     "prop:LightEarAfter.buffers",
-    "prop:AudioTap"
+    "prop:LightEar.tapped"
    ]
   },
   {

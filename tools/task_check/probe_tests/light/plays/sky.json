@@ -38,9 +38,7 @@
    "select": {
     "name": "Ears"
    },
-   "fields": [
-    "prop:AudioTap"
-   ]
+   "fields": []
   }
  ]
 }
