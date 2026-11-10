@@ -453,7 +453,8 @@ How `lit` and `glow` read a mesh renderer, one of two ways; which one depends on
 on their values. A renderer that isn't drawn (disabled, inactive, forced off) reads dark without being read either
 way.
 - **From its material properties**, when every material it draws with has a shader of one of two kinds (a Shader
-  Graph is neither, whatever its properties): a shader whose name contains `unlit` in any case (URP's
+  Graph is neither, whatever its properties; the probe knows one by its shader's name, `Shader Graphs/...`, which a
+  graph keeps unless its author changes its path): a shader whose name contains `unlit` in any case (URP's
   `Universal Render Pipeline/Unlit`) and that has `_BaseColor` or `_Color` gives that colour times its main texture's
   mean; a shader with `_EmissionColor` that declares an `_EMISSION` keyword gives, when the material has the keyword
   enabled, its emission colour times the mean of its `_EmissionMap` when one is set (keyword off: no light, whatever
