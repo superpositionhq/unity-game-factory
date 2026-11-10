@@ -339,6 +339,10 @@ nothing about the task; the run goes on with the next one, and the exit code is 
 missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a disk error.
 Fix that and run again. One check's row reading `the checker failed (...)` is the same for that check alone.
 
+**A Python traceback that ends the run.** The checker met a fault of its own that it doesn't turn into an ERROR line.
+The tasks it finished keep their results, `progress.txt` names the one it was checking, and the scratch copies are
+deleted (unless `--keep`). Report it with the traceback, and check the remaining tasks with `--task`.
+
 **`a no-op scores N, not 0: give X "weight": 0, or drop them`.** Those checks already pass at the start (`still_works`
 probes, probes that aren't required), so a run that changes nothing would score `N` (the weighted share of checks
 passed). Give each `"weight": 0` (a required one still gates), or drop it.
