@@ -726,7 +726,8 @@ component to `objects` and `components`, but as their real number of pieces here
   - `owner`: an object select the renderer's object (a tree's: its Terrain's) or an ancestor must match (as in
     `objects`);
   - `near`: within `radius` m of a point, **each piece by its own place** (a tree instance's position, else its
-    renderer's object's position).
+    renderer's object's position). A point that doesn't resolve (the `near`'s, or one in `owner`) leaves the sample
+    with no value, not a count of 0.
 - `field`: `count` (pieces), `visible` (pieces drawn: renderer enabled and active, not forced off; trees when their
   Terrain is enabled and draws its trees), `components` (how many renderers or terrains hold them), `objects` (how many
   objects), `triangles` (the triangles the pieces hold), `visible_triangles` (the triangles of the pieces drawn, as
