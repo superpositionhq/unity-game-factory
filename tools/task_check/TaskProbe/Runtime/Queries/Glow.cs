@@ -83,8 +83,8 @@ namespace TaskProbe
 
         static readonly ShaderTagId GraphTag = new ShaderTagId("ShaderGraphShader");
         static readonly Dictionary<int, Face> Faces = new Dictionary<int, Face>();  // by shader: its interface never changes
-        static readonly Dictionary<int, GlowReading> Seen = new Dictionary<int, GlowReading>();  // each part once a frame
-        static int seenFrame = -1;
+        static readonly Dictionary<int, GlowReading> Seen = new Dictionary<int, GlowReading>();  // each part once a pass
+        static int seenStamp = -1;
         static MaterialPropertyBlock blockAll, blockOne;
 
         static double Luminance(Color c) => Find.Luminance(c.r, c.g, c.b);
@@ -133,13 +133,13 @@ namespace TaskProbe
             r.Kinds |= GlowReading.KindLight;
         }
 
-        /// <summary>A part, read once a frame (a select's has.lit and the fields share it); false when it couldn't be
-        /// read.</summary>
+        /// <summary>A part, read once a pass of the probe (the samples' has.lit and fields share it; an input's select,
+        /// before the game's scripts of that frame, reads it anew); false when it couldn't be read.</summary>
         static bool AddPart(ref GlowReading total, Renderer renderer)
         {
-            if (seenFrame != Time.frameCount)
+            if (seenStamp != Probe.Stamp)
             {
-                seenFrame = Time.frameCount;
+                seenStamp = Probe.Stamp;
                 Seen.Clear();
             }
             var id = renderer.GetInstanceID();
@@ -248,9 +248,9 @@ namespace TaskProbe
             try { return DrawnRender.Glow(renderer); }
             catch (Exception e)
             {
-                // the same line whichever renderer it was; which one, and the exception, in probe.log
-                Probe.Active?.Error("lit/glow: a render failed (the exception is in probe.log)");
-                Probe.Log("lit/glow: rendering " + renderer.name + " failed: " + e);
+                // the same line whichever renderer it was; which one in probe.log, the exception with it once
+                Probe.Log("lit/glow: rendering " + renderer.name + " failed");
+                Probe.Active?.Failed("lit/glow: {0} in a render", e);
                 return new RenderedGlow();
             }
         }
