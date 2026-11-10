@@ -1,9 +1,10 @@
 // The UI as the widgets and ui queries read it (contract section 3): uGUI (UnityEngine.UI graphics and selectables,
-// TextMeshPro) on the scene's canvases, and UI Toolkit (every UIDocument's panel). Rectangles are viewport fractions 0-1
-// with y down from the top, whatever render mode or panel scale placed them. On screen means: active, enabled, every
-// Canvas up the chain enabled, an alpha above 0.004 all the way up (CanvasGroups, the graphic's colour, its
-// CanvasRenderer, not culled by a RectMask2D), at least partly inside the frame; in UI Toolkit, in a screen panel,
-// displayed, visible and of an opacity above 0.004 up the chain.
+// TextMeshPro) on the scene's canvases, and UI Toolkit (every UIDocument's panel); and the widget click input.
+// Rectangles are viewport fractions 0-1 with y down from the top, whatever render mode, scaler or panel scale placed
+// them. On screen means: drawn (active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way
+// up: CanvasGroups, the graphic's colour, its CanvasRenderer, not culled by a RectMask2D; in UI Toolkit displayed,
+// visible and of an opacity above 0.004 down the tree, in a panel drawn on the screen) and of some size inside the
+// frame.
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -18,7 +19,8 @@ using UIE = UnityEngine.UIElements;
 
 namespace TaskProbe
 {
-    /// <summary>One element on screen (a ui row): what it shows and where.</summary>
+    /// <summary>One element of the UI on screen (a ui row): its source (ugui, uitk, ocr), kind (text, box, image), name
+    /// and class (for the logs), text, and its rectangle in viewport fractions.</summary>
     public sealed class UiElement
     {
         public string Name, Class, Source, Kind, Text;
@@ -38,37 +40,39 @@ namespace TaskProbe
 
     public static class UiScan
     {
-        public const float AlphaFloor = 0.004f;  // an element drawn at this alpha or less is not on screen
+        const float AlphaFloor = 0.004f;  // an element drawn at this alpha or less is not on screen
         static readonly Regex Tags = new Regex(@"</?[A-Za-z_#][^<>]*>|</>", RegexOptions.CultureInvariant);
 
         /// <summary>Rich text as shown: its tags left out.</summary>
-        public static string Plain(string marked) => string.IsNullOrEmpty(marked) || marked.IndexOf('<') < 0 ? marked : Tags.Replace(marked, "");
+        static string Plain(string marked) => string.IsNullOrEmpty(marked) || marked.IndexOf('<') < 0 ? marked : Tags.Replace(marked, "");
 
         public static bool IsRectField(string f) => f == "x" || f == "y" || f == "w" || f == "h";
 
         /// <summary>A rectangle with a size that lies at least partly inside the frame.</summary>
         static bool OnScreen(double x, double y, double w, double h) => w > 0.0 && h > 0.0 && x + w > 0.0 && x < 1.0 && y + h > 0.0 && y < 1.0;
 
+        static object RectField(string f, double x, double y, double w, double h) => f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
+
         // ---------------------------------------------------------------- elements on screen (ui)
 
-        static int elementsFrame = -1;
-        static readonly List<UiElement> elements = new List<UiElement>();
+        static int scannedStamp = -1;
+        static readonly List<UiElement> Scanned = new List<UiElement>();
 
-        /// <summary>Every element on screen now (cached for the frame: several ui queries read the same).</summary>
+        /// <summary>Every element on screen now, once a pass (every ui query of the frame drawn reads the same).</summary>
         public static List<UiElement> Elements()
         {
-            if (elementsFrame == Time.frameCount) return elements;
-            elementsFrame = Time.frameCount;
-            elements.Clear();
+            if (scannedStamp == Probe.Stamp) return Scanned;
+            scannedStamp = Probe.Stamp;
+            Scanned.Clear();
 #if TASKPROBE_UGUI
-            try { UguiElements(elements); }
-            catch (Exception e) { Probe.Active?.Error("ui: the uGUI canvases couldn't be read: " + e.Message); }
+            try { UguiElements(Scanned); }
+            catch (Exception e) { Probe.Active?.Failed("ui: the uGUI canvases couldn't be read: {0}", e); }
 #endif
 #if TASKPROBE_UITK
-            try { UitkElements(elements); }
-            catch (Exception e) { Probe.Active?.Error("ui: the UI Toolkit panels couldn't be read: " + e.Message); }
+            try { UitkElements(Scanned); }
+            catch (Exception e) { Probe.Active?.Failed("ui: the UI Toolkit panels couldn't be read: {0}", e); }
 #endif
-            return elements;
+            return Scanned;
         }
 
         // ---------------------------------------------------------------- uGUI
@@ -81,7 +85,7 @@ namespace TaskProbe
         /// <summary>A RectTransform's rectangle in viewport fractions (y down). A world-space canvas (when `screenOnly` is
         /// false) projects through the player's camera; false when a corner is behind it. False for a canvas drawn
         /// into a texture or on another display: it isn't on the screen.</summary>
-        public static bool RectOf(RectTransform rt, Canvas canvas, bool screenOnly, out double x, out double y, out double w, out double h)
+        static bool RectOf(RectTransform rt, Canvas canvas, bool screenOnly, out double x, out double y, out double w, out double h)
         {
             x = y = w = h = 0.0;
             if (rt == null || canvas == null) return false;
@@ -129,7 +133,7 @@ namespace TaskProbe
         /// <summary>Drawn on screen: active, every Canvas up the chain enabled, an alpha above the floor up the chain
         /// (CanvasGroups until one ignores its parents; `graphic`'s own colour and CanvasRenderer when it has one, which
         /// must be enabled and not culled), with a rectangle on screen.</summary>
-        public static bool UguiVisible(GameObject go, Graphic graphic, bool screenOnly)
+        static bool UguiVisible(GameObject go, Graphic graphic, bool screenOnly)
         {
             if (go == null || !go.activeInHierarchy) return false;
             var canvas = go.GetComponentInParent<Canvas>();
@@ -177,7 +181,7 @@ namespace TaskProbe
         /// <summary>A Text's or TextMeshPro's text as shown: rich text tags left out, a TextMeshPro typewriter
         /// (maxVisibleCharacters) applied. The text as set, not as TextMeshPro last laid it out: that is a frame old
         /// until the frame is drawn, and never laid out again while the text is hidden. Null when not text.</summary>
-        public static string GraphicText(Graphic g)
+        static string GraphicText(Graphic g)
         {
             if (g is Text t) return t.supportRichText ? Plain(t.text) : t.text;
 #if TASKPROBE_TMP
@@ -231,7 +235,7 @@ namespace TaskProbe
 #if TASKPROBE_UITK
         /// <summary>Every UIDocument's tree once (a document nested in another's tree is walked with it), in hierarchy
         /// order, and whether its panel is drawn on the screen.</summary>
-        public static List<KeyValuePair<UIE.VisualElement, bool>> UitkRoots()
+        static List<KeyValuePair<UIE.VisualElement, bool>> UitkRoots()
         {
             var docs = new List<UIE.UIDocument>(UnityEngine.Object.FindObjectsByType<UIE.UIDocument>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
             Find.SortByHierarchy(docs);
@@ -254,7 +258,7 @@ namespace TaskProbe
         }
 
         /// <summary>Every element under `root` (itself included), shadow children too, depth first.</summary>
-        public static void Walk(UIE.VisualElement root, List<UIE.VisualElement> output, int depth = 0)
+        static void Walk(UIE.VisualElement root, List<UIE.VisualElement> output, int depth = 0)
         {
             if (root == null || depth > 256) return;
             output.Add(root);
@@ -264,7 +268,7 @@ namespace TaskProbe
 
         /// <summary>An element's rectangle in viewport fractions: its panel's coordinates over the panel's own size (its
         /// scale mode left out).</summary>
-        public static bool RectOf(UIE.VisualElement e, out double x, out double y, out double w, out double h)
+        static bool RectOf(UIE.VisualElement e, out double x, out double y, out double w, out double h)
         {
             x = y = w = h = 0.0;
             if (e?.panel == null) return false;
@@ -283,7 +287,7 @@ namespace TaskProbe
         /// an element and everything under it out), visible (visibility is inherited, and a child may be visible again
         /// under a hidden parent: its own resolved value decides), of an opacity above the floor down the tree, with a
         /// rectangle on screen.</summary>
-        public static bool UitkVisible(UIE.VisualElement e, bool onScreen)
+        static bool UitkVisible(UIE.VisualElement e, bool onScreen)
         {
             if (!onScreen || e?.panel == null || e.resolvedStyle.visibility != UIE.Visibility.Visible) return false;
             var opacity = 1f;
@@ -306,7 +310,7 @@ namespace TaskProbe
         }
 
         /// <summary>The image an element shows: an Image element's, else its background image; null when none.</summary>
-        public static UnityEngine.Object UitkBrush(UIE.VisualElement e)
+        static UnityEngine.Object UitkBrush(UIE.VisualElement e)
         {
             if (e is UIE.Image im)
             {
@@ -319,13 +323,16 @@ namespace TaskProbe
 
         /// <summary>An element's text as shown: a field's string value (a TextField's, a DropdownField's caption), a
         /// Toggle's text, a TextElement's text with its rich text tags left out; null when it has none.</summary>
-        public static string UitkText(UIE.VisualElement e)
+        static string UitkText(UIE.VisualElement e)
         {
             if (e is UIE.BaseField<string> field) return field.value;
             if (e is UIE.Toggle toggle) return Plain(toggle.text);
             if (e is UIE.TextElement t) return t.enableRichText ? Plain(t.text) : t.text;
             return null;
         }
+
+        /// <summary>The name a row shows and a select's name matches: the element's, else its type's.</summary>
+        static string NameOf(UIE.VisualElement e) => string.IsNullOrEmpty(e.name) ? e.GetType().Name : e.name;
 
         static void UitkElements(List<UiElement> output)
         {
@@ -339,7 +346,7 @@ namespace TaskProbe
                 {
                     if (!UitkVisible(e, true)) continue;
                     var s = e.resolvedStyle;
-                    var name = string.IsNullOrEmpty(e.name) ? e.GetType().Name : e.name;
+                    var name = NameOf(e);
                     var cls = e.GetType().Name;
                     RectOf(e, out var x, out var y, out var w, out var h);
                     // what it paints behind: an image, else a background colour or a border (a box)
@@ -366,8 +373,9 @@ namespace TaskProbe
         // ---------------------------------------------------------------- widgets
 
         /// <summary>The widgets a select picks: uGUI objects in hierarchy order, then UI Toolkit elements in tree order.
-        /// `component`: a type name the object's components or the element's type (or a base type) must carry; `name`:
-        /// a wildcard on the object's or element's name; `text`: a regex its text must match; `visible`: on screen only.</summary>
+        /// `component`: a type name a component of the object, or the element (a base type included), carries; `name`:
+        /// a wildcard on the object's or element's name; `text`: a regex its text must match; `visible`: on screen
+        /// only.</summary>
         public static List<UiWidget> Widgets(string component, string name, Regex text, bool visibleOnly)
         {
             var found = new List<UiWidget>();
@@ -383,6 +391,9 @@ namespace TaskProbe
 #if TASKPROBE_UGUI
         static void UguiWidgets(string component, string name, Regex text, bool visibleOnly, List<UiWidget> found)
         {
+            var type = string.IsNullOrEmpty(component) ? null : Reflect.TypeNamed(component);
+            // no type of that name, or a class no component derives from (a UI Toolkit element's): no uGUI object has it
+            if (!string.IsNullOrEmpty(component) && (type == null || (!type.IsInterface && !typeof(Component).IsAssignableFrom(type)))) return;
             // the objects that carry a graphic or a selectable, and those carrying the asked type when it is another kind
             // of component (a game's own HUD script)
             var seen = new HashSet<GameObject>();
@@ -396,15 +407,10 @@ namespace TaskProbe
             foreach (var g in UnityEngine.Object.FindObjectsByType<Graphic>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (!IsTmpPart(g)) Take(g);
             foreach (var s in UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Include, FindObjectsSortMode.None)) Take(s);
-            if (!string.IsNullOrEmpty(component))
-            {
-                var type = Reflect.TypeNamed(component);
-                if (type != null && typeof(Component).IsAssignableFrom(type) && !typeof(Graphic).IsAssignableFrom(type) && !typeof(Selectable).IsAssignableFrom(type))
-                    foreach (var o in UnityEngine.Object.FindObjectsByType(type, FindObjectsInactive.Include, FindObjectsSortMode.None))
-                        Take(o as Component);
-            }
+            if (type != null && typeof(Component).IsAssignableFrom(type) && !typeof(Graphic).IsAssignableFrom(type) && !typeof(Selectable).IsAssignableFrom(type))
+                foreach (var o in UnityEngine.Object.FindObjectsByType(type, FindObjectsInactive.Include, FindObjectsSortMode.None))
+                    Take(o as Component);
             Find.SortByHierarchy(candidates);
-            var comps = new List<Component>();
             foreach (var t in candidates)
             {
                 if (t == null) continue;
@@ -413,9 +419,7 @@ namespace TaskProbe
                 Component matched = null;
                 if (!string.IsNullOrEmpty(component))
                 {
-                    go.GetComponents(comps);
-                    foreach (var c in comps)
-                        if (c != null && Reflect.IsA(c.GetType(), component)) { matched = c; break; }
+                    matched = Reflect.ComponentNamed(go, component, false);
                     if (matched == null) continue;
                 }
                 var w = new UguiWidget(go, matched);
@@ -507,11 +511,10 @@ namespace TaskProbe
                         return selectable != null ? (selectable.IsInteractable() && selectable.enabled ? 1.0 : 0.0) : (object)null;
                     case "has_brush":
                     case "brush":
-                        UnityEngine.Object brush = null;
-                        var known = false;
-                        if (go.GetComponent<Image>() is Image image) { brush = image.sprite; known = true; }
-                        else if (go.GetComponent<RawImage>() is RawImage raw) { brush = raw.texture; known = true; }
-                        if (!known) return null;
+                        UnityEngine.Object brush;
+                        if (go.GetComponent<Image>() is Image image) brush = image.sprite;
+                        else if (go.GetComponent<RawImage>() is RawImage raw) brush = raw.texture;
+                        else return null;
                         if (f == "has_brush") return brush != null ? 1.0 : 0.0;
                         return brush != null ? brush.name : null;
                 }
@@ -521,7 +524,7 @@ namespace TaskProbe
                     if (!RectOf(go.transform as RectTransform, go.GetComponentInParent<Canvas>(true), false, out var x, out var y, out var w, out var h) ||
                         (w <= 0.0 && h <= 0.0))
                         return null;
-                    return f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
+                    return RectField(f, x, y, w, h);
                 }
                 return null;
             }
@@ -539,7 +542,7 @@ namespace TaskProbe
                 foreach (var e in all)
                 {
                     if (!string.IsNullOrEmpty(component) && !Reflect.IsA(e.GetType(), component)) continue;
-                    if (name != null && !Find.Wild(name, e.name ?? "")) continue;
+                    if (name != null && !Find.Wild(name, NameOf(e))) continue;
                     if (text != null)
                     {
                         var shown = UitkText(e);
@@ -560,7 +563,7 @@ namespace TaskProbe
             {
                 this.e = e;
                 this.onScreen = onScreen;
-                Name = string.IsNullOrEmpty(e.name) ? e.GetType().Name : e.name;
+                Name = NameOf(e);
                 Class = e.GetType().Name;
             }
 
@@ -600,7 +603,7 @@ namespace TaskProbe
                 {
                     // no value before it is laid out (no size, display: none), nor in a panel off the screen
                     if (!onScreen || !RectOf(e, out var x, out var y, out var w, out var h) || (w <= 0.0 && h <= 0.0)) return null;
-                    return f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
+                    return RectField(f, x, y, w, h);
                 }
                 return null;
             }
@@ -637,7 +640,7 @@ namespace TaskProbe
                 foreach (var e in all)
                 {
                     if (!(e is UIE.Button button)) continue;
-                    if (!Find.Wild(want, e.name ?? "") && !Reflect.IsA(e.GetType(), want)) continue;
+                    if (!Find.Wild(want, NameOf(e)) && !Reflect.IsA(e.GetType(), want)) continue;
                     if (!e.enabledInHierarchy || !UitkVisible(e, root.Value)) continue;
                     // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or
                     // pad press does; a ClickEvent callback needs a pointer's click (the cursor)
