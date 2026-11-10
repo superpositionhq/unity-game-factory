@@ -550,17 +550,22 @@ Limits:
   Toolkit element's: its type).
 - `select`: `component` (a uGUI component's type: `Image`, `Slider`, `TextMeshProUGUI`, a game's own component on a
   canvas object; or a UI Toolkit element's type: `Label`, `ProgressBar`, a game's own element; base types match too,
-  so `Button` takes uGUI and UI Toolkit buttons alike), `name` (a wildcard on the GameObject's or the element's name),
-  `text` (a regular expression its text must match), `visible`. A `component` no loaded assembly has (a typo, or
+  so `Button` takes uGUI and UI Toolkit buttons alike), `name` (a wildcard on the GameObject's or the element's name;
+  an unnamed UI Toolkit element's is its type's, as its row shows), `text` (a regular expression its text must
+  match), `visible`. A `component` no loaded assembly has (a typo, or
   `Label` in a project without UI Toolkit) matches nothing, and the play's `query_errors` says `widgets <id>: no
   component type <T>`.
 - **To check what a HUD shows, whatever draws it, use `ui` (section 2.18).** `widgets` reads a named widget's own
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
-- `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for: never an inactive, disabled
-  or fully transparent one, nor one under an inactive object, a disabled Canvas, a CanvasGroup at alpha 0 or a UI
-  Toolkit element with `display: none` or `visibility: hidden`, nor one culled by a RectMask2D or entirely outside the
-  frame, so `count` counts what is on screen (a warning bar's shown messages, not the ones the game keeps hidden).
+- `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for, those whose drawing is on
+  screen: never an inactive widget, one whose own graphic is disabled or fully transparent, one culled by a
+  RectMask2D, one of no size or entirely outside the frame, nor one under an inactive object, a disabled Canvas or a
+  CanvasGroup at alpha 0, nor one on a canvas drawn into a texture or on another display; in UI Toolkit, never one
+  under an element with `display: none`, one whose own visibility is hidden (a child may be visible again under a
+  hidden parent), or one in a panel not drawn on the screen. So `count` counts what is on screen (a warning bar's
+  shown messages, not the ones the game keeps hidden). A disabled button whose image still draws is visible: whether
+  it can be pressed is `interactable`.
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; an input field's (`InputField`,
   `TMP_InputField`, UI Toolkit's `TextField`) what was typed, not its placeholder; a UI Toolkit `DropdownField`'s
@@ -572,7 +577,8 @@ Limits:
   state); `has_brush` (1 when an Image's sprite, a RawImage's texture, or a UI Toolkit element's image or background
   image is set; no value for another uGUI widget); `brush` (that image's name, with `match`); `x`, `y`, `w`, `h` (the
   widget's rectangle in viewport fractions 0-1, **y down from the top**, whatever anchor or layout placed it; no value
-  for a widget with a zero-size rect, such as one under `display: none`, or a world-space one behind the camera).
+  for a widget with a zero-size rect, such as one under `display: none`, a world-space one behind the camera, or one
+  on a canvas or in a panel not drawn on the screen).
 - A project without the TextMeshPro essential resources draws no TMP text, but `widgets` and `ui` still report its
   `.text`.
 
