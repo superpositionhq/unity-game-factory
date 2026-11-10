@@ -111,9 +111,10 @@ function Sync-Dir([string]$SrcDir, [string]$DstDir, [string]$BackupDir, [string]
     }
 }
 
+# -Depth 100 is as deep as ConvertFrom-Json reads: a shallower depth writes deeper objects back as strings ("@{a=1}").
 function Write-JsonFile([string]$Path, $Object) {
     New-Item -ItemType Directory -Force (Split-Path $Path) | Out-Null
-    [IO.File]::WriteAllText($Path, ($Object | ConvertTo-Json -Depth 32) + "`n", $utf8)
+    [IO.File]::WriteAllText($Path, ($Object | ConvertTo-Json -Depth 100) + "`n", $utf8)
 }
 
 Write-Host "unity-game-factory bootstrap: root $Root, repo $repo, agents $($Agents -join ' + '), hooks dir $HooksDir"
@@ -221,38 +222,53 @@ else { [IO.File]::WriteAllText($map, '{}', $utf8); Note added 'hooks\recording-s
 
 # Merge a hook fragment ({{HOOKS_DIR}} filled in) into a parsed settings/hooks object: every handler whose command runs
 # record-unity-action.ps1 becomes the fragment's handler for that event, a missing one is added; everything else stays
-# (the Unreal game-factory's handlers run its record-action.ps1). Returns $true when something changed.
-function Merge-RecordingHooks($Target, $Frag) {
+# as it was, value for value (the Unreal game-factory's handlers run its record-action.ps1). Returns $true when
+# something changed; a file whose "hooks" has another shape stops bootstrap before anything is written.
+function Merge-RecordingHooks($Target, $Frag, [string]$Path) {
     $changed = $false
+    $obj = [Management.Automation.PSCustomObject]
+    if ($Target -isnot $obj) { throw "$Path is not a JSON object: nothing was written to it; fix it, then run bootstrap again" }
     if (-not ($Target.PSObject.Properties.Name -contains 'hooks')) { $Target | Add-Member hooks (New-Object psobject); $changed = $true }
     foreach ($ev in $Frag.hooks.PSObject.Properties) {
         $wantGroup = @($ev.Value)[0]
         $want = @($wantGroup.hooks)[0]
-        if (-not ($Target.hooks.PSObject.Properties.Name -contains $ev.Name)) { $Target.hooks | Add-Member $ev.Name @() }
-        $groups = @($Target.hooks.($ev.Name))
+        if ($Target.hooks -isnot $obj -or ($null -ne $Target.hooks.($ev.Name) -and $Target.hooks.($ev.Name) -isnot [array])) {
+            throw "$Path`: `"hooks`" is not an object of lists (at $($ev.Name)): nothing was written to it; fix it, then run bootstrap again"
+        }
+        $groups = @()
+        if ($null -ne $Target.hooks.($ev.Name)) { $groups = @($Target.hooks.($ev.Name)) }
         $found = $false
         foreach ($g in $groups) {
             $hs = @($g.hooks)
+            $mine = $false
             for ($i = 0; $i -lt $hs.Count; $i++) {
                 if ([string]$hs[$i].command -match 'record-unity-action\.ps1') {
                     $found = $true
-                    if (($hs[$i] | ConvertTo-Json -Compress) -ne ($want | ConvertTo-Json -Compress)) { $hs[$i] = $want; $changed = $true }
+                    if (($hs[$i] | ConvertTo-Json -Compress) -ne ($want | ConvertTo-Json -Compress)) { $hs[$i] = $want; $mine = $true }
                 }
             }
-            $g.hooks = [object[]]$hs
+            if ($mine) { $g.hooks = [object[]]$hs; $changed = $true }   # a group without a changed handler of ours stays as it was
         }
-        if (-not $found) { $groups += $wantGroup; $changed = $true }
-        $Target.hooks.($ev.Name) = [object[]]$groups
+        if (-not $found) {
+            if ($Target.hooks.PSObject.Properties.Name -contains $ev.Name) { $Target.hooks.($ev.Name) = [object[]]($groups + $wantGroup) }
+            else { $Target.hooks | Add-Member $ev.Name ([object[]]@($wantGroup)) }
+            $changed = $true
+        }
     }
     return $changed
 }
 function Read-JsonOrEmpty([string]$Path) {
     $o = $null
     if (Test-Path -LiteralPath $Path) {
-        try { $o = [IO.File]::ReadAllText($Path) | ConvertFrom-Json }
-        catch { throw "$Path is not valid JSON ($($_.Exception.Message)): nothing was written to it; fix it, then run bootstrap again" }
+        try { $text = [IO.File]::ReadAllText($Path); $o = $text | ConvertFrom-Json }
+        catch { throw "$Path could not be read as JSON ($($_.Exception.Message)): nothing was written to it; fix it, then run bootstrap again" }
+        # Windows PowerShell's JSON reader turns these into other values (a date without its offset, U+FFFD), which
+        # would be written back changed
+        if ($text -match '\\/Date\(-?\d+[+-]\d{4}\)\\/|\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f])|(?<!\\ud[89ab][0-9a-f]{2})\\ud[c-f]') {
+            throw "$Path holds $($Matches[0]), which this script cannot write back unchanged: nothing was written to it; change it, then run bootstrap again"
+        }
     }
-    if (-not $o) { $o = New-Object psobject }
+    if ($null -eq $o) { $o = New-Object psobject }
     return $o
 }
 $hooksSlash = ($hooksDir -replace '\\', '/')
@@ -263,7 +279,7 @@ if ($Agents -contains 'claude') {
     $settingsPath = Join-Path $ClaudeDir 'settings.json'
     $settings = Read-JsonOrEmpty $settingsPath
     $frag = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\settings-hooks.json')).Replace('{{HOOKS_DIR}}', $hooksSlash) | ConvertFrom-Json
-    $claudeChanged = Merge-RecordingHooks $settings $frag
+    $claudeChanged = Merge-RecordingHooks $settings $frag $settingsPath
 }
 # Codex: ~\.codex\hooks.json gets PostToolUse and Stop (Codex has no PostToolUseFailure), and config.toml the trust
 # entries for exactly those handlers (machine/lib/codex-hooks.ps1: Codex skips an untrusted hook silently).
@@ -273,7 +289,7 @@ if ($Agents -contains 'codex') {
     $codexToml = Join-Path $CodexDir 'config.toml'
     $codexHooks = Read-JsonOrEmpty $codexHooksPath
     $cfrag = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\codex-hooks.json')).Replace('{{HOOKS_DIR}}', $hooksSlash) | ConvertFrom-Json
-    $codexChanged = Merge-RecordingHooks $codexHooks $cfrag
+    $codexChanged = Merge-RecordingHooks $codexHooks $cfrag $codexHooksPath
     # The key holds the hooks.json path as Codex prints it. With CODEX_HOME set, Codex canonicalizes the folder, which on
     # Windows can add the \\?\ prefix: both spellings are trusted then (an unused entry does nothing).
     $codexTrust = @(Get-UGFCodexHookTrust $codexHooksPath $codexHooks)
