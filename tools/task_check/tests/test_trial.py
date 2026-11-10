@@ -635,6 +635,23 @@ class CodexHome(unittest.TestCase):
             self.assertEqual((home / ".codex" / "auth.json").read_text(), '{"token": "a"}')
             self.assertFalse((folder / "auth.json").exists())
 
+    def test_a_skill_whose_path_has_an_apostrophe_is_turned_off_too(self):
+        """Codex reads its config whole: a path it can't parse (a user named O'Brien) would stop every run at once."""
+        import tomllib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home, folder = Path(tmp) / "O'Brien", Path(tmp) / "run1" / "game.codex-home"
+            write(home, ".codex/auth.json", text='{"token": "a"}')
+            write(home, ".agents/skills/it's/SKILL.md", ".codex/skills/one/SKILL.md")
+            trial.clean_codex_home(folder, home)
+            config = tomllib.loads((folder / "config.toml").read_text(encoding="utf-8"))
+            self.assertEqual(config["skills"]["config"],
+                             [{"path": os.path.realpath(home / ".agents" / "skills" / "it's" / "SKILL.md"),
+                               "enabled": False},
+                              {"path": os.path.realpath(home / ".codex" / "skills" / "one" / "SKILL.md"),
+                               "enabled": False}])
+            trial.put_login_back(folder, home)
+
 
 class Main(unittest.TestCase):
     def test_the_transcript_is_read_for_every_place_that_holds_the_answer_or_its_measures(self):

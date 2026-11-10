@@ -114,7 +114,8 @@ def clean_codex_home(folder, user_home=None):
     rows = []
     for skills in (home / ".agents" / "skills", real / "skills"):
         for found in sorted(skills.glob("*/SKILL.md")) if skills.is_dir() else []:
-            rows.append(f"[[skills.config]]\npath = '{os.path.realpath(found)}'\nenabled = false\n")
+            path = json.dumps(os.path.realpath(found), ensure_ascii=False)  # a TOML basic string: a path may hold a '
+            rows.append(f"[[skills.config]]\npath = {path}\nenabled = false\n")
     (folder / "config.toml").write_text("\n".join(rows), encoding="utf-8")
     return folder
 
