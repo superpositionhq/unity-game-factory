@@ -290,14 +290,19 @@ original's, unchanged (`probes.py`).
     `bound`);
   - measured: about 3 ms a glow render.
 - **widgets** (the original's UMG widgets; `WidgetsQuery`, `UiScan`): uGUI (`UnityEngine.UI` Graphics and Selectables,
-  TextMeshPro) on every canvas of the loaded scenes, world-space ones included (their rect projected through the
-  player camera), and every element of every `UIDocument`'s panel (UI Toolkit). One row per GameObject or element:
-  `class` the matched component's type, else the object's Selectable, else its text or graphic (an element: its type).
-  `component` matches by `Reflect.IsA`, so `Button` takes uGUI and UI Toolkit buttons alike. A rect is in viewport
-  fractions, y down from the top, whatever render mode or panel scale placed it. On screen (`visible`, and `ui` below)
-  means active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way up (`UiScan.AlphaFloor`:
-  CanvasGroups, the graphic's colour, its CanvasRenderer), not culled by a RectMask2D, at least partly inside the
-  frame; for a UI Toolkit element, displayed, visible and of an opacity above 0.004 up the chain. How text is read:
+  TextMeshPro) on every canvas of the loaded scenes, world-space ones included (their rect projected through the player
+  camera), and every element of every `UIDocument`'s panel (UI Toolkit). One row per GameObject or element: `class` the
+  matched component's type, else the object's Selectable, else its text or graphic (an element: its type). `component`
+  matches a uGUI object as an object select does (a component on the object itself, `Reflect.ComponentNamed`) and a UI
+  Toolkit element by its type (`Reflect.IsA`), so `Button` takes uGUI and UI Toolkit buttons alike; an unnamed UI
+  Toolkit element is named by its type in its row and in a `name` select. A rect is in viewport fractions, y down from
+  the top, whatever render mode or panel scale placed it. On screen (`visible`, and `ui` below) means drawn and of some
+  size inside the frame: active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way up
+  (`UiScan.AlphaFloor`: CanvasGroups, the graphic's colour, its CanvasRenderer), not culled by a RectMask2D, on a canvas
+  drawn on the screen (not an overlay canvas on another display, nor a camera canvas whose camera renders into a texture
+  or on another display); for a UI Toolkit element, displayed and of an opacity above 0.004 down the tree, its own
+  resolved visibility visible, in a panel drawn on the screen (a panel drawn into a texture gives no rectangle). A
+  widget's `visible` follows what it draws (its graphic), not its Selectable's enabled flag. How text is read:
   task-probes.md 2.6. No `slate` select: Unity has no lower-level widget tree under the UI to walk.
 - **ui** (`UiQuery`, `UiScan`, `UiOcr`; the original's Slate tree, HUD canvas and paint elements): the elements on
   screen in the frame drawn right after the sample (`FrameNeed`: the sample is completed once that frame is drawn; one
@@ -501,12 +506,15 @@ control <path>`, `inputs: no device for <path>`), never a stop.
 - axis: `{"t", "key": "<Mouse>/delta/x", "axis": 4.0}`: `<Mouse>/delta/x|y` and `<Mouse>/scroll/x|y` are one-frame
   impulses; `<Mouse>/position/x|y` set the pointer, in pixels; `<Gamepad>/leftStick/x|y`, `rightStick/x|y`,
   `leftTrigger` and `rightTrigger` keep their value until set again.
-- widget click: `{"t", "widget": "RetryButton", "click": true}`: the first visible, interactable uGUI Selectable in
-  hierarchy order whose name (a wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit
-  Button (`UiScan.Click`). A uGUI one gets the pointer enter, down, up and click a player's click sends, at its centre
-  (`ExecuteEvents`), so `onClick`, toggles and the game's own `IPointer*Handler`s react; a UI Toolkit one a
-  `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor path).
-  `probe.log` says `clicked <widget>` or `no visible button matches '<widget>'`.
+- widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
+  and visible uGUI Selectable in hierarchy order whose name (a wildcard) or type (base types and interfaces too)
+  matches, else such a UI Toolkit Button (`UiScan.Click`). A uGUI one gets what the Input System's UI module sends for a
+  press and release at its centre, through `ExecuteEvents` (`UiScan.UguiClick`): the pointer enters; the press lets go
+  of a selection the object wouldn't take, then pointer down and the start of a possible drag; the release pointer up
+  and the click, to the click handler found at the press. No ray is cast (as the original's click), so an image over the
+  button doesn't stop it; `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a
+  player's click; a UI Toolkit one a `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler
+  needs the cursor path). `probe.log` says `clicked <widget>` or `no visible button matches '<widget>'`.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule, UI Toolkit buttons, the game through `Mouse.current`).
