@@ -413,6 +413,11 @@ class Whole(unittest.TestCase):
             self.assertIn(str(Path("C:/U/Unity.exe")), brief)
             self.assertFalse((Path(tmp) / "scratch").exists(), "the workspaces are deleted")
             self.assertIn("1/2 solved", trial.line(result))
+            # the result file is the task's own (a loop over folder names once took the name: no file was written)
+            self.assertEqual(sorted(p.name for p in (Path(tmp) / "out").iterdir()), ["probe-task", "probe-task.json"])
+            written = json.loads((Path(tmp) / "out" / "probe-task.json").read_text(encoding="utf-8"))
+            self.assertEqual((written["status"], written["solved"], [r["solved"] for r in written["runs"]]),
+                             ("DONE", 1, [False, True]))
 
     def test_a_task_without_a_reference_is_not_tried(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -831,26 +836,51 @@ class CleanUp(unittest.TestCase):
             self.assertFalse((elsewhere / "Packages").exists(), "nothing is added to it either")
 
     @unittest.skipUnless(os.name == "nt", "junctions")
-    def test_a_game_folder_swapped_for_a_link_is_not_graded_and_nothing_is_written_through_it(self):
-        """The probe package goes into Packages/ and the grade's Unity writes under Assets/ and ProjectSettings/: with
-        one of them a link, that would be someone else's folder."""
+    def test_a_link_among_the_games_files_is_not_graded_and_nothing_is_written_through_it(self):
+        """The probe package goes into Packages/ and the grade's Unity writes among the game's files (.meta files, the
+        settings, the package lock): with a link there, at any depth, that would be someone else's folder. One in the
+        probe package's own place stopped the whole try."""
+        for place in ("Packages", "Packages/com.taskprobe", "Assets/Shared", "UserSettings"):
+            with self.subTest(place=place), tempfile.TemporaryDirectory() as tmp:
+                repo, task = tried(tmp)
+                elsewhere = Path(tmp) / "elsewhere"
+                elsewhere.mkdir()
+
+                def agent(argv, cwd, prompt, transcript, minutes, env_extra=None, place=place, elsewhere=elsewhere):
+                    shutil.rmtree(Path(cwd) / place, ignore_errors=True)
+                    (Path(cwd) / place).parent.mkdir(parents=True, exist_ok=True)
+                    _winapi.CreateJunction(str(elsewhere), str(Path(cwd) / place))
+                    return answered(argv, cwd, prompt, transcript, minutes)
+
+                with faked(agent):
+                    result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                            "claude", log=lambda *a: None)
+                self.assertEqual(result["status"], "DONE", result["reasons"])
+                self.assertFalse(result["runs"][0]["solved"])
+                self.assertIn(f"{place} is now a link", result["runs"][0]["why"])
+                self.assertEqual(list(elsewhere.iterdir()), [], "nothing is added to the folder the link points at")
+
+    def test_an_error_of_the_trys_own_is_the_tasks_error_and_keeps_the_runs_before_it(self):
+        """An error nobody foresaw out of a run's grade (a TypeError on a probe file of another shape) ended the try in
+        a traceback, the other tasks untried. The runs graded before it stay in the result."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
-            elsewhere = Path(tmp) / "elsewhere"
-            elsewhere.mkdir()
+            real, calls = trial.score, []
 
-            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
-                shutil.rmtree(Path(cwd) / "Packages", ignore_errors=True)
-                _winapi.CreateJunction(str(elsewhere), str(Path(cwd) / "Packages"))
-                return answered(argv, cwd, prompt, transcript, minutes)
+            def score(task_, grade):
+                calls.append(1)
+                if len(calls) == 2:
+                    raise TypeError("'NoneType' object is not subscriptable")
+                return real(task_, grade)
 
-            with faked(agent):
+            with faked(answered), mock.patch.object(trial, "score", score):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
-                                        "claude", log=lambda *a: None)
-            self.assertEqual(result["status"], "DONE", result["reasons"])
-            self.assertFalse(result["runs"][0]["solved"])
-            self.assertIn("Packages is now a link", result["runs"][0]["why"])
-            self.assertEqual(list(elsewhere.iterdir()), [], "nothing is added to the folder the link points at")
+                                        "claude", runs=2, log=lambda *a: None)
+            self.assertEqual((result["status"], result["reasons"]),
+                             ("ERROR", ["the try couldn't run: TypeError: 'NoneType' object is not subscriptable"]))
+            self.assertEqual([r["run"] for r in result["runs"]], [1])
+            self.assertEqual(json.loads((Path(tmp) / "out" / f"{task['name']}.json").read_text())["status"], "ERROR")
+            self.assertFalse((Path(tmp) / "scratch").exists(), "the scratch folder goes all the same")
 
     @unittest.skipUnless(os.name == "nt", "taskkill, Win32_Process")
     def test_what_the_try_stops_names_its_folder_whole_in_either_spelling(self):
