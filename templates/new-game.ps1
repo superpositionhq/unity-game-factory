@@ -1,14 +1,16 @@
 <#
 .SYNOPSIS
   Create a new game repo from templates\unity-game (Unity 6.3 LTS): project skeleton (version pin, Visible Meta Files +
-  Force Text, the editor tools assembly), Scripts\unity.ps1 (builds, editor steps, tests and plays through the
+  Force Text, the editor tools assembly, the AutoPlay drop-in and the scenario list), Scripts\unity.ps1 (builds, editor
+  steps, tests, plays and AutoPlay runs through the
   heavy-job limiter), first workflow.jsonl row, git + LFS, the post-commit hook (commit recorder), first commit, the
   first editor open (packages, URP, settings; a second commit) when the editor is installed, and the private GitHub
   repo <org>/unity-game-<slug> (not pushed; <org> = -Org, else the config's github_org).
 .DESCRIPTION
   Placeholders replaced in file names and contents: __PROJECT__ (C# namespace / assembly prefix / exe name), __SLUG__,
-  __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. The editor version is -UnityVersion, else the config's unity_version
-  (default 6000.3: the newest installed 6000.3 editor; an exact version pins it); with no such editor installed it
+  __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. tools\unity-pipeline\autoplay\AutoPlay\ (the AutoPlay drop-in, with its
+  .meta files) is copied unchanged into Assets\AutoPlay\. The editor version is -UnityVersion, else the config's
+  unity_version (default 6000.3: the newest installed 6000.3 editor; an exact version pins it); with no such editor installed it
   stops, unless -UnityVersion names one. The first workflow.jsonl row (op project.create) is written at the moment the
   project is created; the first commit names it. Pushing is left to the coordinator's go-ahead (unity-commit-always
   skill).
@@ -106,6 +108,16 @@ foreach ($f in Get-ChildItem -LiteralPath $template -Recurse -File -Force) {
     [IO.File]::WriteAllText($dst, (Expand ([IO.File]::ReadAllText($f.FullName))), $utf8)
     $count++
 }
+# The AutoPlay drop-in, copied unchanged with its .meta files (the template's Assets\Scripts\Scenarios.cs calls it):
+# tools\unity-pipeline\autoplay\AutoPlay\ into Assets\AutoPlay\ (docs\autoplay-contract.md).
+$dropIn = Join-Path $repo 'tools\unity-pipeline\autoplay'
+foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $dropIn 'AutoPlay') -Recurse -File) + @(Get-Item -LiteralPath (Join-Path $dropIn 'AutoPlay.meta'))) {
+    $dst = Join-Path $Path ('Assets\' + $f.FullName.Substring($dropIn.Length + 1))
+    New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
+    [IO.File]::WriteAllText($dst, ([IO.File]::ReadAllText($f.FullName)).Replace("`r`n", "`n"), $utf8)
+    $count++
+}
+$autoplay = if ([IO.File]::ReadAllText((Join-Path $dropIn 'AutoPlay\AutoPlay.cs')) -match 'public const int Version = (\d+);') { [int]$Matches[1] } else { $null }
 
 # workflow.jsonl, first row: the operation this script just performed.
 # The hash of this script as committed (LF), as WorkflowLog.cs takes a step's: a Windows clone holds it with CRLF.
@@ -118,7 +130,7 @@ $rowId = '{0}-{1:D5}' -f $IdPrefix, 1
 $row = [ordered]@{
     schema = 'unity-workflow/v0'; id = $rowId; seq = 1; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
     actor = 'agent'; op = 'project.create'; target = 'ProjectSettings/ProjectVersion.txt'
-    params = [ordered]@{ engine = "unity $UnityVersion"; template = 'unity-game'; template_commit = $templateCommit; files = $count; namespace = $Project }
+    params = [ordered]@{ engine = "unity $UnityVersion"; template = 'unity-game'; template_commit = $templateCommit; files = $count; namespace = $Project; autoplay_version = $autoplay }
     reason = $Reason; reason_source = 'agent_note'; status = 'observed'
     source = [ordered]@{ script = 'new-game.ps1'; sha256 = $scriptSha; commit = $null }
 }
@@ -143,7 +155,7 @@ function Commit-All([string]$Message) {
     if ($code -ne 0) { throw "commit failed (git user.name / user.email set?): set them, delete $Path and run new-game.ps1 again" }
     return (& git -C $Path rev-parse --short HEAD)
 }
-$sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), root-anchored .gitignore, LFS for every binary type.`n`nworkflow: $rowId"
+$sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), the AutoPlay drop-in v$autoplay and the scenario list,`nroot-anchored .gitignore, LFS for every binary type.`n`nworkflow: $rowId"
 
 # The first editor open: packages, URP, TextMeshPro's essential resources, shared settings (Scripts\unity.ps1 setup),
 # committed with the files it made.
