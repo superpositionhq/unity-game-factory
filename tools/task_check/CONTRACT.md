@@ -178,9 +178,11 @@ original's, unchanged (`probes.py`).
 - **Selects and rows** (`Find`, `Reflect`, `RowSet`). Matches come in hierarchy order: by scene (its build index, then
   its handle), then the root's place in the scene's root list (a built player reports every root's sibling index as
   0), then sibling indices (`Find.SortByHierarchy`): the same in every play of one build. Every match is read;
-  `RowSet` keeps the first 200 as rows and sums every match's numbers into `full`. Every row has `name` and `class`,
-  for the logs: an object row's `class` is its first MonoBehaviour's type, else its first Behaviour or Renderer, else
-  its first other component (Transform and MeshFilter aside), else `GameObject` (`ObjectRead.ClassOf`); a component
+  `RowSet` keeps the first 200 as rows and sums every match's numbers into `full`. A select that matches nothing
+  writes an empty `rows` (no `total`, no error): the checker reads a `count` of 0 and no value for any other field.
+  Every row has `name` and `class`, for the logs: an object row's `class` is its first MonoBehaviour's type, else its
+  first Behaviour or Renderer, else its first other component (Transform and MeshFilter aside), else `GameObject`
+  (`ObjectRead.ClassOf`); a component
   row's `class` is its type, and its `name` and `owner` are both its object's name (a Unity component has no name of
   its own). A field with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall
   checks, the ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never
@@ -494,7 +496,8 @@ task play `scenario_two`, with its queries as `probes.plan` makes them (the ids 
 
 - What varies: `out` (the copy's), the play's `seconds`, `shots`, `every`, `scene` (null: the game's first build
   scene), the task's `player` select (null: the probe finds the player, section 1), its `inputs` with the checker's
-  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries.
+  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries. The window's size is
+  not the spec's: the command line's `-screen-width 960 -screen-height 540` and the build's settings set it (below).
 - The probe reads `out` (default: `persistentDataPath/TaskProbe`), `seconds` (clamped to 1-600; default 20), `every`
   (0.1-1.0; 0.5), `shots` (0-64; 0), `scene`, `sound`, `player` (its own `player` key ignored), `inputs` and
   `queries.queries`; the queries' `format` and `every` ride along unread. A play without queries has an empty list.
