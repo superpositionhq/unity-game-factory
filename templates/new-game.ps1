@@ -139,10 +139,9 @@ if (-not $NoSetup) {
         if ($LASTEXITCODE -eq 0) {
             $rows = @(Get-Content -LiteralPath (Join-Path $Path 'workflow.jsonl') | Where-Object { $_.Trim() } | ForEach-Object { ($_ | ConvertFrom-Json).id })
             $span = if ($rows.Count -gt 1) { "$($rows[1])..$($rows[-1])" } else { $rowId }
-            $sha = Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background. Generated .meta files and project settings committed.`n`nworkflow: $span"
-            $setup = "done, commit $sha"
+            $setup = "done, commit $(Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background. Generated .meta files and project settings committed.`n`nworkflow: $span")"
         } else {
-            $setup = "FAILED (exit $LASTEXITCODE): read Logs/unity-ps1/setup_*.log, fix (licence? editor?), run Scripts/unity.ps1 setup again, then commit"
+            $setup = "FAILED (exit $LASTEXITCODE): read Logs/unity-ps1/setup_*.log, fix (licence? editor? network?), run Scripts/unity.ps1 setup again, then commit"
         }
     } else {
         $setup = "not run: Unity $UnityVersion is not installed (install it through Unity Hub with Windows Build Support (IL2CPP)), then run Scripts/unity.ps1 setup and commit"
