@@ -186,8 +186,8 @@ def decode(data):
 
 
 # ---- the scrub rules -----------------------------------------------------------------------------------------------------
-# (id, scope, pattern, replacement, hint). Scopes: all | json (.json/.jsonl) | lines (other text) | logs (.json/.jsonl,
-# git.log, History/sessions/). hint: lower-case text a file must hold for the rule to be tried. Applied in this order.
+# (id, scope, pattern, replacement, hint). Scopes: all | json (.json/.jsonl) | lines (other text) | logs (git.log,
+# History/sessions/). hint: lower-case text a file must hold for the rule to be tried. Applied in this order.
 RULE_TEXT = {
     'base64-payload': 'base64 runs of 256+ characters in logs (screenshots and binary payloads in tool results) replaced by <base64 omitted, N bytes, sha256 ...>',
     'agent-trailer': 'agent co-author and generated-with trailer lines removed',
@@ -204,8 +204,12 @@ WORD_START = r'(?:(?<=\\[nrtfb])|(?<=\\u[0-9a-fA-F]{4})|(?<![A-Za-z0-9_]))'
 EMAIL = (r'(?:(?<=\\u[0-9a-fA-F]{4})|(?<=\\[nrtfb"/])|(?<![A-Za-z0-9._%+\\-]))'
          r'(?!(?:git@(?:github|gitlab|bitbucket)\.(?:com|org)|noreply@github\.com)\b)'
          r'[A-Za-z0-9._%+-]+@(?!(?:[A-Za-z0-9-]+\.)*(?:example\.(?:com|org|net)|invalid|test|localhost)\b)(?:[A-Za-z0-9-]+\.)+'
-         r'(?!(?:png|jpe?g|tga|gif|svg|webp|exr|hdr|bmp|dds|unity|prefab|mat|asset|meta|wav|ogg|mp3|flac|fbx|glb|gltf|obj|json|jsonl|txt|md|ini|py|ps1|sh|cs|bin|zip)\b)'
-         r'[A-Za-z]{2,}\b')
+         # file names are not addresses: Unity names a model's clips <model>@<clip>.fbx and keeps the @ in the clips,
+         # controllers and masks made from them (Keeper@Walk.anim), in either case; another .ext after the "domain" too
+         r'(?!(?i:png|jpe?g|tga|gif|svg|webp|exr|hdr|bmp|dds|psd|tiff?|unity|prefab|mat|asset|meta|anim|controller|'
+         r'overrideController|mask|playable|signal|wav|ogg|mp3|flac|aiff?|fbx|glb|gltf|obj|blend|dae|json|jsonl|txt|md|ini|'
+         r'py|ps1|sh|cs|bin|zip)\b)'
+         r'[A-Za-z]{2,}\b(?!\.[A-Za-z0-9])')
 TRAILER = re.compile(r'(?i)^\s*(Co-Authored-By:\s*(?:Claude|Codex|OpenAI|ChatGPT)\b|.*Generated with \[?(?:Claude Code|Codex)\b)')
 # the word opus on its own, any case: the model's name in prose. Codec identifiers (libopus, opus_decode, audio/opus,
 # AudioCodec.Opus, a .opus file) keep theirs.
@@ -288,6 +292,8 @@ def build_rules(user, machine, session_ids, identities):
     add('agent-mention', 'all', OPUS_WORD % 'OPUS', 'MODEL', 'opus')
     add('agent-mention', 'all', OPUS_WORD % 'Opus', 'Model', 'opus')
     add('agent-mention', 'all', '(?i)' + OPUS_WORD % 'opus', 'model', 'opus')
+    # the model's name as a segment of a run or file name in the sessions' record (pilot-2c-opus-siege, run-opus-win.png)
+    add('agent-mention', 'json', r'(?i)(?<=[A-Za-z0-9][-_.])opus(?=[-_}]|\.[A-Za-z]{2,4}\b)', 'model', 'opus')
     add('agent-mention', 'all', r'(?i)claude', cased('agent', 'Agent', 'AGENT'), 'claude')
     add('agent-mention', 'all', r'(?i)anthropic', cased('provider', 'Provider', 'PROVIDER'), 'anthropic')
     return R
@@ -1075,6 +1081,8 @@ def package(args):
         if not isinstance(task, dict) or task.get('name') != stem:
             problems.append(f'error: Tasks/{tf}: its name must equal the file name')
             continue
+        if isinstance(task.get('seed'), dict):   # its commits are now the delivered history's (game-task/1 seed.history)
+            task['seed']['history'] = 'dataset'
         agent, grader = split_tasks.split(task)
         for name, obj in (('task.json', agent), ('grader.json', grader)):
             write_text(os.path.join(stage, 'Tasks', stem, name), json.dumps(obj, indent=2, ensure_ascii=False) + '\n')
@@ -1242,7 +1250,9 @@ def scrub_tree(root, rules, counts, touched):
             continue
         text, enc = decode(data)
         is_json = rel.lower().endswith(('.json', '.jsonl'))
-        new = apply_rules(text, rules, is_json, is_json or rel == 'git.log' or rel.startswith('History/sessions/'), counts)
+        # logs: the sessions' record and git.log, never the game's own JSON (a long hex or base64 value in game data is
+        # data: replaced in UnityProject/ alone it would differ from the release commit in History/)
+        new = apply_rules(text, rules, is_json, rel == 'git.log' or rel.startswith('History/sessions/'), counts)
         if new != text:
             write_bytes(full, new.encode(enc, 'replace'))
             if touched is not None:

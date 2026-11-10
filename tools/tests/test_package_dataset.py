@@ -28,7 +28,9 @@ def make_inputs(tmp):
     start, ref = base.make_game(repo)
     base.write(repo, 'Docs/Notes.md', f'Built on C:\\Users\\{ACCOUNT}\\UnityWork with unity-game-factory and Claude Code.\n'
                                       'Mail jane.tester@corp.example. The Opus run went well; libopus stays.\n'
-                                      f'Git Bash ate the backslashes: cd C:Users{ACCOUNT}UnityWorkgames failed.\n')
+                                      f'Git Bash ate the backslashes: cd C:Users{ACCOUNT}UnityWorkgames failed.\n'
+                                      'The keeper clip is Assets/Art/Keeper@Walk.anim (from Keeper.fbx).\n')
+    base.write(repo, 'Docs/data/tiles.json', json.dumps({'tiles': 'ab12' * 75}) + '\n')   # game data: a long hex value
     env = dict(base.ENV, GIT_AUTHOR_NAME='Jane Tester', GIT_AUTHOR_EMAIL='jane.tester@corp.example',
                GIT_COMMITTER_NAME='Jane Tester', GIT_COMMITTER_EMAIL='jane.tester@corp.example')
     subprocess.run(['git', '-C', repo, 'add', '-A'], check=True, env=env)
@@ -49,7 +51,7 @@ def make_inputs(tmp):
             tool='Bash', tool_use_id='t1', input={'command': f'git -C {cwd} log --format=%H -1', 'session_id': S1},
             response=f'{ref}\nsee C:\\Users\\{ACCOUNT}\\UnityWork\\unity-game-factory\\tools ' + 'QUJD' * 100),
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
-            tool='apply_patch', tool_use_id='t2', input={'command': '*** Begin Patch'}, response='ok'),
+            tool='apply_patch', tool_use_id='t2', input={'command': '*** Begin Patch'}, response='ok: runs/pilot-2c-opus-siege/summary.json'),
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S3, agent='claude', event='PostToolUse', cwd=cwd,
             tool='Bash', tool_use_id='t3', input={'command': 'python tools/package-dataset.py kiln-run'}, response='ok'),
         row(schema='agent-action/v0', time=after, project=SLUG, session_id=S1, agent='claude', event='Stop', cwd=cwd)]) + '\n')
@@ -140,6 +142,9 @@ class Package(unittest.TestCase):
         self.assertIn('C:\\Users\\dev\\UnityWork with studio-tools and agent-tool', notes)
         self.assertIn('The Model run went well; libopus stays.', notes)
         self.assertIn('cd C:UsersdevUnityWorkgames failed', notes)   # a path whose separators a shell dropped
+        self.assertIn('Assets/Art/Keeper@Walk.anim', notes)          # a clip's file name is no e-mail address
+        tiles = json.loads(self.members()['UnityProject/Docs/data/tiles.json'])
+        self.assertEqual(tiles['tiles'], 'ab12' * 75)                  # the game's data stays as committed
 
     def test_history_is_rewritten(self):
         m = json.loads(self.members()['manifest.json'])
@@ -163,6 +168,7 @@ class Package(unittest.TestCase):
         for c in (t['seed']['commit'], g['seed']['reference']):
             self.assertEqual(base.git(work, 'cat-file', '-t', c), 'commit')
         self.assertNotIn('reference', t['seed'])
+        self.assertEqual(t['seed']['history'], 'dataset')   # the seed names commits of the delivered history
         self.assertNotIn('milestones', t)
         self.assertTrue(self.members()['git.log'].decode().startswith('GIT-LOG 1\n'))
         self.assertIn(f'commit {m["commit"]}\n', self.members()['git.log'].decode())
@@ -180,6 +186,7 @@ class Package(unittest.TestCase):
         self.assertEqual(msgs[1]['model'], 'agent-model')
         self.assertEqual(acts[0]['input']['session_id'], 'session')            # a session id inside a tool's input
         self.assertIn('<base64 omitted, 300 bytes', acts[0]['response'])
+        self.assertEqual(acts[1]['response'], 'ok: runs/pilot-2c-model-siege/summary.json')   # the model's name as a segment
         m = json.loads(mem['manifest.json'])
         delivered = json.loads(mem[f'Tasks/{SLUG}-fix-hero-hud/grader.json'])['seed']['reference']
         self.assertTrue(acts[0]['response'].startswith(delivered + '\n'))   # a commit id is the delivered history's
