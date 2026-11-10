@@ -64,9 +64,9 @@ source (config set by hand, config from bootstrap, or computed at run time). The
 A PC may also run the Unreal game-factory (root `%USERPROFILE%\Work`, config `%USERPROFILE%\.game-factory\`). The two
 keep separate roots, configs, hooks folders, session maps and skills, and each one's bootstrap adds its hook entries
 next to the other's in `~\.claude\settings.json` / `~\.codex\hooks.json` without touching them (ours run
-`record-unity-action.ps1`, theirs `record-action.ps1`). A session is recorded by the factory whose root one of its tool
-calls names (by both, if its calls name both roots), and from then on every call of it is recorded there. What they
-share on purpose:
+`record-unity-action.ps1`, theirs `record-action.ps1`). A session is recorded by the factory whose `games\<slug>` (or
+extra project) one of its tool calls names, by both if its calls name a game of each, and from then on every call of it
+is recorded there (see Recording below). What they share on purpose:
 
 - **Job slots.** `unity-heavy.ps1` takes the same machine-wide mutexes as `ue-heavy.ps1` (`Global\ue-heavy-slot-<n>`,
   `Global\ue-gpu-slot-<n>`, `Global\ue-heavy-low-slot`), so Unity and Unreal jobs draw from one set of slots. Both use
@@ -74,8 +74,9 @@ share on purpose:
   mutexes, so keep them equal.
 - **Recordings.** `unity-heavy.ps1` holds back its GPU jobs while either factory's `builds\_queue\_recording-wants-gpu`
   flag is fresh, and reads both factories' job logs for waiting jobs and recent GPU starts (`Get-UGFUnrealRoot` finds
-  the other root from `GF_ROOT` or `%USERPROFILE%\.game-factory\config.json`); `ue-heavy.ps1` reads only its own
-  root's. A running recording holds every GPU slot, which stops the GPU jobs of both.
+  the other root from `GF_ROOT`, its config (`GF_CONFIG`, else `%USERPROFILE%\.game-factory\config.json`), else
+  `%USERPROFILE%\Work` when that holds a game-factory clone); `ue-heavy.ps1` reads only its own root's. A running
+  recording holds every GPU slot, which stops the GPU jobs of both.
 
 ## Files
 

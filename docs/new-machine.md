@@ -15,7 +15,8 @@ stopped.
 (`%USERPROFILE%\UnityWork`), config (`%USERPROFILE%\.unity-game-factory\config.json`), hooks folder
 (`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-sound`,
 `unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
-session is recorded by the factory whose root one of its tool calls names. The two share one thing on purpose: the
+session is recorded by the factory whose `games\<slug>` folder one of its tool calls names. The two share one thing on
+purpose: the
 machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as `ue-heavy.ps1`, and also holds its GPU jobs
 back while the other factory records), so together they never run more heavy or GPU jobs than the PC holds.
 
@@ -78,11 +79,11 @@ What it does, in order (log: `<root>\.setup\setup.log`; answers remembered in `<
 
 ## 2. What only you can do
 
-Setup prints these as TODOs and detects them on the next run.
+Setup prints these as TODOs (as notes where a PC may not need them) and detects them on the next run.
 
 | Step | How | Detected by |
 |---|---|---|
-| Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). Every editor run needs it, batchmode too. | the licence file Unity Hub writes (`%LOCALAPPDATA%\Unity\licenses\`); a licence server's floating seat does not show, so `check.ps1` only warns |
+| Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). Every editor run needs it, batchmode too. | the licence file Unity Hub writes (`%LOCALAPPDATA%\Unity\licenses\`) or a serial activation's (`%ProgramData%\Unity\Unity_lic.ulf`); a licence server's floating seat leaves neither, so `check.ps1` only warns |
 | Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
 | NVIDIA driver (if you have an NVIDIA GPU) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
