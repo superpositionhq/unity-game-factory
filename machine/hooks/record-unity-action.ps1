@@ -150,7 +150,7 @@ function New-BackfillRows([string]$Sid, [string]$Project, $Got, $Skip) {
     $r = $Got.results[$c.id]
     $row = [ordered]@{
       schema     = 'agent-action/v0'
-      time       = $c.ts.ToLocalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+      time       = $c.ts.ToLocalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
       project    = $Project
       session_id = $Sid
       agent      = $Agent
@@ -166,14 +166,14 @@ function New-BackfillRows([string]$Sid, [string]$Project, $Got, $Skip) {
     $row.input = $inp
     if ($r.error) { $row.error = Clip $r.text $maxResp }
     $row.response = Clip $r.resp $maxResp
-    $row.result_time = $r.ts.ToLocalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+    $row.result_time = $r.ts.ToLocalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
     $rows.Add(($row | ConvertTo-Json -Depth 12 -Compress))
   }
   return , $rows
 }
 function Save-BackfillState([string]$Sid, [string]$Project, [string]$Path, $Rows, $Got) {
   $state = Read-JsonMap $backfillFile
-  $state[$Sid] = [ordered]@{ project = $Project; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz'); transcript = $Path
+  $state[$Sid] = [ordered]@{ project = $Project; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture); transcript = $Path
     rows = $Rows.Count; transcript_calls = @($Got.calls).Count; unparsed_lines = $Got.unparsed_lines; tool_use_ids = @($script:BackfillIds) }
   [IO.File]::WriteAllText($backfillFile, ($state | ConvertTo-Json -Depth 4 -Compress), $utf8)
 }
@@ -260,7 +260,7 @@ try {
 
   $row = [ordered]@{
     schema     = 'agent-action/v0'
-    time       = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+    time       = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
     project    = $project
     session_id = $sid
     agent      = $Agent

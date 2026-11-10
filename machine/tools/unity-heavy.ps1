@@ -58,7 +58,7 @@ $log = Join-Path $ugfRoot '.recording\_heavy-jobs.jsonl'
 $jobLogs = Get-UGFJobLogs   # ours first, then the Unreal factory's when it is set up here
 New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
 function Log($event, $extra) {
-  $row = [ordered]@{ time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz'); event = $event; label = $Label; pid = $PID; cwd = (Get-Location).Path }
+  $row = [ordered]@{ time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture); event = $event; label = $Label; pid = $PID; cwd = (Get-Location).Path }
   if ($extra) { foreach ($k in $extra.Keys) { $row[$k] = $extra[$k] } }
   # Several jobs log at once: serialise appends with a named mutex and retry on a transient sharing violation.
   $line = ($row | ConvertTo-Json -Compress) + "`n"
@@ -111,9 +111,10 @@ function Test-VramBusy {
   $recent = @{}
   foreach ($l in (Get-JobLogTail 200)) {
     if ($l -notmatch '"event":"(start|end)"') { continue }
-    try { $r = $l | ConvertFrom-Json } catch { continue }
+    # a row that does not parse (a time written in another culture's format) is skipped, not printed into the job's output
+    try { $r = $l | ConvertFrom-Json; $age = ((Get-Date) - [datetime]$r.time).TotalSeconds } catch { continue }
     if ($r.event -eq 'end') { $recent.Remove([int]$r.pid) }
-    elseif ($r.gpu -and $r.pid -ne $PID -and ((Get-Date) - [datetime]$r.time).TotalSeconds -lt 60) { $recent[[int]$r.pid] = $true }
+    elseif ($r.gpu -and $r.pid -ne $PID -and $age -lt 60) { $recent[[int]$r.pid] = $true }
   }
   $script:vramRecent = @($recent.Keys | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -gt 0
   $script:vramRecent -or ($null -ne $script:vramUsed -and $script:vramUsed -gt $vramLimit)

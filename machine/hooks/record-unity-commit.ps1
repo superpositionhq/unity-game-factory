@@ -22,7 +22,7 @@ $files = @(git -C $Repo -c core.quotepath=off show --name-status --format= $sha 
   $f = $_ -split "`t"; [ordered]@{ status = $f[0]; path = $f[-1] } })
 $row = [ordered]@{
   schema      = 'commit/v0'
-  recorded_at = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+  recorded_at = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
   project     = $project
   sha         = $sha
   parents     = @($parts[0] -split ' ' | Where-Object { $_ })
