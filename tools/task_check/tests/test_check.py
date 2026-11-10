@@ -652,6 +652,50 @@ class Plays(unittest.TestCase):
                              {"scene": None, "player": None, "inputs": [], "every": 0.5, "sound": False})
             self.assertEqual(specs[1]["queries"], {"format": "game-probe-queries/1", "every": 0.5, "queries": []})
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
+    def test_a_play_after_a_killed_one_waits_for_its_files_and_never_reads_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Build" / "TaskProbe" / "Game.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            out, ready = Path(tmp) / "Logs" / "TaskProbe" / "play", Path(tmp) / "ready"
+
+            def killed_play(seconds):
+                """The last play's files, its player (killed at its timeout) holding its log for `seconds` as it
+                exits."""
+                out.mkdir(parents=True, exist_ok=True)
+                (out / "probe.json").write_text('{"format": "unity-probe/1", "ended": "time", "stale": 1}',
+                                                encoding="utf-8")
+                (out / "probe.log").write_text("the killed play's", encoding="utf-8")
+                ready.unlink(missing_ok=True)
+                held = subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1], 'rb'); "
+                                         "open(sys.argv[2], 'w').close(); time.sleep(float(sys.argv[3]))",
+                                         out / "probe.log", ready, str(seconds)])
+                while held.poll() is None and not ready.exists():
+                    time.sleep(0.05)
+                return held
+
+            def answer(argv, cwd):
+                spec = json.loads(Path(after(argv, "-taskProbe")).read_text(encoding="utf-8"))
+                (Path(spec["out"]) / "probe.json").write_text('{"format": "unity-probe/1", "ended": "time"}',
+                                                              encoding="utf-8")
+                return ""
+
+            project = unity.Project(tmp, FakeMachine(answer=answer), "t")
+            dying = killed_play(2)
+            try:
+                found = project.play(5, 0, 60)
+            finally:
+                dying.wait()
+            self.assertEqual(found.probe, {"format": "unity-probe/1", "ended": "time"}, "this play's, not the last's")
+            stuck = killed_play(60)
+            try:
+                with mock.patch.object(seeds, "HELD", 0.5), self.assertRaisesRegex(OSError, "probe.log"):
+                    project.play(5, 0, 60)  # the checker's error, naming the file; never a play over its leftovers
+            finally:
+                stuck.kill()
+                stuck.wait()
+
     def test_a_play_without_a_built_player_says_so(self):
         with tempfile.TemporaryDirectory() as tmp:
             machine = FakeMachine()
@@ -1179,10 +1223,11 @@ class Jobs(unittest.TestCase):
         return found["pid"], found["parent"]
 
     def test_the_wait_for_a_slot_isnt_the_jobs_time(self):
-        with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "3"}):
-            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(2)"], self.tmp, 3)
-        self.assertEqual((found.exit_code, found.timed_out), (0, False), "its 3 s count from the job's start")
-        self.assertGreater(found.waited, 3, "the limiter's wait, its own helper's run included")
+        # (the job outlasts a look at the process tree, a PowerShell query of up to a few seconds on a busy machine)
+        with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "6"}):
+            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(6)"], self.tmp, 9)
+        self.assertEqual((found.exit_code, found.timed_out), (0, False), "its 9 s count from the job's start")
+        self.assertGreater(found.waited, 6, "the limiter's wait, its own helper's run included")
 
     def test_a_limiter_that_never_starts_its_job_still_ends(self):
         with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_EXIT": "2"}):

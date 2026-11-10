@@ -19,6 +19,7 @@ import re
 import shutil
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 LFS_POINTER = re.compile(rb"^version https://git-lfs\.github\.com/spec/v1\noid sha256:([0-9a-f]{64})\nsize (\d+)\n")
@@ -30,6 +31,7 @@ ANSWERS = ("tasks", "history", "dataset", "dataset.zip")  # never materialized (
 ENGINE = "6000.3"
 VERSION_FILE = "ProjectSettings/ProjectVersion.txt"
 MAX_FOLDER = 90  # characters: the longest scratch project folder (Unity fails past 260-character paths)
+HELD = 10  # seconds remove() waits for a process that was just killed to let go of its files
 
 
 class WrongEngine(ValueError):
@@ -284,14 +286,28 @@ def _projects(path, depth=3):
 
 
 def remove(path):
-    """`path` removed, read-only files included, and with a scratch copy the saved data its plays left outside it."""
+    """`path` removed (a folder, read-only files included, or a file), and with a scratch copy the saved data its plays
+    left outside it. What another process still holds is tried again for up to HELD seconds, then the error raised: a
+    player killed at its timeout still held its log for a moment, and the next play of its copy failed on it."""
 
     def writable(func, target, _):
         os.chmod(target, stat.S_IWRITE)
         func(target)
 
-    if Path(path).exists():
+    path = Path(path)
+    if path.is_dir():
         for project in _projects(path):
             forget_saves(project)
-        shutil.rmtree(path, onexc=writable)
+    end = time.monotonic() + HELD
+    while True:
+        try:
+            if path.is_dir():
+                shutil.rmtree(path, onexc=writable)
+            elif path.exists():
+                path.unlink()
+            return
+        except OSError:
+            if time.monotonic() > end:
+                raise
+            time.sleep(0.25)
 

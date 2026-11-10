@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import probes
+from . import probes, seeds
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent.parent / "machine" / "lib"))
@@ -253,8 +253,7 @@ def _fresh(path):
     """`path` (a file) gone and its folder there: what a job writes is never an earlier job's."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        path.unlink()
+    seeds.remove(path)
     return path
 
 
@@ -283,7 +282,7 @@ class Project:
         the result says `ok` (anything else has a non-zero exit code); `output` holds the build log."""
         logs = self.logs()
         result, log = _fresh(logs / "build.json"), _fresh(logs / "build.log")
-        shutil.rmtree(self.folder / BUILD_DIR, ignore_errors=True)  # a fresh build: never an older player to play
+        seeds.remove(self.folder / BUILD_DIR)  # a fresh build: never an older player to play
         request = _fresh(logs / "build_request.json")
         request.write_text(json.dumps({"out": (self.folder / BUILD_DIR).as_posix(), "scenes": list(scenes),
                                        "result": result.as_posix()}, indent=2), encoding="utf-8")
@@ -309,7 +308,7 @@ class Project:
         finds the player) as the player, `args` after the spec on the command line; a Played."""
         logs = self.logs()
         out = logs / "play"
-        shutil.rmtree(out, ignore_errors=True)
+        seeds.remove(out)  # what an earlier play wrote is never this one's
         out.mkdir(parents=True)
         log_path = _fresh(logs / "play.log")
         every = every or probes.EVERY
