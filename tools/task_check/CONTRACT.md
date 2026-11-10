@@ -37,50 +37,117 @@ probe's own `{"camera": true}` point uses the camera's `transform.forward`, the 
 
 ## 2. The task format (Unity flavour of game-task/1)
 
-Same as the Unreal schema except:
+`docs/schemas/game-task.schema.json` is the Unreal schema, definition by definition, except for what this section
+lists (a structural diff of the two files finds nothing else). The validator's rules beyond the schema
+(`tools/validate-game.py`: `probe_errors`, `task_semantic_errors`, the repo checks) and the task check's rules
+(`verdict.py`, `probes.py`) are the original's in Unity terms, except where this section says.
 
-- `engine`: const and default `"unity-6000.3"`. No `template`.
-- `play_scene` (string or null; pattern `^Assets/[A-Za-z0-9_ /.()-]+\.unity$`, max 300) and `play_args` (array of at
-  most 16 strings; default `[]`). They replace `play_map`.
-- `player` (optional): an object select that names the player object (section 1) for every play of the task. It is
-  in the agent's half of a split task (it names an object; it isn't an answer).
-- A task play: `name`, `seconds`, `every`, `inputs`, and `scene` and `args` in place of `map` and `args`. A play's own
-  `scene` / `args`, when the key is present, take the place of the task's `play_scene` / `play_args` for that play.
-- Play arguments (`play_args`, a play's `args`): each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and
-  a letter is a flag; anything else is a value. Refused flags (case-insensitive, with or without the dash): `batchmode`,
-  `nographics`, `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
-  `single-instance`, any flag starting with `screen-`, `force-` or `taskprobe`. A play's `args` and the task's
-  `play_args` hold at most 16 items each, and the refused flags are checked in both.
-- Probe names: `player` (was `pawn`), `objects` (was `actors`), `components`, `widgets`, `camera`, `light`, `grading`,
-  `spawns`, `log`, `asset`, `trace`, `pieces`, `screen`, `audio`, `ground`, `ui`, `drawn`.
-- Points: `{"xyz": [x, y, z]}`, `{"player": true, "offset": [x, y, z]}`, `{"camera": true, "forward": m}`,
-  `{"object": <object select>, "offset": [x, y, z]}`.
-- `near`: `{"point", "radius", "y_min", "y_max", "y_relative"}`.
-- Object select (`Select`): `component`, `tag`, `layer` (a layer name), `name` (wildcard on the GameObject's name),
-  `near`, `has`, `player` (true), `inactive` (true: inactive objects match too; default only objects active in the
-  hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating`, `movable` (at least one key; `lit`,
-  `visible`, `simulating`, `movable` only `true`).
-- Component select: `component` (or `effect`, or both), `name`, `owner` (object select), `near`, `mesh`, `visible`,
-  `effect`, `inactive`.
-- Widget select: `component`, `name`, `text` (regex on its text), `visible`. No `slate`.
+The task:
+
+- `engine`: const and default `"unity-6000.3"`. No `template` (the original's is a const its checker reads past).
+- `play_scene` (string or null; `^Assets/[A-Za-z0-9_ /.()-]+\.unity$`, at most 300 characters) and `play_args` (at most
+  16 strings; default `[]`), in place of `play_map`.
+- `player` (optional): an object select that names the player object (section 1) for every play of the task. It stays
+  in the agent's half of a split task (`tools/split-tasks.py`: it names an object; it isn't an answer).
+- Every check names its `kind`: required, with no default. The original's kinds carry a default, so a check without
+  `kind` passed its schema as three shapes at once and then stopped the checker.
+
+Plays and inputs:
+
+- A task play: `name`, `seconds`, `every`, `inputs`, `scene` (in place of `map`) and `args`. `scene` and `args` have no
+  default: a play's own key, when it is there, takes the place of the task's `play_scene` / `play_args` for that play
+  (`"scene": null` opens the project's first build scene).
+- Play arguments (`play_args`, a play's `args`): each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`, at most 16 (the original's are
+  `-Name[=value]` only, at most 8). An element starting with `-` and a letter is a flag, anything else a value
+  (`["-scenario", "2"]`). The validator refuses, in both, the flags the checker sets itself (the window, the log, the
+  probe's own; `DENIED_PLAY_ARGS`, `DENIED_PLAY_PREFIXES`; case-insensitive, after one dash or more, the name before
+  any `=`): `batchmode`, `nographics`, `quit`, `logfile`, `projectpath`, `executemethod`, `popupwindow`, `monitor`,
+  `parentHWND`, `single-instance`, and any flag starting with `screen-`, `force-` or `taskprobe`.
+- Inputs (section 4): `key` (key and axis rows) is an Input System control path,
+  `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`, in place of an FKey name; a widget click's `widget` is a wildcard
+  on a name, or a type name (`^[A-Za-z0-9_.*?() -]{1,120}$`; the original's: a plain name); `teleport_to`'s `distance`
+  defaults to 2 m.
+
+Selects and points:
+
+- `component` in place of `class` in every select (object select, `has`, components, pieces, widgets) and in `spawns`:
+  a C# type's name or full name, `^[A-Za-z_][A-Za-z0-9_]{0,120}(\.[A-Za-z_][A-Za-z0-9_]{0,120}){0,8}$` (what it
+  matches: section 1).
+- Object select (`Select`): `component`, `tag`, `layer` (new: a layer, by name), `name` (a wildcard on the GameObject's
+  whole name), `near`, `has`, `player` (true), `inactive` (new: true lets inactive objects match; by default only
+  objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating`, `movable` (at least one
+  key; `lit`, `visible`, `simulating`, `movable` only `true`).
+- Component select: `component` or `effect` or both, `name` (a wildcard on its object's name), `owner` (an object
+  select), `near`, `mesh`, `visible`, `inactive` (new).
+- Widget select: `component`, `name`, `text` (a regular expression on its text), `visible`. No `slate`.
 - UI select: `kind` (`text`, `box`, `image`), `text`, `rect`. No `line` kind (Unity keeps no list of line draws).
-- Audio select: `sound` (wildcard on the AudioClip's name), `sound_class` (wildcard on the source's output
-  AudioMixerGroup's name), `owner`.
-- Piece select: `component`, `name`, `mesh`, `owner`, `near`.
-- `spawns`: `{"probe": "spawns", "component": "<type>", "field": "spawned|destroyed"}`.
-- `ground`: `xz` or `box` `[x0, z0, x1, z1]`, `grid`, `select`.
-- `asset`: `asset` + `field` (`prop:`, `import:`, `shader:`, `keyword:`), or `scene` (or `prefab`) + `select` + `field`
-  (`count`, `material_default`, `material:<property>`, `mesh_collision`, `prop:<Component>.<path>`); exactly one of
-  `asset`, `scene`, `prefab`. Bone, Part and Animator parameter names may hold spaces, colons, parentheses and
-  hyphens (`mixamorig:Hips`, `Lamp (1)`).
-- Inputs: section 4. Checks (`build`, `boot`, `log_absent`, `file_exists`, `package`, `probe`, judges), milestones,
-  `expect` (`value`, `calibrate`, `start_times`, `start_plus`), `window`/`at`/`agg`/`of`/`match`/`to_angle`/`to_axis`,
-  seeds, limits, weights and the no-op rule: unchanged.
+- Audio select: `sound` (a wildcard on the AudioClip's name), `sound_class` (a wildcard on the name of the
+  AudioMixerGroup the source outputs to), `owner`. Piece select: `component`, `name`, `mesh`, `owner`, `near`.
+- A name a wildcard reads (`name`, `mesh`, `sound`, `sound_class`) may hold parentheses: `^[A-Za-z0-9_.*?() -]{1,120}$`
+  (`Coin(Clone)`, `Lamp (1)`).
+- Points: `{"xyz": [x, y, z]}`, `{"player": true, "offset": [x, y, z]}` (was `pawn`), `{"camera": true, "forward": m}`,
+  `{"object": <object select>, "offset": [x, y, z]}` (was `actor`). `near`: `{"point", "radius", "y_min", "y_max",
+  "y_relative"}`.
 
-Fields whose threshold is never a literal (calibrated or relative to the start only), as in the original, with the
-renames: components `intensity`, `extent_*`, `bounds_change`, `pose_change`, `glow`, `spin`; objects `spin`, `spread`,
-`bounds_change`, `pose_change`, `glow`; pieces `triangles`, `visible_triangles`; `screen` (all); audio `volume`,
-`max_volume`, `level`; ground `range`; drawn everything but `drawn`.
+Measures:
+
+- Probe kinds: `player` (was `pawn`) and `objects` (was `actors`); `camera`, `components`, `widgets`, `light`,
+  `grading`, `spawns`, `log`, `asset`, `trace`, `pieces`, `screen`, `audio`, `ground`, `ui`, `drawn` keep their names.
+- `objects` fields: the original's, plus `active` and `clip`, and `anim:<Parameter>` in place of `bb:<Key>` (Unity has
+  no built-in AI blackboard). Bone, Part and Animator parameter names may hold spaces, dots, colons, parentheses and
+  hyphens, as Unity and the tools that make models name them (`[A-Za-z0-9_][A-Za-z0-9_ .:()-]{0,63}`:
+  `mixamorig:Hips`, `Lamp (1)`, Blender's `Cube.001` and `hand.L`); a `bone:`'s component is a plain type name, so
+  `bone:Animator.hand.L.y` splits at its first and its last dot.
+- `components` fields: the original's, plus `prop:<path>` (on the component itself); the measure takes `match` (a
+  `prop:` string).
+- `widgets` fields: the original's, plus `value` and `interactable`. `camera`: `player_on_screen` in place of
+  `pawn_on_screen`. `pieces`: `objects` in place of `actors`. `audio`: `level` added. `ground`: `xz` in place of `xy`.
+- `grading`: `post:<Component>.<parameter>` and `post:<Component>.<parameter>.<channel>`
+  (`^post:[A-Za-z_][A-Za-z0-9_]{0,63}\.[A-Za-z_][A-Za-z0-9_]{0,63}(\.[rgbaxyzw])?$`) in place of `post:<Property>`: a
+  URP volume parameter belongs to its component.
+- `spawns`: `{"probe": "spawns", "component": "<type>", "field": "spawned|destroyed"}`.
+- `asset`: one of `asset` (`^(Assets|Packages)/[A-Za-z0-9_][A-Za-z0-9_ /.()@-]{0,299}$`), `scene`
+  (`^Assets/[A-Za-z0-9_ /.()-]+\.unity$`) and `prefab` (`^(Assets|Packages)/[A-Za-z0-9_ /.()-]+\.prefab$`), in place
+  of `asset` and `map`. Fields: the original's `count`, `material_default`, `mesh_collision`, `material:<property>` and
+  `prop:<path>`, plus a channel or `.name` after `material:<property>`, `material:keyword:<NAME>`, `import:<path>`,
+  `shader:<Property>` (with a channel `.r`-`.a` or `.x`-`.w`, or `.name`) and `keyword:<NAME>`.
+
+The validator's rules beyond the original's (`probe_errors`):
+
+- an asset measure reads exactly one of `asset`, `scene`, `prefab`, and that one's fields (`prop:`, `import:`,
+  `shader:`, `keyword:` of one asset; `count`, `material_default`, `material:`, `mesh_collision`, `prop:` of a scene's
+  or prefab's objects); its select takes no `player` and no `near` around the player or the camera (as the original's
+  takes no `has`), since a scene as saved has neither;
+- a screen rect has x0 < x1 and y0 < y1; a player measure's `dist` has its `to`; a measure sets `to_angle` or
+  `to_axis`, not both;
+- every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`; the original compiles
+  a ui select's only), so none can stop the task check.
+
+Fields whose threshold is never a literal (calibrated or relative to the start only), as in the original with the
+renames, plus audio `level` (`NEVER_LITERAL`, `PIECE_TRIANGLES`): components `intensity`, `extent_*`,
+`bounds_change`, `pose_change`, `glow`, `spin`; objects `spin`, `spread`, `bounds_change`, `pose_change`, `glow`;
+pieces `triangles`, `visible_triangles`; `screen` (all); audio `volume`, `max_volume`, `level`; ground `range`; drawn
+everything but `drawn`.
+
+The task check's rules differ from the original's in four places, each a case the original gets wrong:
+
+- a still-works probe is excused only when its start play has no samples ("no samples in the window": the play
+  crashed, ended early or wrote no probe file); one that finds nothing to measure in a start that ran counts against
+  the task (the original excused any "measured nothing", which hid a broken still-works probe) (`verdict.verdict`);
+- a check without a reference needs a threshold for every required probe outside `still_works`: an uncalibrated one
+  is a reason, "<name> has no threshold: <detail>", since no solution could pass it (`verdict.verdict`);
+- a calibrated threshold anchored on the reference alone (the start measured nothing) needs a reference other than 0:
+  a share of 0 is no margin, so the probe is uncalibrated, "<name>: the start measured nothing (<why>) and the
+  reference measured 0, so there is no threshold" (`verdict.make_threshold`);
+- "no value in the window (nothing it selects was measured); the probe said: <error>" quotes only an error about that
+  measure's own query (a `query_errors` line starting `<kind> <id>:`, `<kind> <id> (` or `<kind>: `), never another
+  query's (`probes._own_errors`; the original quotes the play's first error).
+
+Everything else is the original's: the checks (`build`, `boot`, `log_absent`, `file_exists`, `package`, `probe`,
+judges), milestones, `expect` (`value`, `calibrate`, `start_times`, `start_plus`),
+`window`/`at`/`agg`/`of`/`match`/`to_angle`/`to_axis`, seeds, limits, weights and the no-op rule. A `file_exists` glob
+leaves out Unity's generated folders (`Library`, `Temp`, `Obj`, `Logs`, `Build`, `Builds`, `UserSettings`, `.git`,
+`.vs`) as the original leaves out Unreal's (`check.SKIP`).
 
 ## 3. Measures in Unity terms
 
