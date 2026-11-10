@@ -30,7 +30,11 @@ New-Item -ItemType Directory -Force (Split-Path $hookPath) | Out-Null
 $usesLfs = (Test-Path -LiteralPath (Join-Path $Repo '.gitattributes')) -and
     ((Get-Content -LiteralPath (Join-Path $Repo '.gitattributes') -Raw) -match 'filter=lfs')
 if (-not (Test-Path -LiteralPath $hookPath) -and $usesLfs) {
+    # git-lfs refuses to replace another tool's hook ("Hook already exists: pre-push") on stderr, which under 'Stop'
+    # ended this script before the recorder went in
+    $ErrorActionPreference = 'Continue'
     & git -C $Repo lfs update 2>&1 | Out-Null   # writes LFS's pre-push / post-checkout / post-commit / post-merge hooks
+    $ErrorActionPreference = 'Stop'
 }
 
 $script = ($HooksDir -replace '\\', '/').TrimEnd('/') + '/record-unity-commit.ps1'
