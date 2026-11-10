@@ -274,7 +274,11 @@ try {
       $dirty = git -C $repo status --porcelain
       if ($dirty) {
         git -C $repo add -A 2>$null | Out-Null
+        # the commit's post-commit hook (record-unity-commit.ps1) takes this mutex: held through the commit, every WIP
+        # commit waited out that script's 30 s timeout, and the session with it
+        $mutex.ReleaseMutex()
         git -C $repo commit -q -m "WIP" 2>$null | Out-Null
+        [void](Enter-UGFMutex $mutex 30000)
         $row.auto_commit = [ordered]@{ sha = (git -C $repo rev-parse HEAD); files = @($dirty).Count }
       } else { $row.auto_commit = $null }
     }
