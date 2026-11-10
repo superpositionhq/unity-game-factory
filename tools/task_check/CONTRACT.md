@@ -148,14 +148,17 @@ The task check's rules differ from the original's in six places, each a case the
 - a still-works probe is excused only when its start play has no samples ("no samples in the window": the play
   crashed, ended early or wrote no probe file); one that finds nothing to measure in a start that ran counts against
   the task (the original excused any "measured nothing", which hid a broken still-works probe) (`verdict.verdict`);
-- a check without a reference needs a threshold for every required probe outside `still_works`: an uncalibrated one
-  is a reason, "<name> has no threshold: <detail>", since no solution could pass it (`verdict.verdict`);
+- a check without a reference needs a threshold for every required probe, still-works ones too: an uncalibrated one is a
+  reason, "<name> has no threshold: <detail>", since no solution could pass it (`verdict.verdict`; a still-works probe
+  relative to a start that measured nothing has none either, and a crash excuses its failing at the start, not its
+  missing threshold);
 - a calibrated threshold anchored on the reference alone (the start measured nothing) needs a reference other than 0:
   a share of 0 is no margin, so the probe is uncalibrated, "<name>: the start measured nothing (<why>) and the
   reference measured 0, so there is no threshold" (`verdict.make_threshold`);
 - "no value in the window (nothing it selects was measured); the probe said: <error>" quotes only an error about that
   measure's own query (a `query_errors` line starting `<kind> <id>:`, `<kind> <id> (` or `<kind>: `), never another
-  query's (`probes._own_errors`; the original quotes the play's first error);
+  query's, but for a measure read off a render (`drawn`; an object's or a component's `lit` and `glow`), which also
+  quotes the renderer's own `rendering: ...` line (`probes._own_errors`; the original quotes the play's first error);
 - a sample without the player (a `[t]` track row) or without a camera row has no value for the player's and the
   camera's own fields, so a play that ran but never found them fails "no value in the window", not "no samples" (the
   original drops those rows, and the still-works excuse above would then cover a broken `player` select)
@@ -194,10 +197,10 @@ original's, unchanged (`probes.py`).
   for, in the order asked. A select that matches nothing writes an empty `rows` (no `total`, no error): the checker
   reads a `count` of 0 and no value for any other field. Every row has `name` and `class`, for the logs: an object row's
   `class` is its first MonoBehaviour's type, else its first Behaviour or Renderer, else its first other component
-  (Transform and MeshFilter aside), else `GameObject` (`ObjectRead.ClassOf`); a component row's `class` is its type, and
-  its `name` and `owner` are both its object's name (a Unity component has no name of its own). A field with no value is
-  left out of its row. Every trace the probe casts (the camera's, the light's wall checks, the ground's) uses
-  `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never blocks one.
+  (Transform, MeshFilter and the probe's own aside), else `GameObject` (`ObjectRead.ClassOf`); a component row's `class`
+  is its type, and its `name` and `owner` are both its object's name (a Unity component has no name of its own). A field
+  with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall checks, the
+  ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never blocks one.
 - **player**, **camera** (the original's pawn and player camera manager): the checker computes every field but two from
   the track rows `[t, x, y, z]` (the player's transform position, its pivot; `[t]` without a player) and the camera
   rows `[t, x, y, z, pitch, yaw, fov]` of the player camera (section 1) the probe writes every sample (`probes.series`;
@@ -405,9 +408,10 @@ original's, unchanged (`probes.py`).
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from y
   = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept; a 3D ray, so 2D colliders are
-  never met; without the physics module nothing is); `box` takes exactly 4 numbers (its corners in either order) and
-  `xz` 2, `grid` rounded and clamped to 2-32, as the original's (the select, when set, resolved once a sample into a
-  set, `Find.Owners`); which colliders count, the lattice and the value's keys: task-probes.md 2.17.
+  never met; without the Physics module nothing is, and one `query_errors` line says so); `box` takes exactly 4 numbers
+  (its corners in either order) and `xz` 2, `grid` rounded and clamped to 2-32, as the original's (the select, when set,
+  resolved once a sample into a set, `Find.Owners`); which colliders count, the lattice and the value's keys:
+  task-probes.md 2.17.
 - **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game (not drawing
   shadows only) and every terrain whose world bounds reach the place, at most 1024 (the first in hierarchy order), but
   one that encloses the whole place and is at least 20 times its size, and none on the UI layer, rendered alone from
@@ -512,11 +516,13 @@ control <path>`, `inputs: no device for <path>`), never a stop.
 
 - key: `{"t", "key": "<Keyboard>/w", "press": true|false}`: a key by its Input System name (`<Keyboard>/space`,
   `<Keyboard>/leftShift`, `<Keyboard>/f2`), a mouse button (`<Mouse>/leftButton`, `rightButton`, `middleButton`,
-  `forwardButton`, `backButton`), a gamepad button by its Input System name or the usual alias (`<Gamepad>/buttonSouth`,
-  `a`, `cross`; `start`, `select`, the shoulders, the stick presses, `dpad/up` and the rest).
+  `forwardButton`, `backButton`), a gamepad button by its Input System name (`<Gamepad>/buttonSouth`, `buttonNorth`,
+  `buttonEast`, `buttonWest`, `leftShoulder`, `rightShoulder`, `start`, `select`, `leftStickPress`, `rightStickPress`,
+  `dpad/up` and the other three); any other control, an alias such as `<Gamepad>/a` among them, is a `query_errors` line
+  and presses nothing.
 - axis: `{"t", "key": "<Mouse>/delta/x", "axis": 4.0}`: `<Mouse>/delta/x|y` and `<Mouse>/scroll/x|y` are one-frame
-  impulses; `<Mouse>/position/x|y` set the pointer, in pixels; `<Gamepad>/leftStick/x|y`, `rightStick/x|y`,
-  `leftTrigger` and `rightTrigger` keep their value until set again.
+  impulses (the pointer is placed by a cursor row, in fractions of the frame); `<Gamepad>/leftStick/x|y`,
+  `rightStick/x|y`, `leftTrigger` and `rightTrigger` keep their value until set again.
 - widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
   and visible uGUI Selectable in hierarchy order whose name (a wildcard) or type (base types and interfaces too)
   matches, else such a UI Toolkit Button (`UiScan.Click`). A uGUI one gets what the Input System's UI module sends for a
@@ -536,12 +542,13 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   or its Rigidbody (and a Rigidbody2D's position), with no free-spot search and no snap to the ground, and stills its
   bodies. `yaw` turns it (the checker writes 0 when unset, as the original's does). teleport_to takes the match nearest
   the player, the player and its children left out; the spot is `distance` from the target along the level line toward
-  the player (when the player is right above it, along the target's `-transform.forward`, as the original's
-  `-GetActorForwardVector()`, which both codes' comments call in front), plus `offset`; it faces `face`, else the target
-  (it keeps its yaw when what it faces is within a centimetre on the level). `hold`: for that many seconds of play time,
-  the player is put back at the spot and stilled after every script's Update and again after every LateUpdate (a camera
-  that follows it in LateUpdate frames it at the spot), through waits and scene loads. `probe.log` says where each went
-  (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped (no object matches)`).
+  the player (when the player is right above it, on the side the target's back is to, `-transform.forward`, as the
+  original's code takes it with `-GetActorForwardVector()`, though its comment says in front), plus `offset`; it faces
+  `face`, else the target (it keeps its yaw when what it faces is within a centimetre on the level). `hold`: for that
+  many seconds of play time, the player is put back at the spot and stilled after every script's Update and again after
+  every LateUpdate (a camera that follows it in LateUpdate frames it at the spot), through waits and scene loads.
+  `probe.log` says where each went (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped
+  (no object matches)`).
 - wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
   real and game time have passed; the inputs after it wait for its end (the original's). The frame it starts in takes
   its sample first, as the original's tick does.
@@ -669,14 +676,16 @@ It runs with the checker's own Python and the player `Build/TaskProbe/Game.exe`,
 `unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
 timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player on
 a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
-everything it started when `desk.py` goes, and exits with the player's exit code: 0 when the play ended (a game that
-refuses to quit is ended a few frames later, one whose shutdown hangs after 5 s, with 0 too), 2 when the play spec can't
-be read (missing, not a JSON object, another `format`: `TaskProbe: the play spec <file> couldn't be read: <why>` in
-`play.log`). What the play wrote into `out` is read back, then the folder deleted; the checker keeps those files and
-the play's spec (`unity.SPEC`) as the play's evidence (`check.Side._play`), since only the spec says which query id is
-which select. When `desk.py` itself fails (no window station to make its desktop on: it exits 1 with a line `desk.py:
-...` and the player never runs) the play raises `unity.NoDesktop`, a machine error: the task reads ERROR, never a
-play with no samples.
+everything it started when `desk.py` goes, and exits with the player's exit code: 0 when the play ended (once
+probe.json, the screenshots and probe.log are written and closed, the probe ends the process at once,
+`TerminateProcess`: the engine's shutdown is no part of the play, a game may refuse it and a busy machine took minutes
+over it, so the game's own `OnApplicationQuit` and `OnDestroy` don't run then; a game that quits by itself first goes
+through its own shutdown), 2 when the play spec can't be read (missing, not a JSON object, another `format`: `TaskProbe:
+the play spec <file> couldn't be read: <why>` in `play.log`). What the play wrote into `out` is read back, then the
+folder deleted; the checker keeps those files and the play's spec (`unity.SPEC`) as the play's evidence
+(`check.Side._play`), since only the spec says which query id is which select. When `desk.py` itself fails (no window
+station to make its desktop on: it exits 1 with a line `desk.py: ...` and the player never runs) the play raises
+`unity.NoDesktop`, a machine error: the task reads ERROR, never a play with no samples.
 
 **The build** (`unity.Project.build`, `TaskProbe.EditorTools.Build.Player`; one command, in the copy):
 
