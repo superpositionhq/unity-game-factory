@@ -1,0 +1,1308 @@
+#!/usr/bin/env python3
+"""Validate a Unity game against the final game format (docs/game-format-v1.json, prose docs/game-format.md).
+
+    python tools/validate-game.py <games>/<slug>                 # the repo, its Dataset/ and Dataset.zip if present
+    python tools/validate-game.py --dataset <Dataset.zip|folder>  # a dataset alone (what a consumer receives)
+    options: --no-layout (skip tools/validate-dataset.ps1), --no-zip, --json <file>, --quiet
+
+Checks the repo (required files, Unity 6000.3, Force Text and Visible Meta Files, .gitignore, Git LFS for binaries and
+Unity YAML out of it, every asset with its .meta and no orphan .meta, README images, banned names,
+assets.manifest.json in the one unified format with every listed file committed under Assets/, Packages/ or
+RawAssets/, workflow.jsonl rows, the tasks on the orphan tasks branch) and the dataset contents (manifest.json,
+workflow.jsonl, git.log, ReplayScripts/Verification/report.json against docs/schemas/, cross-file rules, and in
+Dataset.zip every asset file inside UnityProject/). The dataset layout (entries, video format, hashes, README sections)
+is tools/validate-dataset.ps1, which this script runs too on Windows unless --no-layout.
+
+Verdict: VALID (no errors), INVALID (errors). Exit code 0 / 2. Warnings never change the verdict.
+Standard library only (Python 3.10+).
+"""
+import argparse, io, json, os, re, shutil, subprocess, sys, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+if HERE not in sys.path:   # loaded by path (task_check imports this file through importlib)
+    sys.path.insert(0, HERE)
+# What a thread is made of in a Unity repo (unity-write-tasks sections 1, 6): one definition for thread-stats.py and
+# this validator. Re-exported under the names the Unreal validator had.
+from unity_tasks import (MIN_OUTCOME_PROBES, MIN_THREAD_FILES, MIN_THREAD_COMMITS, MIN_THREAD_CODE_LINES,  # noqa: E402,F401
+                         MIN_THREAD_SYSTEMS, CODE_FILE, NOT_CODE_DIR, GAME_FILE, GAME_PATHS, thread_system,
+                         thread_size)
+
+
+
+def load_json(path):
+    with open(path, encoding='utf-8-sig') as f:
+        return json.load(f)
+
+
+def read_text(path):
+    """A text file's content ('' when it isn't there)."""
+    if not os.path.isfile(path):
+        return ''
+    with open(path, encoding='utf-8-sig', errors='replace') as f:
+        return f.read()
+
+
+SPEC = load_json(os.path.join(REPO, 'docs', 'game-format-v1.json'))
+SCHEMAS = {n: load_json(os.path.join(REPO, 'docs', 'schemas', n + '.schema.json'))
+           for n in ('workflow-row', 'dataset-manifest', 'replay-report', 'assets-manifest', 'game-task')}
+LAYOUT = 'unity-dataset-layout/v1'   # docs/dataset-layout-v1.json: the one Unity layout so far
+
+
+class Report:
+    def __init__(self):
+        self.items = []  # (severity, area, message)
+
+    def error(self, area, msg): self.items.append(('error', area, msg))
+    def warn(self, area, msg): self.items.append(('warning', area, msg))
+    def note(self, area, msg): self.items.append(('note', area, msg))
+
+    def count(self, sev): return sum(1 for s, _, _ in self.items if s == sev)
+
+
+# ---- a small JSON Schema subset validator (type, required, properties, additionalProperties: false, minProperties,
+# ---- enum, const, pattern, minLength, minimum, items, minItems, $ref "#/$defs/...") --------------------------------
+TYPES = {'object': dict, 'array': list, 'string': str, 'boolean': bool, 'null': type(None)}
+
+
+def _is(v, t):
+    if t == 'integer': return isinstance(v, int) and not isinstance(v, bool)
+    if t == 'number': return isinstance(v, (int, float)) and not isinstance(v, bool)
+    return isinstance(v, TYPES[t])
+
+
+def check_schema(value, schema, root=None, path='$'):
+    """Yield 'path: problem' strings for value against schema."""
+    root = root or schema
+    if '$ref' in schema:
+        ref = schema['$ref']
+        node = root
+        for part in ref.lstrip('#/').split('/'):
+            node = node[part]
+        yield from check_schema(value, node, root, path)
+        return
+    if 'type' in schema:
+        ts = schema['type'] if isinstance(schema['type'], list) else [schema['type']]
+        if not any(_is(value, t) for t in ts):
+            yield f'{path}: expected {"/".join(ts)}, got {type(value).__name__}'
+            return
+    # combinators (the task schema uses them: optional fields, check kinds)
+    if 'allOf' in schema:
+        for sub in schema['allOf']:
+            yield from check_schema(value, sub, root, path)
+    for key in ('anyOf', 'oneOf'):
+        if key in schema:
+            fits = [list(check_schema(value, sub, root, path)) for sub in schema[key]]
+            ok = sum(1 for f in fits if not f)
+            if ok == 0:
+                best = min(fits, key=len)
+                yield f'{path}: matches none of the allowed shapes ({best[0] if best else "?"})'
+            elif key == 'oneOf' and ok > 1 and 'discriminator' not in schema:
+                yield f'{path}: matches more than one of the allowed shapes'
+    if 'const' in schema and value != schema['const']:
+        yield f'{path}: must be {json.dumps(schema["const"])}, got {json.dumps(value)[:80]}'
+    if 'enum' in schema and value not in schema['enum']:
+        yield f'{path}: {json.dumps(value)[:80]} not one of {schema["enum"]}'
+    if isinstance(value, str):
+        if 'minLength' in schema and len(value) < schema['minLength']:
+            yield f'{path}: empty'
+        if 'maxLength' in schema and len(value) > schema['maxLength']:
+            yield f'{path}: longer than {schema["maxLength"]}'
+        if 'pattern' in schema and not re.search(schema['pattern'], value):
+            yield f'{path}: {value[:80]!r} does not match {schema["pattern"]}'
+    if _is(value, 'number'):
+        if 'minimum' in schema and value < schema['minimum']:
+            yield f'{path}: {value} < {schema["minimum"]}'
+        if 'maximum' in schema and value > schema['maximum']:
+            yield f'{path}: {value} > {schema["maximum"]}'
+        if 'exclusiveMinimum' in schema and value <= schema['exclusiveMinimum']:
+            yield f'{path}: {value} <= {schema["exclusiveMinimum"]}'
+        if 'exclusiveMaximum' in schema and value >= schema['exclusiveMaximum']:
+            yield f'{path}: {value} >= {schema["exclusiveMaximum"]}'
+    if isinstance(value, dict):
+        if 'minProperties' in schema and len(value) < schema['minProperties']:
+            yield f'{path}: needs at least {schema["minProperties"]} key(s)'
+        for k in schema.get('required', []):
+            if k not in value:
+                yield f'{path}: missing "{k}"'
+        props = schema.get('properties', {})
+        for k, v in value.items():
+            if k in props:
+                yield from check_schema(v, props[k], root, f'{path}.{k}')
+            elif schema.get('additionalProperties') is False:
+                yield f'{path}: unexpected key "{k}"'
+    if isinstance(value, list):
+        if 'minItems' in schema and len(value) < schema['minItems']:
+            yield f'{path}: needs at least {schema["minItems"]} item(s)'
+        if 'maxItems' in schema and len(value) > schema['maxItems']:
+            yield f'{path}: more than {schema["maxItems"]} item(s)'
+        if 'items' in schema:
+            for i, v in enumerate(value):
+                yield from check_schema(v, schema['items'], root, f'{path}[{i}]')
+
+
+def schema_errors(rep, area, value, name, limit=20):
+    problems = list(check_schema(value, SCHEMAS[name]))
+    for p in problems[:limit]:
+        rep.error(area, p)
+    if len(problems) > limit:
+        rep.error(area, f'... and {len(problems) - limit} more schema problems')
+    return not problems
+
+
+# ---- shared content checks ---------------------------------------------------------------------------------------------
+def check_workflow(rep, area, lines):
+    """lines: iterable of text lines of a workflow.jsonl. Returns ids of user.direction rows."""
+    seen, directions, prev_seq, bad_rows, n, empty_reason = set(), set(), None, 0, 0, 0
+    problems = []
+    grouped = {}  # schema problem (row-independent text) -> [count, first line]
+    for i, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        n += 1
+        try:
+            row = json.loads(line)
+        except ValueError as e:
+            problems.append(f'line {i}: not JSON ({e})')
+            continue
+        errs = list(check_schema(row, SCHEMAS['workflow-row']))
+        if errs:
+            bad_rows += 1
+            for e in errs:
+                g = grouped.setdefault(e, [0, i])
+                g[0] += 1
+            continue
+        if not row['reason'].strip():
+            empty_reason += 1
+        if row['id'] in seen:
+            problems.append(f'line {i}: duplicate id {row["id"]}')
+        seen.add(row['id'])
+        if prev_seq is not None and row['seq'] <= prev_seq:
+            problems.append(f'line {i}: seq {row["seq"]} not after {prev_seq}')
+        prev_seq = row['seq']
+        if row['op'] == 'user.direction':
+            if row['actor'] != 'user' or row['reason_source'] != 'user_direction' or not str(row['params'].get('direction', '')).strip():
+                problems.append(f'line {i}: user.direction row needs actor user, reason_source user_direction, params.direction')
+            directions.add(row['id'])
+        if 'direction' in row and row['direction'] not in directions:
+            problems.append(f'line {i}: direction {row["direction"]} is not an earlier user.direction row')
+    for e, (count, first) in sorted(grouped.items(), key=lambda kv: -kv[1][0])[:15]:
+        rep.error(area, f'{count} row(s), first at line {first}: {e}')
+    for p in problems[:25]:
+        rep.error(area, p)
+    if len(problems) > 25:
+        rep.error(area, f'... {len(problems) - 25} more')
+    if empty_reason:
+        rep.warn(area, f'{empty_reason} row(s) with an empty reason')
+    if n == 0:
+        rep.error(area, 'no rows')
+    else:
+        rep.note(area, f'{n} rows, {bad_rows} not matching the row schema, {len(directions)} user.direction rows')
+    return directions
+
+
+def check_git_log(rep, area, stream):
+    g = SPEC['dataset']['git_log']
+    first = stream.readline().rstrip('\r\n')
+    if first != g['first_line']:
+        rep.error(area, f'first line must be "{g["first_line"]}", got {first[:40]!r}')
+    shas, expect, problems = [], None, []
+    commit_rx, author_rx, date_rx = re.compile(g['commit_line']), re.compile(g['author_pattern']), re.compile(g['date_pattern'])
+    for i, line in enumerate(stream, 2):
+        line = line.rstrip('\r\n')
+        if expect is None:
+            if line.startswith('commit ') and not line.startswith(' '):
+                if not commit_rx.match(line):
+                    problems.append(f'line {i}: bad commit line {line[:60]!r}')
+                    continue
+                shas.append(line[7:])
+                expect = list(g['fields_in_order'])
+            continue
+        field = expect.pop(0)
+        if not line.startswith(field + ':'):
+            problems.append(f'line {i}: expected "{field}:" after commit {shas[-1][:8]}, got {line[:40]!r}')
+            expect = None
+            continue
+        value = line[len(field) + 1:].strip()
+        if field in ('Author', 'Committer') and not author_rx.match(value):
+            problems.append(f'line {i}: {field} "{value[:40]}" is not anonymised (dev_NN)')
+        if field in ('AuthorDate', 'CommitDate') and not date_rx.match(value):
+            problems.append(f'line {i}: {field} "{value}" is not ISO 8601')
+        if not expect:
+            expect = None
+    if len(set(shas)) != len(shas):
+        problems.append('a commit appears twice')
+    for p in problems[:20]:
+        rep.error(area, p)
+    if not shas:
+        rep.error(area, 'no commits')
+    else:
+        rep.note(area, f'{len(shas)} commits')
+    return shas[-1] if shas else None
+
+
+def git_ls(repo):
+    out = subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', 'ls-files', '-z'], capture_output=True)
+    return [p for p in out.stdout.decode('utf-8', 'replace').split('\0') if p]
+
+
+ASSET_ROOTS = re.compile(r'^(Assets|Packages|RawAssets)/')   # where a game's asset files live
+
+
+def check_assets_manifest(rep, area, data, present):
+    """data: parsed assets.manifest.json; present(path) -> True when the file (or, for a path ending in /, any file
+    under the folder) is there."""
+    if not isinstance(data, dict) or data.get('schema') != 'assets-manifest/v1':
+        rep.error(area, 'not in the unified format (schema "assets-manifest/v1", docs/schemas/assets-manifest.schema.json)')
+        return
+    schema_ok = schema_errors(rep, area, data, 'assets-manifest')
+    # the schema's if/then/else (the small validator above does not evaluate it): in-house assets (origin "studio")
+    # carry a description instead of a url; every other asset needs an https url
+    for i, a in enumerate(data.get('assets') if isinstance(data.get('assets'), list) else []):
+        if not isinstance(a, dict):
+            continue
+        if a.get('origin') == 'studio':
+            if not str(a.get('description', '')).strip():
+                rep.error(area, f'$.assets[{i}] ({a.get("name")}): origin studio needs a "description"')
+        elif not str(a.get('url', '')).startswith('https://'):
+            rep.error(area, f'$.assets[{i}] ({a.get("name")}): needs an https "url" (or origin "studio" with a description, for in-house assets)')
+    if not schema_ok:
+        return
+    missing, outside, n = [], [], 0
+    for a in data['assets']:
+        for f in a['files']:
+            n += 1
+            if not ASSET_ROOTS.match(f):
+                outside.append(f'{a["name"]}: {f}')
+            if not present(f):
+                missing.append(f'{a["name"]}: {f}')
+    for m in outside[:10]:
+        rep.error(area, f'asset path outside Assets/, Packages/ or RawAssets/: {m}')
+    for m in missing[:15]:
+        rep.error(area, f'listed asset file not present: {m}')
+    if len(missing) > 15:
+        rep.error(area, f'... {len(missing) - 15} more listed files not present')
+    rep.note(area, f'{len(data["assets"])} assets, {n} listed paths, {len(missing)} missing')
+
+
+# ---- dataset (folder or zip) -------------------------------------------------------------------------------------------
+class DatasetView:
+    def __init__(self, path):
+        self.path = path
+        self.zip = None
+        if path.lower().endswith('.zip'):
+            self.zip = zipfile.ZipFile(path)
+            names = [n for n in self.zip.namelist() if not n.endswith('/')]
+            tops = sorted({n.split('/')[0] for n in names})
+            self.top = tops[0] if len(tops) == 1 else None
+            self.names = {n[len(self.top) + 1:]: n for n in names} if self.top else {}
+            self.sizes = {n[len(self.top) + 1:]: self.zip.getinfo(n).file_size for n in names} if self.top else {}
+        else:
+            self.top = os.path.basename(os.path.normpath(path))
+            self.names, self.sizes = {}, {}
+            for d, _, fs in os.walk(path):
+                for f in fs:
+                    full = os.path.join(d, f)
+                    rel = os.path.relpath(full, path).replace('\\', '/')
+                    self.names[rel] = full
+                    self.sizes[rel] = os.path.getsize(full)
+
+    def has(self, rel): return rel in self.names
+    def has_dir(self, rel): return any(n.startswith(rel.rstrip('/') + '/') for n in self.names)
+
+    def open_text(self, rel):
+        if self.zip:
+            return io.TextIOWrapper(self.zip.open(self.names[rel]), encoding='utf-8-sig', errors='replace')
+        return open(self.names[rel], encoding='utf-8-sig', errors='replace')
+
+    def json(self, rel):
+        with self.open_text(rel) as f:
+            return json.load(f)
+
+
+def check_dataset(rep, path, area='dataset'):
+    v = DatasetView(path)
+    try:
+        _check_dataset(rep, v, area)
+    finally:
+        if v.zip:
+            v.zip.close()   # Windows keeps an open zip locked
+
+
+def _check_dataset(rep, v, area):
+    if v.zip and not v.top:
+        rep.error(area, 'the zip must hold exactly one top folder (<game>/)')
+        return
+    if not v.has('manifest.json'):
+        rep.error(area, 'no manifest.json')
+        return
+    try:
+        m = v.json('manifest.json')
+    except ValueError as e:
+        rep.error(area, f'manifest.json is not JSON: {e}')
+        return
+    ok = schema_errors(rep, f'{area}: manifest.json', m, 'dataset-manifest')
+    if not ok:
+        return
+    a = f'{area}: manifest.json'
+    if v.zip and m['game'] != v.top:
+        rep.error(a, f'game "{m["game"]}" differs from the zip top folder "{v.top}"')
+    listed = {f['path']: f for f in m['files']}
+    for p, f in listed.items():
+        if p not in v.sizes:
+            rep.error(a, f'files[] lists {p}, not in the dataset')
+        elif v.sizes[p] != f['bytes']:
+            rep.error(a, f'{p}: {v.sizes[p]} bytes, manifest says {f["bytes"]}')
+    if m['totals']['files'] != len(m['files']) or m['totals']['bytes'] != sum(f['bytes'] for f in m['files']):
+        rep.error(a, 'totals do not match files[]')
+    for s in m['scenarios']:
+        if s['file'] not in listed:
+            rep.error(a, f'scenario file {s["file"]} not in files[]')
+    if m['variant'] == 'full' and not isinstance(m.get('build'), dict):
+        rep.error(a, 'variant full needs a build object')
+    if m['variant'] == 'repo-dataset' and m.get('build') is not None:
+        rep.error(a, 'variant repo-dataset has build null')
+    # workflow.jsonl
+    directions = set()
+    if v.has('workflow.jsonl'):
+        with v.open_text('workflow.jsonl') as f:
+            directions = check_workflow(rep, f'{area}: workflow.jsonl', f)
+    else:
+        rep.error(area, 'no workflow.jsonl')
+    # git.log
+    last = None
+    if v.has('git.log'):
+        with v.open_text('git.log') as f:
+            last = check_git_log(rep, f'{area}: git.log', f)
+        if last and last != m['commit']:
+            rep.error(f'{area}: git.log', f'last commit {last[:12]} differs from manifest commit {m["commit"][:12]}')
+    else:
+        rep.error(area, 'no git.log')
+    # replay report
+    rp = 'ReplayScripts/Verification/report.json'
+    if v.has(rp):
+        r = v.json(rp)
+        if schema_errors(rep, f'{area}: report.json', r, 'replay-report'):
+            if r['final_commit'] != m['commit']:
+                rep.error(f'{area}: report.json', f'final_commit {r["final_commit"][:12]} differs from manifest commit {m["commit"][:12]}')
+            # the verdict is metadata (user rule: the replay is required but need not pass); manifest and report agree
+            rv = m.get('replay_verification')
+            if isinstance(rv, dict) and 'pass' in rv and bool(rv['pass']) != bool(r['verdict']['pass']):
+                rep.error(f'{area}: report.json', f'verdict pass {r["verdict"]["pass"]} differs from manifest replay_verification.pass {rv["pass"]}')
+            if not r['verdict']['pass']:
+                rep.note(f'{area}: report.json', 'creation replay verification FAIL (metadata)')
+    elif m['status'] == 'complete':
+        rep.error(area, f'status complete but no {rp}')
+    if m['status'] == 'complete':
+        if m['pending']:
+            rep.error(a, 'status complete with pending entries')
+        if not isinstance(m.get('replay_verification'), dict) or not isinstance(m['replay_verification'].get('pass'), bool):
+            rep.error(a, 'status complete needs replay_verification with pass true or false')
+    else:
+        rep.warn(a, f'status pending: {", ".join(m["pending"]) or "(nothing listed)"}')
+    # replay_verification is null only while ReplayScripts/ is pending (listed in pending)
+    if m.get('replay_verification') is None and not any(str(p).rstrip('/') == 'ReplayScripts' for p in m['pending']):
+        rep.error(a, 'replay_verification is null but ReplayScripts/ is not listed as pending')
+    # videos: at least one (user rule: one recorded scenario is enough), unless Gameplay/ is listed as pending
+    if not m['scenarios'] and not any(str(p).rstrip('/') == 'Gameplay' for p in m['pending']):
+        rep.error(a, 'no scenario videos: a delivery has at least one, or lists Gameplay/ as pending')
+    # Brief/, the person's directions, History/, Tasks/ (all part of the first Unity layout)
+    b = m.get('brief')
+    if not isinstance(b, dict):
+        rep.error(a, 'the layout needs brief {"brief": "Brief/brief.md", "design": "Brief/design.md"}')
+    for rel in ('Brief/brief.md', 'Brief/design.md'):
+        if not v.has(rel):
+            rep.error(area, f'no {rel}')
+        elif v.sizes[rel] < 200:
+            rep.error(area, f'{rel} is nearly empty ({v.sizes[rel]} bytes)')
+    if not directions:
+        rep.warn(f'{area}: workflow.jsonl', "no user.direction rows: the person's directions are recorded nowhere else")
+    if m['variant'] == 'full':
+        check_history(rep, area, v, m)
+        check_tasks(rep, area, v, m)
+    else:
+        if m.get('history') is not None or v.has_dir('History'):
+            rep.error(area, 'a repo Dataset/ has no History/ and history null (the repo is its own history)')
+        if v.has_dir('Tasks'):
+            rep.error(area, 'a repo Dataset/ has no Tasks/ (tasks live on the game repo\'s tasks branch)')
+    # full variant: every asset file listed by the project's assets.manifest.json is inside UnityProject/
+    if m['variant'] == 'full':
+        am = 'UnityProject/assets.manifest.json'
+        if v.has(am):
+            check_assets_manifest(rep, f'{area}: {am}', v.json(am),
+                                  lambda f: v.has_dir('UnityProject/' + f) if f.endswith('/') else (v.has('UnityProject/' + f) or v.has_dir('UnityProject/' + f)))
+        else:
+            rep.error(area, f'no {am}')
+    rep.note(area, f'{m["game"]} {m["variant"]} {m["status"]}: {len(m["files"])} files, {len(m["scenarios"])} scenario video(s)')
+
+
+LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
+OPTS = {'hash': True, 'quick': False}
+
+
+def git_out(*args, input=None):
+    r = subprocess.run(['git', *args], capture_output=True, input=input)
+    if r.returncode != 0:
+        raise RuntimeError(f'git {" ".join(args[:3])}: {r.stderr.decode("utf-8", "replace").strip()[:200]}')
+    return r.stdout
+
+
+def check_history(rep, area, v, m):
+    """Full variant: History/<game>.bundle + History/lfs/objects (every LFS object of every commit)."""
+    import hashlib, tempfile
+    a = f'{area}: History'
+    h = m.get('history')
+    if not isinstance(h, dict):
+        rep.error(a, 'manifest.json history must be an object in a Dataset.zip')
+        return
+    if h['head'] != m['commit']:
+        rep.error(a, f'history.head {h["head"][:12]} differs from manifest commit {m["commit"][:12]}')
+    if not v.has(h['bundle']):
+        rep.error(a, f'no {h["bundle"]}')
+        return
+    objs = {rel[len('History/lfs/objects/'):].split('/')[-1]: rel for rel in v.names if rel.startswith('History/lfs/objects/')}
+    for oid, rel in objs.items():
+        if not re.fullmatch(r'[0-9a-f]{64}', oid) or rel != f'History/lfs/objects/{oid[:2]}/{oid[2:4]}/{oid}':
+            rep.error(a, f'{rel}: not at lfs/objects/<aa>/<bb>/<sha256>')
+    if len(objs) != h['lfs_objects'] or sum(v.sizes[r] for r in objs.values()) != h['lfs_bytes']:
+        rep.error(a, f'{len(objs)} LFS objects / {sum(v.sizes[r] for r in objs.values())} bytes, manifest history says {h["lfs_objects"]} / {h["lfs_bytes"]}')
+    if OPTS['quick']:
+        rep.note(a, 'quick: bundle contents and LFS hashes not checked')
+        return
+    with tempfile.TemporaryDirectory(prefix='validate-game-') as tmp:
+        bundle = v.names[h['bundle']]
+        if v.zip:
+            bundle = os.path.join(tmp, 'h.bundle')
+            with v.zip.open(v.names[h['bundle']]) as src, open(bundle, 'wb') as dst:
+                shutil.copyfileobj(src, dst, 1 << 20)
+        try:
+            heads = git_out('bundle', 'list-heads', bundle).decode().split()
+            if h['head'] not in heads:
+                rep.error(a, f'the bundle has no ref at history.head {h["head"][:12]}')
+            bare = os.path.join(tmp, 'repo.git')
+            git_out('clone', '--quiet', '--bare', '--mirror', bundle, bare)
+            commits = git_out('-C', bare, 'rev-list', '--all').decode().split()
+            v.commits = set(commits)   # for the tasks' seed commits
+            if len(commits) != h['commits']:
+                rep.error(a, f'the bundle holds {len(commits)} commits, manifest history says {h["commits"]}')
+            idents = set(git_out('-C', bare, 'log', '--all', '--format=%an%n%cn%n%ae%n%ce').decode('utf-8', 'replace').split('\n')) - {''}
+            bad = sorted(i for i in idents if not re.fullmatch(r'dev_[0-9]+(@[a-z0-9.-]+)?', i))
+            if bad:
+                rep.error(a, f'{len(bad)} author/committer identities are not anonymised (dev_NN), e.g. {bad[0][:3]}...')
+            msgs = git_out('-C', bare, 'log', '--all', '--format=%B').decode('utf-8', 'replace')
+            for p in SPEC['repo']['banned_names']['patterns']:
+                n = len(re.findall(p, msgs))
+                if n:
+                    rep.error(a, f'commit messages: {p} x{n}')
+            # every LFS pointer of every commit has its object
+            objlist = git_out('-C', bare, 'rev-list', '--objects', '--all').decode('utf-8', 'replace').splitlines()
+            shas = '\n'.join(l.split(' ')[0] for l in objlist) + '\n'
+            small = [l.split(' ') for l in git_out('-C', bare, 'cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)',
+                                                   input=shas.encode()).decode().splitlines()]
+            cand = [s[0] for s in small if len(s) == 3 and s[1] == 'blob' and int(s[2]) < 300]
+            need, missing = set(), []
+            if cand:
+                data = git_out('-C', bare, 'cat-file', '--batch', input=('\n'.join(cand) + '\n').encode())
+                pos = 0
+                while pos < len(data):
+                    nl = data.index(b'\n', pos)
+                    size = int(data[pos:nl].split()[2])
+                    body = data[nl + 1:nl + 1 + size]
+                    pos = nl + 1 + size + 1
+                    mm = LFS_PTR.match(body)
+                    if mm:
+                        need.add((mm.group(1).decode(), int(mm.group(2))))
+            for oid, size in sorted(need):
+                rel = objs.get(oid)
+                if not rel:
+                    missing.append(oid)
+                elif v.sizes[rel] != size:
+                    rep.error(a, f'LFS object {oid[:12]}: {v.sizes[rel]} bytes, its pointer says {size}')
+            for oid in missing[:10]:
+                rep.error(a, f'LFS object {oid[:12]}... is referenced by a commit but not in History/lfs/objects')
+            if len(missing) > 10:
+                rep.error(a, f'... {len(missing) - 10} more LFS objects missing')
+            if OPTS['hash']:
+                badhash = 0
+                for oid, rel in objs.items():
+                    hs = hashlib.sha256()
+                    with (v.zip.open(v.names[rel]) if v.zip else open(v.names[rel], 'rb')) as f:
+                        for chunk in iter(lambda: f.read(1 << 20), b''):
+                            hs.update(chunk)
+                    if hs.hexdigest() != oid:
+                        badhash += 1
+                        if badhash <= 5:
+                            rep.error(a, f'{rel}: content does not hash to its name')
+            rep.note(a, f'{len(commits)} commits, {len(heads) // 2} ref(s), {len(need)} LFS objects referenced, {len(objs)} present')
+        except (RuntimeError, ValueError, IndexError) as e:
+            rep.error(a, f'cannot read the bundle: {e}')
+
+
+TASK_NAME = re.compile(r'^[a-z0-9][a-z0-9-]{1,62}$')
+GRADER_KEYS = ('milestones',)          # the grader's half of a task, with seed.reference
+
+
+# A play's command line (play_args, a task play's args): the player's own arguments, never the checker's
+# (docs/task-probes.md, section 1.1). An element starting with "-" and a letter is a flag, anything else a value.
+PLAY_ARG = re.compile(r'^-?[A-Za-z0-9_.:=,/-]{1,60}$')
+PLAY_FLAG = re.compile(r'^-+([A-Za-z][^=]*)')   # "--x" too: Unity's own parsing is not ours to second-guess
+DENIED_PLAY_ARGS = {'batchmode', 'nographics', 'quit', 'logfile', 'projectpath', 'executemethod', 'popupwindow',
+                    'monitor', 'parenthwnd', 'single-instance'}
+DENIED_PLAY_PREFIXES = ('screen-', 'force-', 'taskprobe')
+# a task play's `scene` and `args` take the task's place only when present, so they have no default here
+TASK_PLAY_DEFAULTS = {'inputs': [], 'every': None}
+
+
+def denied_play_args(args):
+    """The flags among `args` the checker sets itself (window, log, the probe's own), as written."""
+    for arg in args or []:
+        mm = PLAY_FLAG.match(arg) if isinstance(arg, str) else None
+        if mm and (mm.group(1).lower() in DENIED_PLAY_ARGS or mm.group(1).lower().startswith(DENIED_PLAY_PREFIXES)):
+            yield mm.group(1)
+
+
+PIECE_TRIANGLES = ('triangles', 'visible_triangles')  # pieces fields whose threshold is never a literal
+# fields whose threshold is never a literal: how bright a light, how big a component's bounds, how far apart an object's
+# parts, how far an object's bounds or pose moved, how much light it gives off, how loud a sound, how much the ground
+# rises and falls, how fast a part spins, and what is drawn in a place (how much of it changes, its colour, how far
+# along a line) depend on what a build chose (docs/task-probes.md)
+NEVER_LITERAL = {'components': ('intensity', 'extent_x', 'extent_y', 'extent_z', 'bounds_change', 'pose_change', 'glow',
+                                'spin'),
+                 'objects': ('spread', 'bounds_change', 'pose_change', 'glow', 'spin'),
+                 'audio': ('volume', 'max_volume', 'level'), 'ground': ('range',),
+                 'drawn': ('motion', 'base_r', 'base_g', 'base_b', 'base_change', 'reach', 'length')}
+GROUND_POINT = ('height', 'hit')        # a ground measure at a point `xz`
+GROUND_BOX = ('min', 'max', 'mean', 'range', 'hits')   # a ground measure over a `box`
+UI_SIGNATURE_AGGS = ('changes', 'any', 'all', 'count')  # a ui signature's value means nothing; whether it changes does
+DRAWN_NEAR = ('drawn', 'motion', 'base_r', 'base_g', 'base_b', 'base_change')  # a drawn measure near a point
+DRAWN_LINE = ('drawn', 'reach', 'length')    # a drawn measure along a line
+ASSET_ONLY = ('import:', 'shader:', 'keyword:')    # fields of one asset (with prop:)
+SCENE_ONLY = ('count', 'material_default', 'mesh_collision', 'material:')   # fields of a scene's or prefab's objects
+WAITS = 300   # seconds of real time a task play's waits add at most
+
+
+def nears(o):
+    """Every `near` inside `o` (a measure, a play's inputs, a select), wherever it is nested."""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k == 'near' and isinstance(v, dict):
+                yield v
+            yield from nears(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from nears(v)
+
+
+def near_errors(label, o):
+    """A near's height band has y_min < y_max, and `y_relative` only with one of them."""
+    errs = []
+    for near in nears(o):
+        lo, hi = near.get('y_min'), near.get('y_max')
+        if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) and not lo < hi:
+            errs.append(f'{label}: a near band has y_min < y_max')
+        if near.get('y_relative') and lo is None and hi is None:
+            errs.append(f'{label}: `y_relative` goes with y_min or y_max')
+    return errs
+
+
+def component_selects(measure):
+    """The components selects of a measure (its own when it reads components)."""
+    if measure.get('probe') == 'components' and isinstance(measure.get('select'), dict):
+        yield measure['select']
+
+
+def probe_errors(c, seed, ref, plays):
+    """A probe check's rules beyond the schema (docs/task-probes.md):
+    asset measures only with play "editor" and trace measures only with play "trace"; an asset measure reads one
+    `asset`, or the objects of one `scene` or `prefab` (with `select`, which takes no `has`), and the fields of that
+    one; a trace probe never gates and takes a literal value; a task play is not named look/drive/editor/trace, has no
+    input at or after its end, sets no flag of the checker's own, and same-named task plays are identical; == and !=
+    take a literal value; a screen measure's threshold is calibrated or relative to the start (the frame's luminance
+    moves between machines), and so is a pieces measure's triangles (they depend on the meshes a build chose) and
+    every NEVER_LITERAL field; a ground measure takes a point `xz` or a `box` and the fields of that one; a drawn
+    measure takes `near` or a `line` and the fields of that one; a components select names its component or `effect`;
+    a near's height band has y_min < y_max and `y_relative` only with one of them; a task play's waits add at most
+    300 s; a ui measure takes `match` exactly when it reads text, `agg` changes, any, all or count when it reads its
+    signature, regular expressions that compile and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a
+    calibrated threshold needs seed.reference and a start-relative one a seed."""
+    errs, n = [], c.get('name')
+    play = c.get('play')
+    measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
+    expect = c.get('expect') if isinstance(c.get('expect'), dict) else {}
+    probe = measure.get('probe')
+    field = measure.get('field')
+    pname = play if isinstance(play, str) else (play.get('name') if isinstance(play, dict) else None)
+    if (probe == 'asset') != (pname == 'editor'):
+        errs.append(f'check {n}: asset measures are taken by the editor pass (play "editor"), and it takes nothing else')
+    if (probe == 'trace') != (pname == 'trace'):
+        errs.append(f'check {n}: trace measures are read from the trace (play "trace"), and it gives nothing else')
+    if probe == 'asset':
+        anchors = [k for k in ('asset', 'scene', 'prefab') if measure.get(k) is not None]
+        fname = field if isinstance(field, str) else ''
+        if len(anchors) != 1:
+            errs.append(f'check {n}: an asset measure reads one `asset`, or the objects of one `scene` or `prefab`')
+        elif anchors == ['asset'] and (measure.get('select') is not None or fname.startswith(SCENE_ONLY)):
+            errs.append(f'check {n}: an asset measure of one asset takes no select and reads prop:, import:, shader: '
+                        'or keyword:')
+        elif anchors != ['asset'] and fname.startswith(ASSET_ONLY):
+            errs.append(f"check {n}: a {anchors[0]}'s objects are read with count, material_default, material:, "
+                        'mesh_collision or prop:')
+        if isinstance(measure.get('select'), dict) and measure['select'].get('has') is not None:
+            errs.append(f'check {n}: a scene as saved is read without its components drawn, so its select takes no `has`')
+    rel = 'calibrate' if 'calibrate' in expect else ('start' if 'start_times' in expect or 'start_plus' in expect else None)
+    if probe == 'trace' and (c.get('required', True) or rel):
+        errs.append(f'check {n}: a trace probe never gates (required: false) and takes a literal value')
+    if isinstance(play, dict):
+        if pname in ('look', 'drive', 'editor', 'trace'):
+            errs.append(f"check {n}: a task play can't be named {pname}")
+        secs = play.get('seconds')
+        if isinstance(secs, (int, float)) and any(isinstance(i, dict) and isinstance(i.get('t'), (int, float))
+                                                  and i['t'] >= secs for i in play.get('inputs') or []):
+            errs.append(f'check {n}: play {pname} has an input at or after its end ({secs} s)')
+        for name in denied_play_args(play.get('args') if isinstance(play.get('args'), list) else []):
+            errs.append(f"check {n}: a task play can't set -{name}")
+        waits = sum(i['wait'] for i in play.get('inputs') or []
+                    if isinstance(i, dict) and isinstance(i.get('wait'), (int, float)))
+        if waits > WAITS:
+            errs.append(f'check {n}: play {pname} waits {waits:g} s in all, more than {WAITS} s')
+        whole = dict(TASK_PLAY_DEFAULTS, **play)
+        if plays.setdefault(pname, whole) != whole:
+            errs.append(f'check {n}: task play {pname} differs from another play of that name')
+    if probe == 'screen' and not rel:
+        errs.append(f"check {n}: the frame's luminance moves between machines, so a screen measure's threshold is "
+                    'calibrated or relative to the start, never a literal value')
+    if probe == 'pieces' and field in PIECE_TRIANGLES and not rel:
+        errs.append(f'check {n}: how many triangles a fair build draws depends on the meshes it chose, so a pieces '
+                    "measure's triangles threshold is calibrated or relative to the start, never a literal value")
+    if field in NEVER_LITERAL.get(probe, ()) and not rel:
+        errs.append(f"check {n}: a {probe} measure's {field} depends on what a build chose, so its "
+                    'threshold is calibrated or relative to the start, never a literal value')
+    if probe == 'ground':
+        xz, box = measure.get('xz'), measure.get('box')
+        if (xz is None) == (box is None):
+            errs.append(f'check {n}: a ground measure takes a point `xz` or a `box`, one of them')
+        elif xz is not None and field not in GROUND_POINT:
+            errs.append(f"check {n}: a ground measure at a point reads {', '.join(GROUND_POINT)}")
+        elif box is not None and field not in GROUND_BOX:
+            errs.append(f"check {n}: a ground measure over a box reads {', '.join(GROUND_BOX)}")
+        elif box is not None and isinstance(box, list) and len(box) == 4 and not (box[0] < box[2] and box[1] < box[3]):
+            errs.append(f'check {n}: a ground box is [x0, z0, x1, z1] with x0 < x1 and z0 < z1')
+    if probe == 'drawn':
+        near, line = measure.get('near'), measure.get('line')
+        if (near is None) == (line is None):
+            errs.append(f'check {n}: a drawn measure takes `near` (a point) or a `line`, one of them')
+        elif near is not None and field not in DRAWN_NEAR:
+            errs.append(f"check {n}: a drawn measure near a point reads {', '.join(DRAWN_NEAR)}")
+        elif line is not None and field not in DRAWN_LINE:
+            errs.append(f"check {n}: a drawn measure along a line reads {', '.join(DRAWN_LINE)}")
+    for sel in component_selects(measure):
+        if sel.get('component') is None and sel.get('effect') is None:
+            errs.append(f'check {n}: a components select names its component, or `effect`')
+    errs += near_errors(f'check {n}', [measure, play.get('inputs') if isinstance(play, dict) else None])
+    if probe == 'ui':
+        sel = measure.get('select') if isinstance(measure.get('select'), dict) else {}
+        if (field == 'text') != (measure.get('match') is not None):
+            errs.append(f'check {n}: a ui measure takes `match` exactly when its field is text')
+        if field == 'signature' and measure.get('agg') not in UI_SIGNATURE_AGGS:
+            errs.append(f'check {n}: a ui signature is read with `agg` changes, any, all or count')
+        for pattern in (measure.get('match'), sel.get('text')):
+            try:
+                re.compile(pattern) if isinstance(pattern, str) else None
+            except re.error as e:
+                errs.append(f"check {n}: {pattern!r} isn't a regular expression ({e})")
+        rect = sel.get('rect')
+        if isinstance(rect, list) and len(rect) == 4 and not (rect[0] < rect[2] and rect[1] < rect[3]):
+            errs.append(f'check {n}: a ui select rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1')
+        if sel.get('text') is not None and sel.get('kind') not in (None, 'text'):
+            errs.append(f"check {n}: a ui select's `text` picks text elements: its kind is text or unset")
+    if rel and expect.get('op') in ('==', '!='):
+        errs.append(f'check {n}: == and != take a literal value, never a calibrated threshold')
+    if rel == 'calibrate' and not ref:
+        errs.append(f"check {n} calibrates against a reference the task's seed doesn't name")
+    if rel == 'start' and not seed:
+        errs.append(f'check {n} sets its threshold from the start, which only a seeded task has')
+    return errs
+
+
+def task_semantic_errors(t):
+    """What the schema cannot say (the task format's own rules): check names unique, `needs` naming earlier
+    checks, a code judge or a reference judge only with seed.reference, a before/after judge only with a seed, the
+    task's play_args and player select (no flag of the checker's own; near bands) and the probe rules (probe_errors);
+    and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
+    no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1)."""
+    errs, seen, plays = [], set(), {}
+    seed = t.get('seed') if isinstance(t.get('seed'), dict) else None
+    ref = seed.get('reference') if seed else None
+    for name in denied_play_args(t.get('play_args') if isinstance(t.get('play_args'), list) else []):
+        errs.append(f"play_args can't set -{name}")
+    errs += near_errors('player', t.get('player'))
+    checks = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
+              if isinstance(c, dict)]
+    broken = next((c.get('name') for c in checks if c.get('kind') == 'build' and c.get('fails_at_start') is True), None)
+    for m in t.get('milestones') or []:
+        for c in (m.get('checks') or []) if isinstance(m, dict) else []:
+            if not isinstance(c, dict):
+                continue
+            n, k = c.get('name'), c.get('kind')
+            if k == 'probe':
+                errs.extend(probe_errors(c, seed, ref, plays))
+                expect = c.get('expect') if isinstance(c.get('expect'), dict) else {}
+                relative = [x for x in ('calibrate', 'start_times', 'start_plus') if x in expect]
+                if broken and relative:
+                    errs.append(f"check {n}: its threshold is relative to the start ({relative[0]}), but the start "
+                                f"doesn't build ({broken}: fails_at_start), so it is never played; use a literal value")
+            if k == 'judge' and c.get('before') and broken:
+                errs.append(f"check {n} compares with the start (before: true), but the start doesn't build "
+                            f"({broken}: fails_at_start), so it is never played")
+            if k == 'code_judge' and not ref:
+                errs.append(f'check {n}: a code judge needs seed.reference')
+            if k == 'judge' and c.get('before') and not seed:
+                errs.append(f'check {n}: a before/after judge needs a seed')
+            if k == 'judge' and c.get('reference') and not ref:
+                errs.append(f'check {n}: a reference judge needs seed.reference')
+            if n in seen:
+                errs.append(f'check {n} is named twice')
+            missing = [x for x in (c.get('needs') or []) if x not in seen]
+            if missing:
+                errs.append(f'check {n} needs {missing}, which come later or do not exist')
+            seen.add(n)
+    return errs
+
+
+# The bar every task meets: only long threads of multiple edits qualify (unity-write-tasks sections 1, 6). The floors,
+# GAME_FILE / GAME_PATHS and thread_system / thread_size come from tools/unity_tasks.py (imported above).
+def thread_errors(t, outcomes):
+    """Why task `t` (with `outcomes` required probes outside still_works) is not a long thread, from the task alone."""
+    errs = []
+    if t.get('difficulty') == 'easy':
+        errs.append('difficulty \'easy\': a task is "medium" or "hard"')
+    if 'long-thread' not in (t.get('tags') or []):
+        errs.append('no long-thread tag')
+    if not (isinstance(t.get('seed'), dict) and t['seed'].get('reference')):
+        errs.append("no seed.reference: every task ends at the game's own accepted fix of the thread")
+    if outcomes < MIN_OUTCOME_PROBES:
+        errs.append(f'{outcomes} required outcome probe(s) outside still_works, fewer than {MIN_OUTCOME_PROBES}')
+    return errs + noop_errors(t)
+
+
+def noop_errors(t):
+    """Why a no-op would earn something, from the task alone: a no-op scores zero. The score is the weighted share of
+    checks passed, so what is true of the start takes `"weight": 0`. The task check measures the rest."""
+    errs, earning = [], 0
+    for m in t.get('milestones') or []:
+        for c in (m.get('checks') or []) if isinstance(m, dict) else []:
+            if not isinstance(c, dict):
+                continue
+            kind, weight = c.get('kind'), c.get('weight', 1)
+            passes_at_start = (kind == 'build' and not c.get('fails_at_start')) or kind == 'boot' \
+                or m.get('name') == 'still_works'
+            if passes_at_start and weight != 0:
+                errs.append(f'check {c.get("name")}: a no-op passes it, so a no-op would score; give it "weight": 0')
+            elif not passes_at_start and c.get('required', True) and kind in ('probe', 'build') and weight > 0:
+                earning += 1
+    if not earning:
+        errs.append('no required outcome check carries weight, so no run can score')
+    return errs
+
+
+def thread_span_errors(repo, seed, on_main):
+    """Why the span from seed.commit to seed.reference is too short: game files changed (a .meta never counts on its
+    own), and on main the commits."""
+    start, ref = seed.get('commit'), seed.get('reference')
+    if not (start and ref):
+        return []
+    errs = []
+    files = [p for p in _git(repo, '-c', 'core.quotepath=off', 'diff', '--name-only', start, ref, '--', *GAME_PATHS)
+             .stdout.decode('utf-8', 'replace').splitlines() if p.strip()]
+    if len(files) < MIN_THREAD_FILES:
+        errs.append(f'the reference changes {len(files)} game file(s) against the start, fewer than {MIN_THREAD_FILES}')
+    lines, systems = thread_size(_git(repo, '-c', 'core.quotepath=off', 'diff', '--numstat', '--no-renames', start, ref)
+                                 .stdout.decode('utf-8', 'replace'))
+    if lines < MIN_THREAD_CODE_LINES:
+        errs.append(f'the reference changes {lines} code line(s) against the start, fewer than {MIN_THREAD_CODE_LINES}')
+    if systems < MIN_THREAD_SYSTEMS:
+        errs.append(f'the reference crosses {systems} system(s), fewer than {MIN_THREAD_SYSTEMS}')
+    if on_main:
+        n = _git(repo, 'rev-list', '--count', f'{start}..{ref}', '--', *GAME_PATHS).stdout.decode().strip()
+        if int(n or 0) < MIN_THREAD_COMMITS:
+            errs.append(f'{n or 0} commit(s) change the game from seed.commit to seed.reference, '
+                        f'fewer than {MIN_THREAD_COMMITS}')
+    return errs
+
+
+def check_task(rep, a, label, t, game, has_commit):
+    """One whole task (GameTask): schema, the format's extra rules, seed on `game` and on known commits."""
+    for e in list(check_schema(t, SCHEMAS['game-task']))[:5]:
+        rep.error(a, f'{label}: {e}')
+    for e in task_semantic_errors(t)[:5]:
+        rep.error(a, f'{label}: {e}')
+    gated = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
+             if isinstance(c, dict) and c.get('kind') == 'probe' and c.get('required', True)]
+    judged = [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
+              if isinstance(c, dict) and c.get('kind') in ('judge', 'code_judge', 'actions_judge')
+              and c.get('required', True)]
+    if not gated:
+        rep.error(a, f'{label}: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)')
+    outcomes = [c for m in t.get('milestones') or [] if isinstance(m, dict) and m.get('name') != 'still_works'
+                for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe'
+                and c.get('required', True)]
+    for e in thread_errors(t, len(outcomes)):
+        rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)')
+    if judged:
+        rep.note(a, f'{label}: required judge check(s) {judged}: judges should be "required": false quality checks')
+    s = t.get('seed')
+    if isinstance(s, dict):
+        if s.get('game') != game:
+            rep.error(a, f'{label}: seed.game {s.get("game")!r} is not this game ({game})')
+        for k in ('commit', 'reference'):
+            c = s.get(k)
+            if c and has_commit is not None and not has_commit(c):
+                rep.error(a, f'{label}: seed.{k} {str(c)[:12]} is not a commit of this game\'s history'
+                             + (' (an ancestor of main\'s head)' if a.startswith('repo') else ''))
+
+
+TASKS_REFS = ('tasks', 'origin/tasks')   # where a game's tasks live: its orphan tasks branch, never main
+
+
+def _git(repo, *args):
+    return subprocess.run(['git', '-C', repo, *args], capture_output=True)
+
+
+def check_repo_tasks(rep, repo, files=None):
+    """The game's tasks on its orphan `tasks` branch (`tasks`, else `origin/tasks`): Tasks/<name>.json, one GameTask
+    each, name = file stem, seeds on commits of main's history (ancestors of HEAD, the main branch in a game checkout)
+    or of the task's own start branch `starts/<name>` (unity-write-tasks section 2), each a Unity ENGINE project as
+    committed. The branch shares no history with main, and main's HEAD tracks nothing under Tasks/. Read from git, not
+    the working tree (`files` is unused)."""
+    a = 'repo: Tasks'
+    game = os.path.basename(os.path.normpath(repo))
+    on_main = [p for p in _git(repo, '-c', 'core.quotepath=off', 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'Tasks')
+               .stdout.decode('utf-8', 'replace').splitlines() if p.strip()]
+    if on_main:
+        rep.error(a, f'main tracks {len(on_main)} path(s) under Tasks/ (e.g. {on_main[0]}): '
+                     'tasks live on the tasks branch, never on main')
+    ref = next((r for r in TASKS_REFS if _git(repo, 'rev-parse', '--verify', '-q', r + '^{commit}').returncode == 0), None)
+    if not ref:
+        rep.error(a, 'no tasks branch (neither tasks nor origin/tasks): a game ships at least one task, '
+                     'on its orphan tasks branch')
+        return
+    if _git(repo, 'merge-base', ref, 'HEAD').returncode == 0:
+        rep.error(a, f'{ref} shares history with main: tasks must be an orphan branch')
+    names = [n for n in _git(repo, '-c', 'core.quotepath=off', 'ls-tree', '--name-only', ref + ':Tasks')
+             .stdout.decode('utf-8', 'replace').splitlines() if n.strip()]
+    paths = ['Tasks/' + n for n in names if n.endswith('.json')]
+    if not paths:
+        rep.error(a, f'no task files in Tasks/ on {ref} (a game ships at least one; about 10 recommended)')
+        return
+    known, current = {}, {'stem': ''}
+
+    def has_commit(c):   # an ancestor of main's head, or of the task's own start branch
+        key = (c, current['stem'])
+        if key not in known:
+            tips = ['HEAD'] + [r for r in (f'refs/heads/starts/{current["stem"]}', f'refs/remotes/origin/starts/{current["stem"]}')
+                               if _git(repo, 'rev-parse', '--verify', '-q', r).returncode == 0]
+            known[key] = any(_git(repo, 'merge-base', '--is-ancestor', c, tip).returncode == 0 for tip in tips)
+        return known[key]
+    for f in paths:
+        stem = f[len('Tasks/'):-len('.json')]
+        label = f'{ref}:{f}'
+        r = _git(repo, 'show', label)
+        if r.returncode != 0:
+            rep.error(a, f'{label}: cannot read ({r.stderr.decode("utf-8", "replace").strip()[:120]})')
+            continue
+        try:
+            t = json.loads(r.stdout.decode('utf-8-sig'))
+        except ValueError as e:
+            rep.error(a, f'{label}: not JSON ({e})')
+            continue
+        if not isinstance(t, dict):
+            rep.error(a, f'{label}: not a task object')
+            continue
+        if t.get('name') != stem:
+            rep.error(a, f'{label}: name {t.get("name")!r} differs from the file name')
+        current['stem'] = stem
+        check_task(rep, a, label, t, game, has_commit)
+        seed = t.get('seed') if isinstance(t.get('seed'), dict) else {}
+        for k in ('commit', 'reference'):
+            if seed.get(k) and has_commit(seed[k]):
+                version = start_engine(repo, seed[k])
+                if not version.startswith(ENGINE + '.'):
+                    rep.error(a, f'{label}: seed.{k} {seed[k][:12]} is a Unity {version or "?"} project: a task starts '
+                                 f'from a commit that opens on Unity {ENGINE} as committed (never upgraded; '
+                                 'unity-write-tasks section 2)')
+        if all(seed.get(k) and has_commit(seed[k]) for k in ('commit', 'reference')):
+            on_main = all(_git(repo, 'merge-base', '--is-ancestor', seed[k], 'HEAD').returncode == 0
+                          for k in ('commit', 'reference'))
+            for e in thread_span_errors(repo, seed, on_main):
+                rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)')
+    rep.note(a, f'{len(paths)} task(s) on {ref} (up to about 10, every one a long thread)')
+
+
+ENGINE = '6000.3'   # the checker's Unity (6.3 LTS): it opens a start exactly as committed
+EDITOR_VERSION = re.compile(r'^\s*m_EditorVersion:\s*(\S+)', re.M)
+
+
+def editor_version(text):
+    """m_EditorVersion of a ProjectVersion.txt ('' when it names none)."""
+    mm = EDITOR_VERSION.search(text or '')
+    return mm.group(1) if mm else ''
+
+
+def start_engine(repo, commit):
+    """The Unity version ProjectSettings/ProjectVersion.txt names at `commit` ('' when there is none)."""
+    r = _git(repo, 'show', f'{commit}:ProjectSettings/ProjectVersion.txt')
+    return editor_version(r.stdout.decode('utf-8-sig', 'replace')) if r.returncode == 0 else ''
+
+
+def check_tasks(rep, area, v, m):
+    """Tasks/ in a Dataset.zip: README.md and Tasks/<name>/task.json + grader.json per task; the agent's part holds none
+    of the grader's half; merged, each is a valid task on this game and on commits of History/."""
+    a = f'{area}: Tasks'
+    if not v.has('Tasks/README.md'):
+        rep.error(a, 'no Tasks/README.md')
+    folders = sorted({r.split('/')[1] for r in v.names if r.startswith('Tasks/') and r.count('/') >= 2})
+    stray = sorted(r for r in v.names if r.startswith('Tasks/') and r != 'Tasks/README.md'
+                   and not re.fullmatch(r'Tasks/[^/]+/(task|grader)\.json', r))
+    for r in stray[:5]:
+        rep.error(a, f'{r}: not part of the layout (Tasks/<name>/task.json, Tasks/<name>/grader.json, Tasks/README.md)')
+    if not folders:
+        rep.error(a, 'no tasks (a game ships at least one)')
+    commits = getattr(v, 'commits', None)
+    names = []
+    for name in folders:
+        tp, gp = f'Tasks/{name}/task.json', f'Tasks/{name}/grader.json'
+        if not (v.has(tp) and v.has(gp)):
+            rep.error(a, f'Tasks/{name}/: needs task.json and grader.json')
+            continue
+        try:
+            task, grader = v.json(tp), v.json(gp)
+        except ValueError as e:
+            rep.error(a, f'Tasks/{name}/: not JSON ({e})')
+            continue
+        if not isinstance(task, dict) or not isinstance(grader, dict):
+            rep.error(a, f'Tasks/{name}/: task.json and grader.json must be objects')
+            continue
+        leaked = [k for k in GRADER_KEYS if k in task] + (['seed.reference'] if isinstance(task.get('seed'), dict) and 'reference' in task['seed'] else [])
+        if leaked:
+            rep.error(a, f'{tp}: holds the grader\'s half ({", ".join(leaked)}): it belongs in grader.json')
+        extra = [k for k in grader if k not in ('name', 'seed') + GRADER_KEYS] + \
+                ([k for k in grader['seed'] if k != 'reference'] if isinstance(grader.get('seed'), dict) else [])
+        if extra:
+            rep.error(a, f'{gp}: only name, milestones and seed.reference belong here, not {extra}')
+        if task.get('name') != name or grader.get('name') != name:
+            rep.error(a, f'Tasks/{name}/: name fields must equal the folder name')
+        whole = dict(task)
+        for k in GRADER_KEYS:
+            if k in grader:
+                whole[k] = grader[k]
+        if isinstance(grader.get('seed'), dict) and isinstance(whole.get('seed'), dict):
+            whole['seed'] = dict(whole['seed'], **grader['seed'])
+        check_task(rep, a, f'Tasks/{name}', whole, m['game'], (lambda c: c in commits) if commits is not None else None)
+        names.append(name)
+    if commits is None and folders:
+        rep.note(a, 'seed commits not checked against History/ (bundle not unpacked: --quick)')
+    mt = m.get('tasks')
+    if not isinstance(mt, dict):
+        rep.error(a, 'the layout needs manifest tasks {"count": n, "names": [...]}')
+    elif sorted(mt.get('names') or []) != names or mt.get('count') != len(names):
+        rep.error(a, 'manifest tasks (count, names) differ from Tasks/')
+    rep.note(a, f'{len(names)} task(s) (about 10 recommended)')
+
+
+def run_layout_validator(rep, path, repo_dataset):
+    ps = shutil.which('powershell') or shutil.which('pwsh')
+    if not ps:
+        rep.note('layout', 'PowerShell not found: tools/validate-dataset.ps1 not run')
+        return
+    args = [ps, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', os.path.join(HERE, 'validate-dataset.ps1'), path]
+    if repo_dataset:
+        args.append('-RepoDataset')
+    r = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace',
+                       env=dict(os.environ, UGF_SKIP_CONTENT='1', GF_SKIP_CONTENT='1'))
+    out = r.stdout.strip().splitlines()
+    vl = [l for l in out if re.match(r'^(VALID|PENDING|INVALID) ', l)]
+    verdict = vl[0].strip() if vl else f'no verdict (exit {r.returncode}): {r.stderr.strip()[:200]}'
+    area = f'layout ({os.path.basename(path)})'
+    for line in out:
+        s = line.strip()
+        if s.startswith('x '):
+            rep.error(area, s[2:])
+        elif s.startswith('! '):
+            rep.note(area, s[2:])   # validate-dataset.ps1: "!" = note
+    if r.returncode == 1:
+        m = re.search(r'pending: ([^)]+)\)', verdict)
+        rep.warn(area, f'PENDING: {m.group(1).strip() if m else "parts"} not there yet')
+    rep.note(area, f'validate-dataset.ps1: {verdict}')
+
+
+# ---- repo ---------------------------------------------------------------------------------------------------------------
+def unity_hidden(name):
+    """A file or folder name Unity skips on import, so it has no .meta: .name, name~, cvs, *.tmp."""
+    low = name.lower()
+    return name.startswith('.') or name.endswith('~') or low == 'cvs' or low.endswith('.tmp')
+
+
+def meta_depth(parts):
+    """How many leading parts of a path are outside what Unity imports: 1 under Assets/, 2 under an embedded package
+    Packages/<name>/; None for anything else (Packages/manifest.json, ProjectSettings/, the repo's own files)."""
+    if parts[0] == 'Assets' and len(parts) >= 2:
+        return 1
+    if parts[0] == 'Packages' and len(parts) >= 3:
+        return 2
+    return None
+
+
+def meta_problems(files):
+    """(missing, orphan): tracked files and folders under Assets/ and embedded packages without a tracked .meta, and
+    tracked .meta files whose file or folder is not tracked. A folder is tracked when a file under it is."""
+    tracked = set(files)
+    need, metas = set(), []
+    for f in files:
+        base = f[:-len('.meta')] if f.endswith('.meta') else f
+        parts = base.split('/')
+        k = meta_depth(parts)
+        if k is None or any(unity_hidden(p) for p in parts[k:]):
+            continue
+        if f.endswith('.meta'):
+            metas.append(f)
+            continue
+        need.add(f)
+        for i in range(k + 1, len(parts)):
+            need.add('/'.join(parts[:i]))
+    missing = sorted(p for p in need if p + '.meta' not in tracked)
+    orphan = sorted(m for m in metas if m[:-len('.meta')] not in need)
+    return missing, orphan
+
+
+def check_meta(rep, files):
+    """Every asset with its .meta (unity-commit-always skill): the .meta holds the GUID every scene, prefab and material
+    refers to it by."""
+    a = 'repo: .meta'
+    missing, orphan = meta_problems(files)
+    for p in missing[:15]:
+        rep.error(a, f'{p}: no .meta tracked (Unity gives it a new GUID on import and every reference to it breaks)')
+    if len(missing) > 15:
+        rep.error(a, f'... {len(missing) - 15} more files or folders without a .meta')
+    for p in orphan[:15]:
+        rep.error(a, f'{p}: its file or folder is not tracked (an orphan Unity deletes; an empty folder cannot be '
+                     'committed, so neither can its .meta)')
+    if len(orphan) > 15:
+        rep.error(a, f'... {len(orphan) - 15} more orphan .meta files')
+    if not missing and not orphan:
+        rep.note(a, f'{sum(1 for f in files if f.endswith(".meta"))} .meta files, each with its file or folder')
+
+
+def setting(text, key):
+    """The value of a top-level `key:` in a Unity YAML settings file (None when absent)."""
+    mm = re.search(r'^\s*' + re.escape(key) + r':[ \t]*(.*?)\s*$', text or '', re.M)
+    return mm.group(1) if mm else None
+
+
+def check_repo(rep, repo):
+    R = SPEC['repo']
+    files = git_ls(repo)
+    if not files:
+        rep.error('repo', 'not a git repo, or nothing tracked')
+        return
+    tracked = set(files)
+    for req in R['required_files']:
+        hits = [f for f in files if re.match(req['pattern'], f)]
+        if not hits:
+            rep.error('repo', f'missing {req["pattern"]} ({req["what"]})')
+        elif req.get('count') and len(hits) != req['count']:
+            rep.error('repo', f'{len(hits)} files match {req["pattern"]}, expected {req["count"]}')
+    for rule in R['never_tracked']:
+        hits = [f for f in files if re.search(rule['pattern'], f)]
+        if hits:
+            rep.error('repo', f'{len(hits)} tracked file(s) match {rule["pattern"]} (e.g. {hits[0]}): {rule["what"]}')
+    # engine: Unity 6.3 LTS, as committed
+    pv = 'ProjectSettings/ProjectVersion.txt'
+    if pv in tracked:
+        version = editor_version(read_text(os.path.join(repo, pv)))
+        if not any(version.startswith(e + '.') for e in R['editor_versions']):
+            rep.error('repo', f'{pv}: m_EditorVersion {version or "(none)"!r} is not Unity {" or ".join(R["editor_versions"])}')
+        else:
+            rep.note('repo', f'{pv}: Unity {version}')
+    # Force Text serialization and Visible Meta Files: scenes and prefabs diff as YAML, every asset keeps its GUID
+    es = 'ProjectSettings/EditorSettings.asset'
+    if es in tracked:
+        text = read_text(os.path.join(repo, es))
+        for key, want in R['editor_settings'].items():
+            got = setting(text, key)
+            if got != want['value']:
+                rep.error('repo', f'{es}: {key} is {got!r}, must be {want["value"]!r} ({want["what"]})')
+    ps = 'ProjectSettings/ProjectSettings.asset'
+    if ps in tracked:
+        company = setting(read_text(os.path.join(repo, ps)), 'companyName')
+        if not company or company in R['company_name_not']:
+            rep.warn('repo', f'{ps}: companyName {company!r}: the game\'s own studio name (it names the exe\'s company '
+                             'and the persistentDataPath folder)')
+    # .gitignore: Unity's generated folders and the local dataset ignored, nothing the game is made of
+    text = read_text(os.path.join(repo, '.gitignore'))
+    for line in R['gitignore_must_contain']:
+        if line not in text.split():
+            rep.error('repo: .gitignore', f'missing {line}')
+    probes = R['gitignore_must_ignore'] + R['gitignore_must_not_ignore']
+    out = subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', 'check-ignore', '--no-index', '--stdin'],
+                         input=('\n'.join(probes) + '\n').encode(), capture_output=True)   # bytes: no \r on Windows
+    ignored = set(out.stdout.decode('utf-8', 'replace').splitlines())
+    for p in R['gitignore_must_ignore']:
+        if p not in ignored:
+            rep.error('repo: .gitignore', f'{p.split("/")[0]}/ is not ignored (Unity regenerates it; it holds machine '
+                                          'state and never belongs in the repo)')
+    for p in R['gitignore_must_not_ignore']:
+        if p in ignored:
+            rep.error('repo: .gitignore', f'{p} would be git-ignored: everything the game is made of is committed '
+                                          '(store packs included), only Unity\'s generated folders and build output '
+                                          'are ignored')
+    # Git LFS for binaries; Unity's YAML stays plain git text
+    lfs = set(subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', 'lfs', 'ls-files', '--name-only'],
+                             capture_output=True, text=True, encoding='utf-8', errors='replace').stdout.splitlines())
+    ext_rx = re.compile(r'(?i)\.(' + '|'.join(R['lfs_required_extensions']) + r')$')
+    path_rx = [re.compile(p) for p in R['lfs_required_paths']]
+    yaml_rx = re.compile(r'(?i)\.(' + '|'.join(R['yaml_extensions']) + r')$')
+    binary = lambda f: ext_rx.search(f) or any(r.search(f) for r in path_rx)
+    plain = [f for f in files if binary(f) and f not in lfs]
+    for f in plain[:10]:
+        rep.error('repo: LFS', f'binary tracked in plain git: {f}')
+    if len(plain) > 10:
+        rep.error('repo: LFS', f'... {len(plain) - 10} more binaries in plain git')
+    yaml_lfs = [f for f in files if f in lfs and yaml_rx.search(f)]
+    for f in yaml_lfs[:10]:
+        rep.error('repo: LFS', f'Unity YAML in LFS: {f} (it loses its diffs and merges; .gitattributes keeps it text)')
+    if len(yaml_lfs) > 10:
+        rep.error('repo: LFS', f'... {len(yaml_lfs) - 10} more YAML files in LFS')
+    # README images
+    if 'README.md' in tracked:
+        md = re.sub(r'(?s)<!--.*?-->', '', read_text(os.path.join(repo, 'README.md')))
+        links = re.findall(r'!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)', md) + re.findall(r'(?i)<img\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', md)
+        local = []
+        for l in links:
+            if re.match(r'(?i)^(https?:|data:)', l):
+                continue
+            p = re.sub(r'^\./|^/', '', l.split('#')[0].split('?')[0]).replace('%20', ' ')
+            if p not in local:
+                local.append(p)
+        for p in local:
+            if p not in tracked:
+                rep.error('repo: README', f'links {p}, which is not committed')
+        imgs = R['readme']['gameplay_images']
+        if len(local) < imgs['min']:
+            rep.error('repo: README', 'shows no gameplay image')
+        elif not imgs['recommended_min'] <= len(local) <= imgs['recommended_max']:
+            rep.warn('repo: README', f'{len(local)} images; the rule is a hero + gallery of {imgs["recommended_min"]}-{imgs["recommended_max"]} gameplay stills')
+        else:
+            rep.note('repo: README', f'{len(local)} images, all committed' if all(p in tracked for p in local) else f'{len(local)} images')
+    # banned names in tracked text files (LFS and binaries are scanned by the packager)
+    bn = R['banned_names']
+    rxs = [re.compile(p) for p in bn['patterns']]
+    labels = list(bn['patterns'])
+    exempt = [None] * len(rxs)
+    # the account name of this machine (machine paths with it included), read at run time, never written in the repo;
+    # not enforced in scripts (account_name.exempt_paths: Scripts/, the editor steps that ran and script files
+    # anywhere), which stay unchanged once they ran and are scrubbed at packaging
+    acct = os.environ.get('USERNAME') or os.path.basename(os.path.expanduser('~'))
+    if acct and len(acct) >= 4:
+        rxs.append(re.compile(r'(?i)(?<![A-Za-z0-9_])' + re.escape(acct) + r'(?![A-Za-z0-9_])'))
+        labels.append('the account name')
+        exempt.append(re.compile(bn.get('account_name', {}).get('exempt_paths', r'^Scripts/')))
+    skip = [re.compile(p) for p in bn['skip_paths']]
+    hits, nul = {}, []
+    for f in files:
+        if f in lfs or binary(f) or any(s.search(f) for s in skip):
+            continue
+        full = os.path.join(repo, f)
+        try:
+            if os.path.getsize(full) > 20 * 1024 * 1024:
+                continue
+            with open(full, 'rb') as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if b'\0' in data[:8192]:
+            nul.append(f)   # binary content under a text name (an .asset Unity wrote in binary)
+            continue
+        text = data.decode('utf-8', 'replace')
+        for rx, label, ex in zip(rxs, labels, exempt):
+            if ex is not None and ex.search(f):
+                continue
+            n = len(rx.findall(text))
+            if n:
+                hits.setdefault(f, []).append(f'{label} x{n}')
+    for f, h in list(hits.items())[:15]:
+        rep.error('repo: banned names', f'{f}: {", ".join(h)}')
+    if len(hits) > 15:
+        rep.error('repo: banned names', f'... {len(hits) - 15} more files')
+    for f in nul[:10]:
+        rep.warn('repo: LFS', f'binary content in plain git: {f} (give its type an LFS pattern in .gitattributes)')
+    # every asset with its .meta, no orphan .meta
+    check_meta(rep, files)
+    # assets.manifest.json: unified format, every listed file committed under Assets/, Packages/ or RawAssets/
+    if 'assets.manifest.json' in tracked:
+        try:
+            data = load_json(os.path.join(repo, 'assets.manifest.json'))
+        except ValueError as e:
+            rep.error('repo: assets.manifest.json', f'not JSON: {e}')
+            data = None
+        if data is not None:
+            check_assets_manifest(rep, 'repo: assets.manifest.json', data,
+                                  lambda p: any(t.startswith(p) for t in files) if p.endswith('/') else (p in tracked or any(t.startswith(p + '/') for t in files)))
+    # workflow.jsonl: same row schema as the dataset copy (the packager rewrites nothing else)
+    if 'workflow.jsonl' in tracked:
+        with open(os.path.join(repo, 'workflow.jsonl'), encoding='utf-8-sig', errors='replace') as f:
+            check_workflow(rep, 'repo: workflow.jsonl', f)
+    check_repo_tasks(rep, repo, files)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    ap.add_argument('repo', nargs='?', help='a game repo (games/<slug>)')
+    ap.add_argument('--dataset', help='validate only this dataset (Dataset.zip or a Dataset folder)')
+    ap.add_argument('--no-layout', action='store_true', help='skip tools/validate-dataset.ps1')
+    ap.add_argument('--content-only', action='store_true', help=argparse.SUPPRESS)  # used by validate-dataset.ps1
+    ap.add_argument('--no-zip', action='store_true', help="skip the repo's Dataset.zip")
+    ap.add_argument('--json', help='write the findings as JSON')
+    ap.add_argument('--quiet', action='store_true', help='print only errors and warnings')
+    ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
+    ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
+    a = ap.parse_args()
+    OPTS['hash'] = not a.no_hash
+    OPTS['quick'] = a.quick
+    if not a.repo and not a.dataset:
+        ap.error('give a game repo or --dataset')
+    rep = Report()
+    targets = []
+    if a.dataset:
+        targets.append((os.path.abspath(a.dataset), os.path.basename(os.path.normpath(a.dataset)) == 'Dataset'))
+    else:
+        repo = os.path.abspath(a.repo)
+        check_repo(rep, repo)
+        ds = os.path.join(repo, 'Dataset')
+        if os.path.isfile(os.path.join(ds, 'manifest.json')):
+            targets.append((ds, True))
+        else:
+            rep.warn('dataset', 'Dataset/ has no manifest.json: not packaged yet')
+        for z in ('Dataset.zip', 'Dataset.pending.zip'):
+            if not a.no_zip and os.path.isfile(os.path.join(repo, z)):
+                targets.append((os.path.join(repo, z), False))
+    for path, repo_ds in targets:
+        name = os.path.basename(path) if not repo_ds else 'Dataset/'
+        check_dataset(rep, path, f'dataset {name}')
+        if not a.no_layout and not a.content_only:
+            run_layout_validator(rep, path, repo_ds)
+    verdict = 'INVALID' if rep.count('error') else 'VALID'
+    print(f'{verdict}  {rep.count("error")} error(s), {rep.count("warning")} warning(s)  [{a.dataset or a.repo}]')
+    for sev, area, msg in rep.items:
+        if a.quiet and sev == 'note':
+            continue
+        mark = {'error': 'x', 'warning': '!', 'note': '-'}[sev]
+        print(f'  {mark} {area}: {msg}')
+    if a.json:
+        with open(a.json, 'w', encoding='utf-8') as f:
+            json.dump({'verdict': verdict, 'target': a.dataset or a.repo, 'findings': [dict(severity=s, area=ar, message=m) for s, ar, m in rep.items]}, f, indent=1)
+    sys.exit(2 if rep.count('error') else 0)
+
+
+if __name__ == '__main__':
+    main()
