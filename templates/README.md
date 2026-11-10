@@ -14,7 +14,8 @@ writes the first `workflow.jsonl` row (`project.create`); runs `git init -b main
 commit recorder to `post-commit` (`machine/install-git-hook.ps1`); makes the first commit; runs the first editor open
 (`Scripts/unity.ps1 setup`) and commits what it made, when the editor is installed (`-NoSetup` skips it); and creates
 the private GitHub repo `<org>/unity-game-<slug>` (`github_org` in the machine config, or `-Org`) as `origin` without
-pushing (`-NoGitHub` skips that; an existing repo of that name is never linked). It refuses names containing
+pushing (`-NoGitHub` skips that; an existing repo of that name is never linked: it may be another game's, or public).
+It refuses names containing
 Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes or backslashes (they land in C#
 string literals).
 
@@ -27,14 +28,14 @@ What the skeleton carries, and why:
 | File | Why |
 |---|---|
 | `ProjectSettings/ProjectVersion.txt` | pins the editor (6.3 LTS); every tool opens the project with exactly this version |
-| `ProjectSettings/EditorSettings.asset` | Force Text serialization and Visible Meta Files, so scenes, prefabs and materials diff as YAML and every GUID is in git; Unity fills the other fields on the first open |
-| `Packages/manifest.json` | the built-in modules only; the first open adds URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and Test Framework **by name**, so the Package Manager picks the versions that ship with the editor (no hand-written version that may not exist) |
-| `Assets/Editor/Tools/` (`<P>.EditorTools` assembly) | `WorkflowLog.cs` (a step's `workflow.jsonl` row, with the step's own file and sha256), `ProjectSetup.cs` (packages; TextMeshPro's essential resources into `Assets/TextMesh Pro`; player and editor settings), `BuildPlayer.cs` (Windows x64 player, IL2CPP release / Mono development, the backend setting put back afterwards) |
+| `ProjectSettings/EditorSettings.asset` | the file as Unity 6.3 writes it: Force Text serialization (`m_SerializationMode: 2`), so scenes, prefabs and materials diff as YAML, pinned before the first open; LF for new scripts. Visible Meta Files (every GUID in git) is in `VersionControlSettings.asset`, which the first open writes; both are Unity 6.3's defaults, and `ProjectSetup.Configure` sets them again |
+| `Packages/manifest.json` | the built-in modules only; the first open adds URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and Test Framework **by name**, so the Package Manager picks the version it recommends for the editor (no hand-written version that may not exist) |
+| `Assets/Editor/Tools/` (`<P>.EditorTools` assembly) | `WorkflowLog.cs` (a step's `workflow.jsonl` row, with the step's own file and the sha256 of it as committed), `ProjectSetup.cs` (packages; TextMeshPro's essential resources into `Assets/TextMesh Pro`; player and editor settings), `BuildPlayer.cs` (Windows x64 player, IL2CPP release / Mono development, the backend setting put back afterwards; after a failed build, the performance-testing package's leftovers in `Assets/Resources` removed) |
 | `Assets/Editor/Tools/Urp/` (`<P>.EditorTools.Urp`) | `UrpSetup.cs`: the URP renderer and pipeline asset, made the default and assigned to every quality level; compiled only once URP is installed (`defineConstraints` `HAS_URP`), so the project compiles before the packages are added |
 | `Assets/Editor/Steps/README.md` | where editor steps go and the rules that keep them replayable |
 | `Scripts/unity.ps1` | `setup`, `compile`, `step`, `test`, `build`, `play`: headless Unity and player runs through the machine's job limiter, logs in `Logs/unity-ps1/` |
-| `.gitignore` | root-anchored Unity output only (`/Library/`, `/Temp/`, `/Logs/`, `/UserSettings/`, `/Build/`, generated `*.csproj`/`*.sln`, ...) and local results: everything else is committed |
-| `.gitattributes` | `* text=auto`, Unity YAML as LF text, every binary type in LFS case-insensitively, and the Unity `.asset` files that stay binary (lighting, NavMesh, terrain data) |
+| `.gitignore` | root-anchored Unity output only (`/Library/`, `/Temp/`, `/Logs/`, `/UserSettings/`, `/Build/`, generated `*.csproj`/`*.sln`, ...), local results, and secrets and licence files anywhere (`.env`, `*.ulf`): everything else is committed |
+| `.gitattributes` | `* text=auto`, Unity YAML and C# as LF text, every binary type in LFS case-insensitively, and the Unity `.asset` files under `Assets/` that stay binary (lighting, NavMesh, terrain data) |
 | `Docs/ThirdPartyNotices.md`, `assets.manifest.json`, `Docs/screenshots/` | third-party credits; the asset manifest (`assets-manifest/v1`); README images |
 | `Dataset/` | the dataset placeholder (`Gameplay/`, `Screenshots/`, `ReplayScripts/`, README) |
 
