@@ -61,7 +61,7 @@
     },
     "AssetMeasure": {
       "additionalProperties": false,
-      "description": "The project as saved, read in one batchmode editor pass: an asset (`asset`, its path) with `prop:<path>` (reflection on the\nmain asset, else a SerializedObject property path), `import:<path>` (its importer's), `shader:<Property>` (a\nmaterial's shader property: a float, `.r|g|b|a` of a colour, 1 when a texture is set) or `keyword:<NAME>` (1 when\nthe material enables it); or objects of a scene (`scene`) or a prefab (`prefab`) that `select` matches, with\n`count`, `material_default` (1 when any renderer's slot is empty, missing or Unity's default material),\n`material:<property>`, `mesh_collision` (1 when a mesh object has a collider) or `prop:<Component>.<path>`.",
+      "description": "The project as saved, read in a headless editor pass: an asset's property (`asset` + prop:<path>, import:<path>,\nshader:<Property> or keyword:<NAME>), or objects of a scene or a prefab (`scene` or `prefab` + `select`).",
       "properties": {
         "asset": {
           "anyOf": [
@@ -193,7 +193,7 @@
     },
     "AtCamera": {
       "additionalProperties": false,
-      "description": "The player camera (Camera.main), `forward` m along its view.",
+      "description": "The player's camera, `forward` m along its view.",
       "properties": {
         "camera": {
           "const": true,
@@ -264,7 +264,7 @@
     },
     "AtXYZ": {
       "additionalProperties": false,
-      "description": "A fixed point in the world (m, Y up).",
+      "description": "A fixed point in the world (m).",
       "properties": {
         "xyz": {
           "items": {
@@ -284,7 +284,7 @@
     },
     "AudioMeasure": {
       "additionalProperties": false,
-      "description": "What the player hears (docs/task-probes.md, section 2.16): the AudioSources playing that `select` matches, each at its volume at the\nlistener (its volume, 0 when muted, times its distance attenuation by its rolloff, its 3D share by spatialBlend;\nmixer volumes and AudioListener.volume left out): `count` (how many), `audible` (how many at 0.001, -60 dB, or\nlouder), `volume` (their sum), `max_volume` (the loudest); `level` (the RMS of the listener's mixed output since\nthe previous sample, mixers and effects included). A play with an audio measure runs paced to real time with its\nsound measured and silenced. The volumes' and the level's threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
+      "description": "What the player hears (docs/task-probes.md, section 2.16): the AudioSources playing that `select` matches, each at its volume at the\nlistener (its own volume, 0 when muted, times its distance attenuation by its rolloff, its 3D share by spatialBlend;\nmixer volumes and AudioListener.volume left out): `count` (how many), `audible` (how many at 0.001, -60 dB, or\nlouder), `volume` (their sum), `max_volume` (the loudest); `level` (the RMS of the listener's mixed output since\nthe previous sample, mixers and effects included). A play with an audio measure runs paced to real time with its\nsound measured and silenced. The volumes' and the level's threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -457,7 +457,7 @@
     },
     "Axis": {
       "additionalProperties": false,
-      "description": "An axis control set to a value (<Mouse>/delta/x, <Gamepad>/leftStick/x), e.g. mouse look: <Mouse>/delta/* and\n<Mouse>/scroll/* are one-frame impulses; any other axis keeps its value until set again.",
+      "description": "An axis event (<Mouse>/delta/x, <Gamepad>/leftStick/x) with its value, e.g. mouse look; <Mouse>/delta/* and\n<Mouse>/scroll/* are one-frame impulses, any other axis keeps its value until set again.",
       "properties": {
         "axis": {
           "maximum": 1000,
@@ -487,7 +487,7 @@
     },
     "Boot": {
       "additionalProperties": false,
-      "description": "The game starts (the built player, windowed 960x540, its window moved off-screen) and runs `seconds` with no crash and\nno fatal error in its player log.",
+      "description": "The game starts (the built player, windowed 960x540 on a desktop of its own) and runs `seconds` with no crash\nand no fatal error in its player log.",
       "properties": {
         "kind": {
           "const": "boot",
@@ -535,7 +535,7 @@
     },
     "Build": {
       "additionalProperties": false,
-      "description": "The scripts compile and a Windows player builds (x64, Mono, non-development, of the scratch copy). `fails_at_start`:\nthe task's start doesn't build, and making it build is the task (a compile error Unity rejects); the start is never\nplayed, so nothing in the task may need it played (docs/task-probes.md, section 3.1; tools/validate-game.py).",
+      "description": "The scripts compile and a Windows player builds (x64, Mono, non-development, of the scratch copy).\n`fails_at_start`: the task's start doesn't build, and making it build is the task (a compile error the engine\nrejects); the start is never played, so nothing in the task may need it played (docs/task-probes.md, section\n3.1; tools/validate-game.py).",
       "properties": {
         "fails_at_start": {
           "default": false,
@@ -611,7 +611,6 @@
     },
     "CameraMeasure": {
       "additionalProperties": false,
-      "description": "The player camera (Camera.main, else the enabled camera of highest depth that renders to the screen): `distance`\n(m to the player), `height` (its y minus the player's), `pitch` (positive looks down), `yaw` (degrees, as the\nInspector shows them), `fov` (vertical, degrees; 0 for an orthographic camera), `occluded` (a collider that isn't\nthe player's lies between the camera and the player's centre), `player_on_screen` (the player's centre projects\ninside the viewport, in front).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -825,7 +824,7 @@
     },
     "ComponentSelect": {
       "additionalProperties": false,
-      "description": "Components of a C# type (`component`: ParticleSystem, DecalProjector, AudioSource, Light, a game's own MonoBehaviour;\nbase types and interfaces match), optionally on an object the `owner` select matches (or its descendants), by\nits object's name (`name`, a wildcard), near a point, of a mesh renderer's mesh (`mesh`, a wildcard), and\n`visible`: only the components drawn (as the `visible` field reads them); `effect`: only live effects, whatever\nmade them (a ParticleSystem playing or holding particles, a VisualEffect holding particles, an enabled\nDecalProjector, a TrailRenderer drawing points), with or without `component` (docs/task-probes.md, section 2.5).",
+      "description": "Components of a C# type (`component`: ParticleSystem, DecalProjector, AudioSource, a game's own MonoBehaviour; its\nbase types and interfaces match), optionally on an object the `owner` select matches or its descendants, by its\nobject's name (`name`, a wildcard), near a point, of a mesh component's mesh asset (`mesh`, a wildcard), and\n`visible`: only the components drawn (as the `visible` field reads them); `effect`: only live effects, whatever\nmade them (a ParticleSystem playing or holding particles, a VisualEffect holding particles, an enabled\nDecalProjector, a TrailRenderer drawing points), with or without `component`; `inactive`: components of inactive\nobjects too, else only those of objects active in the hierarchy (docs/task-probes.md, section 2.5).",
       "properties": {
         "component": {
           "anyOf": [
@@ -852,6 +851,19 @@
           ],
           "default": null,
           "title": "Effect"
+        },
+        "inactive": {
+          "anyOf": [
+            {
+              "const": true,
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inactive"
         },
         "mesh": {
           "anyOf": [
@@ -913,20 +925,6 @@
           ],
           "default": null,
           "title": "Visible"
-        },
-        "inactive": {
-          "anyOf": [
-            {
-              "const": true,
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Inactive",
-          "description": "true: components of objects that are not active in the hierarchy match too (default: only those of active objects)."
         }
       },
       "title": "ComponentSelect",
@@ -934,7 +932,7 @@
     },
     "ComponentsMeasure": {
       "additionalProperties": false,
-      "description": "Components (docs/task-probes.md, section 2.5): `active` (enabled and active in the hierarchy; a ParticleSystem also playing or\nholding particles; an AudioSource playing); `visible` (a Renderer enabled, active and not forced off; any other\ncomponent: its object is active); `x`, `y`, `z` and `speed` (m/s) and `spin` (deg/s) of its transform;\n`extent_x|y|z` (a Renderer's or Collider's world bounds' half-size, m) and `simulating`; `intensity` and `on`\n(enabled, active, an intensity above 0) of a Light; `changed` (1 when a Renderer differs from the first sample it\nwas seen in: hidden or shown, its world bounds moved, a skinned mesh's pose moved), `bounds_change` and\n`pose_change` (m, the amounts behind it); `lit` (1 when it gives off light: a Light that is on, or a drawn mesh\nwhose material is emissive or unlit and bright, read from its properties where its shader has the standard\ninterface and else as rendered) and `glow` (how much, one amount over every kind of source, particle systems\namong them; docs/task-probes.md, sections 2.4 and 2.5), the way to check for light whatever a build made it with;\n`prop:<path>` (a field or property of the component by reflection; strings through `match`). `intensity`,\n`extent_*`, `bounds_change`, `pose_change`, `glow` and `spin` depend on what a build chose, so their threshold is\ncalibrated or relative to the start, never a literal (tools/validate-game.py).",
+      "description": "Components (docs/task-probes.md, section 2.5): `x`, `y`, `z` and `speed` (m/s: its object's own velocity, a\nRigidbody's, CharacterController's or NavMeshAgent's, when it isn't zero, else how far it moved since the\nprevious sample) of its transform; `extent_x|y|z` (its world bounds' half-size) of a Renderer or a Collider;\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D on its object, or a collider's attached body);\n`intensity` and `on` (it lights the scene: enabled, active, an intensity above 0) of a Light;\n`changed` (1 when the Renderer differs from the first sample it was seen in: hidden or shown, its world bounds\nmoved, a skinned mesh's pose moved), `bounds_change` and `pose_change` (m, the amounts behind it); `lit` (1 when\nit gives off light: a Light that is on, or a drawn mesh whose material is emissive or unlit and bright, read from\nits properties where its shader has the standard interface and else as rendered) and `glow` (how much, one\namount over every kind of source, particle systems among them; docs/task-probes.md, sections 2.4 and 2.5), the\nway to check for light whatever a build made it with; `spin` (deg/s: how fast it turns in the world, from its\nrotation every frame; docs/task-probes.md, section 2.5); `prop:<path>` (a field or property of the component, by\nreflection; strings through `match`). `intensity`, `extent_*`, `bounds_change`, `pose_change`, `glow` and `spin`\ndepend on what a build chose, so their threshold is calibrated or relative to the start, never a literal\n(tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -1115,7 +1113,7 @@
     },
     "DrawnMeasure": {
       "additionalProperties": false,
-      "description": "What is drawn in a place, whatever draws it (docs/task-probes.md, section 2.19): every renderer drawn whose bounds reach the place\n(`near` a point, its height band applied; or within `radius` of a `line`), rendered alone from fixed orthographic\nviews, each pixel kept where its depth puts it inside the place. Near a point: `drawn` (1 when anything is),\n`motion` (the share of what is drawn there that changed since the previous sample: a moving mesh, particles, a\nscrolled material), `base_r|g|b` (the mean surface colour, rendered under flat white ambient light with no direct\nlights, fog or post-processing, linear 0-1) and `base_change` (that colour's distance from the first sample's).\nAlong a line: `drawn`, `reach` (m from `from` to the furthest point drawn on it) and `length` (m of it drawn).\nEvery field but `drawn` depends on what a build drew, so its threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
+      "description": "What is drawn in a place, whatever draws it (docs/task-probes.md, section 2.19): every renderer drawn whose bounds reach the place\n(`near` a point, its height band applied; or within `radius` of a `line`), rendered alone from fixed orthographic\nviews, each pixel kept where its depth puts it inside the place. Near a point: `drawn` (1 when anything is),\n`motion` (the share of what is drawn there that changed since the previous sample: a moving mesh, particles, a\npanned material), `base_r|g|b` (the mean rendered base colour, linear 0-1) and `base_change` (that colour's\ndistance from the first sample's). Along a line: `drawn`, `reach` (m from `from` to the furthest point drawn on\nit) and `length` (m of it drawn). Every field but `drawn` depends on what a build drew, so its threshold is\ncalibrated or relative to the start, never a literal (tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -1319,7 +1317,6 @@
     },
     "GradingMeasure": {
       "additionalProperties": false,
-      "description": "The colour pipeline (docs/task-probes.md, section 2.8): a neutral grey lit by the key light and run through URP's colour grading as\nthe volume stack at the camera sets it: `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast`; or a volume\nparameter after blending, `post:<Component>.<parameter>` (post:Bloom.intensity, post:ColorAdjustments.postExposure).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -1453,7 +1450,7 @@
     },
     "GroundMeasure": {
       "additionalProperties": false,
-      "description": "The ground (docs/task-probes.md, section 2.17): where a ray straight down from 2000 m up meets a collider first (triggers and the\nplayer's aside; with `select`, only colliders of objects it matches count), at a point `xz` [x, z] (`height`, y in\nm; `hit`, 1 when it met anything) or over a box `box` [x0, z0, x1, z1] sampled on a `grid` x `grid` lattice\n(`min`, `max`, `mean` of the heights, `range` = max - min, the relief; `hits`). `range`'s threshold is calibrated\nor relative to the start, never a literal (tools/validate-game.py).",
+      "description": "The ground (docs/task-probes.md, section 2.17): where a ray straight down meets a collider first (triggers and the player's\naside; with `select`, only colliders of objects it matches or of their descendants count), at a point `xz` [x, z]\n(`height`, y in m; `hit`, 1 when it met anything) or over a box `box` [x0, z0, x1, z1] sampled on a `grid` x\n`grid` lattice (`min`, `max`, `mean` of the heights, `range` = max - min, the relief; `hits`). `range`'s threshold\nis calibrated or relative to the start, never a literal (tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -1632,7 +1629,7 @@
     },
     "Has": {
       "additionalProperties": false,
-      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (drawn, as\nthe components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D), `movable` (not static: a transform a player can\nshove).",
+      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (a Renderer\ndrawn, as the components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D), `movable` (its object isn't static): an object\na player can shove (docs/task-probes.md, section 2.4).",
       "minProperties": 1,
       "properties": {
         "component": {
@@ -1799,7 +1796,7 @@
     },
     "Key": {
       "additionalProperties": false,
-      "description": "A control pressed or released on the probe's virtual devices: an Input System control path on <Keyboard>,\n<Mouse> or <Gamepad> (<Keyboard>/w, <Keyboard>/space, <Mouse>/leftButton, <Gamepad>/buttonSouth).",
+      "description": "A key pressed or released (Input System control paths on <Keyboard>, <Mouse> or <Gamepad>: <Keyboard>/w,\n<Keyboard>/space, <Mouse>/leftButton, <Gamepad>/buttonSouth).",
       "properties": {
         "key": {
           "pattern": "^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$",
@@ -1827,7 +1824,6 @@
     },
     "LightMeasure": {
       "additionalProperties": false,
-      "description": "Light reaching a point, as URP computes it (docs/task-probes.md, section 2.7): `illuminance` (the lights that are on, each by its\nintensity, colour, distance and cone attenuation and a visibility test, plus the ambient), `exposure` (2^postExposure\nof the volume stack at the camera), `brightness` (illuminance x exposure).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -2276,7 +2272,6 @@
     },
     "ObjectsMeasure": {
       "additionalProperties": false,
-      "description": "GameObjects (docs/task-probes.md, section 2.4): `count`; `x`, `y`, `z` (m, Y up); `yaw`, `pitch`, `roll` (euler Y, X, Z, as the\nInspector shows them, in (-180, 180]); `scale` (mean of |lossyScale|); `extent_x|y|z` (m, the world-aligned\nhalf-size of its drawn renderers' bounds, descendants included); `active` (activeInHierarchy); `hidden` (inactive,\nor none of its renderers drawn); `collision` (an enabled non-trigger collider); `speed` (m/s); `spin` (deg/s);\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D); `spread` (m, the diagonal of the box around its\ndrawn renderers' centres); `changed`, `bounds_change`, `pose_change` (m) against the first sample it was seen in;\n`lit` and `glow` (as the components fields, over its parts); `prop:<Component>.<member>[.<sub>]` (a field or\nproperty by reflection; `prop:<member>` alone reads the GameObject, else its Transform; strings through `match`);\n`bone:<Component>.<Bone>.x|y|z`; `rel_yaw:<Part>`, `world_yaw:`/`world_pitch:`/`world_roll:<Part>`,\n`forward:<Part>.x|y|z` (a Part is a descendant by name, else the first object in it carrying a component of that\ntype); `facing_vs_velocity` (degrees); `anim:<Parameter>` (its Animator's parameter); `clip` (its Animator's\ncurrent clip on layer 0, through `match`). `spin`, `spread`, `bounds_change`, `pose_change` and `glow` depend\non what a build chose, so their threshold is calibrated or relative to the start, never a literal\n(tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -2469,7 +2464,7 @@
     },
     "PieceSelect": {
       "additionalProperties": false,
-      "description": "Drawn mesh pieces (docs/task-probes.md, section 2.14): of renderers of a C# type (MeshRenderer, SkinnedMeshRenderer, Terrain for its\ntree instances; default every one), optionally by their object's name, their mesh's name (`mesh`, a\nwildcard), an owner object the `owner` select matches, and near a point (each piece by its own place).",
+      "description": "Placed mesh pieces (docs/task-probes.md, section 2.14): of renderers of a C# type (MeshRenderer, SkinnedMeshRenderer, Terrain for its\ntree instances; default every one), optionally by their object's name, their mesh asset's name (`mesh`, a\nwildcard), an owner object the `owner` select matches, and near a point (each piece by its own place).",
       "properties": {
         "component": {
           "anyOf": [
@@ -2538,7 +2533,7 @@
     },
     "PiecesMeasure": {
       "additionalProperties": false,
-      "description": "Drawn mesh pieces, whatever their form (docs/task-probes.md, section 2.14): a MeshRenderer with a mesh that has triangles is one, a\nSkinnedMeshRenderer one, a Terrain's tree instances one each; under a LODGroup only LOD 0's renderers count;\ncounted over all of them, never cut at the rows cap. `components` (renderers), `objects` (their objects).\n`triangles`/`visible_triangles`: the triangles those pieces (those drawn) hold (index count / 3 over their\nsubmeshes); they depend on the meshes a build chose, so their threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
+      "description": "Placed mesh pieces, whatever their form (docs/task-probes.md, section 2.14): a MeshRenderer whose mesh has triangles is one, a\nSkinnedMeshRenderer one, a Terrain's tree instances one each, under a LODGroup only LOD 0's; counted over all of\nthem, never cut at the rows cap. `triangles`/`visible_triangles`: the triangles those pieces (those drawn) hold;\nthey depend on the meshes a build chose, so their threshold is calibrated or relative to the start, never a\nliteral (tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -2667,7 +2662,6 @@
     },
     "PlayerMeasure": {
       "additionalProperties": false,
-      "description": "The player (the task's `player` select, else the first active object tagged Player, else one with a PlayerInput,\nelse one with a CharacterController, else the root of the main camera), from its track: `x`, `y` (height, Y up),\n`z` (m), `speed` (m/s), `moved` (m since the start), `dist` (m to the point `to`).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -3144,7 +3138,7 @@
     },
     "Seed": {
       "additionalProperties": false,
-      "description": "Where a seeded task starts: one of the studio's Unity games at `commit`. `game` is its slug: the game's repository\n(unity-game-<slug>) and its folder under the machine's games root. Both commits are Unity 6000.3 projects as\ncommitted (ProjectSettings/ProjectVersion.txt; tools/validate-game.py).\n`reference`: a later commit of that game whose change solves the task (a bug's fix), for calibrated probes, the code judge and the task check.\n`history`: which history the two commits are from: \"private\", the game's own repository (its clone,\nGitHub, a mirror), or \"dataset\", the rewritten history a Dataset.zip delivers (History/), whose\ncommit ids differ; the game's commit map translates either way.",
+      "description": "Where a seeded task starts: one of the studio's games at `commit`. `game` is its slug: the game's repository\n(unity-game-<slug>) and its folder under the machine's games root.\n`reference`: a later commit of that game whose change solves the task (a bug's fix), for calibrated probes, the code judge and the task check.\n`history`: which history the two commits are from: \"private\", the game's own repository (its clone,\nGitHub, a mirror), or \"dataset\", the rewritten history a Dataset.zip delivers (History/), whose\ncommit ids differ; the game's commit map translates either way.",
       "properties": {
         "commit": {
           "pattern": "^[0-9a-f]{40}$",
@@ -3307,7 +3301,6 @@
     },
     "SpawnsMeasure": {
       "additionalProperties": false,
-      "description": "Objects carrying the component (a C# type) that appeared (became active) or went, counted every frame since the play\nstarted (cumulative; the checker differences them).",
       "properties": {
         "agg": {
           "anyOf": [
@@ -3493,7 +3486,7 @@
     },
     "TaskPlay": {
       "additionalProperties": false,
-      "description": "A task-defined scripted play: `inputs` (controls, axes, widget clicks, cursor moves, teleports, waits) sent at their times\nduring `seconds`, and samples every `every` seconds (default 0.5). `scene` and `args`, when the key is present,\ntake the place of the task's play_scene and play_args for this play (null: the project's first build scene;\n[]: no arguments). Arguments are the player's command line (a flag, -name, then its values), never the grader's\nown: -batchmode, -nographics, -quit, -logFile, -projectPath, -executeMethod, -popupwindow, -monitor,\n-parentHWND, -single-instance, -screen-*, -force-*, -taskProbe* (docs/task-probes.md section 1.1; tools/validate-game.py).",
+      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5).",
       "properties": {
         "args": {
           "items": {
@@ -3582,7 +3575,7 @@
     },
     "Teleport": {
       "additionalProperties": false,
-      "description": "The player placed at `teleport` (m) facing `yaw` (degrees about Y): the grader's own way to reach a test spot; `hold`:\nfor that many seconds of play the player is put back there after every frame's game logic, for a game that sets\nits player's place every frame (docs/task-probes.md, section 1.1).",
+      "description": "The player placed at `teleport` (m) facing `yaw`: the grader's own way to reach a test spot; `hold`: for that\nmany seconds of play the player is put back there after every frame's game logic, for a game that sets its\nplayer's place every frame (docs/task-probes.md, section 1.1).",
       "properties": {
         "hold": {
           "anyOf": [
@@ -4062,7 +4055,6 @@
     },
     "WidgetsMeasure": {
       "additionalProperties": false,
-      "description": "Widgets (docs/task-probes.md, section 2.6): uGUI and UI Toolkit. `count`, `visible`, `text` (with `match`), `percent` (a Slider's\nnormalizedValue, a filled Image's fillAmount, a ProgressBar's share, a Scrollbar's value), `value` (a Slider's\nvalue, a Toggle's 1/0), `interactable`, `has_brush` (a sprite, texture or background image is set), `brush` (its\nname, with `match`), `x`, `y`, `w`, `h` (viewport fractions 0-1, y down from the top).",
       "properties": {
         "agg": {
           "anyOf": [
