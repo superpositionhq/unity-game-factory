@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Create a new Unity game repo from templates\unity-game (Unity 6.3 LTS): project skeleton (version pin, Visible Meta
-  Files + Force Text, the editor tools assembly), Scripts\unity.ps1 (headless Unity runs through the heavy-job
-  limiter), first workflow.jsonl row, git + LFS, the post-commit hook (commit recorder), first commit, the first editor
-  open (packages, URP, settings; a second commit) when the editor is installed, and the private GitHub repo
-  <org>/unity-game-<slug> (not pushed; <org> = -Org, else the config's github_org).
+  Create a new game repo from templates\unity-game (Unity 6.3 LTS): project skeleton (version pin, Visible Meta Files +
+  Force Text, the editor tools assembly), Scripts\unity.ps1 (builds, editor steps, tests and plays through the
+  heavy-job limiter), first workflow.jsonl row, git + LFS, the post-commit hook (commit recorder), first commit, the
+  first editor open (packages, URP, settings; a second commit) when the editor is installed, and the private GitHub
+  repo <org>/unity-game-<slug> (not pushed; <org> = -Org, else the config's github_org).
 .DESCRIPTION
   Placeholders replaced in file names and contents: __PROJECT__ (C# namespace / assembly prefix / exe name), __SLUG__,
   __TITLE__, __DESCRIPTION__, __UNITY_VERSION__. The editor version is -UnityVersion, else the config's unity_version
@@ -151,7 +151,8 @@ if (-not $NoGitHub) {
     & gh repo view $full --json name 2>&1 | Out-Null
     $exists = ($LASTEXITCODE -eq 0)
     if ($exists) {
-        Write-Warning "$full already exists: not linked (another game uses the slug?). Check it, then: git remote add origin https://github.com/$full.git"
+        # never linked unseen: it may be another game's (same slug) or public, and a push would ship store content there
+        Write-Warning "$full already exists: not linked. Check that it is this game's and private, then: git remote add origin https://github.com/$full.git"
     } else {
         & gh repo create $full --private --description $Title 2>&1 | Out-Host
         if ($LASTEXITCODE -eq 0) {
