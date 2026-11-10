@@ -19,7 +19,7 @@ a field means is there; this file holds what an implementer needs beyond it.
 |---|---|
 | actor | **object**: a GameObject. Its **parts** are the components of itself and its descendants |
 | pawn (the player pawn) | **player**: the first object the task's `player` select matches (when it matches nothing there is no player: no fallback), else the first in hierarchy order (section 3) of the active objects tagged `Player` (`GameObject.FindGameObjectsWithTag`), else of those with a `PlayerInput`, else of those with a `CharacterController` (`FindObjectsByType`), so the same one in every play; else the root of the player camera (next row); looked up again before the game's scripts, after their Updates and after their LateUpdates (`Probe.Stamp`, `Probe.FindPlayer`) |
-| player camera | `Camera.main` (an enabled camera tagged MainCamera), else the enabled camera of highest depth that renders to the screen (no target texture) |
+| player camera | `Camera.main` (an enabled camera tagged MainCamera), else the enabled camera of highest depth that renders to the screen (no target texture), of several at that depth the first in hierarchy order (`Probe.View`, looked up once a pass) |
 | map, `play_map` (`/Game/Maps/L_X?Scenario=2`) | scene: `play_scene` (`Assets/Scenes/X.unity`) and `play_args` (`["-scenario", "2"]`) |
 | component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component` (a component on the object itself), a `has`, a components, pieces or widgets select, `spawns`, a widget click and a Part match the type, its base types and its interfaces (an interface: the components that implement it), and a short name two types share means both; a name no component can be of matches nothing and says so once (`<kind> <id>: no component type <name>`) |
 | UMG / Slate widget | **widget**: a uGUI component's object or a UI Toolkit element |
@@ -131,8 +131,10 @@ The validator's rules beyond the original's (`probe_errors`, `task_semantic_erro
   a ui measure's only), so none can stop the task check;
 - the task's `player` select names no `player` and no point on the player (it says which object the player is);
 - a project path (an asset measure's `asset`, `scene` or `prefab`, the task's `play_scene`, a task play's `scene`) has
-  no `.` or `..` part (`dotted`: `<path> has a "." or ".." part: name the file by its own path under Assets/ or
-  Packages/`), so a task names no file outside `Assets/` and `Packages/` (the editor pass and the build refuse one too);
+  no `.` or `..` part and no empty one (`dotted`: `<path> has a "." or ".." part: name the file by its own path under
+  Assets/ or Packages/`, `<path> has an empty part ("//", or a "/" at its end): name the file by its own path under
+  Assets/ or Packages/`), so a task names no file outside `Assets/` and `Packages/` (the editor pass and the build
+  refuse such a path too: `AssetPass.InProject`);
 - a warning, never an error, when a `teleport_to`, an object point or an `"of": "first"` measure takes its one object
   by a wildcard name and nothing else: a spawner, a pool or a parent named like the things fits too (the sample game's
   `teleport_to` `Coin*` went to `CoinSpawner`).
@@ -158,7 +160,8 @@ The task check's rules differ from the original's in six places, each a case the
 - "no value in the window (nothing it selects was measured); the probe said: <error>" quotes only an error about that
   measure's own query (a `query_errors` line starting `<kind> <id>:`, `<kind> <id> (` or `<kind>: `), never another
   query's, but for a measure read off a render (`drawn`; an object's or a component's `lit` and `glow`), which also
-  quotes the renderer's own `rendering: ...` line (`probes._own_errors`; the original quotes the play's first error);
+  quotes the renderer's own `rendering: ...` line, and for `lit` and `glow` then a light source's own render line
+  (`lit/glow: <ExceptionType> in a render (...)`) (`probes._own_errors`; the original quotes the play's first error);
 - a sample without the player (a `[t]` track row) or without a camera row has no value for the player's and the
   camera's own fields, so a play that ran but never found them fails "no value in the window", not "no samples" (the
   original drops those rows, and the still-works excuse above would then cover a broken `player` select)
@@ -186,21 +189,23 @@ original's, unchanged (`probes.py`).
   DontDestroyOnLoad scene last; in a scene, its roots in the player's own root list (`Scene.GetRootGameObjects`, neither
   the editor's Hierarchy order nor the order they were made in; a built player reports every root's sibling index as 0),
   then sibling indices; several components of one object in the Inspector's order. The lists are read once a pass
-  (`Probe.Stamp`), and the order is the same in every play of one build. An object select's `component` is a component
-  on the object itself (`Reflect.ComponentNamed(go, name, false)`); a `has` takes the components of the object and of
-  its descendants active in the hierarchy (any descendant with `inactive`), its Transform among them and the probe's own
-  never, and tests `lit` last, as the original does, since it may render (`Find.Carries`). A tag is looked up once
-  (`TagHandle`): one the project doesn't define matches nothing and writes nothing into the game's log. Points nest as
-  deep as the original's (`Find.MaxDepth` 3: two object selects inside a select's points, the second without a point of
-  its own); a point tries its forms in the original's order (`xyz`, `player`, `camera`, `object`). Every match is read;
-  `RowSet` keeps the first 200 as rows and, when more matched, writes `total` and `full`, an entry for every field asked
-  for, in the order asked. A select that matches nothing writes an empty `rows` (no `total`, no error): the checker
-  reads a `count` of 0 and no value for any other field. Every row has `name` and `class`, for the logs: an object row's
-  `class` is its first MonoBehaviour's type, else its first Behaviour or Renderer, else its first other component
-  (Transform, MeshFilter and the probe's own aside), else `GameObject` (`ObjectRead.ClassOf`); a component row's `class`
-  is its type, and its `name` and `owner` are both its object's name (a Unity component has no name of its own). A field
-  with no value is left out of its row. Every trace the probe casts (the camera's, the light's wall checks, the
-  ground's) uses `Physics.DefaultRaycastLayers` and ignores triggers, so the Ignore Raycast layer never blocks one.
+  (`Probe.Stamp`), and a root made during the pass (by a click's handler, a getter) is placed by its scene's root list
+  read again, never tied with another new root (`Find.RootIndex`), so the order is the same in every play of one build.
+  An object select's `component` is a component on the object itself (`Reflect.ComponentNamed(go, name, false)`); a
+  `has` takes the components of the object and of its descendants active in the hierarchy (any descendant with
+  `inactive`), its Transform among them and the probe's own never, and tests `lit` last, as the original does, since it
+  may render (`Find.Carries`). A tag is looked up once (`TagHandle`): one the project doesn't define matches nothing and
+  writes nothing into the game's log. Points nest as deep as the original's (`Find.MaxDepth` 3: two object selects
+  inside a select's points, the second without a point of its own); a point tries its forms in the original's order
+  (`xyz`, `player`, `camera`, `object`). Every match is read; `RowSet` keeps the first 200 as rows and, when more
+  matched, writes `total` and `full`, an entry for every field asked for, in the order asked. A select that matches
+  nothing writes an empty `rows` (no `total`, no error): the checker reads a `count` of 0 and no value for any other
+  field. Every row has `name` and `class`, for the logs: an object row's `class` is its first MonoBehaviour's type, else
+  its first Behaviour or Renderer, else its first other component (Transform, MeshFilter and the probe's own aside),
+  else `GameObject` (`ObjectRead.ClassOf`); a component row's `class` is its type, and its `name` and `owner` are both
+  its object's name (a Unity component has no name of its own). A field with no value is left out of its row. Every
+  trace the probe casts (the camera's, the light's wall checks, the ground's) uses `Physics.DefaultRaycastLayers` and
+  ignores triggers, so the Ignore Raycast layer never blocks one.
 - **player**, **camera** (the original's pawn and player camera manager): the checker computes every field but two from
   the track rows `[t, x, y, z]` (the player's transform position, its pivot; `[t]` without a player) and the camera
   rows `[t, x, y, z, pitch, yaw, fov]` of the player camera (section 1) the probe writes every sample (`probes.series`;
@@ -272,44 +277,53 @@ original's, unchanged (`probes.py`).
     interface the probe knows, decided by the shader alone, never by its values (`Glow.FaceOf`; the original evaluates
     its material graphs), and no texture is on the property read: unlit (a name containing `unlit` in any case, with
     `_BaseColor` or `_Color`, its texture `_BaseMap` or `_MainTex`) or emissive (`_EmissionColor` and a declared
-    `_EMISSION` keyword: the emission colour when the keyword is enabled, its texture `_EmissionMap`). A Shader Graph (a
-    shader named `Shader Graphs/...`, or tagged `ShaderGraphShader`) has neither, whatever its properties.
-    MaterialPropertyBlocks count (the slot's, then the renderer's); in a linear project a material's colour is made
-    linear unless its shader marks the property `[HDR]` (`Shader.GetPropertyFlags`), which Unity hands to the shader as
-    the material holds it, and a block's colour is made linear (a block knows no shader). The brightest material counts
-    over the renderer's whole box: lit above a luminance of 0.01 (`Glow.Floor`, the original's), glow that luminance
-    times a quarter of the surface of the box a glow render frames (`DrawnRender.LocalBox`: its local bounds turned and
-    scaled with it, a skinned mesh's in its root bone's frame; m2);
-  - a mesh with a texture on the property read (unless its colours alone are at or under the floor: dark) or with
-    another shader, any other part (a sprite, a line: what it draws is its own, not its material's), and every live
-    effect: as rendered (`DrawnRender.Glow`, the `drawn` render below; the original's scene capture): the renderer alone
-    with every Light off and a black ambient, from the four corners of a tetrahedron in its own frame (a mesh's local
-    box turned and scaled with it, a skinned mesh's in its root bone's frame, anything else's world box), orthographic,
-    128 x 128, HDR. Lit when its brightest pixel's luminance is above 0.01; glow the views' luminance x pixel area
-    summed, over the area of the box they see, times a quarter of the box's surface. At most 64 such renders a pass
-    across every query (`DrawnRender.GlowBudget`; a pass is `Probe.Stamp`'s: the inputs before the game's scripts and
-    the samples after them each have their own), each renderer once a pass, none on the UI layer; past that a mesh whose
-    materials have the interface reads the bound they give (a texture taken as white), anything else no value that
-    sample;
+    `_EMISSION` keyword: the emission colour when the keyword is enabled, its texture `_EmissionMap`), and no
+    MaterialPropertyBlock sets that colour or texture. A Shader Graph (a shader named `Shader Graphs/...`, or tagged
+    `ShaderGraphShader`) has neither, whatever its properties. In a linear project a material's colour is made linear
+    unless its shader marks the property `[HDR]` (`Shader.GetPropertyFlags`; URP Lit's `_EmissionColor`), which Unity
+    hands to the shader as the material holds it (`Glow.ColourOf`). A MaterialPropertyBlock (the slot's, then the
+    renderer's) that sets the colour or texture read makes the mesh read as rendered: its value may have been set as a
+    colour, which the shader gets made linear, or as a vector, which it gets as it is, and the block tells neither
+    apart; past the budget its bound is the larger of the two. The brightest material counts over the renderer's whole
+    box: lit above a luminance of 0.01 (`Glow.Floor`, the original's), glow that luminance times a quarter of the
+    surface of the box a glow render frames (`DrawnRender.LocalBox`: its local bounds turned and scaled with it, a
+    skinned mesh's in its root bone's frame; m2);
+  - a mesh with a texture or a property block's value on the property read (unless its colours alone are at or under the
+    floor: dark) or with another shader, any other part (a sprite, a line: what it draws is its own, not its
+    material's), and every live effect: as rendered (`DrawnRender.Glow`, the `drawn` render below; the original's scene
+    capture): the renderer alone with every Light off and a black ambient, from the four corners of a tetrahedron in its
+    own frame (a mesh's local box turned and scaled with it, a skinned mesh's in its root bone's frame, anything else's
+    world box), orthographic, 128 x 128, HDR. Lit when its brightest pixel's luminance is above 0.01; glow the views'
+    luminance x pixel area summed, over the area of the box they see, times a quarter of the box's surface. At most 64
+    such renders a pass across every query (`DrawnRender.GlowBudget`; a pass is `Probe.Stamp`'s: the inputs before the
+    game's scripts and the samples after them each have their own), each renderer once a pass, none on the UI layer;
+    past that a mesh whose materials have the interface reads the bound they give (a texture taken as white), anything
+    else no value that sample;
   - a row with `lit` or `glow` carries `glow_sources` (the kinds lit: `light`, `emissive`, `unlit`, `effect`) and
     `glow_read` (`props`, `render`, `bound`, or `unread`: no way to read one; the original's `graph`, `render`,
     `bound`);
-  - measured: about 3 ms a glow render.
+  - measured: about 2.5 ms a glow render, 4 to 5 ms in a scene of 4,000 renderers.
 - **widgets** (the original's UMG widgets; `WidgetsQuery`, `UiScan`): uGUI (`UnityEngine.UI` Graphics and Selectables,
   TextMeshPro) on every canvas of the loaded scenes, world-space ones included (their rect projected through the player
-  camera), and every element of every `UIDocument`'s panel (UI Toolkit). One row per GameObject or element: `class` the
-  matched component's type, else the object's Selectable, else its text or graphic (an element: its type). `component`
-  matches a uGUI object as an object select does (a component on the object itself, `Reflect.ComponentNamed`) and a UI
-  Toolkit element by its type (`Reflect.IsA`), so `Button` takes uGUI and UI Toolkit buttons alike; an unnamed UI
-  Toolkit element is named by its type in its row and in a `name` select. A rect is in viewport fractions, y down from
-  the top, whatever render mode or panel scale placed it. On screen (`visible`, and `ui` below) means drawn and of some
-  size inside the frame: active, enabled, every Canvas up the chain enabled, an alpha above 0.004 all the way up
-  (`UiScan.AlphaFloor`: CanvasGroups, the graphic's colour, its CanvasRenderer), not culled by a RectMask2D, on a canvas
-  drawn on the screen (not an overlay canvas on another display, nor a camera canvas whose camera renders into a texture
-  or on another display); for a UI Toolkit element, displayed and of an opacity above 0.004 down the tree, its own
-  resolved visibility visible, in a panel drawn on the screen (a panel drawn into a texture gives no rectangle). A
-  widget's `visible` follows what it draws (its graphic), not its Selectable's enabled flag. How text is read:
-  task-probes.md 2.6. No `slate` select: Unity has no lower-level widget tree under the UI to walk.
+  camera), and every element of every `UIDocument`'s panel (UI Toolkit), the parts a control builds inside itself too.
+  One row per GameObject or element: `class` the matched component's type, else the object's Selectable, else its text
+  or graphic (an element: its type). `component` matches a uGUI object as an object select does (a component on the
+  object itself, `Reflect.ComponentNamed`) and a UI Toolkit element by its type (`Reflect.IsA`), so `Button` takes uGUI
+  and UI Toolkit buttons alike; with a `name`, a component on an object above or an element above matches too (the
+  original's enclosing user widget; the row keeps its own class), and a `name` with no `component` also finds an object
+  of a canvas with neither a graphic nor a selectable (class `RectTransform`); an unnamed UI Toolkit element (a
+  control's own parts too) is named by its type in its row and in a `name` select (`UiScan.Widgets`). A rect is in
+  viewport fractions, y down from the top, whatever render mode or panel scale placed it. `visible` (`UiScan.UguiShown`,
+  `UitkVisible`) is the original's state: active, every Canvas up the chain enabled, the widget's own graphic enabled,
+  the CanvasGroups' alpha above 0.004 (`UiScan.AlphaFloor`), on a canvas drawn on the screen (not an overlay canvas on
+  another display, nor a camera canvas whose camera is off or renders into a texture or on another display) and inside
+  the frame; for a UI Toolkit element, displayed all the way up, its own resolved visibility visible, of an opacity
+  above 0.004 down the tree, in a panel drawn on the screen (a panel drawn into a texture gives no rectangle) and inside
+  the frame. Its colour, its size, clipping and its Selectable's enabled flag don't count. On screen (`ui` below,
+  `UiScan.UguiDrawn`) means drawn: visible so on a screen-space canvas, and also the graphic's colour and CanvasRenderer
+  alpha above 0.004 with the CanvasGroups', not culled by a RectMask2D nor wholly outside an enabled Mask, and of some
+  size. How text is read: task-probes.md 2.6. No `slate` select: Unity has no lower-level widget tree under the UI to
+  walk.
 - **ui** (`UiQuery`, `UiScan`, `UiOcr`; the original's Slate tree, HUD canvas and paint elements): the elements on
   screen in the frame drawn right after the sample (`FrameNeed`: the sample is completed once that frame is drawn; one
   whose frame never came has no `rows` key). uGUI graphics on screen-space canvases (Overlay or Camera; text: `Text`,
@@ -402,10 +416,12 @@ original's, unchanged (`probes.py`).
   an `OnAudioFilterRead` filter the probe keeps on every enabled listener (`AudioTap.Follow`, before and after the
   game's scripts every frame: it adds a tap, and switches one the game switched off back on), which sums the final mix
   (mixers and effects applied) and then zeroes it, in every probe play, so no play is ever heard; a tap outside a probe
-  play (the package copied into a game) lets the sound through. A play that measures audio is paced to real time at 30
-  fps (the play spec's `sound`); every other play runs as fast as the machine renders but for its waits and scene loads
-  (section 4). The value's other keys, and what was measured of Unity's audio (one-shot sounds, rolloff past max
-  distance, `AudioListener.pause`, mixer volumes), are in `docs/task-probes.md` section 2.16.
+  play (the package copied into a game) lets the sound through. With more than one tapped listener a silent buffer is
+  left out of the level (it is the silence the first tap left the second), so the level is the mix's, not 1/sqrt 2 of
+  it. A play that measures audio is paced to real time at 30 fps (the play spec's `sound`); every other play runs as
+  fast as the machine renders but for its waits and scene loads (section 4). The value's other keys, and what was
+  measured of Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer volumes), are in
+  `docs/task-probes.md` section 2.16.
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from y
   = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept; a 3D ray, so 2D colliders are
@@ -418,21 +434,28 @@ original's, unchanged (`probes.py`).
   one that encloses the whole place and is at least 20 times its size, and none on the UI layer, rendered alone from
   fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two square to a line
   (128 x 128), the cameras 0.5 m outside the place, the far plane at its far side.
-  - w: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through URP's
+  - How: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through URP's
     `SingleCameraRequest` with the Universal Renderer the player's camera draws with (without URP, under another URP
     renderer or with no graphics device: no value and one `rendering: ...` line) into float textures (ARGBFloat); the
     depth from a second render, copied into a float texture by the package's own shader
     (`Runtime/Resources/TaskProbeDepthCopy.shader`). Its culling mask is the chosen renderers' layers, never the UI
-    layer (world-space canvases draw on it and can't be forced off). For the render, every other drawn renderer on those
-    layers inside the views is forced off (`forceRenderingOff`: a layer change would refilter a collider's physics
-    contacts), terrains on those layers stop drawing, every Light is off, every reflection probe's intensity and the
-    default reflection's are 0, fog off, the chosen renderers' and terrains' lightmaps and light probes off, the ambient
-    probe itself a flat white for motion and base colour (1 / 0.96, so a URP Lit surface reads its own albedo) or
-    nothing for glow, and post-processing, shadows, anti-aliasing, volumes, render scale and renderer features (but
-    RenderObjects) off, HDR on. Only values change, never a source or a mode (an ambient or a default reflection
-    switched to another mode, or a reflection probe turned off and on, had the engine rebuild the environment after the
-    sample, and the game's later frames came out darker), and each setting and object is recorded before it changes and
-    put back, in a finally, before the sample returns.
+    layer (world-space canvases draw on it and can't be forced off; one on another layer inside the views is drawn with
+    the place and counts). For the render, every other drawn renderer on those layers inside the views is forced off
+    (`forceRenderingOff`: a layer change would refilter a collider's physics contacts), every other terrain there stops
+    drawing, every Light is off, the ambient probe itself is a flat white for motion and base colour (1 / 0.96, so a URP
+    Lit surface reads its own albedo) or nothing for glow, fog off, the default reflection at intensity 0, the chosen
+    renderers' and terrains' own lightmaps, light probes and reflection probes off (`reflectionProbeUsage`), and
+    post-processing, shadows, anti-aliasing, volumes, render scale and renderer features (but RenderObjects) off, HDR
+    on. Only values change, never a source or a mode, and no reflection probe is touched (an ambient or a default
+    reflection switched to another mode, or a probe changed, had the engine rebuild the environment after the sample,
+    and the game's later frames came out darker); each setting and object is recorded before it changes and put back, in
+    a finally, before the sample returns, whatever throws (a game's camera callback that throws at the probe's render:
+    that sample has no value, and `query_errors` says `rendering: <ExceptionType> in a render: no value that sample
+    (...)`). Two lights get through, read in the code and in URP's shaders, not played: under a clustered renderer
+    (Forward+ or Deferred+) with reflection probe blending on, the shader reads every reflection probe whose box holds
+    the surface whatever the renderer's own setting (a smooth surface keeps a little of what the probes reflect, and a
+    realtime probe's new picture reads as motion); and a Light the game hides from scripts (`HideAndDontSave`) isn't
+    found, so it stays on.
   - Where the original lights the place with direct lights and the sky light and reads the base colour from the
     GBuffer, the port takes the base colour as the render under the white ambient less the render under black, so
     emission cancels. A pixel is in the place when its depth puts it there, or when it shows colour with nothing
@@ -441,7 +464,8 @@ original's, unchanged (`probes.py`).
     128 steps along the line, none finer than a pixel.
   - The value's keys and the limits, as measured: `docs/task-probes.md` section 2.19 (`motion`, `reach`, `length` are
     always computed; the base colour only when a `base_` field is asked for).
-  - Measured: 5 to 8 ms a sample near a point, 4 ms along a line.
+  - Measured: about 5 to 8 ms a sample near a point (the `base_` fields cost a third render of each view), 4 ms along a
+    line; in a scene of 4,000 renderers about 11 ms near a point, and 17 ms for a place holding 1,024 renderers.
 - **log**: the lines of the play's player log (`-logFile`, kept as `play.log`) that match, read by the checker as the
   original reads its game log.
 - **asset** (`play: "editor"`; `AssetPass`, `AssetValues`, `SceneRows`; the original runs a Python script in its
@@ -451,7 +475,9 @@ original's, unchanged (`probes.py`).
   pass never saves.
   - A select is the run time's (`Sel`, `Find.Matches`) over the scene's or prefab's objects in hierarchy order:
     `player`, `has`, and a `near` around the player or the camera are errors (a scene as saved has none of them); a
-    `near` around `{"object": ...}` resolves in the same scene or prefab.
+    `near` around `{"object": ...}` resolves in the same scene or prefab, nested as a play nests it (the top select and
+    two object selects, the second without a `near`: `SceneRows.Point`, `Find.MaxDepth`); deeper is `the select nests
+    too deep`.
   - `prop:` reads by reflection (`Reflect.ReadPath`), else as a SerializedObject property path (`waves[2].count` read
     as `waves.Array.data[2].count`); on a prefab asset and on a scene object, as a run time `prop:` reads an object,
     with `material`, `materials` and `mesh` read as their `shared...` versions (the plain getters would copy the asset
@@ -478,24 +504,26 @@ every 0.5 s (a task play's `every`, 0.1-1.0). `play_args` apply to every play (l
 play's `args` key replaces them, its `scene` key the `play_scene` (`tasks.place`).
 
 The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast as
-the machine renders (`Application.targetFrameRate` -1; vertical sync and the capture frame rate set again before every
-frame, since with vertical sync on Unity ignores the target frame rate), but paced to real time at 30 fps in a play that
-measures audio (the spec's `sound`), during a `wait` and while a scene loads. It starts when the play's scene is the
-active scene and no scene is loading (after 600 frames without the play's scene, a `query_errors` line, and it starts in
-the scene that plays), holds during a `wait` and while any scene is still loading, for at most 300 frames of one load (a
-load the game parks with `allowSceneActivation = false` never finishes; `probe.log` then says `a scene has been loading
-for 300 frames (a load the game parks never finishes): the play's clock goes on`), and counts on when the game sets
-`timeScale` 0. The queries' `Frame` runs in every frame, a wait's and a load's too (`speed`, `spin` and `spawns` count
-them). The game's `Time.time` runs on the play's clock; `Time.unscaledTime`, `Time.unscaledDeltaTime`,
-`Time.realtimeSinceStartup` and the system clock follow the wall clock (measured by the probe's core tests: from play
-time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as `Time.realtimeSinceStartup` did). The probe asks for the play's
-`scene` at `BeforeSceneLoad`, before the game's first build scene has woken up: that scene's objects get `Awake` and
-`OnEnable`, then are destroyed before `Start` (a scene the build lacks: a `query_errors` line, and the game's own first
-scene plays). Every play starts from clean saved data: the build gives the copy a company name of its own
-(`TaskProbe.<hash>`, section 5), the probe clears PlayerPrefs and `persistentDataPath` when the play starts
-(`Probe.ForgetSaves`: only when the company name is exactly `TaskProbe.` and 12 hex digits and `persistentDataPath` is
-that company's own folder; anything else keeps its saved data and `probe.log` says why), and the checker deletes what
-the plays left outside the copy with it (section 5).
+the machine renders (`Application.targetFrameRate` -1, set by the probe in every frame, a wait's too; the capture frame
+rate and vertical sync off set again before the game's scripts and after them, since a game that sets them in its own
+Update would else set the play's time step, and with vertical sync on Unity ignores the target frame rate), but paced to
+real time at 30 fps in a play that measures audio (the spec's `sound`), during a `wait` and while a scene loads. It
+starts when the play's scene is the active scene and no scene is loading (after 600 frames without the play's scene, a
+`query_errors` line, and it starts in the scene that plays), holds during a `wait` and while any scene is still loading,
+for at most 300 frames of one load (a load the game parks with `allowSceneActivation = false` never finishes;
+`probe.log` then says `a scene has been loading for 300 frames (a load the game parks never finishes): the play's clock
+goes on`), and counts on when the game sets `timeScale` 0. The queries' `Frame` runs in every frame, a wait's and a
+load's too (`speed`, `spin` and `spawns` count them). The game's `Time.time` runs on the play's clock;
+`Time.unscaledTime`, `Time.unscaledDeltaTime`, `Time.realtimeSinceStartup` and the system clock follow the wall clock
+(measured by the probe's core tests: from play time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as
+`Time.realtimeSinceStartup` did). The probe asks for the play's `scene` at `BeforeSceneLoad`, before the game's first
+build scene has woken up: that scene's objects get `Awake` and `OnEnable`, then are destroyed before `Start` (a scene
+the build lacks: a `query_errors` line, and the game's own first scene plays). Every play starts from clean saved data:
+the build gives the copy a company name of its own (`TaskProbe.<hash>`, section 5), the probe deletes PlayerPrefs and
+empties `persistentDataPath` when the play starts, read-only files too, leaving the folder itself (Unity makes it when
+the player starts, and a game writes into it without making it) (`Probe.ForgetSaves`: only when the company name is
+exactly `TaskProbe.` and 12 hex digits and `persistentDataPath` is that company's own folder; anything else keeps its
+saved data and `probe.log` says why), and the checker deletes what the plays left outside the copy with it (section 5).
 
 A frame has three passes (`Probe.Stamp`): before the game's scripts (`Probe`, execution order -32000: the inputs), after
 their Updates (a held player put back) and after their LateUpdates (`ProbeLate`, 32000: a held player put back again,
@@ -525,17 +553,23 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   impulses (the pointer is placed by a cursor row, in fractions of the frame); `<Gamepad>/leftStick/x|y`,
   `rightStick/x|y`, `leftTrigger` and `rightTrigger` keep their value until set again.
 - widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
-  and visible uGUI Selectable in hierarchy order whose name (a wildcard) or type (base types and interfaces too)
-  matches, else such a UI Toolkit Button (`UiScan.Click`). A uGUI one gets what the Input System's UI module sends for a
-  press and release at its centre, through `ExecuteEvents` (`UiScan.UguiClick`): the pointer enters; the press lets go
-  of a selection the object wouldn't take, then pointer down and the start of a possible drag; the release pointer up
-  and the click, to the click handler found at the press. No ray is cast (as the original's click), so an image over the
+  and visible (the `widgets` state: a fully transparent button counts) uGUI Selectable in hierarchy order whose name (a
+  wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit Button (`UiScan.Click`). A uGUI one
+  gets what the Input System's UI module sends for a press and release at its centre, through `ExecuteEvents`
+  (`UiScan.UguiClick`): the pointer enters; the press lets go of a selection the object wouldn't take, then pointer down
+  and the start of a possible drag; the release pointer up and the click, to the click handler found at the press; then
+  the pointer exit (the module follows its own pointer's hover, so the object would never get one). With no EventSystem
+  in the scene no uGUI widget is clicked, as a player's click reaches none (an InputField's pointer down would also
+  throw into the game's log): `probe.log` says `no EventSystem: a click reaches no uGUI widget, so <name> isn't
+  clicked`, and a UI Toolkit Button is still clicked. No ray is cast (as the original's click), so an image over the
   button doesn't stop it; `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a
   player's click; a UI Toolkit one a `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler
-  needs the cursor path). `probe.log` says `clicked <widget>` or `no visible button matches '<widget>'`.
+  needs the cursor path). `probe.log` names the widget clicked and its type, not the pattern (`clicked PushButton
+  (Button)`; the original's "clicked button <name> (<class>)"), or says `no visible button matches '<widget>'`.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
-  EventSystem with an InputSystemUIInputModule, UI Toolkit buttons, the game through `Mouse.current`).
+  EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with
+  the old StandaloneInputModule neither, as it reads the Input Manager; the game through `Mouse.current`).
 - teleport: `{"t", "teleport": [x, y, z], "yaw": deg, "hold": s}`; teleport_to: `{"t", "teleport_to": <object select>,
   "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`. The original moves the pawn with Unreal's
   TeleportTo, which finds a free spot near the point; the port sets the player's transform, its pivot, to the point
@@ -637,24 +671,39 @@ first two track and camera rows (of 18) and the first sample of each query:
   object or null, for the others. A `ui` sample whose frame never came has no `rows`; a `screen` sample's value is then
   null.
 - `query_errors` (only when there was one): each line once, at most 50, then `<n> more in probe.log`. A query's own:
-  `<kind> <id>: <message>` (its definition's and its select's too: `components q3c1d2e4f5a: no component type Lantren`;
-  `spawns` still writes `spawns: no component type Coin`), and an exception out of it `<kind> <id>: <ExceptionType> in
-  Load|Frame|Sample|FrameDrawn (the exception is in probe.log)`, or out of a reader it calls (`ui <id>: <ExceptionType>
-  in the frame reader (...)`, `lit/glow: <ExceptionType> in a render (...)`) (`Probe.Failed`; the exception and its
-  stack go to probe.log). The loop's own, the original's: `queries format '<f>' is not game-probe-queries/1`, `the
-  queries have no queries array`, `a query is not an object`, `a query has a missing or repeated id '<id>'`, `more than
-  256 queries: '<id>' and later ones dropped`, `query '<id>': unknown kind '<kind>' (null values)` (such a query, and
-  one whose `Load` threw, is sampled with a null `value`); and `the play's scene <scene> isn't in the build: the game's
-  own first scene is played`, `the play's scene <scene> didn't become the active scene: playing <path>`, `inputs: ...`.
-- Numbers: whole ones (below 1e15) without a fraction, the rest in the round-trip form (`R`), or with 17 digits (`G17`)
-  where Mono's `R` gives 15 that read back as another number; NaN and infinities are written null (`Json.Write`). The
-  probe reads JSON nested at most 512 deep (`Json.Parse`): a deeper play spec can't be read (exit 2).
+  `<kind> <id>: <message>` (its definition's and its select's too: `components q3c1d2e4f5a: no component type Lantren`,
+  `spawns q3c1d2e4f5a: no component type Coin`); a part the project lacks, once: `<kind> <id>: the project has no
+  <Module> module: ...` (`objects <id>: the project has no Physics module: collision reads 0`, `camera <id>: ...
+  occluded reads 0`, `components <id>: ... simulating reads 0`, `ground <id>: ... no ground is read`, `audio <id>: the
+  project has no Audio module: no sound is read`, `objects <id>: the project has no Animation module: clip has no
+  value`), `widgets <id>: the project has neither uGUI nor UI Toolkit: no widget is read`, `light <id>: the render
+  pipeline isn't URP: the light is URP's, not the frame's`, `grading <id>: the render pipeline isn't URP: no grading is
+  read (...)`; and an exception out of it `<kind> <id>: <ExceptionType> in Load|Frame|Sample|FrameDrawn (the exception
+  is in probe.log)`, or out of a reader it calls (`ui <id>: <ExceptionType> in the frame reader (...)`; for each query
+  that needed the frame's pixels, `<kind> <id>: <ExceptionType> reading the frame (...)`) (`Probe.Failed`; the exception
+  and its stack go to probe.log). The lines of a reader several queries share name no query: the renderer's (`rendering:
+  the render pipeline isn't URP: drawn and glow as rendered have no value`, and the other `rendering: ...` reasons;
+  `rendering: <ExceptionType> in a render: no value that sample (...)`) and a light source's render (`lit/glow:
+  <ExceptionType> in a render (...)`). The loop's own, the original's: `the queries are not a JSON object`, `queries
+  format '<f>' is not game-probe-queries/1`, `the queries have no queries array`, `a query is not an object`, `a query
+  has a missing or repeated id '<id>'`, `more than 256 queries: '<id>' and later ones dropped`, `query '<id>': unknown
+  kind '<kind>' (null values)` (such a query, and one whose `Load` threw, is sampled with a null `value`); and `the
+  play's scene <scene> isn't in the build: the game's own first scene is played`, `the play's scene <scene> didn't
+  become the active scene: playing <path>`, `screenshots: <ExceptionType> reading the frame (...)`, `screenshots can't
+  be written: the project has no ImageConversion module`, `inputs: ...` (`inputs: the project has no Input System
+  package, so keys, axes and the cursor can't be sent` among them).
+- Numbers: whole ones (below 1e15) without a fraction, the rest with 17 significant digits (`G17`), as the original
+  writes them, so each reads back as the same double (`0.1` is written `0.10000000000000001`); NaN and infinities are
+  written null (`Json.Write`). A spec's numbers are read with Mono's `double.TryParse`, which reads a few decimals
+  within one unit of the last place. The probe reads JSON nested at most 512 deep (`Json.Parse`): a deeper play spec
+  can't be read (exit 2).
 
 **probe.log** (beside it in `out`): the probe's own lines, each with the play time and the real time since the player
-started (`Probe.Log`): the start, the clock's start, waits, teleports, holds, clicks, cursor moves, errors (`error:
-...`) and the exceptions behind them, a load that held the clock too long, saved data kept, `drawn`'s cost at its first
-sample and every 10th, a glow render's at the first and every 100th, and the end. The game's own log is `play.log`. The
-real one of the task play `reach_lamp` (it measures audio, so it ran paced to real time):
+started, written with a decimal point whatever the machine's language (`Probe.Log`): the start, the clock's start,
+waits, teleports, holds, clicks, cursor moves, errors (`error: ...`) and the exceptions behind them, a load that held
+the clock too long, saved data kept, `drawn`'s cost at its first sample and every 10th, a glow render's at the first and
+every 100th, and the end. The game's own log is `play.log`. The real one of the task play `reach_lamp` (it measures
+audio, so it ran paced to real time):
 
 ```
 0.00 [0.2 s] play: 10.0 s, every 0.25 s, 2 shot(s), 7 query(ies), scene Assets/Scenes/Yard.unity, on its own desktop
@@ -682,7 +731,8 @@ probe.json, the screenshots and probe.log are written and closed, the probe ends
 `TerminateProcess`: the engine's shutdown is no part of the play, a game may refuse it and a busy machine took minutes
 over it, so the game's own `OnApplicationQuit` and `OnDestroy` don't run then; a game that quits by itself first goes
 through its own shutdown), 2 when the play spec can't be read (missing, not a JSON object, another `format`: `TaskProbe:
-the play spec <file> couldn't be read: <why>` in `play.log`). What the play wrote into `out` is read back, then the
+the play spec <file> couldn't be read: <why>` in `play.log`; the process ends itself at once, since a quit could be
+refused by the game, and the game's first scene never wakes). What the play wrote into `out` is read back, then the
 folder deleted; the checker keeps those files and the play's spec (`unity.SPEC`) as the play's evidence
 (`check.Side._play`), since only the spec says which query id is which select. When `desk.py` itself fails (no window
 station to make its desktop on: it exits 1 with a line `desk.py: ...` and the player never runs) the play raises
@@ -742,19 +792,23 @@ the order the build writes):
   any other shape is left out. A Unity without a licence (exit 198, or `No valid Unity Editor license` in its log) is
   the machine's error, never the game's: the task reads ERROR (`unity.Unlicensed`).
 - The build sets, for the copy only, each setting read first and put back after `BuildPlayer` in a finally, the player
-  settings then marked unchanged (`EditorUtility.ClearDirty`) and `ProjectSettings/ProjectSettings.asset` given back
-  the bytes it had before the first change, since `BuildPlayer` saves the changed settings into it before it builds
-  (`Build.Kept`; a build that kept them, run in a game's own folder, had its company name committed into the game;
-  an editor killed in mid-build leaves the build's values in the file): the company name `TaskProbe.<the first 12
-  hex digits of the sha256 of the copy's folder with its ASCII letters lower-cased>` (`Build.Tag`;
-  `seeds.saves_company` computes the same: Mono and Python lower-case some other letters differently, a dotted
-  capital I, a final capital sigma); no splash screen; several instances allowed; the Mono backend; no static
-  batching (a batched renderer's mesh would hide its own mesh name and triangle count:
+  settings then marked unchanged (`EditorUtility.ClearDirty`) and `ProjectSettings/ProjectSettings.asset` given back the
+  bytes it had before the first change, since `BuildPlayer` saves the changed settings into it before it builds
+  (`Build.Kept`; a project with no such file yet has nothing to put back; a file that can't be written back is a warning
+  in the build log, `TaskProbe: <file> keeps the build's settings: ...`, not a failed build; a build that kept them, run
+  in a game's own folder, had its company name committed into the game; an editor killed in mid-build leaves the build's
+  values in the file): the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's folder with its
+  ASCII letters lower-cased>` (`Build.Tag`; `seeds.saves_company` computes the same: Mono and Python lower-case some
+  other letters differently, a dotted capital I, a final capital sigma); no splash screen; several instances allowed;
+  the Mono backend; no static batching (a batched renderer's mesh would hide its own mesh name and triangle count:
   `PlayerSettings.SetStaticBatchingForPlatform`); no managed code stripping (the probe reads by reflection engine
   members the game never calls, which the linker removes: measured at High). Then a Windows x64 player,
   `BuildOptions.None`, not a development build (no watermark on the frame). The window (windowed, 960x540) and the
   player log come from the play's command line alone (`-screen-fullscreen 0 -screen-width 960 -screen-height 540`,
-  `-logFile`), and the probe sets `Application.runInBackground`. The game's assets and code are untouched.
+  `-logFile`), and the probe sets `Application.runInBackground`. The game's assets and code are untouched by the probe;
+  Unity itself rewrites some of a project's assets in any player build (URP saves its pipeline assets' prefiltering
+  fields and adds entries to its global settings: measured), so the editor pass, which runs after the build, reads those
+  as the build left them.
 
 **The editor pass** (`unity.Project.editor_assets`, `TaskProbe.EditorTools.AssetPass.Run`; one command, in the copy):
 
