@@ -155,8 +155,9 @@ depends on, or an unrelated later fix is needed for it to compile), give it a ma
 - Both live on the branch `starts/<task name>` (pointing at R), pushed with the game; the dataset ships every branch
   but `tasks`, so the delivered history holds them.
 - Scenes and prefabs are YAML: a scene or prefab may go back to its pre-fix version only if no later commit changed
-  it, or by re-creating the issue with an editor step; a binary asset only if no later commit changed it. Keep every
-  `.meta` with its asset (a reverted asset with a newer `.meta`, or the reverse, breaks GUID references).
+  it, or by re-creating the issue with an editor step; a binary asset only if no later commit changed it; otherwise
+  re-create the issue in code or config, or pick another task. Keep every `.meta` with its asset (a reverted asset
+  with a newer `.meta`, or the reverse, breaks GUID references).
 - For a thread, "the change" is the whole thread: S takes every commit of it back out, not only the last one, and the
   thread's commits on main (its count and files) are what qualify it; note them in the task's `tasks-workflow.jsonl`
   row (`"thread"`: first and last commit of main).
@@ -193,9 +194,9 @@ Write it from the context, never by quoting a person: no quotes, typos, capitals
 wording. The reader is a capable developer who has never seen the game.
 
 **Every brief is only an observation**: what a player or QA sees, in plain words, for every issue the thread settled.
-It names no cause, no place to look, no file, script, component, prefab or asset, and no mechanism ("the camera feels
-jammed against the ship", not "the deoccluder counts the water layer"). It never says how many changes are needed or
-that the issues are related. Leave out the play_scene line, which the harness adds.
+It names no cause, no place to look, no file, system, script, component, prefab or asset, and no mechanism ("the
+camera feels jammed against the ship", not "the deoccluder counts the water layer"). It never says how many changes
+are needed or that the issues are related. Leave out the play_scene line, which the harness adds.
 
 - **bug_fix**: a QA bug report listing each symptom: what happens, how to reproduce it, what is expected. Code
   identifiers only inside a quoted compiler error or exception line from the player log, which is what a log shows.
@@ -330,13 +331,14 @@ docs' "Common reasons and fixes"), never the threshold toward what the start hap
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
   `seed.reference`. These are floors, not targets: pick the longest threads the history has.
-- **Judge difficulty in the session; never run the task with another agent.** Don't run `tools/task-try.py` or start
-  a fresh Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with
-  the person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
-  cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
-  mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring
-  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each. We try every
-  submitted task with a strong agent and measure its time; that grade decides.
+- **Judge difficulty in the session; never run the task with another agent** (the try took up to 25 minutes a task
+  and slowed contractors down). Don't run `tools/task-try.py` or start a fresh Claude Code or Codex session on a
+  task. Before committing, review each task against section 1 here, with the person: would a strong agent given only
+  the brief and the start solve it easily (25 minutes is a guide, not a cut-off)? It would when the brief points at
+  one place, the issues share one obvious cause, or the reference diff is mostly one file or one system. If so, extend
+  the thread back to an earlier attempt, merge it with its neighbouring issues, or drop it. Tell the person which
+  tasks you judged long enough and why, in a line each. We try every submitted task with a strong agent and measure
+  its time; that grade decides.
 
 Probes may measure the cause's effect directly, since the agent never sees them.
 
@@ -347,13 +349,13 @@ filter rejects such briefs and rubrics.
 ## 7. What must never reach the agent
 
 The agent sees only the brief and the game at `seed.commit` (a commit of main, so without the tasks branch) as a fresh
-repository without history, `Tasks/`, `History/` or `Dataset/` (those hold every task's checks and the reference
-fixes). The grader's half (`milestones`: probes, rubrics, questions, `log_absent` patterns; and `seed.reference`) never
-reaches it. So:
+repository without history, `Tasks/`, `History/` or `Dataset/` (the harness rule: those hold every task's checks and
+the reference fixes). The grader's half (`milestones`: probes, rubrics, questions, `log_absent` patterns; and
+`seed.reference`) never reaches it. So:
 
 - the instruction holds nothing of the grader's half and does not describe the fix;
 - nothing else at `seed.commit` should spell out the answer (a design-doc "known issues" line naming the cause, a
-  comment or a `// TODO` saying how to fix it): if it does, pick another seed or another task;
+  comment saying how to fix it): if it does, pick another seed or another task;
 - never point the game's code, docs or README at `Tasks/` or the tasks branch.
 
 ## 8. Pitfalls already hit
