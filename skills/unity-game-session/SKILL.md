@@ -283,26 +283,38 @@ ReplayScripts/, Gameplay/<slug>_S<n>.mp4, Screenshots/, Build/, manifest.json` (
 you commit it. The full dataset zip is `Dataset.zip` in the game folder, next to `Dataset/`: git-ignored (with
 `.dataset/`, the packager's scratch), never committed.
 
-The packager is `python <UGF_ROOT>/unity-game-factory/tools/package-dataset.py <slug>`. Run it once the game has its
-tasks (on the tasks branch) and a player build (`Scripts\unity.ps1 build`, in `Build\Windows`), at the release commit,
-with everything committed: it packs the commit, not the working tree, and `--dry-run` first says what is missing. It
-writes `Dataset/`, which you then commit, and `Dataset.pending.zip`, which is never committed. Pending, because
-`Gameplay/` and `ReplayScripts/` are not packed yet: the recorder makes the gameplay videos (the coordinator's
-recordings) and the creation replay makes `ReplayScripts/`
-(`tools/unity-replay/unity_replay.py release --game <slug>`, docs/unity-replay.md), but the packager does not take
-them yet, so every dataset is still pending. It scrubs every text file, then refuses the package when a banned name is
-left in a text file or a path, or when the dataset checks find an error: fix what it names in the repo and run it
-again. It never commits and never changes your history. Nobody assembles a dataset or `Dataset.zip` by hand; before
-the packager's first run `Dataset/` stays as the template made it and `validate-game.py`'s "not packaged yet" warning
-is expected.
+The packager is `python <UGF_ROOT>/unity-game-factory/tools/package-dataset.py <slug>` (docs/unity-pipeline.md,
+"Dataset packager"). It packs the release commit, not the working tree, with three products of that commit: the
+pipeline's release build, the gameplay video of each scenario's first valid recording (one is enough; the result
+never picks a run) and the creation replay's package. **The release**, once the game is content-complete, its tasks
+are on the tasks branch and everything is committed (that commit is the release commit; make no other commit until
+the packager has run, or the replay and the recordings no longer match it):
+
+1. Send the coordinator the release commit to record (its sha; the newest `milestone/autoplay-<n>` tag in its
+   history): the queue builds its release player (`tools/unity-pipeline/build.ps1`) and records each ready scenario.
+2. `python <UGF_ROOT>/unity-game-factory/tools/unity-replay/unity_replay.py release --game <slug>`, with `HEAD` at the
+   release commit, makes `ReplayScripts/` for it (docs/unity-replay.md, section 3; with the live replay current, only
+   the last commits and a full final check remain; it refuses while the last commit's live replay still runs: run it
+   again once that is done). Its verdict, PASS or FAIL, is metadata.
+3. Once the coordinator says the recording is done: the packager (`--dry-run` first says what it would take and what
+   is missing; `--commit <sha>` when `HEAD` has moved past the release commit). It writes `Dataset/`, which you then
+   commit, and `Dataset.zip`, or `Dataset.pending.zip` (the missing entries listed) while a recording or the replay is
+   missing; neither zip is ever committed.
+
+It scrubs every text file, then refuses the package when a banned name is left in a text file, a path or a binary
+file's strings, when the release build's leak scan found anything, while the pipeline builds or records the game, or
+when the dataset checks find an error: fix what it names and run it again. It never commits and never changes your
+history. Nobody assembles a dataset or `Dataset.zip` by hand; before the packager's first run `Dataset/` stays as the
+template made it and `validate-game.py`'s "not packaged yet" warning is expected.
 
 **README screenshots (user rule; required before the game is called content-complete).** `Docs/screenshots/` holds
 5-7 real gameplay stills (JPG, in Git LFS; from validated recordings' stills, `<UGF_ROOT>\recordings\<slug>\_stills\`,
 or the framing-gate screenshots, not from extra GPU launches; no editor views, debug overlays or placeholder art).
 Until recordings exist, use the framing gate's frames there are, each from a different scenario or moment: fewer than
-5 is the validator's warning (not an error), so never invent stills to reach five. The README shows them as a hero image plus a captioned gallery (one line per image
-saying what it shows). Every image the README links must be committed: after pushing, open the repo page on github.com
-and check that each image renders (a link to a file that was never committed shows as a broken image).
+5 is the validator's warning (not an error), so never invent stills to reach five. The README shows them as a hero
+image plus a captioned gallery (one line per image saying what it shows). Every image the README links must be
+committed: after pushing, open the repo page on github.com and check that each image renders (a link to a file that
+was never committed shows as a broken image).
 
 **Game format (docs/game-format.md).** Before calling the game content-complete,
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` must say VALID: required files,

@@ -84,7 +84,8 @@ The user's standing rule: **every session commits its work continuously.**
 Everything needed to rebuild the game from the repo alone: `Assets/` **with every `.meta` file** (including the store
 packs, in any folder under `Assets/`), `Packages/manifest.json` and `Packages/packages-lock.json` (and any embedded
 package under `Packages/`), `ProjectSettings/`, `Scripts/`, `RawAssets/` used for imports, `workflow.jsonl`,
-`assets.manifest.json`, `Docs/` (ThirdPartyNotices, screenshots), `README.md`, `Dataset/`. Nothing stays git-ignored
+`assets.manifest.json`, `Docs/` (ThirdPartyNotices, screenshots), `README.md`, `Dataset/` (as the packager writes
+it, its gameplay videos, replay scripts and `.gitattributes` included). Nothing stays git-ignored
 except Unity's generated folders, build output and the local dataset zip with its scratch (`/Dataset.zip`,
 `/Dataset.pending.zip`, `/.dataset/`).
 
