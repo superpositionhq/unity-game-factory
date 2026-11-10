@@ -3,6 +3,7 @@ result file; a commit materialized from a real git repo; the files and command l
 pass hand Unity."""
 
 import contextlib
+import gc
 import io
 import itertools
 import json
@@ -13,6 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -1689,12 +1691,17 @@ class Jobs(unittest.TestCase):
                 return time.monotonic()
 
             with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "0"}), \
-                    mock.patch.object(unity, "run", lambda *a, **k: run(*a, clock=clock, **k)):
+                    mock.patch.object(unity, "run", lambda *a, **k: run(*a, clock=clock, **k)), \
+                    warnings.catch_warnings(record=True) as warned:
+                warnings.simplefilter("always", ResourceWarning)
                 with self.assertRaises(KeyboardInterrupt):
                     machine.job("t", argv, self.tmp, 120, gpu=True)
+                gc.collect()
             player, desk_py = self.ran(info)
             self.assertFalse(alive(player), "the player")
             self.assertFalse(alive(desk_py), "desk.py")
+            self.assertEqual([str(w.message) for w in warned if w.category is ResourceWarning], [],
+                             "the job's output pipe closed too")
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows desktops")

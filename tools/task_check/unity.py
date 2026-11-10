@@ -173,9 +173,10 @@ def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
         _kill_tree(proc.pid)
         proc.wait()
         raise
-    reader.join(timeout=30)
-    if not reader.is_alive():  # closing the pipe under a read that still waits would block until the read returns
-        proc.stdout.close()
+    finally:
+        reader.join(timeout=30)
+        if not reader.is_alive():  # closing the pipe under a read that still waits would block until the read returns
+            proc.stdout.close()
     text = (b"".join(chunks)).decode("utf-8", errors="replace").replace("\r\n", "\n")
     # a job seen start within its first look: ~0; one that came and went between two looks (a short play): at least
     # until the last look that didn't find it, else its wait read as its own time
