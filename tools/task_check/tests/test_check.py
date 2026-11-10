@@ -236,6 +236,14 @@ class Grades(unittest.TestCase):
         self.assertTrue(planted["checks"][0]["detail"].endswith("the editor pass gave no result (exit 0)"),
                         "a result without the checker's nonce isn't the pass's")
 
+        def printed(request, timeout):  # a pass that couldn't write its file: its log's line
+            line = json.dumps({"nonce": request["nonce"], "measures": {i: {"value": 1} for i in request["measures"]}})
+            return ran(f"[TaskProbe] the asset result couldn't be written\n{probes.MARKER} {line}\nExiting batchmode"), None
+
+        printed = grade(task, "reference", side("start", FakeProject(), task),
+                        side("reference", FakeProject(editor=printed), task))
+        self.assertEqual([c["passed"] for c in printed["checks"]], [True, False])
+
 
 def git(repo, *args, data=None):
     return subprocess.run(["git", "-C", str(repo), *args], input=data, capture_output=True, check=True).stdout
@@ -746,6 +754,15 @@ class Plays(unittest.TestCase):
             self.assertEqual(asked[0], {"nonce": "n0nce", "measures": dict(items), "result": stale.as_posix()})
             self.assertEqual(probes.editor_results(project.read(probes.EDITOR_FILE), "n0nce"), {})
             self.assertIn("[TaskProbe] 2 measures", found.output)
+            many = {f"a{i}": {"rows": [{"name": f"Lamp ({i})", "value": 0.19999995827674866}] * 40} for i in range(30)}
+            line = json.dumps({"nonce": "n0nce", "measures": many})
+            machine.answer = lambda argv, cwd: Path(after(argv, "-logFile")).write_text(
+                "Loaded asset\n" * 4000 + f"{probes.MARKER} {line}\n" + "Exiting batchmode successfully now!\n" * 400,
+                encoding="utf-8") and ""
+            long = project.editor_assets(probes.editor_request(items, "n0nce"), 60)
+            self.assertGreater(len(line), unity.OUTPUT_CHARS)
+            self.assertEqual(probes.editor_results(None, "n0nce", long.output), many,
+                             "the result line whole in a long log, though the output keeps only its two ends")
 
     def test_a_job_goes_through_the_limiter_a_play_in_its_gpu_slot(self):
         seen = []

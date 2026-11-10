@@ -295,7 +295,7 @@ class Side:
                 nonce = secrets.token_hex(16)
                 ran = self.project.editor_assets(probes.editor_request(probes.editor_items(self.task), nonce),
                                                  self.timeout)
-                results = probes.editor_results(self.project.read(probes.EDITOR_FILE), nonce)
+                results = probes.editor_results(self.project.read(probes.EDITOR_FILE), nonce, ran.output)
                 why = None if results is not None else \
                     f"the editor pass gave no result (exit {ran.exit_code}{', timed out' if ran.timed_out else ''})"
                 if self.evidence is not None:

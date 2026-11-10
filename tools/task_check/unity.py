@@ -338,7 +338,7 @@ class Project:
 
     def editor_assets(self, request, timeout):
         """The editor pass over `request` (probes.editor_request); its result goes to probes.EDITOR_FILE in the copy
-        (`read` it). A Result whose output holds the pass's log."""
+        (`read` it). A Result whose output holds the pass's log, its result line whole."""
         logs = self.logs()
         result, log = _fresh(self.folder / probes.EDITOR_FILE), _fresh(logs / "editor.log")
         asked = _fresh(logs / "probes_editor_request.json")
@@ -347,7 +347,11 @@ class Project:
         found = self.machine.job(f"task-check editor {self.label}", argv, self.folder, timeout)
         output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
         _licensed(found, output)
-        return Result(found.exit_code, cut(output), found.seconds, found.timed_out, found.waited)
+        # the pass's result line whole (probes.editor_results' fallback): cut() keeps only the two ends of a long log
+        line = next((at for at in reversed(output.splitlines()) if probes.MARKER + " " in at), "")
+        kept = cut(output)
+        return Result(found.exit_code, kept if line in kept else f"{kept}\n{line}", found.seconds, found.timed_out,
+                      found.waited)
 
     def read(self, relative):
         path = self.folder / relative
