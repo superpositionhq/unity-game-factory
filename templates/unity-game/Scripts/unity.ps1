@@ -5,6 +5,11 @@
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 test [-Platform EditMode|PlayMode] [-Filter <name>]
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 build [-Development] [-Backend mono|il2cpp] [-Reason "..."]
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 play [-Scenario <n>] [-Render] [-Seconds 60] [-Extra "..."]
+#   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 autoplay [-Scenario <n>] [-MaxSeconds 120] [-Seed 0] [-Skill 1] [-Audible] [-Extra "..."]
+# `autoplay` runs the built player as a recording does (the AutoPlay drop-in, Assets/AutoPlay): the bot plays scenario n
+# for at most -MaxSeconds, starting at once (no recorder's go file), on a Windows desktop of its own (nothing on the
+# screen, the keyboard and cursor left alone, the sound muted unless -Audible); the run's files go to
+# Logs/autoplay/<time>_s<n>/, and a summary of them is printed.
 # `step` runs one editor step (a static method under Assets/Editor/Steps/) with -batchmode -executeMethod. Keep this call
 # shape: the creation replay (not available yet) will recognise "unity.ps1 step -Method <Ns.Class.Method>" in the
 # recorded command. The step logs its own workflow.jsonl rows; -Reason reaches it as $env:UNITY_RUN_REASON. -Render
@@ -14,7 +19,7 @@
 # Get-UGFUnity, else C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe). Limiter: $env:UGF_ROOT\tools, else
 # two folders up (<root>). Unity locks the project: close any editor that has it open first.
 param(
-  [Parameter(Position = 0)][ValidateSet('setup', 'compile', 'step', 'test', 'build', 'play')][string]$Mode,
+  [Parameter(Position = 0)][ValidateSet('setup', 'compile', 'step', 'test', 'build', 'play', 'autoplay')][string]$Mode,
   [string]$Method = '',
   [string]$Reason = '',
   [switch]$Render,
@@ -26,7 +31,11 @@ param(
   [int]$Scenario = 0,
   [int]$Seconds = 60,
   [string]$Extra = '',
-  [string]$Tag = 'test'
+  [string]$Tag = 'test',
+  [int]$MaxSeconds = 120,
+  [int]$Seed = 0,
+  [double]$Skill = 1,
+  [switch]$Audible
 )
 $ErrorActionPreference = 'Continue'
 $Proj = Split-Path $PSScriptRoot -Parent
@@ -65,6 +74,128 @@ function Show-Errors([string]$Log) {
   }
 }
 function Done([int]$Code) { Write-Host "exit code $Code ($([int]((Get-Date) - $t0).TotalSeconds) s)"; exit $Code }
+
+# `autoplay`: the player on a desktop of its own (WinSta0\AutoPlay), in a job object that ends it, and whatever it
+# started, when the wrapper ends; stopped after $limit s (exit code 124). Written into the run's wrapper script.
+$DeskRun = @'
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class AutoPlayDesk
+{
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct StartupInfo
+    {
+        public int cb; public string reserved; public string desktop; public string title;
+        public int x, y, width, height, xChars, yChars, fill, flags;
+        public short show, reserved2; public IntPtr reserved3, stdIn, stdOut, stdErr;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct ProcessInfo { public IntPtr process, thread; public int pid, tid; }
+    [StructLayout(LayoutKind.Sequential)] struct Basic
+    {
+        public long perProcessTime, perJobTime; public int flags; public UIntPtr minWs, maxWs; public int processes;
+        public UIntPtr affinity; public int priority, scheduling;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct Extended
+    {
+        public Basic basic; public ulong r1, r2, w1, w2, o1, o2; public UIntPtr processMemory, jobMemory, peakProcess, peakJob;
+    }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr CreateDesktopW(string name, IntPtr device, IntPtr mode, int flags, uint access, IntPtr attributes);
+    [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr desktop);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref Extended info, int size);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool CreateProcessW(string app, StringBuilder commandLine, IntPtr pa, IntPtr ta, bool inherit, int flags, IntPtr env, string cwd, ref StartupInfo si, out ProcessInfo pi);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32.dll")] static extern int ResumeThread(IntPtr thread);
+    [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint ms);
+    [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+    [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr process, uint code);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+
+    public static int Run(string exe, string args, string cwd, string name, int seconds)
+    {
+        IntPtr desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, 0x10000000, IntPtr.Zero);
+        if (desktop == IntPtr.Zero) throw new Exception("CreateDesktop failed, error " + Marshal.GetLastWin32Error());
+        IntPtr job = CreateJobObjectW(IntPtr.Zero, null);
+        try
+        {
+            Extended limits = new Extended();
+            limits.basic.flags = 0x2000;
+            if (!SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Extended))))
+                throw new Exception("SetInformationJobObject failed, error " + Marshal.GetLastWin32Error());
+            StartupInfo si = new StartupInfo();
+            si.cb = Marshal.SizeOf(typeof(StartupInfo));
+            si.desktop = "WinSta0\\" + name;
+            ProcessInfo pi;
+            StringBuilder line = new StringBuilder("\"" + exe + "\" " + args);
+            if (!CreateProcessW(null, line, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, cwd, ref si, out pi))
+                throw new Exception("CreateProcess failed, error " + Marshal.GetLastWin32Error());
+            try
+            {
+                if (!AssignProcessToJobObject(job, pi.process)) { TerminateProcess(pi.process, 1); throw new Exception("AssignProcessToJobObject failed"); }
+                ResumeThread(pi.thread);
+                if (WaitForSingleObject(pi.process, (uint)seconds * 1000) != 0)
+                {
+                    TerminateProcess(pi.process, 124);
+                    WaitForSingleObject(pi.process, 10000);
+                    return 124;
+                }
+                uint code;
+                GetExitCodeProcess(pi.process, out code);
+                return unchecked((int)code);
+            }
+            finally { CloseHandle(pi.thread); CloseHandle(pi.process); }
+        }
+        finally { CloseHandle(job); CloseDesktop(desktop); }
+    }
+}
+"@
+exit ([AutoPlayDesk]::Run($exe, $argLine, (Split-Path $exe), 'AutoPlay', $limit))
+'@
+
+# `autoplay`: what the run wrote (docs: the AutoPlay drop-in's files), in a few lines.
+function Show-Run([string]$Dir, [int]$Code) {
+  Write-Host "run files: $Dir"
+  $missing = @('ready.json', 'inputs.jsonl', 'telemetry.jsonl', 'outcome.json', 'clock.json', 'audio.wav', 'audio_clock.jsonl') |
+    Where-Object { -not (Test-Path (Join-Path $Dir $_)) }
+  if ($missing) { Write-Host "missing: $($missing -join ', ')" }
+  $o = $null
+  try { $o = Get-Content -Raw (Join-Path $Dir 'outcome.json') -ErrorAction Stop | ConvertFrom-Json } catch { }
+  if ($o) {
+    $fps = if ($o.duration_s -gt 0) { $o.frames / $o.duration_s } else { 0 }
+    $rate = 48000
+    try {
+      $f = [IO.File]::OpenRead((Join-Path $Dir 'audio.wav')); $h = New-Object byte[] 28; [void]$f.Read($h, 0, 28); $f.Close()
+      if ([BitConverter]::ToInt32($h, 24) -gt 0) { $rate = [BitConverter]::ToInt32($h, 24) }
+    } catch { }
+    Write-Host ("outcome: {0}, score {1}; {2:N1} s of scenario at {3:N1} fps; {4} inputs injected; {5:N1} s of sound ({6} gaps filled){7}" -f
+      $o.result, $o.score, $o.duration_s, $fps, $o.inputs_injected, ($o.audio_frames / $rate), $o.audio_gaps,
+      $(if ($o.go_timed_out) { '; started without a go file' } else { '' }))
+    if ($o.extra -and @($o.extra.PSObject.Properties).Count) { Write-Host "extra: $($o.extra | ConvertTo-Json -Compress -Depth 4)" }
+  }
+  foreach ($file in 'inputs.jsonl', 'telemetry.jsonl') {
+    $p = Join-Path $Dir $file
+    if (-not (Test-Path $p)) { continue }
+    $kinds = @{}; $errors = @()
+    foreach ($l in [IO.File]::ReadLines($p)) {
+      if ($l -match '"(?:type|event)":"([^"]+)"') { $kinds[$Matches[1]] = 1 + [int]$kinds[$Matches[1]] }
+      if ($l -match '"event":"error".*"message":"((?:[^"\\]|\\.)*)"') { $errors += $Matches[1] }
+    }
+    Write-Host "${file}: $(($kinds.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' ')"
+    $errors | Select-Object -First 8 | ForEach-Object { Write-Host "  error: $_" }
+  }
+  $w = Join-Path $Dir 'watchdog.json'
+  if (Test-Path $w) { Write-Host "watchdog: $((Get-Content -Raw $w).Trim())" }
+  $log = Join-Path $Dir 'game.log'
+  if (Test-Path $log) { Select-String -Path $log -Pattern 'AutoPlay: |Exception' | Select-Object -Last 25 | ForEach-Object { $_.Line.Trim() } }
+  if ($Code -eq 0) { Write-Host 'the run ended and the player quit' }
+  elseif ($Code -eq 124 -and (Test-Path $w)) { Write-Host 'the player hung: its watchdog ended it (watchdog.json)' }
+  elseif ($Code -eq 124) { Write-Host "the player was stopped after its time limit (-MaxSeconds + 180 s)" }
+  else { Write-Host "the player ended with exit code ${Code}: a crash, or it was killed (read game.log)" }
+}
 
 switch ($Mode) {
   'setup' {
@@ -157,6 +288,28 @@ exit `$p.ExitCode
     $code = $LASTEXITCODE
     if (Test-Path $log) { Select-String -Path $log -Pattern 'Exception|Error' | Select-Object -Last 20 | ForEach-Object { $_.Line.Trim() } }
     if ($code -eq 124) { Write-Host "stopped after $Seconds s (the game did not quit by itself: the timeout, not a crash)" }
+    Done $code
+  }
+  'autoplay' {
+    $exe = Join-Path $Proj 'Build\Windows\__PROJECT__.exe'
+    if (-not (Test-Path $exe)) { Write-Error "no player build at $exe (run: unity.ps1 build)"; exit 2 }
+    if ($MaxSeconds -lt 1) { Write-Error 'pass -MaxSeconds 1 or more'; exit 2 }
+    $n = if ($Scenario -gt 0) { $Scenario } else { 1 }
+    $out = Join-Path $Proj ('Logs\autoplay\{0}_s{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $n)
+    New-Item -ItemType Directory -Force $out | Out-Null
+    $a = @('-autoplay', '-scenario', "$n", '-seed', "$Seed", '-skill', $Skill.ToString([Globalization.CultureInfo]::InvariantCulture),
+      '-maxSeconds', "$MaxSeconds", '-goTimeout', '0', '-outputDir', $out, '-screen-fullscreen', '0', '-screen-width', '1920',
+      '-screen-height', '1080', '-logFile', (Join-Path $out 'game.log'))
+    if (-not $Audible) { $a += '-autoplayMute' }
+    $a += ($Extra -split ' ' | Where-Object { $_ })
+    $argLine = ($a | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' '
+    # the player stops itself (the run's end, or its watchdog 120 s after -MaxSeconds); the wrapper's limit is a backstop
+    $wrap = Join-Path $Logs "autoplay_$Tag.ps1"
+    # with a BOM: Windows PowerShell reads a script without one as ANSI, and the paths may hold any letter
+    [IO.File]::WriteAllText($wrap, "`$exe = '$($exe -replace "'", "''")'`n`$argLine = '$($argLine -replace "'", "''")'`n`$limit = $($MaxSeconds + 180)`n" + $DeskRun, (New-Object Text.UTF8Encoding($true)))
+    & $Heavy -Label "__SLUG__ autoplay $Tag" -Gpu -- powershell -NoProfile -ExecutionPolicy Bypass -File $wrap *> $null
+    $code = $LASTEXITCODE
+    Show-Run $out $code
     Done $code
   }
 }
