@@ -243,6 +243,15 @@ def score(task, grade):
             "required": len(required), "milestones": {g: all(v) for g, v in groups.items()}}
 
 
+def discard(folder, log):
+    """`folder` deleted. A file something still holds (a process the try couldn't find, the antivirus) is reported, not
+    raised: the try's result matters more than its scratch folder."""
+    try:
+        seeds.remove(folder)
+    except OSError as exc:
+        log(f"  couldn't delete {folder} ({exc}): delete it by hand")
+
+
 def side(name, folder, task, direct, timeout, build_timeout, evidence, log):
     seeds.add_probe(folder)
     machine = unity.Machine.for_project(folder, direct)
@@ -276,6 +285,8 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
     if not seed.get("reference"):
         return finish("ERROR", ["the task has no seed.reference: a try is graded against the start and the reference"])
     scratch = Path(scratch)
+    if scratch.exists():  # the try deletes it whole when it ends (an empty path is the current folder)
+        return finish("ERROR", [f"the scratch folder {scratch.absolute()} exists already: a try makes its own"])
     seeds.remove(evidence)
     evidence.mkdir(parents=True)
     try:
@@ -337,13 +348,15 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                 f"({row['required_passed']}/{row['required'] or '?'} required checks)")
             result["runs"].append(row)
             if not keep:
-                seeds.remove(scratch / label)
+                discard(scratch / label, log)
         return finish("DONE")
     except (OSError, RuntimeError, ValueError) as exc:
         return finish("ERROR", [f"the try couldn't run: {type(exc).__name__}: {str(exc)[:400]}"])
     finally:
+        # Stopped (Ctrl+C), the try's own Unity jobs run on in their process groups, and what the agent left too.
+        kill_left_behind(scratch)
         if not keep:
-            seeds.remove(scratch)
+            discard(scratch, log)
 
 
 def line(result):

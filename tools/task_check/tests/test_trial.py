@@ -1,6 +1,7 @@
 """task-try.py's parts that need no Unity and no harness: the brief, the command lines, the workspace, the transcript
 readers and a run's score."""
 
+import contextlib
 import json
 import os
 import shutil
@@ -55,6 +56,36 @@ def alive(pid):
 # An agent that starts a job of its own (a Unity editor, say), writes the job's pid to argv[1] and works on.
 STARTS_A_JOB = ("import subprocess, sys, time; job = subprocess.Popen([sys.executable, '-c', 'import time; "
                 "time.sleep(60)']); open(sys.argv[1], 'w').write(str(job.pid)); time.sleep(60)")
+
+
+def tried(tmp, **seed):
+    """The sample game and a calibrated task on it (start and fix commits)."""
+    repo, start, fix, _ = make_game(tmp)
+    task = task_with(probe(expect={"op": ">=", "calibrate": 0.5}))
+    task["seed"] = {**task["seed"], "commit": start, "reference": fix, **seed}
+    return repo, task
+
+
+@contextlib.contextmanager
+def faked(agent, projects=None, editor="C:/U/Unity.exe"):
+    """Unity and the harness faked: a side's project by its folder's name (a run's by its run folder), `agent` in place
+    of run_agent. Yields the projects."""
+    projects = projects or {"start": FakeProject(measuring(-500)), "reference": FakeProject(measuring(100)),
+                            "run1": FakeProject(measuring(-500)), "run2": FakeProject(measuring(90))}
+
+    def project(folder, machine, label):
+        folder = Path(folder)
+        return projects[folder.name if folder.name in projects else folder.parent.name]
+
+    with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
+            mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False: cls(Path(editor), None))):
+        yield projects
+
+
+def answered(argv, cwd, prompt, transcript, minutes, env_extra=None):
+    """An agent that changes nothing and stops."""
+    Path(transcript).write_text(json.dumps({"type": "result", "num_turns": 1}))
+    return {"exit_code": 0, "seconds": 60.0, "timed_out": False}
 
 
 class Brief(unittest.TestCase):
@@ -329,6 +360,80 @@ class LongEnough(unittest.TestCase):
         run = {"required_passed": 2, "required": 3, "peeked": [], "seconds": 10 * 60, "timed_out": True}
         result = {"status": "DONE", "task": "t", "solved": 0, "runs": [run]}
         self.assertNotIn("25-minute guide", trial.line(result))
+
+
+class CleanUp(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "taskkill, Win32_Process")
+    def test_an_interrupted_try_stops_what_still_runs_in_its_folder_and_deletes_it(self):
+        """Ctrl+C reaches the try, not its Unity jobs (each has a process group of its own): one that holds a file in
+        the try's folder is stopped before the folder goes, and the interruption goes on up."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            jobs = []
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                held = Path(cwd) / "held.txt"
+                jobs.append(subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1], 'w'); "
+                                              "f.write('x'); f.flush(); time.sleep(60)", str(held)],
+                                             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP))
+                for _ in range(200):
+                    if held.is_file() and held.stat().st_size:
+                        break
+                    time.sleep(0.05)
+                raise KeyboardInterrupt
+
+            try:
+                with faked(agent), self.assertRaises(KeyboardInterrupt):
+                    trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude", "claude",
+                                   log=lambda *a: None)
+                self.assertFalse(alive(jobs[0].pid), "nothing of the try runs on")
+                self.assertFalse((Path(tmp) / "scratch").exists(), "the try's folder is deleted")
+            finally:
+                for job in jobs:
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(job.pid)], capture_output=True)
+                    job.wait(timeout=30)
+
+    @unittest.skipUnless(os.name == "nt", "Windows keeps an open file")
+    def test_a_folder_the_try_cant_delete_is_reported_and_the_result_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            held, said = [], []
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                held.append(open(Path(cwd) / "Assets" / "held.txt", "w"))  # something the try can't stop holds it
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            try:
+                with faked(agent):
+                    result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                            "claude", log=said.append)
+                self.assertEqual((result["status"], len(result["runs"])), ("DONE", 1), result["reasons"])
+                self.assertTrue(any("couldn't delete" in s and "run1" in s for s in said), said)
+            finally:
+                for f in held:
+                    f.close()
+
+    def test_a_try_never_deletes_a_folder_it_did_not_make(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            mine = Path(tmp) / "mine"
+            mine.mkdir()
+            (mine / "keep.txt").write_text("x")
+            with faked(answered):
+                result = trial.try_task(repo, task, b"{}", mine, Path(tmp) / "out", "claude", "claude",
+                                        log=lambda *a: None)
+                self.assertEqual(result["status"], "ERROR")
+                self.assertTrue((mine / "keep.txt").is_file())
+                here = os.getcwd()
+                os.chdir(mine)
+                try:  # an empty path is the current folder
+                    result = trial.try_task(repo, task, b"{}", "", Path(tmp) / "out", "claude", "claude",
+                                            log=lambda *a: None)
+                finally:
+                    os.chdir(here)
+            self.assertEqual(result["status"], "ERROR")
+            self.assertIn("exists", result["reasons"][0])
+            self.assertTrue((mine / "keep.txt").is_file(), "the working folder is never emptied")
 
 
 if __name__ == "__main__":
