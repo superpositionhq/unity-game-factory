@@ -590,10 +590,11 @@ parameter's effective value at the camera after blending.
   grading, only a colour above 1 there reads differently) and leaves out tonemapping, split toning, the channel mixer,
   shadows/midtones/highlights and the curves: read a tonemapping change with `post:Tonemapping.mode`.
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
-  enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set, a colour by its channel `.r`, `.g`,
-  `.b` or `.a` (`post:Vignette.color.r`), a vector by its `.x`, `.y`, `.z` or `.w` (`post:Vignette.center.x`). A
-  `post:` name that doesn't exist (a component, a parameter or a channel), or a colour or vector without its channel,
-  has no value and gives a `query_errors` line.
+  enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set, a colour or a vector by its channel,
+  either spelling for either: `.r` or `.x` the first, `.g` or `.y` the second, `.b` or `.z` the third, `.a` or `.w`
+  the fourth (`post:Vignette.color.r`, `post:Vignette.center.x`). Names are spelled exactly, case included. A `post:`
+  name that doesn't exist (a component, a parameter or a channel), a colour or vector without its channel, or a
+  parameter with no single number (a curve) has no value and gives a `query_errors` line.
 - The sample's value also holds, for the logs: `post_processing`, `grading_mode` (`ldr` or `hdr`), `source`,
   `pipeline`, the constants (linear colours; `hue_shift` in degrees), `sun`, `sky` and `fog` (with its `mode`).
 
