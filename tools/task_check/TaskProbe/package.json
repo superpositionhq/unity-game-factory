@@ -1,0 +1,7 @@
+{
+  "name": "com.taskprobe",
+  "version": "1.0.0",
+  "displayName": "TaskProbe",
+  "description": "The task checker's probe: a timed, scripted play of the game with the task's measures, only when the player is started with -taskProbe. The checker adds this folder to its own copy of the game; the game's files are never changed.",
+  "unity": "6000.0"
+}

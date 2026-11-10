@@ -1,0 +1,36 @@
+{
+    "name": "TaskProbe",
+    "rootNamespace": "TaskProbe",
+    "references": [
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [
+        { "name": "com.unity.inputsystem", "expression": "1.0.0", "define": "TASKPROBE_INPUTSYSTEM" },
+        { "name": "com.unity.ugui", "expression": "1.0.0", "define": "TASKPROBE_UGUI" },
+        { "name": "com.unity.textmeshpro", "expression": "1.0.0", "define": "TASKPROBE_TMP" },
+        { "name": "com.unity.ugui", "expression": "2.0.0", "define": "TASKPROBE_TMP" },
+        { "name": "com.unity.render-pipelines.universal", "expression": "1.0.0", "define": "TASKPROBE_URP" },
+        { "name": "com.unity.modules.physics", "expression": "", "define": "TASKPROBE_PHYSICS" },
+        { "name": "com.unity.modules.physics2d", "expression": "", "define": "TASKPROBE_PHYSICS2D" },
+        { "name": "com.unity.modules.audio", "expression": "", "define": "TASKPROBE_AUDIO" },
+        { "name": "com.unity.modules.animation", "expression": "", "define": "TASKPROBE_ANIMATION" },
+        { "name": "com.unity.modules.particlesystem", "expression": "", "define": "TASKPROBE_PARTICLES" },
+        { "name": "com.unity.modules.terrain", "expression": "", "define": "TASKPROBE_TERRAIN" },
+        { "name": "com.unity.modules.ai", "expression": "", "define": "TASKPROBE_AI" },
+        { "name": "com.unity.modules.ui", "expression": "", "define": "TASKPROBE_UIMODULE" },
+        { "name": "com.unity.modules.uielements", "expression": "", "define": "TASKPROBE_UITK" },
+        { "name": "com.unity.modules.imageconversion", "expression": "", "define": "TASKPROBE_IMAGECONVERSION" }
+    ],
+    "noEngineReferences": false
+}
