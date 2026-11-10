@@ -61,8 +61,8 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
 | Pickup, objective, win, lose | under 2 s; the tail may ring |
 | Ambience | 20 s or longer, level steady, stereo, made to loop |
 
-- `peak_db` close to 0 is loud and `rms_db` under about -40 is very quiet: set each clip's volume on its
-  `AudioSource` (or in the cue's data asset) so that cues of one kind sit level with each other.
+- `peak_db` close to 0 is loud and `rms_db` under about -40 is very quiet: set each clip's volume on the `AudioSource`
+  that plays it (or in its cue bank, section 5) so that cues of one kind sit level with each other.
 - `--mono` for anything placed in the world, so it spatializes (`AudioSource.spatialBlend = 1`); stereo for UI and
   ambience.
 - Trim with ffmpeg (`<UGF_ROOT>\tools\ffmpeg-8.1.2\ffmpeg-8.1.2-full_build\bin\ffmpeg.exe`) by writing a new WAV next
