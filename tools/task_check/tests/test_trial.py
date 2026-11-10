@@ -60,6 +60,15 @@ def alive(pid):
     return code.value == 259  # STILL_ACTIVE
 
 
+def gone(pid, seconds=15):
+    """Whether process `pid` has ended within `seconds` (a kill is asynchronous: the process ends a moment later)."""
+    for _ in range(int(seconds / 0.1)):
+        if not alive(pid):
+            return True
+        time.sleep(0.1)
+    return False
+
+
 # An agent that starts a job of its own (a Unity editor, say), writes the job's pid to argv[1] and works on.
 STARTS_A_JOB = ("import subprocess, sys, time; job = subprocess.Popen([sys.executable, '-c', 'import time; "
                 "time.sleep(60)']); open(sys.argv[1], 'w').write(str(job.pid)); time.sleep(60)")
@@ -178,7 +187,7 @@ class Harness(unittest.TestCase):
             ran = trial.run_agent([sys.executable, "-c", STARTS_A_JOB, str(job)], tmp, "fix it", Path(tmp) / "t.jsonl",
                                   0.1)
             self.assertEqual((ran["exit_code"], ran["timed_out"]), (None, True))
-            self.assertFalse(alive(int(job.read_text())), "the agent's own job goes with it")
+            self.assertTrue(gone(int(job.read_text())), "the agent's own job goes with it")
 
     @unittest.skipUnless(os.name == "nt", "taskkill")
     def test_an_interrupted_try_stops_the_agent_and_what_it_started(self):
@@ -202,9 +211,8 @@ class Harness(unittest.TestCase):
                 with mock.patch.object(subprocess.Popen, "wait", interrupted), self.assertRaises(KeyboardInterrupt):
                     trial.run_agent([sys.executable, "-c", STARTS_A_JOB, str(job)], tmp, "fix it",
                                     Path(tmp) / "t.jsonl", 60)
-                time.sleep(0.5)
-                self.assertFalse(alive(started["agent"]), "no agent works on unattended")
-                self.assertFalse(alive(int(job.read_text())), "nor anything it started")
+                self.assertTrue(gone(started["agent"]), "no agent works on unattended")
+                self.assertTrue(gone(int(job.read_text())), "nor anything it started")
             finally:
                 for pid in [started.get("agent")] + ([int(job.read_text())] if job.is_file() else []):
                     if pid:
@@ -509,6 +517,14 @@ class LongEnough(unittest.TestCase):
         result = {"status": "DONE", "task": "t", "solved": 0, "runs": [run]}
         self.assertNotIn("25-minute guide", trial.line(result))
 
+    def test_a_run_whose_agent_failed_says_nothing_about_length(self):
+        """An agent that stopped with an error (one that couldn't start, or ran out of turns) says nothing either."""
+        run = {"required_passed": 0, "required": 3, "peeked": [], "seconds": 0.2 * 60, "exit_code": 1}
+        result = {"status": "DONE", "task": "t", "solved": 0, "runs": [run]}
+        self.assertNotIn("25-minute guide", trial.line(result))
+        run["exit_code"] = 0
+        self.assertIn("longest run 0.2 min", trial.line(result))
+
 
 class CodexHome(unittest.TestCase):
     def setUp(self):
@@ -599,7 +615,7 @@ class CleanUp(unittest.TestCase):
                 with faked(agent), self.assertRaises(KeyboardInterrupt):
                     trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude", "claude",
                                    log=lambda *a: None)
-                self.assertFalse(alive(jobs[0].pid), "nothing of the try runs on")
+                self.assertTrue(gone(jobs[0].pid), "nothing of the try runs on")
                 self.assertFalse((Path(tmp) / "scratch").exists(), "the try's folder is deleted")
             finally:
                 for job in jobs:

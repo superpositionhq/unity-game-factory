@@ -416,7 +416,9 @@ def line(result):
     tail = f"  (best {best}/{total} required checks"
     peeks = sorted({p for r in runs for p in r["peeked"]})
     tail += f"; transcript names {', '.join(peeks)}: it may have read the answer)" if peeks else ")"
-    times = [r["seconds"] / 60 for r in runs if r.get("seconds") is not None and not r.get("timed_out")]
+    # a run that hit its time limit or whose agent stopped with an error says nothing about length
+    times = [r["seconds"] / 60 for r in runs if r.get("seconds") is not None and not r.get("timed_out")
+             and r.get("exit_code", 0) == 0]
     if times and max(times) < LONG_MINUTES:
         tail += f"  longest run {max(times):.1f} min: under the {LONG_MINUTES}-minute guide (a guide, not a requirement)"
     return head + tail
