@@ -525,14 +525,20 @@ camera after blending.
 
 ### 2.9 `spawns`: objects appearing and disappearing
 
-`{"probe": "spawns", "component": "Projectile", "field": "spawned", "window": [0, 22]}`: how many objects carrying
-that component appeared (`spawned`: became active) or went (`destroyed`: were destroyed or deactivated) in each
-sample's interval, counted every frame; the default `agg` is `sum` (the count in the window). Instantiated clones and
-pooled objects reused with `SetActive` count alike: a pooled projectile that is deactivated and reused counts each
-time it comes and goes. Objects already there when the play's clock starts are not counted as spawned. What counts is
-each GameObject carrying the component: a prefab instance counts through whichever of its objects carry it, so name a
-component that sits once per thing (the coin's own script), not one its children also carry (`MeshRenderer`), or each
-child counts too.
+`{"probe": "spawns", "component": "Projectile", "field": "spawned|destroyed", "window": [0, 22]}`: how many objects
+carrying that component appeared or disappeared in each sample's interval; the default `agg` is `sum` (the count in
+the window).
+
+- `spawned`: an object carrying the component became active in the hierarchy (instantiated, activated, or in a scene
+  loaded during the play); `destroyed`: one was destroyed or deactivated. The probe compares every frame with the one
+  before.
+- Objects already there when the play's clock starts are not counted as spawned.
+- Pooled objects reused with `SetActive` count as instantiated clones do: a pooled projectile that is deactivated and
+  reused counts each time it comes and goes.
+- What counts is each GameObject carrying the component (or a component of a type derived from it): a prefab instance
+  counts once for each of its objects that carries it. Name a component that sits once per thing (the coin's own
+  script), not one its children also carry (`MeshRenderer`), or each child counts too.
+- A component type the build doesn't have (one a feature adds, at the start) gives no value, not 0.
 
 ### 2.10 `log`: the play's player log
 
@@ -904,10 +910,11 @@ Values are the same under URP's Forward, Forward+ and Deferred renderers. Cost: 
   start measured nothing for, because its play crashed on the very bug the task fixes, doesn't count against it.)
 - **Trace probes never gate**: `"required": false`, with a literal threshold.
 - **No samples, no pass.** When a play ends early or a measure has no samples in its window (the game quit, crashed or
-  never reached that time), the probe fails with "no samples in the window (the play ended at X s)"; when samples exist
-  but nothing selected has a value, it fails with "no value in the window".
-- **A crash** is a player log line matching `Crash!!!`, `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`. A
-  managed exception the game survives is not a crash; `log_absent` checks for those.
+  never reached that time; a `player` measure in a play that found no player, a `camera` measure with no camera), the
+  probe fails with "no samples in the window (the play ended at X s)", or "no samples in the window (the play wrote no
+  probe file)"; when samples exist but nothing selected has a value, it fails with "no value in the window (nothing it
+  selects was measured)", followed by "; the probe said: " and the first line of the play's `query_errors` when it has
+  one (that line may be another measure's: the play's `probe.json` holds them all).
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`
@@ -928,18 +935,21 @@ Before any agent is given a task, the checker grades the start and the fix with 
 ([task-check.md](task-check.md)). A task is valid when:
 
 - the start builds (unless the task says it doesn't, section 3.1: then it must not);
-- the fix builds, boots and passes every required check;
-- the start fails every required probe outside `still_works` (or the `fails_at_start` build check);
-- a no-op scores zero: no deterministic check the start passes carries weight, required or not, so build, boot and
-  `still_works` checks, and any probe the start already passes (a `"required": false` one too), take `"weight": 0`
-  (the score is the weighted share of checks passed);
+- the fix builds, boots and passes every required probe (its other checks only add notes: a `log_absent` or
+  `file_exists` it fails, a probe that isn't required);
+- the start fails every required probe outside `still_works`, of which there is at least one (or the `fails_at_start`
+  build check);
+- a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
+  `"weight": 0`, as does any other check true of the start, a `log_absent` or `file_exists` check or a probe,
+  `"required": false` ones included (the score is the weighted share of checks passed);
 - every required `still_works` probe passes at the start;
 - every required calibrated probe measures differently on the start and the fix (one that isn't required and can't
   be calibrated fails as a note, never making the task invalid).
 
-A task with no fix (a feature or a change) is checked on its start alone: the start builds and fails at least one
-required probe, whose thresholds are literal or relative to the start. A task that fails the task check is not run;
-a run on an invalid task is void.
+A task with no fix is checked on its start alone: the start builds, fails every required probe outside `still_works`
+(thresholds literal or relative to the start) and passes its still-works probes. Only a draft has no fix: the
+validator refuses a task without `seed.reference`. A task that fails the task check is not run; a run on an invalid
+task is void.
 
 ## 5. Lessons
 
