@@ -1010,7 +1010,7 @@ class Dataset(Base):
              'status': 'pending', 'variant': 'full', 'pending': ['ReplayScripts', 'Gameplay'], 'scenarios': [],
              'totals': {'files': len(files), 'bytes': sum(f['bytes'] for f in files)}, 'files': files,
              'replay_verification': None,
-             'build': {'config': 'Release', 'commit': head, 'exe': 'Build/KilnRun.exe', 'backend': 'mono'},
+             'build': {'config': 'Release', 'commit': head, 'exe': 'Build/KilnRun.exe'},
              'history': {'bundle': f'History/{SLUG}.bundle', 'head': head,
                          'commits': int(git(repo, 'rev-list', '--count', 'main')), 'refs': ['refs/heads/main'],
                          'lfs_objects': n_lfs, 'lfs_bytes': lfs_bytes, 'authors_anonymised': True},
@@ -1051,12 +1051,22 @@ class Dataset(Base):
             shutil.rmtree(os.path.join(ds, 'UnityProject', 'Assets', 'ThirdParty', 'Kenney'))
             m['files'] = [f for f in m['files'] if '/Kenney/' not in f['path']]
             m['totals'] = {'files': len(m['files']), 'bytes': sum(f['bytes'] for f in m['files'])}
+            with open(os.path.join(ds, 'workflow.jsonl'), 'a', encoding='utf-8') as f:
+                f.write(workflow_row(3, reason='Asked Claude to tidy the HUD') + '\n')
+            os.remove(os.path.join(ds, 'UnityProject', 'ProjectSettings', 'ProjectVersion.txt'))
+            m['files'] = [f for f in m['files'] if not f['path'].endswith('/ProjectVersion.txt')]
         rep = vg.Report()
-        vg.check_dataset(rep, self.make_zip(mutate), 'dataset')
+        z = self.make_zip(mutate)
+        vg.check_dataset(rep, z, 'dataset')
         errs = ' | '.join(errors(rep))
-        for what in ("holds the grader's half (milestones)", 'manifest tasks (count, names) differ'):
+        for what in ("holds the grader's half (milestones)", 'manifest tasks (count, names) differ',
+                     'banned name (?i)\\bclaude\\b x1'):
             self.assertIn(what, errs)
         self.assertIn('listed asset file not present: Crates: Assets/ThirdParty/Kenney/', errs)
+        if shutil.which('powershell') or shutil.which('pwsh'):
+            rep = vg.Report()
+            vg.run_layout_validator(rep, z, False)
+            self.assertIn('UnityProject/ has no ProjectSettings/ProjectVersion.txt', errors(rep))
 
     def test_cli_with_zip(self):
         self.make_zip()

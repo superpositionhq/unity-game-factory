@@ -164,18 +164,6 @@
         },
         "source": {
           "type": "string"
-        },
-        "backend": {
-          "enum": [
-            "mono",
-            "il2cpp"
-          ],
-          "description": "the scripting backend it was built with"
-        },
-        "unity": {
-          "type": "string",
-          "pattern": "^6000\\.3\\.",
-          "description": "the editor version that built it"
         }
       }
     },

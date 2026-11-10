@@ -35,7 +35,7 @@
       },
       {
         "pattern": "^ProjectSettings/ProjectSettings\\.asset$",
-        "what": "player settings (companyName the game's own studio name)"
+        "what": "player settings"
       },
       {
         "pattern": "^Scripts/unity\\.ps1$",
@@ -97,9 +97,6 @@
         }
       }
     },
-    "company_name_not": [
-      "DefaultCompany"
-    ],
     "gitignore_must_contain": [
       "/Dataset.zip",
       "/Dataset.pending.zip",
@@ -251,7 +248,7 @@
       "full variant: manifest.history is an object; History/<game>.bundle is a git bundle whose refs include history.head = manifest.commit",
       "the bundle holds every commit (history.commits); git.log lists the same commits",
       "every Git LFS pointer in every commit has its object under History/lfs/objects/<aa>/<bb>/<sha256>, and each object's sha256 equals its name (history.lfs_objects / lfs_bytes count them)",
-      "author and committer of every commit are dev_NN; commit messages and text blobs carry no banned names (same scan as the repo)",
+      "author and committer of every commit are dev_NN; commit messages carry no banned names (the repo's patterns; the packager's rescan also covers every text blob)",
       "repo-dataset: no History/, manifest.history null"
     ],
     "brief": [

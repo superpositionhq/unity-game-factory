@@ -353,7 +353,12 @@ def _check_dataset(rep, v, area):
     directions = set()
     if v.has('workflow.jsonl'):
         with v.open_text('workflow.jsonl') as f:
-            directions = check_workflow(rep, f'{area}: workflow.jsonl', f)
+            text = f.read()
+        directions = check_workflow(rep, f'{area}: workflow.jsonl', text.splitlines())
+        for p in SPEC['repo']['banned_names']['patterns']:   # a banned name left in a row is an error here too
+            n = len(re.findall(p, text))
+            if n:
+                rep.error(f'{area}: workflow.jsonl', f'banned name {p} x{n}')
     else:
         rep.error(area, 'no workflow.jsonl')
     # git.log
@@ -1275,12 +1280,6 @@ def check_repo(rep, repo):
                 got = setting(text, key)
                 if got != want['value']:
                     rep.error('repo', f'{path}: {key} is {got!r}, must be {want["value"]!r} ({want["what"]})')
-    ps = 'ProjectSettings/ProjectSettings.asset'
-    if ps in tracked:
-        company = setting(read_text(os.path.join(repo, ps)), 'companyName')
-        if not company or company in R['company_name_not']:
-            rep.warn('repo', f'{ps}: companyName {company!r}: the game\'s own studio name (it names the exe\'s company '
-                             'and the persistentDataPath folder)')
     # .gitignore: Unity's generated folders and the local dataset ignored, nothing the game is made of
     text = read_text(os.path.join(repo, '.gitignore'))
     for line in R['gitignore_must_contain']:

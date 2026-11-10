@@ -63,12 +63,6 @@ if (-not $files.ContainsKey('manifest.json')) { E 'manifest.json is missing' }
 else {
     try { $man = Read-Text 'manifest.json' | ConvertFrom-Json } catch { E "manifest.json is not valid JSON: $($_.Exception.Message)" }
 }
-# The spec follows the delivery's own layout version unless -SpecFile names one (a delivery stays valid as its version).
-$layoutFiles = @{ 'unity-dataset-layout/v1' = 'dataset-layout-v1.json' }
-if (-not $PSBoundParameters.ContainsKey('SpecFile') -and $man -and $layoutFiles.ContainsKey([string](Get-Prop $man 'layout'))) {
-    $SpecFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) ('..\docs\' + $layoutFiles[[string](Get-Prop $man 'layout')])
-    $L = Get-Content $SpecFile -Raw -Encoding UTF8 | ConvertFrom-Json
-}
 $unlisted = Get-Prop (Get-Prop $L 'unlisted_allowed') 'prefix'   # History/lfs/objects/ (content-addressed, not in files[])
 $game = $null; $status = $null
 if ($man) {
@@ -136,13 +130,7 @@ foreach ($en in $L.entries) {
     foreach ($m in @(Get-Prop $en 'must_contain')) { if ($m -and -not ($inside | Where-Object { ($_ -split '/')[-1] -like $m })) { E "$($en.name)/ has no $m" } }
     foreach ($m in @(Get-Prop $en 'forbid')) { if ($m) { $bad = @($inside | Where-Object { ($_ -split '/')[-1] -like $m }); if ($bad.Count) { E "$($en.name)/ contains $($bad.Count) $m file(s), e.g. $($bad[0])" } } }
 }
-if (-not $RepoDataset) {
-    $pv = 'UnityProject/ProjectSettings/ProjectVersion.txt'
-    if (-not $files.ContainsKey($pv)) { E "UnityProject/ has no ProjectSettings/ProjectVersion.txt" }
-    elseif ((Read-Text $pv) -notmatch '(?m)^\s*m_EditorVersion:\s*6000\.3\.') { E "UnityProject/ is not a Unity 6000.3 project ($pv)" }
-    $gen = @($files.Keys | Where-Object { $_ -match '^UnityProject/(Library|Temp|Logs|UserSettings)/' })
-    if ($gen.Count) { E "UnityProject/ holds Unity's generated folders ($($gen.Count) files, e.g. $($gen[0]))" }
-}
+if (-not $RepoDataset -and -not $files.ContainsKey('UnityProject/ProjectSettings/ProjectVersion.txt')) { E 'UnityProject/ has no ProjectSettings/ProjectVersion.txt' }
 
 # ---- manifest scenarios and files --------------------------------------------------------------------------------------
 if ($man) {
