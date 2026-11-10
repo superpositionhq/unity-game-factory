@@ -2,6 +2,7 @@
 readers and a run's score."""
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -310,6 +311,30 @@ class Workspace(unittest.TestCase):
             self.assertFalse((dest / "Tasks").exists(), "no tasks reach the agent")
             self.assertEqual(git(dest, "rev-list", "--count", "HEAD"), "1", "one commit, no history")
             self.assertEqual(git(dest, "status", "--porcelain"), "")
+
+    def test_nothing_of_the_answer_reaches_the_workspace_and_its_lfs_files_are_copies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, _, _, data = make_game(tmp)
+            write(repo, "History/git.log", "Dataset/manifest.json", "Dataset.zip")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-q", "-m", "the dataset")
+            start = git(repo, "rev-parse", "HEAD")
+            write(repo, "Assets/Scripts/Metro.cs", text="class Metro { int fixedAtLast = 1; }\n")
+            git(repo, "commit", "-q", "-am", "the fix")
+            git(repo, "branch", "tasks")
+            fix = git(repo, "rev-parse", "HEAD:Assets/Scripts/Metro.cs")
+            dest = Path(tmp) / "ws" / "metro-runner"
+            trial.workspace(repo, start, dest)
+            self.assertEqual([n for n in ("Tasks", "History", "Dataset", "Dataset.zip") if (dest / n).exists()], [])
+            self.assertNotEqual(subprocess.run(["git", "-C", str(dest), "cat-file", "-e", fix]).returncode, 0,
+                                "no object of the fix")
+            self.assertEqual(git(dest, "for-each-ref", "--format=%(refname)"), "refs/heads/main", "no tasks branch")
+            self.assertEqual((git(dest, "remote"), len(git(dest, "reflog").splitlines())), ("", 1))
+            texture = dest / "Assets" / "Textures" / "Wall.png"
+            self.assertEqual(texture.read_bytes(), data)
+            self.assertEqual(os.stat(texture).st_nlink, 1, "the agent edits a copy, never the repo's LFS object")
+            oid = hashlib.sha256(data).hexdigest()
+            self.assertEqual((dest / ".git" / "lfs" / "objects" / oid[:2] / oid[2:4] / oid).read_bytes(), data)
 
 
 class Whole(unittest.TestCase):
