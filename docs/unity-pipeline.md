@@ -340,6 +340,8 @@ on demand (the user's decision in the Unreal factory).
 
 ### Machine notes and open items
 
+Not available yet (they apply once the recorder runs):
+
 - Any display and scaling that holds a 1920x1080 window works; vsync off and a 60 fps cap in the game keep it at 60 fps
   whatever the refresh.
 - The game window sits topmost with its 1920x1080 client area on the primary screen for the run. Runs start only after
