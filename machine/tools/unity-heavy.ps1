@@ -99,15 +99,19 @@ function Test-RecordingWaits {
   foreach ($f in $flags) { if ((Test-Path $f) -and ((Get-Date) - (Get-Item $f).LastWriteTime).TotalMinutes -lt 20) { return $true } }
   return $false
 }
-# A GPU job that started in the last minute has not loaded yet: its VRAM does not show, so wait for it to settle.
+# A GPU job that started in the last minute has not loaded yet: its VRAM does not show, so wait for it to settle. One
+# that has ended (its "end" row, or its limiter gone: a killed one logs none) holds no VRAM: Unity plays last seconds,
+# and waiting out the minute after each one that had already ended made every play of a task check wait.
 function Test-VramBusy {
   $script:vramUsed = Get-VramMB 'used'
-  $script:vramRecent = $false
+  $recent = @{}
   foreach ($l in (Get-JobLogTail 200)) {
-    if ($l -notmatch '"event":"start"' -or $l -notmatch '"gpu":true') { continue }
+    if ($l -notmatch '"event":"(start|end)"') { continue }
     try { $r = $l | ConvertFrom-Json } catch { continue }
-    if ($r.pid -ne $PID -and ((Get-Date) - [datetime]$r.time).TotalSeconds -lt 60) { $script:vramRecent = $true }
+    if ($r.event -eq 'end') { $recent.Remove([int]$r.pid) }
+    elseif ($r.gpu -and $r.pid -ne $PID -and ((Get-Date) - [datetime]$r.time).TotalSeconds -lt 60) { $recent[[int]$r.pid] = $true }
   }
+  $script:vramRecent = @($recent.Keys | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -gt 0
   $script:vramRecent -or ($null -ne $script:vramUsed -and $script:vramUsed -gt $vramLimit)
 }
 if ($gpuM) {
