@@ -1,69 +1,64 @@
-// screen: the mean brightness of the frame as displayed, over a rect (contract section 3). The frame is the one drawn
-// right after the sample, after post-processing, with the UI on it.
-// "value": {"luminance", "luma", "pixels", "size": [w, h]} | null when no frame was read.
+// screen: the mean brightness of the frame as displayed, over a rect (contract section 3): the frame drawn right after
+// the sample, after post-processing and tone mapping, with the UI on it (the original reads its viewport before the
+// UMG and Slate UI is drawn over it; URP draws the overlay UI inside the last camera's render, so no point of a Unity
+// frame holds the scene without it).
+// "value": {"luminance" (mean linear Rec. 709 luminance of the displayed pixels, sRGB decoded, 0-1), "luma" (mean
+// Rec. 709 luma of the encoded values, 0-1), "pixels", "size": [w, h]} | null when no frame was drawn (the play ended
+// first).
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace TaskProbe
 {
     [ProbeQuery("screen")]
     public sealed class ScreenQuery : Query
     {
-        static readonly double[] Linear = BuildLinear();
-        double x0, y0 = 0.0, x1 = 1.0, y1 = 1.0;
+        static readonly double[] Linear = SrgbToLinear();
+        readonly double[] rect = { 0.0, 0.0, 1.0, 1.0 };  // [x0, y0, x1, y1] in viewport fractions, y down
 
-        static double[] BuildLinear()
+        /// <summary>Each 8-bit sRGB value as linear light, 0-1.</summary>
+        static double[] SrgbToLinear()
         {
             var table = new double[256];
             for (var i = 0; i < 256; i++)
             {
-                var v = i / 255.0;
-                table[i] = v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+                var c = i / 255.0;
+                table[i] = c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
             }
             return table;
         }
 
         public override void Load()
         {
-            if (Def.TryGetValue("rect", out var rect) && Json.TryNumbers(rect, 4, out var r))
-            {
-                x0 = r[0]; y0 = r[1]; x1 = r[2]; y1 = r[3];
-            }
+            // rect: [x0, y0, x1, y1] in viewport fractions (default the whole frame)
+            if (Def.TryGetValue("rect", out var r) && r is List<object> numbers && numbers.Count == 4)
+                for (var i = 0; i < 4; i++)
+                    if (numbers[i] is double v) rect[i] = Math.Min(Math.Max(v, 0.0), 1.0);
         }
 
         public override FrameNeed Needs => FrameNeed.Pixels;
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
-            sample["value"] = null;  // filled in when the frame has been drawn
+            sample["value"] = null;  // filled in from the frame drawn next; null if none comes
         }
 
         public override void FrameDrawn(FrameImage frame, Dictionary<string, object> sample)
         {
-            if (frame == null) return;
-            // the rect is in viewport fractions, y down from the top
-            var left = Mathf.Clamp((int)Math.Floor(x0 * frame.Width), 0, frame.Width);
-            var right = Mathf.Clamp((int)Math.Ceiling(x1 * frame.Width), 0, frame.Width);
-            var top = Mathf.Clamp((int)Math.Floor(y0 * frame.Height), 0, frame.Height);
-            var bottom = Mathf.Clamp((int)Math.Ceiling(y1 * frame.Height), 0, frame.Height);
-            long count = 0;
-            double luminance = 0.0, luma = 0.0;
-            for (var y = top; y < bottom; y++)
-            {
-                var row = (frame.Height - 1 - y) * frame.Width;
-                for (var x = left; x < right; x++)
+            if (frame == null || frame.Width <= 0 || frame.Height <= 0) return;
+            frame.Area(rect, out var x0, out var y0, out var x1, out var y1);
+            double lum = 0.0, luma = 0.0;
+            for (var y = y0; y < y1; y++)
+                for (var x = x0; x < x1; x++)
                 {
-                    var p = frame.Pixels[row + x];
-                    luminance += 0.2126 * Linear[p.r] + 0.7152 * Linear[p.g] + 0.0722 * Linear[p.b];
-                    luma += (0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b) / 255.0;
-                    count++;
+                    var p = frame.At(x, y);
+                    lum += Find.Luminance(Linear[p.r], Linear[p.g], Linear[p.b]);
+                    luma += Find.Luminance(p.r, p.g, p.b) / 255.0;
                 }
-            }
-            if (count == 0) return;
+            var count = (double)(x1 - x0) * (y1 - y0);
             sample["value"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["luminance"] = luminance / count, ["luma"] = luma / count, ["pixels"] = (double)count,
+                ["luminance"] = lum / count, ["luma"] = luma / count, ["pixels"] = count,
                 ["size"] = new List<object> { (double)frame.Width, (double)frame.Height },
             };
         }
