@@ -609,6 +609,14 @@ SCENE_ONLY = ('count', 'material_default', 'mesh_collision', 'material:')   # fi
 WAITS = 300   # seconds of real time a task play's waits add at most
 
 
+def dotted(path):
+    """Why a project path (an asset, a scene, a prefab) can't be used, as a list: a `.` or `..` part names a file by a
+    way round, outside Assets/ or Packages/ even (the editor pass refuses it, the build leaves such a scene out)."""
+    if isinstance(path, str) and any(part in ('.', '..') for part in path.split('/')):
+        return [f'{path} has a "." or ".." part: name the file by its own path under Assets/ or Packages/']
+    return []
+
+
 def nears(o):
     """Every `near` inside `o` (a measure, a play's inputs, a select), wherever it is nested."""
     if isinstance(o, dict):
@@ -678,6 +686,7 @@ def probe_errors(c, seed, ref, plays):
         errs.append(f'check {n}: trace measures are read from the trace (play "trace"), and it gives nothing else')
     if probe == 'asset':
         anchors = [k for k in ('asset', 'scene', 'prefab') if measure.get(k) is not None]
+        errs += [f'check {n}: {e}' for k in anchors for e in dotted(measure[k])]
         fname = field if isinstance(field, str) else ''
         if len(anchors) != 1:
             errs.append(f'check {n}: an asset measure reads one `asset`, or the objects of one `scene` or `prefab`')
@@ -704,6 +713,7 @@ def probe_errors(c, seed, ref, plays):
             errs.append(f'check {n}: play {pname} has an input at or after its end ({secs} s)')
         for name in denied_play_args(play.get('args') if isinstance(play.get('args'), list) else []):
             errs.append(f"check {n}: a task play can't set -{name}")
+        errs += [f'check {n}: play {pname}: {e}' for e in dotted(play.get('scene'))]
         waits = sum(i['wait'] for i in play.get('inputs') or []
                     if isinstance(i, dict) and isinstance(i.get('wait'), (int, float)))
         if waits > WAITS:
@@ -790,6 +800,7 @@ def task_semantic_errors(t):
     ref = seed.get('reference') if seed else None
     for name in denied_play_args(t.get('play_args') if isinstance(t.get('play_args'), list) else []):
         errs.append(f"play_args can't set -{name}")
+    errs += [f'play_scene: {e}' for e in dotted(t.get('play_scene'))]
     errs += near_errors('player', t.get('player'))
     if live(t.get('player'), ('player',)):
         errs.append('player: this select says which object the player is, so it names no `player` and no point on the '

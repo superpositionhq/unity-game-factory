@@ -666,6 +666,19 @@ class Units(unittest.TestCase):
         self.assertEqual(errs(dict(dist, to={'xyz': [0, 0, 0]})), '')
         self.assertIn('`to_angle` or `to_axis`, not both',
                       errs({'probe': 'camera', 'field': 'yaw', 'to_angle': 90, 'to_axis': 0}, expect={'op': '<=', 'value': 5}))
+        for anchor, path in (('asset', 'Assets/a/../../b.mat'), ('scene', 'Assets/../ProjectSettings/X.unity'),
+                             ('prefab', 'Packages/./x.prefab')):
+            said = errs({'probe': 'asset', anchor: path, 'field': 'count' if anchor != 'asset' else 'prop:m_Name',
+                         **({'select': {'name': 'x'}} if anchor != 'asset' else {})}, 'editor', {'op': '>=', 'value': 1})
+            self.assertIn(f'{path} has a "." or ".." part', said, anchor)
+        look = {'probe': 'player', 'field': 'y', 'agg': 'min'}
+        self.assertIn('play fire: Assets/Scenes/../X.unity has a "." or ".." part',
+                      errs(look, {'name': 'fire', 'seconds': 5, 'scene': 'Assets/Scenes/../X.unity'},
+                           {'op': '>=', 'value': 0}))
+        self.assertIn('play_scene: Assets/../X.unity has a "." or ".." part', ' '.join(vg.task_semantic_errors(
+            task('a' * 40, 'b' * 40, play_scene='Assets/../X.unity'))))
+        self.assertEqual(errs({'probe': 'asset', 'asset': 'Assets/Art/Hero.v2/Road..mat', 'field': 'prop:m_Name'},
+                              'editor', {'op': '>=', 'value': 1}), '', 'dots inside a name are a name')
         height = {'probe': 'player', 'field': 'y', 'window': [0, 1], 'at': [5.0]}
         self.assertIn('`window` or `at`, not both', errs(height, expect={'op': '>=', 'value': 0}))
         self.assertEqual(errs(dict(height, at=None), expect={'op': '>=', 'value': 0}), '')
