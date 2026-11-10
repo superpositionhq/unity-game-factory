@@ -175,7 +175,7 @@ class Harness(unittest.TestCase):
             self.assertFalse(ran["timed_out"])
             self.assertEqual(out.read_text().split(), ["FIX", "IT", "1"])
 
-    def test_both_factories_record_nothing_and_nothing_points_the_agent_at_the_answer(self):
+    def test_the_recording_hooks_record_nothing_and_nothing_points_the_agent_at_the_answer(self):
         """The machine root, its config (which names the root), the deliverables (every game's history) and the
         organisation of the game repos stay out of the agent's environment."""
         with tempfile.TemporaryDirectory() as tmp:

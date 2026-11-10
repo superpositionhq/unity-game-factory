@@ -194,7 +194,7 @@
     },
     "dataset_folder": "Dataset/ (variant repo-dataset): checked as a dataset when manifest.json is there; a game that is not packaged yet has none",
     "tasks": [
-      "Tasks/<game>-<kind>-<slug>.json, one GameTask each (game-task/1, Unity flavour: docs/schemas/game-task.schema.json), on the repo's orphan branch `tasks` (no shared history with main; a short README.md, optionally tasks-workflow.jsonl), never on main; the name field equals the file stem",
+      "Tasks/<game>-<kind>-<slug>.json, one GameTask each (game-task/1: docs/schemas/game-task.schema.json), on the repo's orphan branch `tasks` (no shared history with main; a short README.md, optionally tasks-workflow.jsonl), never on main; the name field equals the file stem",
       "the tasks branch is checked out as a git worktree outside the game folder (e.g. <root>/tasks/<slug>) and committed and pushed there; task work never enters the game's history: main tracks nothing under Tasks/ and never references the tasks branch, the recording hooks ignore commits on it, and the delivered history (History/) leaves it out",
       "the validator and the packager read the tasks from `tasks`, else `origin/tasks`; a missing tasks branch is an error",
       "at least one task (none is an error); about 10 recommended (the count is reported, never an error or warning)",

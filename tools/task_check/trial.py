@@ -7,8 +7,8 @@ For one task and each run:
    themselves copies, since the agent edits them).
 2. The contractor's harness (Claude Code or Codex, their own subscription and login) runs headless in the workspace
    with the brief as its prompt, within the task's limits (turns where the harness has a flag, minutes always), with
-   the machine's recording hooks off (UGF_NO_RECORDING, and GF_NO_RECORDING for the Unreal factory's hooks). Its
-   transcript is kept.
+   the machine's recording hooks off (UGF_NO_RECORDING, and GF_NO_RECORDING for another factory's hooks on the
+   same machine). Its transcript is kept.
 3. The workspace is graded as a solution: its build outputs and Library removed, TaskProbe added, built fresh,
    played, every check but judges, trace probes and packaging run against the thresholds the start and the reference
    give (both built and measured once for all runs, before the first agent starts, and deleted then: the reference copy
@@ -36,9 +36,10 @@ LIMITS = {"max_turns": 200, "max_minutes": 240}  # the schema's defaults (game-t
 # holds the agent's editor state (build profiles with their own defines and scenes, compiled scripts, build caches),
 # which a game's files never carry; the grade imports everything again, as the task check does for each copy.
 BUILT = ("Library", "Temp", "Obj", "Logs", "Build", "Builds")
-NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-action hooks record nothing when set
+# The record-action hooks record nothing when set: this factory's, and another factory's on the same machine (GF_*).
+NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")
 # Nothing points the agent at a machine root, its config (which names the root), its deliverables (every game's history)
-# or the organisation that holds the game repos.
+# or the organisation that holds the game repos; GF_ROOT and UE_RUN_REASON are another factory's names for the same.
 NO_ROOT = ("UGF_ROOT", "UGF_CONFIG", "UGF_OUT", "UGF_ORG", "GF_ROOT", "UNITY_RUN_REASON", "UE_RUN_REASON")
 # The home folder as the shells write it (Git Bash has USERPROFILE too); a path's slashes either way, doubled by JSON
 HOME = ("~", "$home", "${home}", "$env:userprofile", "${env:userprofile}", "$userprofile", "${userprofile}",

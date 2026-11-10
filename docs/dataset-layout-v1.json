@@ -1,7 +1,7 @@
 {
   "schema": "unity-dataset-layout/v1",
   "approved": "2026-11-10",
-  "changes": "v1: the first Unity layout, from game-factory's dataset layout v1.3 (Unreal) with UnityProject/ in place of UEProject/ and the Windows release player in Build/.",
+  "changes": "v1: the first layout.",
   "description": "Our standard delivery layout for every Unity game: the creation record (git.log, workflow.jsonl, ReplayScripts/, the full git history in History/, the brief and design doc in Brief/), the game's tasks in Tasks/, the project, per-scenario gameplay videos, README screenshots and the built player. docs/game-format.md is the prose version of this file; tools/validate-dataset.ps1 checks against this file.",
   "names": {
     "zip": "Dataset.zip",
@@ -222,7 +222,7 @@
   },
   "tasks": {
     "count": "at least 1; about 10 recommended (fewer or more is fine)",
-    "format": "GameTask (game-task/1, Unity flavour, docs/schemas/game-task.schema.json); merging task.json and grader.json (grader.json's seed into task.json's) gives the task",
+    "format": "GameTask (game-task/1, docs/schemas/game-task.schema.json); merging task.json and grader.json (grader.json's seed into task.json's) gives the task",
     "split": {
       "task.json": "name, title, instruction, engine, seed {game, commit, kind}, play_scene, play_args, player, asset_packs, difficulty, tags, limits",
       "grader.json": "name, seed {reference} when the task has one, milestones"

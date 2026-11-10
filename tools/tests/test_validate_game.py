@@ -609,8 +609,8 @@ class Units(unittest.TestCase):
     """The validator's rules on their own, without a repo."""
 
     def test_thread_definitions(self):
-        """The Unreal factory's eight systems in Unity terms; an editor step (the creation's record) or a .meta is no
-        game file, though a step's lines are code lines."""
+        """The eight systems a game file falls into; an editor step (the creation's record) or a .meta is no game file,
+        though a step's lines are code lines."""
         for path, system in (('Assets/Scripts/Hero.cs', 'code'), ('Assets/Editor/HeroInspector.cs', 'code'),
                              ('Assets/Game.asmdef', 'code'), ('ProjectSettings/TagManager.asset', 'config'),
                              ('Packages/manifest.json', 'config'), ('Packages/packages-lock.json', 'config'),
@@ -1023,9 +1023,9 @@ class Units(unittest.TestCase):
         self.assertTrue(wrong.startswith(f'{at}.kind: "probes" not one of [') and "'build'" in wrong
                         and "'probe'" in wrong, wrong)
         self.assertEqual(problems(lambda c: c['measure'].pop('probe')), [f'{at}.measure: missing "probe"'])
-        (unreal,) = problems(lambda c: c['measure'].update(probe='actors'))
-        self.assertTrue(unreal.startswith(f'{at}.measure.probe: "actors" not one of [') and "'objects'" in unreal,
-                        unreal)
+        (refused,) = problems(lambda c: c['measure'].update(probe='actors'))
+        self.assertTrue(refused.startswith(f'{at}.measure.probe: "actors" not one of [') and "'objects'" in refused,
+                        refused)
         self.assertEqual(problems(lambda c: c['measure'].update(sample=1)),
                          [f'{at}.measure: unexpected key "sample"'], "the measure's own shape, never 'matches none'")
         self.assertEqual(problems(lambda c: None), [])
@@ -1059,7 +1059,7 @@ class Schema(unittest.TestCase):
         return list(vg.check_schema(value, self.S['$defs'][ref], self.S))
 
     def test_contract_fields(self):
-        """Every measure field the contract (section 3) lists, with its prefixed forms, and nothing Unreal: each kind's
+        """Every measure field the contract (section 3) lists, with its prefixed forms, and nothing else: each kind's
         good fields in a whole probe check, its bad ones against its field alone (so each fails for itself)."""
         good = {
             'player': ['x', 'y', 'z', 'speed', 'moved', 'dist'],
@@ -1099,7 +1099,7 @@ class Schema(unittest.TestCase):
             'spawns': ['spawned', 'destroyed'], 'log': ['count'],
             'trace': ['built_after_last_change', 'played_after_last_change', 'read_before_first_edit',
                       'build_ok_at_end', 'edits_outside_project']}
-        # the original's names, another kind's fields, a value's other keys, and prefixes without their name
+        # names the contract doesn't use, another kind's fields, a value's other keys, and prefixes without their name
         bad = {'player': ['pawn_on_screen', 'yaw'], 'camera': ['pawn_on_screen', 'roll'],
                'objects': ['bb:Speed', 'actors', 'prop:', 'bone:Hand.x', 'forward:Spot', 'clip:Run', 'world_yaw:.L'],
                'components': ['prop:', 'hidden', 'clip', 'anim:Speed'], 'widgets': ['slate', 'enabled'],
@@ -1141,12 +1141,12 @@ class Schema(unittest.TestCase):
             schema = self.S['$defs'][self.MEASURE[probe]]['properties'][key(probe)]
             for f in fields:
                 self.assertNotEqual(list(vg.check_schema(f, schema, self.S)), [], f'{probe} {f}')
-        for unreal in ('pawn', 'actors'):
-            self.assertNotEqual(check(unreal, 'x'), [])
+        for refused in ('pawn', 'actors'):
+            self.assertNotEqual(check(refused, 'x'), [])
 
     def test_contract_shapes(self):
         """Points, near, selects and inputs as the contract (sections 1-4) writes them: every key of each select, every
-        input row, and none of the original's keys Unity names otherwise or doesn't have."""
+        input row, and no key the contract doesn't list."""
         x = {'xyz': [0, 0, 0]}
         sel = {'component': 'UnityEngine.UI.Button', 'tag': 'Player', 'layer': 'Ignore Raycast', 'name': 'Enemy (Clone)',
                'near': {'point': {'object': {'name': 'Kiln*'}, 'offset': [0, 1, 0]}, 'radius': 2.0,
@@ -1300,8 +1300,7 @@ class Schema(unittest.TestCase):
             self.assertNotIn('default', self.S['$defs'][self.SHAPE[kind]]['properties']['kind'], kind)
 
     def test_limits_in_metres(self):
-        """The original's limits in centimetres, scaled to metres as its defaults are (contract section 1: 200 cm -> 2 m,
-        2 km -> 2000 m): a value at its limit passes, one past it fails."""
+        """The limits in metres (contract section 1): a value at its limit passes, one past it fails."""
         x = {'xyz': [0, 0, 0]}
         for ref, key, limit, rest in (('AtCamera', 'forward', 1000, {'camera': True}),
                                       ('Line', 'radius', 100, {'from': x, 'to': x}),
@@ -1350,7 +1349,7 @@ class Schema(unittest.TestCase):
 
     def test_unity_words(self):
         """Titles and descriptions name Unity's things in Unity's words (contract section 1), and no definition keeps a
-        key of the original's that Unity names otherwise or doesn't have."""
+        key that isn't Unity's word for its thing."""
         texts, keys = [], set()
 
         def walk(node):
@@ -1367,9 +1366,9 @@ class Schema(unittest.TestCase):
                     walk(v)
 
         walk(self.S)
-        unreal = re.compile(r'\b(actors?|pawns?|UMG|Slate|Blueprints?|Niagara|Cascade|cm|Z up|play_map|uproject)\b|'
+        foreign = re.compile(r'\b(actors?|pawns?|UMG|Slate|Blueprints?|Niagara|Cascade|cm|Z up|play_map|uproject)\b|'
                             r'/Game/|`map`', re.I)
-        self.assertEqual([m.group(0) for t in texts for m in unreal.finditer(t)], [])
+        self.assertEqual([m.group(0) for t in texts for m in foreign.finditer(t)], [])
         self.assertEqual(keys & {'actor', 'pawn', 'class', 'slate', 'map', 'play_map', 'template', 'xy', 'z_min', 'z_max',
                                  'z_relative'}, set())
 

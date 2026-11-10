@@ -3,7 +3,7 @@
 - materialize: the game's files at a commit, exactly as committed, read straight from its repository (git objects, and
   the Git LFS objects in its local store), written into a scratch folder; each LFS file is a hardlink of its object when
   the folder is on the repo's volume (it costs no disk), else a copy. Nothing in the repo is written or checked out, and
-  nothing from another commit is added: a task is built exactly as committed (no port, no patch).
+  nothing from another commit is added: a task is built exactly as committed (no patch).
 - what a task's agent never sees is left out (ANSWERS): Tasks/, History/, Dataset/ and Dataset.zip at the root.
 - add_probe: the TaskProbe package as an embedded package, Packages/com.taskprobe/ (Unity loads every folder under
   Packages/ that holds a package.json, so Packages/manifest.json and the rest of the game's files stay exactly as

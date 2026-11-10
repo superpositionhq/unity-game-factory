@@ -908,8 +908,8 @@ MIN_THREAD_SYSTEMS = 2        # systems the change crosses, as thread_size count
 CODE_FILE = re.compile(r'\.(cs|asmdef|asmref|shader|hlsl|cginc|compute|uss|uxml|tss|cpp|h|hpp|c|cc|inl|py|ps1|bat|cmd|sh|'
                        r'js)$', re.I)
 NOT_CODE_DIR = re.compile(r'^(Dataset|Docs|RawAssets)/|/ThirdParty/')   # store packs' own code is not the thread's
-# the game itself, not its records or docs: the editor steps are the creation's record (as Scripts/ in an Unreal
-# game), and a .meta follows its asset (its GUID and import settings)
+# the game itself, not its records or docs: the editor steps are the creation's record, and a .meta follows its asset
+# (its GUID and import settings)
 GAME_FILE = re.compile(r'^(?!Assets/Editor/Steps/)(Assets|Packages|ProjectSettings)/(?!.*\.meta$)')
 GAME_PATHS = ('Assets', 'Packages', 'ProjectSettings', ':(exclude)Assets/Editor/Steps', ':(exclude)*.meta')
 
@@ -949,10 +949,9 @@ def noop_errors(t):
 
 
 def thread_system(path):
-    """Which system a changed game file belongs to, by its path and extension: the Unreal factory's systems in Unity
-    terms (C# for C++, an embedded package for a plugin, a scene for a level; shaders and textures are materials, as
-    material graphs and T_ textures are; UI documents and animator controllers are prefabs, as Widget and Animation
-    Blueprints are Blueprints)."""
+    """Which system a changed game file belongs to, by its path and extension: config, an embedded package, code (C#
+    and assembly definitions), a scene, materials (shaders and textures among them), prefabs (UI documents and
+    animator controllers among them), data or another asset."""
     low = path.lower()
     if low.startswith('projectsettings/') or low in ('packages/manifest.json', 'packages/packages-lock.json'):
         return 'config'

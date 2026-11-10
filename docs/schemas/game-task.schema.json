@@ -1,5 +1,5 @@
 {
-  "$comment": "unity-game-factory's task format, GameTask (game-task/1, Unity flavour: Unity 6.3 LTS, metres, Y up): one task a game ships with, on its orphan tasks branch (Tasks/<name>.json) and, split into the agent's and the grader's parts, in its dataset. The deterministic `probe` check kind is described for task authors in docs/task-probes.md, and every task is seeded; a build check's `fails_at_start` marks a start that doesn't compile. tools/validate-game.py checks every task in a game repo's tasks branch and in a dataset against this schema and the rules it cannot express.",
+  "$comment": "unity-game-factory's task format, GameTask (game-task/1: Unity 6.3 LTS, metres, Y up): one task a game ships with, on its orphan tasks branch (Tasks/<name>.json) and, split into the agent's and the grader's parts, in its dataset. The deterministic `probe` check kind is described for task authors in docs/task-probes.md, and every task is seeded; a build check's `fails_at_start` marks a start that doesn't compile. tools/validate-game.py checks every task in a game repo's tasks branch and in a dataset against this schema and the rules it cannot express.",
   "$defs": {
     "ActionsJudge": {
       "additionalProperties": false,
