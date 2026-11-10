@@ -113,7 +113,8 @@ def check_free(path, what="this job"):
     free = shutil.disk_usage(p).free / 2 ** 30
     if free < floor:
         sys.exit("%s: only %.1f GB free on %s (floor %.0f GB; UGF_MIN_FREE_GB / min_free_gb). Free space or move "
-                 "UGF_OUT to another drive." % (what, free, os.path.splitdrive(p)[0] or p, floor))
+                 "--scratch (the task check and the task try) / UGF_OUT (packages) to another drive."
+                 % (what, free, os.path.splitdrive(p)[0] or p, floor))
     return free
 
 

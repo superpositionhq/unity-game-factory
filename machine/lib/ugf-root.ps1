@@ -7,16 +7,16 @@
 #   3. %USERPROFILE%\UnityWork
 # The same config file also holds "unity_hub_editors" (the Unity Hub's editor folder), "unity_version" (the editor new
 # games use: "6000.3", its newest installed patch, or an exact version; Get-UGFUnityVersion), optional "unity_editors"
-# ({"6000.3.28f1": "<path to Unity.exe>", ...}), "record_extra_projects"
-# (top-level folders under the root that the recording hooks treat as projects besides games\<slug>), "github_org"
-# (the GitHub organisation or user that owns unity-game-factory and the private unity-game-<slug> repos; Get-UGFOrg),
-# "agents" (the coding agents bootstrap.ps1 wired up: "claude", "codex") and "hooks_dir" (where the recording hooks
-# live, shared by both agents; Get-UGFHooksDir). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this
-# file next to them.
+# ({"6000.3.28f1": "<path to Unity.exe>", ...}), "record_extra_projects" (top-level folders under the root that the
+# recording hooks treat as projects besides games\<slug>), "github_org" (the GitHub organisation or user that owns
+# unity-game-factory and the private unity-game-<slug> repos; Get-UGFOrg), "agents" (the coding agents bootstrap.ps1
+# wired up: "claude", "codex") and "hooks_dir" (where the recording hooks live, shared by both agents;
+# Get-UGFHooksDir). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this file next to them.
 #
 # The Unreal game-factory may run on the same machine with its own root and config (%USERPROFILE%\.game-factory\).
 # The two never share a root, a config or a hooks folder; they share only the machine-wide job slots (the mutexes
-# below) and the recording queue's GPU flag (Get-UGFRecordingFlags), so both together never oversubscribe the PC.
+# below), and unity-heavy.ps1 also honours the Unreal factory's recording flag and reads its job log
+# (Get-UGFRecordingFlags, Get-UGFJobLogs), so both together never oversubscribe the PC.
 
 function Get-UGFConfigPath {
     if ($env:UGF_CONFIG) { return $env:UGF_CONFIG }
@@ -175,8 +175,9 @@ function Get-UGFOrg($Cfg = (Get-UGFConfig)) {
     return ''
 }
 
-# Output root for packages, dataset zips and their staging folders: $env:UGF_OUT, else "out" in the config file, else
-# <root>\deliverables. Point it at a roomy drive (packages and zips run to GBs per game).
+# Output root for packages, dataset zips and their staging folders (the packagers are not available yet): $env:UGF_OUT,
+# else "out" in the config file, else <root>\deliverables. Point it at a roomy drive (packages and zips run to GBs per
+# game).
 function Get-UGFOut {
     if ($env:UGF_OUT) { return [IO.Path]::GetFullPath($env:UGF_OUT.TrimEnd('\', '/')) }
     $cfg = Get-UGFConfig
@@ -184,8 +185,9 @@ function Get-UGFOut {
     return (Join-Path $cfg.root 'deliverables')
 }
 
-# Refuse to start a disk-heavy job (packaging, creation replay) when the drive holding $Path has less than the floor
-# free: $env:UGF_MIN_FREE_GB, else "min_free_gb" in the config file, else 50. A full disk mid-job corrupts the result.
+# Refuse to start a disk-heavy job (packaging, creation replay: not available yet; the task check and the task try use
+# ugfroot.py check_free) when the drive holding $Path has less than the floor free: $env:UGF_MIN_FREE_GB, else
+# "min_free_gb" in the config file, else 50. A full disk mid-job corrupts the result.
 function Assert-UGFFreeSpace([string]$Path, [string]$What = 'this job') {
     $min = 50
     $cfg = Get-UGFConfig
@@ -200,7 +202,7 @@ function Assert-UGFFreeSpace([string]$Path, [string]$What = 'this job') {
     $drive = New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($full))
     $free = [math]::Round($drive.AvailableFreeSpace / 1GB, 1)
     if ($free -lt $min) {
-        throw ("{0}: only {1} GB free on {2} (floor {3} GB; UGF_MIN_FREE_GB / min_free_gb). Free space or point UGF_OUT at another drive." -f $What, $free, $drive.Name, $min)
+        throw ("{0}: only {1} GB free on {2} (floor {3} GB; UGF_MIN_FREE_GB / min_free_gb). Free space or point --scratch (the task check and the task try) / UGF_OUT (packages) at another drive." -f $What, $free, $drive.Name, $min)
     }
     return $free
 }
@@ -238,8 +240,9 @@ function Get-UGFUnrealRoot {
     return $full
 }
 
-# The "a recording waits for the GPU" flags both factories honour: ours (<root>\builds\_queue\_recording-wants-gpu) and
-# the Unreal factory's when it is set up here. A recording in either one takes every GPU slot of the machine.
+# The "a recording waits for the GPU" flags unity-heavy.ps1 honours: ours (<root>\builds\_queue\_recording-wants-gpu,
+# for the recorder, which is not available yet) and the Unreal factory's when it is set up here (its ue-heavy.ps1 reads
+# only its own). A running recording takes every GPU slot of the machine.
 function Get-UGFRecordingFlags {
     $flags = @(Join-Path (Get-UGFRoot) 'builds\_queue\_recording-wants-gpu')
     $ue = Get-UGFUnrealRoot
@@ -247,8 +250,8 @@ function Get-UGFRecordingFlags {
     , $flags
 }
 
-# The heavy-job logs both limiters write (ours first): waits and recent GPU starts are read from both, so a job of one
-# factory sees the other's.
+# The heavy-job logs both limiters write (ours first): unity-heavy.ps1 reads waits and recent GPU starts from both, so
+# its jobs see the Unreal factory's (ue-heavy.ps1 reads only its own).
 function Get-UGFJobLogs {
     $logs = @(Join-Path (Get-UGFRoot) '.recording\_heavy-jobs.jsonl')
     $ue = Get-UGFUnrealRoot
