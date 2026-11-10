@@ -758,8 +758,8 @@ class UiWhateverDrawsIt(unittest.TestCase):
                           ({**UI_TEXT, "match": "AMMO("}, "isn't a regular expression"),
                           ({"probe": "ui", "select": {"rect": [0.5, 0, 0.2, 1]}, "field": "count"}, "x0 < x1"),
                           ({"probe": "ui", "select": {"kind": "box", "text": "x"}, "field": "count"}, "picks text"),
-                          ({"probe": "ui", "field": "source"}, "allowed"),
-                          ({"probe": "ui", "field": "kind"}, "allowed"),
+                          ({"probe": "ui", "field": "source"}, "not one of"),
+                          ({"probe": "ui", "field": "kind"}, "not one of"),
                           ({"probe": "ui", "select": {"kind": "line"}, "field": "count"}, ""),
                           ({"probe": "ui", "select": {"kind": "stroke"}, "field": "count"}, ""),
                           ({"probe": "ui", "select": {"source": "ugui"}, "field": "count"}, "")]:

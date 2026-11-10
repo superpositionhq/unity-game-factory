@@ -552,7 +552,8 @@ class TaskRules(Base):
         ms = self.probe(2, probe='objects', select={'class': 'Enemy'}, field='bb:Speed')
         errs = self.tasks(milestones=ms, play_map='/Game/Maps/L_X')
         self.assertTrue(any('unexpected key "play_map"' in e for e in errs), errs)
-        self.assertTrue(any('measure: matches none of the allowed shapes' in e for e in errs), errs)
+        self.assertTrue(any('measure.select: unexpected key "class"' in e for e in errs), errs)
+        self.assertTrue(any("measure.field: 'bb:Speed' does not match" in e for e in errs), errs)
 
     def test_seed_not_6000_3(self):
         pv = git(self.repo, 'hash-object', '-w', '--stdin', input=b'm_EditorVersion: 2022.3.62f1\n')
@@ -986,6 +987,27 @@ class Units(unittest.TestCase):
         rep = vg.Report()
         self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', task('a' * 40, 'b' * 40), SLUG, None))
         self.assertEqual(errors(rep), [])
+
+
+    def test_a_union_with_a_tag_reports_the_shape_its_tag_names(self):
+        """A check is told apart by its kind and a measure by its probe: a missing or unknown tag says so and lists
+        the ones there are, and anything else is the named shape's own problem, at its own path."""
+        def problems(change):
+            t = task('a' * 40, 'b' * 40)
+            change(t['milestones'][2]['checks'][1])
+            return list(vg.check_schema(t, vg.SCHEMAS['game-task']))
+        at = '$.milestones[2].checks[1]'
+        self.assertEqual(problems(lambda c: c.pop('kind')), [f'{at}: missing "kind"'])
+        (wrong,) = problems(lambda c: c.update(kind='probes'))
+        self.assertTrue(wrong.startswith(f'{at}.kind: "probes" not one of [') and "'build'" in wrong
+                        and "'probe'" in wrong, wrong)
+        self.assertEqual(problems(lambda c: c['measure'].pop('probe')), [f'{at}.measure: missing "probe"'])
+        (unreal,) = problems(lambda c: c['measure'].update(probe='actors'))
+        self.assertTrue(unreal.startswith(f'{at}.measure.probe: "actors" not one of [') and "'objects'" in unreal,
+                        unreal)
+        self.assertEqual(problems(lambda c: c['measure'].update(sample=1)),
+                         [f'{at}.measure: unexpected key "sample"'], "the measure's own shape, never 'matches none'")
+        self.assertEqual(problems(lambda c: None), [])
 
 
 # ---- the schema against the contract's examples ----------------------------------------------------------------------

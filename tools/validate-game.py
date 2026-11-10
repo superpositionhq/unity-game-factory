@@ -96,6 +96,18 @@ def check_schema(value, schema, root=None, path='$'):
             yield from check_schema(value, sub, root, path)
     for key in ('anyOf', 'oneOf'):
         if key in schema:
+            tag = (schema.get('discriminator') or {}).get('propertyName')
+            if tag and isinstance(value, dict):
+                # the shape its tag names, and that shape's own problems: against every shape, a wrong kind read as
+                # the nearest shape's ("packages": must be "build") and a wrong field as "matches none"
+                shapes = schema['discriminator'].get('mapping') or {}
+                if tag not in value:
+                    yield f'{path}: missing "{tag}"'
+                elif not isinstance(value[tag], str) or value[tag] not in shapes:
+                    yield f'{path}.{tag}: {json.dumps(value[tag])[:80]} not one of {sorted(shapes)}'
+                else:
+                    yield from check_schema(value, {'$ref': shapes[value[tag]]}, root, path)
+                continue
             fits = [list(check_schema(value, sub, root, path)) for sub in schema[key]]
             ok = sum(1 for f in fits if not f)
             if ok == 0:
