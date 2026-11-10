@@ -23,8 +23,8 @@
 *.terrainlayer text eol=lf
 *.spriteatlas text eol=lf
 *.spriteatlasv2 text eol=lf
-# C# is checked out with LF everywhere: an editor step's sha256 in workflow.jsonl is of the file's bytes, and it must
-# be the same on every machine whatever its autocrlf setting.
+# C# with LF in every checkout, like Unity's own files. (An editor step's sha256 in workflow.jsonl is taken of the file
+# as committed, LF, so it holds whatever line endings the step had on disk when it ran.)
 *.cs text eol=lf diff=csharp
 
 # Every binary type goes through Git LFS (GitHub refuses files over 100 MB, and binary history bloats clones).

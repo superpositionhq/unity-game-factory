@@ -1,7 +1,7 @@
 // Appends one row to the project's workflow.jsonl (schema unity-workflow/v0) at the moment an editor step acts.
 // Every editor step logs at least one row per run: WorkflowLog.Row("scene.build", "Assets/Scenes/Harbor.unity", ...).
-// The row's source is the calling step's own file (project-relative) and its sha256, so the record points at the code
-// that really ran; that is why a step that ran is never edited (write a new step instead).
+// The row's source is the calling step's own file (project-relative) and the sha256 of it as committed, so the record
+// points at the code that really ran; that is why a step that ran is never edited (write a new step instead).
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -53,25 +53,48 @@ namespace __PROJECT__.EditorTools
             };
             if (!string.IsNullOrEmpty(direction)) row.Add(new KeyValuePair<string, object>("direction", direction));
             var sb = new StringBuilder();
+            // a file whose last line has no line break (a row appended by hand without one) gets one first: glued to
+            // it, this row would make both unreadable
+            if (!EndsWithLineBreak()) sb.Append('\n');
             WriteObject(sb, row);
-            File.AppendAllText(FilePath, sb.Append('\n').ToString(), new UTF8Encoding(false));
-            Debug.Log($"[workflow] {id} {op} {target}");
+            // one write of one whole line; another writer (a direction appended by hand) may hold the file for a moment
+            for (var i = 0; ; i++)
+            {
+                try { File.AppendAllText(FilePath, sb.ToString() + "\n", new UTF8Encoding(false)); break; }
+                catch (IOException) when (i < 4) { System.Threading.Thread.Sleep(50 * (i + 1)); }
+            }
+            // a failed row says why on its one console line, the line Scripts/unity.ps1 prints
+            var error = status != "observed" && parameters != null && parameters.TryGetValue("error", out var e)
+                ? ": " + Regex.Replace(Convert.ToString(e, CultureInfo.InvariantCulture) ?? "", @"\s+", " ").Trim() : "";
+            Debug.Log($"[workflow] {id} {op} {target}{(status == "observed" ? "" : $" ({status}{error})")}");
             return id;
         }
 
-        /// <summary>The id prefix, the last row number and the last seq, read from the file's last row.</summary>
+        /// <summary>The id prefix, the last row number and the last seq, read from the last line that has an id (a
+        /// line cut short, by a crash or by hand, is passed over rather than stopping every later step).</summary>
         static (string prefix, int number, int seq) Last()
         {
-            string last = null;
+            Match id = null, seq = null;
             if (File.Exists(FilePath))
                 foreach (var line in File.ReadLines(FilePath))
-                    if (!string.IsNullOrWhiteSpace(line)) last = line;
-            if (last == null) throw new InvalidOperationException("workflow.jsonl has no rows: the project was not created by new-game.ps1");
-            var id = Regex.Match(last, "\"id\"\\s*:\\s*\"([A-Za-z0-9]+)-(\\d+)\"");
-            var seq = Regex.Match(last, "\"seq\"\\s*:\\s*(\\d+)");
-            if (!id.Success) throw new InvalidOperationException("the last workflow.jsonl row has no id");
+                {
+                    var m = Regex.Match(line, "\"id\"\\s*:\\s*\"([A-Za-z0-9]+)-(\\d+)\"");
+                    if (!m.Success) continue;
+                    id = m;
+                    seq = Regex.Match(line, "\"seq\"\\s*:\\s*(\\d+)");
+                }
+            if (id == null) throw new InvalidOperationException("workflow.jsonl has no rows: the project was not created by new-game.ps1");
             var n = int.Parse(id.Groups[2].Value, CultureInfo.InvariantCulture);
             return (id.Groups[1].Value, n, seq.Success ? int.Parse(seq.Groups[1].Value, CultureInfo.InvariantCulture) : n);
+        }
+
+        static bool EndsWithLineBreak()
+        {
+            if (!File.Exists(FilePath)) return true;
+            using var f = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (f.Length == 0) return true;
+            f.Seek(-1, SeekOrigin.End);
+            return f.ReadByte() == '\n';
         }
 
         static IDictionary<string, object> SourceOf(string callerFile)
@@ -86,10 +109,20 @@ namespace __PROJECT__.EditorTools
                 if (File.Exists(abs))
                 {
                     using var h = SHA256.Create();
-                    sha = BitConverter.ToString(h.ComputeHash(File.ReadAllBytes(abs))).Replace("-", "").ToLowerInvariant();
+                    sha = BitConverter.ToString(h.ComputeHash(AsCommitted(File.ReadAllBytes(abs)))).Replace("-", "").ToLowerInvariant();
                 }
             }
             return new Dictionary<string, object> { ["script"] = rel, ["sha256"] = sha, ["commit"] = null };
+        }
+
+        /// <summary>The bytes as git commits them: C# is text in .gitattributes, so CRLF is stored as LF. A step written
+        /// with CRLF (PowerShell's Set-Content does) would otherwise get a hash that no checkout of it ever matches.</summary>
+        static byte[] AsCommitted(byte[] bytes)
+        {
+            var o = new List<byte>(bytes.Length);
+            for (var i = 0; i < bytes.Length; i++)
+                if (bytes[i] != '\r' || i + 1 == bytes.Length || bytes[i + 1] != '\n') o.Add(bytes[i]);
+            return o.ToArray();
         }
 
         // A small JSON writer: Unity's JsonUtility cannot write dictionaries, and no JSON package is assumed.
@@ -115,8 +148,9 @@ namespace __PROJECT__.EditorTools
                 case null: sb.Append("null"); break;
                 case string s: WriteString(sb, s); break;
                 case bool b: sb.Append(b ? "true" : "false"); break;
-                case float f: sb.Append(f.ToString("R", CultureInfo.InvariantCulture)); break;
-                case double d: sb.Append(d.ToString("R", CultureInfo.InvariantCulture)); break;
+                // JSON has no NaN or Infinity: a row holding one would not parse, and rows are never edited
+                case float f: sb.Append(float.IsNaN(f) || float.IsInfinity(f) ? "null" : f.ToString("R", CultureInfo.InvariantCulture)); break;
+                case double d: sb.Append(double.IsNaN(d) || double.IsInfinity(d) ? "null" : d.ToString("R", CultureInfo.InvariantCulture)); break;
                 case IFormattable n when v is int || v is long || v is short || v is byte || v is uint || v is ulong || v is decimal:
                     sb.Append(n.ToString(null, CultureInfo.InvariantCulture)); break;
                 case IDictionary dict:
