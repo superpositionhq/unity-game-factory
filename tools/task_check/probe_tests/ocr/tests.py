@@ -18,10 +18,16 @@ def px(rect):
     return round(rect[0] * W), round(rect[1] * H), round(rect[2] * W), round(rect[3] * H)
 
 
+_decoded = {}
+
+
 def ink(play, shot, region):
     """The box (x0, y0 inclusive, x1, y1 exclusive) of what is drawn in `region` (pixels) of a screenshot: the pixels
     far from the background (the region's corner), as a line's marks are."""
-    image = play.image(shot)
+    key = (play.name, id(play.files), shot)
+    if key not in _decoded:  # a PNG decoded in Python takes a second: once a screenshot
+        _decoded[key] = play.image(shot)
+    image = _decoded[key]
     bg = image.at(region[0], region[1])
     found = None
     for y in range(region[1], region[3]):
