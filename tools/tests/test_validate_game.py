@@ -679,6 +679,14 @@ class Units(unittest.TestCase):
             task('a' * 40, 'b' * 40, play_scene='Assets/../X.unity'))))
         self.assertEqual(errs({'probe': 'asset', 'asset': 'Assets/Art/Hero.v2/Road..mat', 'field': 'prop:m_Name'},
                               'editor', {'op': '>=', 'value': 1}), '', 'dots inside a name are a name')
+        # an empty part: the schema's patterns let these through, the editor pass and the build refuse them
+        for anchor, path in (('asset', 'Assets/Art//Road.mat'), ('asset', 'Assets/Art/'),
+                             ('scene', 'Assets//Scenes/X.unity'), ('prefab', 'Assets/Prefabs//x.prefab')):
+            said = errs({'probe': 'asset', anchor: path, 'field': 'count' if anchor != 'asset' else 'prop:m_Name',
+                         **({'select': {'name': 'x'}} if anchor != 'asset' else {})}, 'editor', {'op': '>=', 'value': 1})
+            self.assertIn(f'{path} has an empty part', said, path)
+        self.assertIn('play_scene: Assets/Scenes//X.unity has an empty part', ' '.join(vg.task_semantic_errors(
+            task('a' * 40, 'b' * 40, play_scene='Assets/Scenes//X.unity'))))
         height = {'probe': 'player', 'field': 'y', 'window': [0, 1], 'at': [5.0]}
         self.assertIn('`window` or `at`, not both', errs(height, expect={'op': '>=', 'value': 0}))
         self.assertEqual(errs(dict(height, at=None), expect={'op': '>=', 'value': 0}), '')

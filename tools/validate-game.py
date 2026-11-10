@@ -611,9 +611,14 @@ WAITS = 300   # seconds of real time a task play's waits add at most
 
 def dotted(path):
     """Why a project path (an asset, a scene, a prefab) can't be used, as a list: a `.` or `..` part names a file by a
-    way round, outside Assets/ or Packages/ even (the editor pass refuses it, the build leaves such a scene out)."""
-    if isinstance(path, str) and any(part in ('.', '..') for part in path.split('/')):
+    way round, outside Assets/ or Packages/ even, and an empty part (`//`, a `/` at the end) is no name at all (the
+    editor pass refuses both, the build leaves such a scene out: TaskProbe AssetPass.InProject)."""
+    parts = path.split('/') if isinstance(path, str) else []
+    if any(part in ('.', '..') for part in parts):
         return [f'{path} has a "." or ".." part: name the file by its own path under Assets/ or Packages/']
+    if '' in parts:
+        return [f'{path} has an empty part ("//", or a "/" at its end): name the file by its own path under Assets/ '
+                'or Packages/']
     return []
 
 
