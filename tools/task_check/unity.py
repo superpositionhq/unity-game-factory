@@ -106,16 +106,19 @@ def _descendants(pid):
     return list(reversed(found))
 
 
-def _job_started(pid):
-    """Whether unity-heavy.ps1's wrapper `pid` has started its job: a child process other than its console host."""
+def _job_started(pid, name):
+    """Whether unity-heavy.ps1's wrapper `pid` has started its job: a child process named `name`, the job's own
+    executable. Not any child: while it waits for a slot the limiter runs helpers of its own (nvidia-smi for its VRAM
+    guard), and one taken for the job started its timeout during the wait."""
     children, names = _children(pid)
-    return any(names.get(c, "").strip().lower() not in ("", "conhost.exe") for c in children.get(pid, []))
+    return any(names.get(c, "").strip().lower() == name.lower() for c in children.get(pid, []))
 
 
-def run(argv, cwd, timeout, wrapper=False, clock=time.monotonic):
-    """Run `argv` in `cwd`; its output, cut. Killed with its children after `timeout` seconds; `wrapper`: `argv` is
-    unity-heavy.ps1's, so `timeout` counts from when its job starts, only the job is killed, and the wrapper gets
-    WRAPPER_GRACE seconds to release its slot."""
+def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
+    """Run `argv` in `cwd`; its output, cut. Killed with its children after `timeout` seconds, or at once when the wait
+    is interrupted; `wrapper`: `argv` is unity-heavy.ps1's and `wrapper` the file name of its job's executable, so
+    `timeout` counts from when its job starts, only the job is killed, and the wrapper gets WRAPPER_GRACE seconds to
+    release its slot."""
     started = clock()
     proc = subprocess.Popen(argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
@@ -124,31 +127,40 @@ def run(argv, cwd, timeout, wrapper=False, clock=time.monotonic):
     reader.start()
     job = None if wrapper else started
     timed_out = False
-    while True:
-        try:
-            proc.wait(timeout=QUEUE_POLL if job is None else max(0.05, min(QUEUE_POLL, timeout - (clock() - job))))
-            break
-        except subprocess.TimeoutExpired:
-            if job is None:
-                if _job_started(proc.pid):
-                    job = clock()
-                continue
-            if clock() - job < timeout:
-                continue
-            timed_out = True
-            if wrapper:
-                for child in _descendants(proc.pid):
-                    subprocess.run(["taskkill", "/F", "/PID", str(child)], capture_output=True, check=False)
-                try:
-                    proc.wait(timeout=WRAPPER_GRACE)
-                except subprocess.TimeoutExpired:
+    try:
+        while True:
+            try:
+                proc.wait(timeout=QUEUE_POLL if job is None else max(0.05, min(QUEUE_POLL, timeout - (clock() - job))))
+                break
+            except subprocess.TimeoutExpired:
+                if job is None:
+                    if _job_started(proc.pid, wrapper):
+                        job = clock()
+                    continue
+                if clock() - job < timeout:
+                    continue
+                timed_out = True
+                if wrapper:
+                    for child in _descendants(proc.pid):
+                        subprocess.run(["taskkill", "/F", "/PID", str(child)], capture_output=True, check=False)
+                    try:
+                        proc.wait(timeout=WRAPPER_GRACE)
+                    except subprocess.TimeoutExpired:
+                        _kill_tree(proc.pid)
+                        proc.wait()
+                else:
                     _kill_tree(proc.pid)
                     proc.wait()
-            else:
-                _kill_tree(proc.pid)
-                proc.wait()
-            break
+                break
+    except BaseException:
+        # Ctrl+C (or any error) while waiting: the job is in a process group of its own, so the interrupt never
+        # reached it; it would go on building into a copy being deleted, or playing where nobody sees it.
+        _kill_tree(proc.pid)
+        proc.wait()
+        raise
     reader.join(timeout=30)
+    if not reader.is_alive():  # closing the pipe under a read that still waits would block until the read returns
+        proc.stdout.close()
     text = (b"".join(chunks)).decode("utf-8", errors="replace").replace("\r\n", "\n")
     waited = job - started if wrapper and job is not None else 0.0  # a job seen start within its first poll: ~0
     return Result(None if timed_out else proc.returncode, cut(text), round(clock() - started, 3), timed_out,
@@ -194,7 +206,7 @@ class Machine:
                    + " ".join(_ps_quote(a) for a in argv)
                    + "; if ($null -eq $LASTEXITCODE) { exit 1 }; exit $LASTEXITCODE")
         found = run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command],
-                    cwd, timeout, wrapper=True)
+                    cwd, timeout, wrapper=Path(str(argv[0])).name)
         if found.exit_code and ("cannot be loaded" in found.output or "not digitally signed" in found.output):
             raise LimiterRefused("PowerShell refused to run unity-heavy.ps1 (an execution policy set for this machine): "
                                  "pass --direct to run without the machine's job slots. " + found.output.strip()[:300])

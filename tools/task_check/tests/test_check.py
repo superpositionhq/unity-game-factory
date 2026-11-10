@@ -5,11 +5,12 @@ pass hand Unity."""
 import contextlib
 import io
 import json
-import sys
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -827,10 +828,6 @@ class Cli(unittest.TestCase):
         self.assertEqual(cli.line({"task": "b", "verdict": "INVALID", "reasons": ["x", "y"]}), "INVALID b: x; y")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SavedData(unittest.TestCase):
     def test_a_copys_saves_go_under_its_own_company_name(self):
         # TaskProbe/Editor/Build.cs Tag: the same name from the same folder, whatever its case
@@ -890,3 +887,214 @@ class Limiter(unittest.TestCase):
                 machine.job("task-check build x", ["C:/U/Unity.exe", "-batchmode"], ".", 60)
         self.assertIn("--direct", str(raised.exception))
         self.assertTrue(issubclass(unity.LimiterRefused, RuntimeError), "check_task reports it as ERROR")
+
+
+# A stand-in player: writes its pid and its parent's (desk.py's) to argv[1], then sleeps argv[2] seconds.
+PLAYER = ("import json, os, sys, time\n"
+          "with open(sys.argv[1] + '.tmp', 'w') as f:\n"
+          "    json.dump({'pid': os.getpid(), 'parent': os.getppid()}, f)\n"
+          "os.replace(sys.argv[1] + '.tmp', sys.argv[1])\n"
+          "time.sleep(float(sys.argv[2]))\n")
+# A stand-in for unity-heavy.ps1: while it waits for a slot it runs a helper of its own (the real one runs nvidia-smi),
+# then starts its job as the real one does and exits with its code; STAND_IN_EXIT: it gives up without starting it.
+LIMITER = """[CmdletBinding(PositionalBinding = $false)]
+param([string]$Label, [switch]$Gpu, [Parameter(ValueFromRemainingArguments = $true)][string[]]$Command)
+if ($Command.Count -and $Command[0] -eq '--') { $Command = $Command[1..($Command.Count - 1)] }
+& ping -n 3 127.0.0.1 | Out-Null
+if ($env:STAND_IN_EXIT) { exit [int]$env:STAND_IN_EXIT }
+Start-Sleep -Seconds ([int]$env:STAND_IN_WAIT)
+$psi = New-Object Diagnostics.ProcessStartInfo $Command[0], ((@($Command | Select-Object -Skip 1) | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+$psi.UseShellExecute = $false
+$proc = [Diagnostics.Process]::Start($psi)
+$proc.WaitForExit()
+exit $proc.ExitCode
+"""
+
+
+def alive(pid, seconds=5.0):
+    """Whether process `pid` still runs after up to `seconds` (a killed process takes a moment to go). Never os.kill:
+    on Windows it terminates the process."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    end = time.monotonic() + seconds
+    while True:
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = wintypes.DWORD()
+        running = kernel32.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value == 259  # STILL_ACTIVE
+        kernel32.CloseHandle(handle)
+        if not running:
+            return False
+        if time.monotonic() > end:
+            return True
+        time.sleep(0.1)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows processes")
+class Jobs(unittest.TestCase):
+    """unity.run on real processes: a stand-in limiter, and a stand-in player started through desk.py."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        (self.tmp / "player.py").write_text(PLAYER, encoding="utf-8")
+        (self.tmp / "unity-heavy.ps1").write_text(LIMITER, encoding="utf-8")
+        self.direct = unity.Machine(Path("C:/U/Unity.exe"), None)
+        self.limited = unity.Machine(Path("C:/U/Unity.exe"), self.tmp / "unity-heavy.ps1")
+        self.pids = []
+
+    def tearDown(self):
+        for pid in self.pids:  # a failed test leaves nothing running
+            if alive(pid, 0):
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def play(self, seconds):
+        """The argv of a play (desk.py and the stand-in player) and the file its player writes its pids to."""
+        info = self.tmp / f"player{len(self.pids)}.json"
+        return [sys.executable, unity.DESK, sys.executable, self.tmp / "player.py", info, str(seconds)], info
+
+    def ran(self, info):
+        found = json.loads(info.read_text(encoding="utf-8"))
+        self.pids += [found["pid"], found["parent"]]
+        return found["pid"], found["parent"]
+
+    def test_the_wait_for_a_slot_isnt_the_jobs_time(self):
+        with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "3"}):
+            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(2)"], self.tmp, 3)
+        self.assertEqual((found.exit_code, found.timed_out), (0, False), "its 3 s count from the job's start")
+        self.assertGreater(found.waited, 3, "the limiter's wait, its own helper's run included")
+
+    def test_a_limiter_that_never_starts_its_job_still_ends(self):
+        with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_EXIT": "2"}):
+            found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(60)"], self.tmp, 60)
+        self.assertEqual((found.exit_code, found.timed_out, found.waited), (2, False, 0.0))
+
+    def test_a_timeout_kills_the_job_and_the_player_desk_py_started(self):
+        for machine in (self.direct, self.limited):
+            argv, info = self.play(60)
+            with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "0"}):
+                found = machine.job("t", argv, self.tmp, 4, gpu=True)
+            player, desk_py = self.ran(info)
+            self.assertEqual((found.exit_code, found.timed_out), (None, True))
+            self.assertFalse(alive(player), "the player")
+            self.assertFalse(alive(desk_py), "desk.py")
+
+    def test_an_interrupt_kills_the_job_and_the_player_desk_py_started(self):
+        run = unity.run
+        for machine in (self.direct, self.limited):
+            argv, info = self.play(60)
+
+            def clock():  # Ctrl+C once the player runs
+                if info.exists():
+                    raise KeyboardInterrupt
+                return time.monotonic()
+
+            with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "0"}), \
+                    mock.patch.object(unity, "run", lambda *a, **k: run(*a, clock=clock, **k)):
+                with self.assertRaises(KeyboardInterrupt):
+                    machine.job("t", argv, self.tmp, 120, gpu=True)
+            player, desk_py = self.ran(info)
+            self.assertFalse(alive(player), "the player")
+            self.assertFalse(alive(desk_py), "desk.py")
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows desktops")
+class Desk(unittest.TestCase):
+    """desk.py with real stand-in players."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(suffix=" with space"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def desk(self, *argv, **kw):
+        return subprocess.run([sys.executable, unity.DESK, *[str(a) for a in argv]], capture_output=True, text=True,
+                              **kw)
+
+    def test_it_exits_with_the_players_exit_code(self):
+        self.assertEqual(self.desk(sys.executable, "-c", "import sys; sys.exit(7)").returncode, 7)
+        crashed = self.desk(sys.executable, "-c", "import ctypes; ctypes.windll.kernel32.ExitProcess(0xC0000005)")
+        self.assertEqual(crashed.returncode, 0xC0000005, "an NTSTATUS, as Windows gives it")
+
+    def test_the_player_gets_its_arguments_folder_and_environment(self):
+        show = self.tmp / "show args.py"
+        show.write_text("import json, os, sys\njson.dump({'argv': sys.argv[1:-1], 'cwd': os.getcwd(), "
+                        "'marker': os.environ.get('DESK_MARKER')}, open(sys.argv[-1], 'w'))\n", encoding="utf-8")
+        args = ["plain", "with space", 'with "quotes"', "trailing\\", "trailing space\\", "", "-x=C:\\a b\\"]
+        work = self.tmp / "build folder"
+        work.mkdir()
+        out = self.tmp / "seen.json"
+        self.desk(sys.executable, show, *args, out, cwd=work, env={**os.environ, "DESK_MARKER": "x"})
+        seen = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(seen, {"argv": args, "cwd": str(work), "marker": "x"},
+                         "quoted by the Windows rules (subprocess.list2cmdline); desk.py's folder and environment")
+
+    def test_a_call_that_fails_is_named_with_windows_reason(self):
+        found = self.desk(self.tmp / "no such.exe")
+        self.assertEqual(found.returncode, 1)
+        self.assertIn("desk.py: [WinError 2] CreateProcessW", found.stderr)
+        self.assertIn("cannot find the file", found.stderr)
+
+    def test_a_player_never_outlives_desk_py(self):
+        info = self.tmp / "player.json"
+        (self.tmp / "player.py").write_text(PLAYER, encoding="utf-8")
+        started = subprocess.Popen([sys.executable, unity.DESK, sys.executable, self.tmp / "player.py", info, "60"])
+        try:
+            for _ in range(200):
+                if info.exists():
+                    break
+                time.sleep(0.1)
+            player = json.loads(info.read_text(encoding="utf-8"))["pid"]
+            subprocess.run(["taskkill", "/F", "/PID", str(started.pid)], capture_output=True)  # desk.py alone
+            started.wait()
+            self.assertFalse(alive(player), "the job object takes the player with desk.py")
+        finally:
+            if info.exists() and alive(json.loads(info.read_text(encoding="utf-8"))["pid"], 0):
+                subprocess.run(["taskkill", "/F", "/PID", str(json.loads(info.read_text())["pid"])],
+                               capture_output=True)
+
+    def test_two_plays_share_the_desktop_and_leave_nothing_behind(self):
+        import ctypes
+
+        from task_check import desk
+
+        outs = [self.tmp / f"{i}.json" for i in range(2)]
+        both = [subprocess.Popen([sys.executable, unity.DESK, sys.executable, "-c",
+                                  f"import json, time; time.sleep(1); json.dump(1, open(r'{o}', 'w'))"]) for o in outs]
+        self.assertEqual([p.wait() for p in both], [0, 0])
+        self.assertTrue(all(o.is_file() for o in outs))
+        kernel32, user32 = ctypes.WinDLL("kernel32"), ctypes.WinDLL("user32")
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.GetProcessHandleCount.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+        user32.OpenDesktopW.restype = ctypes.c_void_p
+        user32.OpenDesktopW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        user32.CloseDesktop.argtypes = [ctypes.c_void_p]
+
+        def handles():
+            count = ctypes.c_uint32()
+            kernel32.GetProcessHandleCount(kernel32.GetCurrentProcess(), ctypes.byref(count))
+            return count.value
+
+        name = f"TaskProbeTest{os.getpid()}"  # a desktop of the test's own: real plays may be on TaskProbe now
+        desk.run([sys.executable, "-c", "pass"], name)  # the first call loads what it needs once
+        before = handles()
+        self.assertEqual(desk.run([sys.executable, "-c", "import sys; sys.exit(3)"], name), 3)
+        with self.assertRaisesRegex(OSError, "CreateProcessW"):
+            desk.run([self.tmp / "no such.exe"], name)
+        self.assertEqual(handles(), before, "every handle closed, on success and on failure")
+        left = user32.OpenDesktopW(name, 0, False, 0x0001)
+        if left:
+            user32.CloseDesktop(left)
+        self.assertFalse(left, "the desktop goes with its last play")
+
+
+if __name__ == "__main__":
+    unittest.main()
