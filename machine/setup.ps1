@@ -151,7 +151,7 @@ else { Item TODO 'Free disk' "$free GB on ${drive}:" "free space or pick a roomi
 $gpus = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual' })
 $nv = @($gpus | Where-Object { $_.Name -match 'NVIDIA' })
 Item $(if ($gpus) { 'PASS' } else { 'TODO' }) 'GPU' $(if ($gpus) { ($gpus.Name -join ', ') } else { 'no display adapter found' }) 'a DirectX 11/12 GPU for the Unity editor'
-if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; recording falls back to AMF / CPU encoding (slower)' }
+if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; the recorder, which is not available yet, will fall back to slower encoders' }
 
 # --- 2. software -----------------------------------------------------------------------------------------------------
 Write-Host "2. software (winget)"
@@ -335,7 +335,6 @@ else {
     Item TODO 'Unity 6.3 LTS editor' "no $wantVer editor in $hubEditors" ("in Unity Hub: Installs > Install Editor > Unity 6.3 (LTS), the newest 6000.3 patch " +
         "(an exact unity_version: that version, under Archive), with the module Windows Build Support (IL2CPP); about 10 GB. Then run setup again.")
 }
-Item INFO 'C++ tools for IL2CPP' 'only for IL2CPP player builds: Visual Studio 2022 (or Build Tools) with "Desktop development with C++" (check.ps1 reports it)'
 if ($nv) {
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     $drv = if ($smi) { [double](((Quiet { & $smi.Source --query-gpu=driver_version --format=csv,noheader }).out -split "`n")[0] -replace '[^\d.]', '') } else { 0 }
