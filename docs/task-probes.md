@@ -346,9 +346,9 @@ renderers, else its position.
     that parents what it spawns, a pool, a manager) matches whatever one of its children matches: keep it out with a
     `component` on the object itself that it lacks (`{"component": "MeshRenderer", "has": {"lit": true}}`: an object
     that draws a mesh itself and gives light), a `near` or a height band (section 2.13). `"simulating": true` (the
-    part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can do:
-    `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
-    whichever component a build used.
+    part is, or belongs to, a non-kinematic Rigidbody or a simulated Dynamic Rigidbody2D, active in the hierarchy: an
+    inactive body simulates nothing) finds an object by what it can do: `{"teleport_to": {"has": {"simulating": true,
+    "near": ...}}}` reaches the nearest object a player can shove, whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
 - `field`:
   - `count`: the selection's size (`of` ignored);
