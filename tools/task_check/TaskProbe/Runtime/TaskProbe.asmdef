@@ -10,7 +10,7 @@
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": true,
+    "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": false,
@@ -28,7 +28,6 @@
         { "name": "com.unity.modules.particlesystem", "expression": "", "define": "TASKPROBE_PARTICLES" },
         { "name": "com.unity.modules.terrain", "expression": "", "define": "TASKPROBE_TERRAIN" },
         { "name": "com.unity.modules.ai", "expression": "", "define": "TASKPROBE_AI" },
-        { "name": "com.unity.modules.ui", "expression": "", "define": "TASKPROBE_UIMODULE" },
         { "name": "com.unity.modules.uielements", "expression": "", "define": "TASKPROBE_UITK" },
         { "name": "com.unity.modules.imageconversion", "expression": "", "define": "TASKPROBE_IMAGECONVERSION" }
     ],

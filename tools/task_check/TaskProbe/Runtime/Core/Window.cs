@@ -35,7 +35,10 @@ namespace TaskProbe
         const int Away = -20000;  // left and above any monitor layout
 
         static IntPtr window;
+        static bool away;  // the window has been taken off the user's desktop
         static int ownDesktop = -1;  // unknown
+        // nothing here acts unless the player was started for a play
+        static readonly bool Play = Array.Exists(Environment.GetCommandLineArgs(), a => string.Equals(a, "-taskProbe", StringComparison.OrdinalIgnoreCase));
 
         [AOT.MonoPInvokeCallback(typeof(EnumProc))]
         static bool Visit(IntPtr hWnd, IntPtr lParam)
@@ -75,7 +78,7 @@ namespace TaskProbe
         public static void MoveAway()
         {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            if (Application.isBatchMode || OnOwnDesktop()) return;
+            if (!Play || Application.isBatchMode || OnOwnDesktop()) return;
             var hwnd = Main();
             if (hwnd == IntPtr.Zero) return;
             ShowWindow(hwnd, SwHide);
@@ -83,6 +86,7 @@ namespace TaskProbe
             SetWindowLongPtr(hwnd, GwlExStyle, new IntPtr((style | WsExToolWindow | WsExNoActivate) & ~WsExAppWindow));
             SetWindowPos(hwnd, IntPtr.Zero, Away, Away, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
             ShowWindow(hwnd, SwShowNoActivate);
+            away = true;
 #endif
         }
 
@@ -90,7 +94,8 @@ namespace TaskProbe
         public static void KeepAway()
         {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            if (Application.isBatchMode || OnOwnDesktop()) return;
+            if (!Play || Application.isBatchMode || OnOwnDesktop()) return;
+            if (!away) { MoveAway(); return; }  // the window wasn't there yet when the play began
             var hwnd = Main();
             if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var rect)) return;
             if (rect.Left != Away || rect.Top != Away)

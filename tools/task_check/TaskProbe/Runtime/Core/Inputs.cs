@@ -36,22 +36,29 @@ namespace TaskProbe
             this.probe = probe;
             if (spec != null)
                 foreach (var item in spec)
-                    if (item is Dictionary<string, object> row && Json.TryNum(row, "t", out _)) rows.Add(row);
-            rows.Sort((a, b) => Json.Num(a, "t").CompareTo(Json.Num(b, "t")));  // List.Sort isn't stable, so ties keep
-            StableByTime();                                                       // their written order below
-        }
-
-        void StableByTime()
-        {
-            // insertion sort by t (rows are few): equal times stay in the order the task wrote them
+                    if (item is Dictionary<string, object> row && Kind(row) != null) rows.Add(row);
+            // by time, rows of one time in the order the task wrote them (List.Sort isn't stable; rows are few)
             for (var i = 1; i < rows.Count; i++)
             {
                 var row = rows[i];
-                var t = Json.Num(row, "t");
                 var j = i - 1;
-                while (j >= 0 && Json.Num(rows[j], "t") > t) { rows[j + 1] = rows[j]; j--; }
+                while (j >= 0 && At(rows[j]) > At(row)) { rows[j + 1] = rows[j]; j--; }
                 rows[j + 1] = row;
             }
+        }
+
+        static double At(Dictionary<string, object> row) => Json.Num(row, "t", 0.0);
+
+        /// <summary>What a row asks for: a widget click, a cursor move, a teleport_to, a teleport, a wait, a key or an
+        /// axis, tried in this order; null for a row that is none of them (it is left out).</summary>
+        static string Kind(Dictionary<string, object> row)
+        {
+            if (!string.IsNullOrEmpty(Json.Str(row, "widget")) && Json.Bool(row, "click")) return "click";
+            if (row.TryGetValue("cursor", out var cursor) && Json.TryNumbers(cursor, 2, out _)) return "cursor";
+            if (Json.Obj(row, "teleport_to") != null) return "teleport_to";
+            if (row.TryGetValue("teleport", out var place) && Json.TryNumbers(place, 3, out _)) return "teleport";
+            if (Json.TryNum(row, "wait", out _)) return "wait";
+            return Json.Str(row, "key") != null ? "key" : null;
         }
 
         // ---------------------------------------------------------------- devices
@@ -84,7 +91,7 @@ namespace TaskProbe
                 keyboard.MakeCurrent();
                 mouse.MakeCurrent();
             }
-            catch (Exception e) { probe.Error("inputs: the Input System's devices couldn't be added: " + e.Message); }
+            catch (Exception e) { probe.Failed("inputs: {0} adding the Input System's devices, so keys, axes and the cursor can't be sent", e); }
 #else
             foreach (var row in rows)
                 if (row.ContainsKey("key") || row.ContainsKey("cursor"))
@@ -100,84 +107,81 @@ namespace TaskProbe
         /// <summary>Sends every input due at play time `elapsed`; stops at a wait (the inputs after it wait for its end).</summary>
         public void Send(double elapsed)
         {
-            while (!Waiting && next < rows.Count && Json.Num(rows[next], "t") <= elapsed + 1e-9)
+            while (!Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
             {
                 var row = rows[next++];
                 try { SendOne(row, elapsed); }
-                catch (Exception e) { probe.Error("inputs: " + Json.Write(row) + " failed: " + e.Message); }
+                catch (Exception e)
+                {
+                    probe.Failed("inputs: {0} sending an input", e);
+                    Probe.Log("the input was " + Json.Write(row));
+                }
                 Sent++;
             }
         }
 
-        /// <summary>One frame of a wait: true while it goes on. The game runs paced to real time; the wait is over when
-        /// its seconds of both real and game time have passed.</summary>
-        public bool WaitTick()
+        /// <summary>One frame of a wait. The game runs paced to real time; the wait is over when its seconds of both real
+        /// and game time have passed.</summary>
+        public void WaitTick()
         {
-            if (!Waiting) return false;
             waitFrames++;
             var game = waitFrames / (double)Probe.Fps;
             var real = Time.realtimeSinceStartup - waitStart;
-            if (game >= waitFor && real >= waitFor)
-            {
-                Waiting = false;
-                probe.Pace(false);
-                Probe.Log($"the wait is over ({game:F1} s of game time, {real:F1} s of real time)");
-                return false;
-            }
-            return true;
+            if (game < waitFor || real < waitFor) return;
+            Waiting = false;
+            probe.Pace(false);
+            Probe.Log($"the wait is over ({game:F1} s of game time, {real:F1} s of real time)");
         }
 
         /// <summary>After the frame's game logic: a held player goes back to its spot, still.</summary>
-        public void Late(double elapsed)
+        public void Hold(double elapsed)
         {
             if (elapsed >= holdUntil) return;
             var player = probe.Player;
             if (player == null) return;
-            if ((player.transform.position - holdAt).sqrMagnitude > 1e-8f) Place(player, holdAt, null);
+            if ((player.transform.position - holdAt).sqrMagnitude > 1e-6f) Place(player, holdAt, null);
             else Still(player);
         }
 
         void SendOne(Dictionary<string, object> row, double elapsed)
         {
-            if (row.TryGetValue("teleport_to", out var target) && target is Dictionary<string, object> select)
+            switch (Kind(row))
             {
-                TeleportTo(row, select, elapsed);
-                return;
+                case "click":
+                {
+                    var widget = Json.Str(row, "widget");
+                    Probe.Log(UiScan.Click(widget) ? $"clicked {widget}" : $"no visible button matches '{widget}'");
+                    break;
+                }
+                case "cursor":
+                    Json.TryNumbers(row["cursor"], 2, out var xy);
+                    Cursor(xy[0], xy[1]);
+                    break;
+                case "teleport_to":
+                    TeleportTo(row, Json.Obj(row, "teleport_to"), elapsed);
+                    break;
+                case "teleport":
+                {
+                    var player = probe.Player;
+                    if (player == null) { Probe.Log("teleport skipped (no player)"); break; }
+                    Json.TryVec3(row["teleport"], out var at);
+                    Place(player, at, Json.TryNum(row, "yaw", out var yaw) ? (float?)yaw : null);
+                    StartHold(row, player, elapsed);
+                    break;
+                }
+                case "wait":
+                    Waiting = true;
+                    waitFor = Math.Min(Math.Max(Json.Num(row, "wait"), 0.0), 600.0);
+                    waitFrames = 0;
+                    waitStart = Time.realtimeSinceStartup;
+                    probe.Pace(true);
+                    Probe.Log($"the play's clock holds at {elapsed:F2} s for {waitFor:F1} s of real time");
+                    break;
+                case "key":
+                    if (Json.TryNum(row, "axis", out var axis)) Control(Json.Str(row, "key"), (float)axis, true);
+                    else Control(Json.Str(row, "key"), Json.Bool(row, "press", true) ? 1f : 0f, false);
+                    break;
             }
-            if (row.TryGetValue("teleport", out var place) && Json.TryVec3(place, out var at))
-            {
-                var player = probe.Player;
-                if (player == null) { Probe.Log("teleport skipped (no player)"); return; }
-                Place(player, at, Json.TryNum(row, "yaw", out var yaw) ? (float?)yaw : null);
-                Hold(row, player, elapsed);
-                return;
-            }
-            if (Json.TryNum(row, "wait", out var wait))
-            {
-                Waiting = true;
-                waitFor = Math.Min(Math.Max(wait, 0.0), 600.0);
-                waitFrames = 0;
-                waitStart = Time.realtimeSinceStartup;
-                probe.Pace(true);
-                Probe.Log($"the play's clock holds at {elapsed:F2} s for {waitFor:F1} s of real time");
-                return;
-            }
-            if (row.TryGetValue("cursor", out var cursor) && Json.TryNumbers(cursor, 2, out var xy))
-            {
-                Cursor(xy[0], xy[1]);
-                return;
-            }
-            var widget = Json.Str(row, "widget");
-            if (widget != null)
-            {
-                var clicked = UiScan.Click(widget);
-                Probe.Log(clicked ? $"clicked {widget}" : $"no visible button matches '{widget}'");
-                return;
-            }
-            var key = Json.Str(row, "key");
-            if (key == null) return;
-            if (Json.TryNum(row, "axis", out var axis)) Control(key, (float)axis, true);
-            else Control(key, Json.Bool(row, "press", true) ? 1f : 0f, false);
         }
 
         // ---------------------------------------------------------------- keys, buttons, axes, the cursor
@@ -186,6 +190,8 @@ namespace TaskProbe
         {
 #if TASKPROBE_INPUTSYSTEM
             if (mouse == null) return;
+            fx = Math.Min(Math.Max(fx, 0.0), 1.0);
+            fy = Math.Min(Math.Max(fy, 0.0), 1.0);
             pointer.position = new Vector2((float)(fx * Screen.width), (float)((1.0 - fy) * Screen.height));
             QueueMouse();
             Probe.Log($"cursor to ({fx:F3}, {fy:F3}) = pixel ({pointer.position.x:F0}, {pointer.position.y:F0})");
@@ -272,11 +278,12 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- teleports
 
-        void Hold(Dictionary<string, object> row, GameObject player, double elapsed)
+        void StartHold(Dictionary<string, object> row, GameObject player, double elapsed)
         {
-            if (!Json.TryNum(row, "hold", out var hold) || hold <= 0.0) return;
+            var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 600.0);
+            if (hold <= 0.0) return;
             holdAt = player.transform.position;
-            holdUntil = elapsed + Math.Min(hold, 600.0);
+            holdUntil = elapsed + hold;
             Probe.Log($"holding the player at ({holdAt.x:F2}, {holdAt.y:F2}, {holdAt.z:F2}) for {hold:F1} s");
         }
 
@@ -287,7 +294,7 @@ namespace TaskProbe
             var here = player.transform.position;
             GameObject target = null;
             var best = float.MaxValue;
-            foreach (var go in Find.Objects(Sel.Parse(select), int.MaxValue, out _))
+            foreach (var go in Find.Objects(Sel.Parse(select, "inputs: teleport_to"), int.MaxValue, out _))
             {
                 if (go == player || go.transform.IsChildOf(player.transform)) continue;
                 var d = (go.transform.position - here).sqrMagnitude;
@@ -297,7 +304,7 @@ namespace TaskProbe
             var there = target.transform.position;
             var side = here - there;
             side.y = 0f;
-            if (side.sqrMagnitude < 1e-6f) side = -player.transform.forward;
+            if (side.sqrMagnitude < 1e-6f) side = -target.transform.forward;  // the player is right above it: in front of it
             side.y = 0f;
             side = side.sqrMagnitude < 1e-6f ? Vector3.back : side.normalized;
             var offset = Vector3.zero;
@@ -306,11 +313,12 @@ namespace TaskProbe
             var face = there;
             if (Json.Obj(row, "face") is Dictionary<string, object> point && Find.Point(point, out var faced)) face = faced;
             var look = face - spot;
-            var yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+            // nothing to face within a centimetre on the ground: it keeps its own yaw
+            var yaw = look.x * look.x + look.z * look.z > 1e-4f ? Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg : player.transform.eulerAngles.y;
             Place(player, spot, yaw);
             var now = player.transform.position;
             Probe.Log($"teleported next to {target.name}: asked ({spot.x:F2}, {spot.y:F2}, {spot.z:F2}) yaw {yaw:F1}, now at ({now.x:F2}, {now.y:F2}, {now.z:F2})");
-            Hold(row, player, elapsed);
+            StartHold(row, player, elapsed);
         }
 
         /// <summary>The player at `position`, facing `yaw` when given, standing still: through its CharacterController,
