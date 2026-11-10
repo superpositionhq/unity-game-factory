@@ -23,8 +23,9 @@ Each task prints one line, for example:
 ```
 
 Options: `--runs N` (default 1), `--model M` (the harness's model; default its own), `--agent-arg ARG` (an extra
-argument for the harness, repeatable), `--keep` (keep the workspaces and the built games), `--out DIR`,
-`--scratch DIR`, `--direct`, `--timeout S`, `--build-timeout S` (as the task check's).
+argument for the harness, repeatable), `--keep` (keep the workspaces; the start's and the reference's copies go
+before an agent starts), `--out DIR`, `--scratch DIR`, `--direct`, `--timeout S`, `--build-timeout S` (as the task
+check's).
 
 ## Before you run it
 
@@ -39,12 +40,14 @@ argument for the harness, repeatable), `--keep` (keep the workspaces and the bui
   copy of the game per run (the agent edits it, so it can't be a hardlink) with its own `Library/`, plus the start and
   the reference built once.
 - Time: the agent gets the task's `limits.max_minutes` (Claude Code also its `max_turns`), then one build and the
-  plays per run. Each workspace imports every asset the first time the agent or the grade opens it. A long thread can
-  take hours per run; start it before you leave the machine.
+  plays per run. Each workspace imports every asset when the agent first opens it, and again for the grade, which
+  starts without the agent's `Library/`. A long thread can take hours per run; start it before you leave the machine.
 
 ## What it does
 
-1. Builds and measures the start and the reference once, as the task check does, for the probes' thresholds.
+1. Builds and measures the start and the reference once, as the task check does, for the probes' thresholds, and
+   deletes both copies before the first agent starts: the reference is the answer, and it would lie two folders above
+   the agent's workspace.
 2. Per run, copies the game at `seed.commit` into a workspace `<drive>:\.task-try\<id>\run<N>\<game>`: every file of
    that commit without `Tasks/`, `History/`, `Dataset/` or `Dataset.zip`, in a fresh git repository with one commit.
    The workspace is outside the machine root and the game repo, so the harness reads neither's `AGENTS.md` or
@@ -54,20 +57,21 @@ argument for the harness, repeatable), `--keep` (keep the workspaces and the bui
    machine's recording hooks record nothing for it (`UGF_NO_RECORDING`, with the Unreal factory's `GF_NO_RECORDING`
    set too), so a try never enters a game's record.
 4. When the agent stops (or its time runs out), stops whatever it left running in the workspace (an editor or a
-   player: any process whose command line names the workspace), removes the build outputs (`Temp/`, `Obj/`, `Logs/`,
-   `Build/`, `Builds/`) but keeps `Library/` (Unity's import cache, keyed by each asset's content and import settings,
-   so what the agent left there can't change what a build makes), adds the probe package as `Packages/com.taskprobe/`,
-   builds and plays the agent's game (on a desktop of its own, as the task check's plays) and runs every check but
-   judges, trace probes and packaging, against the thresholds of step 1.
+   player: any process whose command line names the workspace), removes the build outputs and `Library/` (`Library/`,
+   `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`: besides Unity's import cache, `Library/` holds the agent's editor
+   state, its build profiles, compiled scripts and build caches, which a game's files never carry), adds the probe
+   package as `Packages/com.taskprobe/`, builds it afresh and plays the agent's game (on a desktop of its own, as the
+   task check's plays) and runs every check but judges, trace probes and packaging, against the thresholds of step 1.
 
 Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved` (every required check passed),
 `score` (the weighted share of checks passed, as the cloud scores it, judges left out), `required_passed` of
 `required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness reports them, the
-`checks` rows, `peeked`, and `why` when the agent's game couldn't be graded at all (it changed the Unity version or
-removed the project); `status` is `DONE`, or `ERROR` with its `reasons` when the try couldn't run (the line then
-reads `ERROR   <task>: ...`, for example a start or reference that doesn't build: run the task check first). Each run's
-transcript is `<task>\run<N>\transcript.jsonl`, its plays beside it, and the brief the agent read `<task>\brief.md`;
-the start's and the reference's plays are in `<task>\start\` and `<task>\reference\`, as the task check keeps them.
+`checks` rows, `peeked`, and `why` when the agent's game couldn't be graded at all (it moved the project off Unity
+6000.3 or to a release this machine doesn't have, or removed or relinked the workspace); `status` is `DONE`, or `ERROR`
+with its `reasons` when the try couldn't run (the line then reads `ERROR   <task>: ...`, for example a start or
+reference that doesn't build: run the task check first). Each run's transcript is `<task>\run<N>\transcript.jsonl`,
+its plays beside it, and the brief the agent read `<task>\brief.md`; the start's and the reference's plays are in
+`<task>\start\` and `<task>\reference\`, as the task check keeps them.
 
 ## Reading the result
 
