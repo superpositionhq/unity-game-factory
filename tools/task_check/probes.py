@@ -410,6 +410,7 @@ def series(measure, probe):
     if probe_kind == "camera" and field not in ("occluded", "player_on_screen"):
         # every sample has a track row; one with no camera row found no camera: no value there
         track, out = _rows(probe, "track", 4), []
+        nobody = {row[0] for row in _rows(probe, "track", 1)}  # the samples that found no player: none to be near
         cameras = {row[0]: row for row in _rows(probe, "camera", 7)}
         for t in sorted({row[0] for row in _rows(probe, "track", 1, 4)} | set(cameras)):
             row = cameras.get(t)
@@ -419,7 +420,7 @@ def series(measure, probe):
             if field in ("pitch", "yaw", "fov"):
                 out.append((t, angled(measure, row[{"pitch": 4, "yaw": 5, "fov": 6}[field]])))
                 continue
-            player = _nearest(track, t)
+            player = None if t in nobody else _nearest(track, t)  # never a neighbouring sample's player
             if player is None:
                 out.append((t, None))
             elif field == "distance":

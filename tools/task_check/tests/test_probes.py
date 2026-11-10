@@ -332,6 +332,12 @@ class Reducers(unittest.TestCase):
         self.assertAlmostEqual(probes.reduce(m(probe="player", field="speed"), gaps), 1.0, msg="over the gap")
         self.assertIsNone(probes.reduce(m(probe="camera", field="pitch", at=[0.5]), gaps))
         self.assertEqual(probes.reduce(m(probe="camera", field="pitch", agg="max"), gaps), 20.0)
+        # sampled every 0.2 s, the player of the sample before is within NEAR: it is still not this sample's
+        quick = {"track": [[0.0, 0, 0, 0], [0.2], [0.4, 0, 1, 0]],
+                 "camera": [[t, 0, 3, 0, 10.0, 0.0, 60.0] for t in (0.0, 0.2, 0.4)]}
+        for field, values in (("distance", [3.0, None, 2.0]), ("height", [3.0, None, 2.0])):
+            self.assertEqual(probes.series(m(probe="camera", field=field), quick),
+                             list(zip((0.0, 0.2, 0.4), values, strict=True)), field)
 
     def test_a_probe_with_no_value_says_what_the_probe_could_not_read(self):
         """Its own query's error only: one naming the query's kind and id, else one naming its kind alone (the probe
