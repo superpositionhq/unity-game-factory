@@ -272,7 +272,10 @@ try {
     $repo = Join-Path $gamesRoot $project
     if ((Test-Path (Join-Path $repo '.git')) -and -not (Test-Path (Join-Path $repo '.git\index.lock'))) {
       $dirty = git -C $repo status --porcelain
-      if ($dirty) {
+      # unresolved conflicts (a merge, a stash that did not apply cleanly): `add -A` marked them resolved and the WIP
+      # commit concluded the merge with the conflict markers in the files. Left for the session to resolve.
+      if (@($dirty) -match '^(DD|AU|UD|UA|DU|AA|UU) ') { }
+      elseif ($dirty) {
         git -C $repo add -A 2>$null | Out-Null
         # the commit's post-commit hook (record-unity-commit.ps1) takes this mutex: held through the commit, every WIP
         # commit waited out that script's 30 s timeout, and the session with it
