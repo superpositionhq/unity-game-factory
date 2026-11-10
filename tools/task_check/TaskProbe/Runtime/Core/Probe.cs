@@ -28,10 +28,6 @@ namespace TaskProbe
         const int MaxQueries = 256, MaxErrors = 50;
 
         public static Probe Active { get; private set; }
-        /// <summary>A widget click input: clicks the first visible, interactable button whose name or type matches, as a
-        /// player's click fires it; false when none matches. Set by the UI queries ([ProbeInit]).</summary>
-        public static Func<string, bool> WidgetClick;
-
         static StreamWriter logFile;
 
         Dictionary<string, object> spec;
@@ -129,7 +125,6 @@ namespace TaskProbe
             Pace(false);
             Window.MoveAway();
 
-            RunInits();
             LoadQueries();
             inputs = new Inputs(this, Json.Arr(spec, "inputs"));
             inputs.Start();
@@ -152,17 +147,6 @@ namespace TaskProbe
         public void Pace(bool realTime)
         {
             Application.targetFrameRate = realTime || sound ? Fps : -1;
-        }
-
-        static void RunInits()
-        {
-            foreach (var type in SafeTypes())
-                foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
-                {
-                    if (method.GetCustomAttribute<ProbeInitAttribute>() == null) continue;
-                    try { method.Invoke(null, null); }
-                    catch (Exception e) { Log("init " + type.Name + "." + method.Name + " failed: " + (e.InnerException ?? e).Message); }
-                }
         }
 
         static IEnumerable<Type> SafeTypes()

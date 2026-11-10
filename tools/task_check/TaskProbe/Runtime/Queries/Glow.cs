@@ -4,8 +4,8 @@
 //
 // A mesh renderer is read from its material properties when every material it draws with has a shader with the
 // standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`),
-// MaterialPropertyBlock overrides included; else as rendered, through Hooks.GlowRender (another family's renderer).
-// A live particle system is always read as rendered. Without the hook those read no value and say "unread".
+// MaterialPropertyBlock overrides included; else as rendered (DrawnRender.Glow). A live particle system is always
+// read as rendered. One that couldn't be rendered reads no value and says "unread".
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -88,13 +88,6 @@ namespace TaskProbe
         static int frameOf = -1;
         static MaterialPropertyBlock blockAll, blockOne;
         static Texture2D readBack;
-
-        [ProbeInit]
-        static void Init()
-        {
-            // has: {"lit": true} reads a part as the components lit field does
-            Find.LitTest = c => Of(c).Lit;
-        }
 
         public static double Luminance(Color c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
 
@@ -223,10 +216,8 @@ namespace TaskProbe
             if (render)
             {
                 // a shader without the interface: as rendered, the whole renderer
-                var hook = Hooks.GlowRender;
-                if (hook == null) { ok = false; return r; }
                 RenderedGlow seen;
-                try { seen = hook(renderer); }
+                try { seen = DrawnRender.Glow(renderer); }
                 catch (Exception e) { Probe.Active?.Error("glow render of " + renderer.name + ": " + e.Message); ok = false; return r; }
                 if (!seen.Ok) { ok = false; return r; }
                 r.Read = true;
@@ -256,10 +247,8 @@ namespace TaskProbe
         {
             var renderer = ps.GetComponent<ParticleSystemRenderer>();
             if (renderer == null || !Find.Drawn(renderer) || !Effects.Live(ps)) { total.Read = true; return true; }
-            var hook = Hooks.GlowRender;
-            if (hook == null) { total.Reads |= GlowReading.ReadUnread; return false; }
             RenderedGlow seen;
-            try { seen = hook(renderer); }
+            try { seen = DrawnRender.Glow(renderer); }
             catch (Exception e) { Probe.Active?.Error("glow render of " + ps.name + ": " + e.Message); total.Reads |= GlowReading.ReadUnread; return false; }
             if (!seen.Ok) { total.Reads |= GlowReading.ReadUnread; return false; }
             total.Read = true;

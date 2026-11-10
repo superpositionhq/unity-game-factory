@@ -82,10 +82,6 @@ namespace TaskProbe
 
     public static class Find
     {
-        /// <summary>has.lit: whether a component gives off light (a Light that is on, a drawn mesh whose material emits,
-        /// a live particle system). Set by the objects queries ([ProbeInit]); without it `lit` matches nothing.</summary>
-        public static Func<Component, bool> LitTest;
-
         const int MaxDepth = 4;  // a select inside a point inside a select...
         static readonly Dictionary<string, Regex> Wildcards = new Dictionary<string, Regex>(StringComparer.Ordinal);
 
@@ -223,7 +219,7 @@ namespace TaskProbe
                 if (c == null || c is Transform) continue;
                 if (has.Component != null && !Reflect.IsA(c.GetType(), has.Component)) continue;
                 if (has.Visible && !(c is Renderer r && Drawn(r))) continue;
-                if (has.Lit && (LitTest == null || !LitTest(c))) continue;
+                if (has.Lit && !Glow.Of(c).Lit) continue;  // as the components lit field reads it
                 if (has.Near != null && !has.Near.Contains(nearCentre, c.transform.position)) continue;
                 if (has.Simulating && !Simulates(c)) continue;
                 if (has.Movable && c.gameObject.isStatic) continue;

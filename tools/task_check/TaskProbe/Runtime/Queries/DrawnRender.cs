@@ -26,6 +26,16 @@ using UnityEngine.Rendering.Universal;
 
 namespace TaskProbe
 {
+    /// <summary>A renderer's own light as rendered: drawn alone with every light off (ambient black, no reflections or
+    /// fog), orthographic from four fixed views, HDR. `Brightest`: its brightest pixel's luminance. `Glow`: the views'
+    /// luminance x pixel area over the seen bounds area, times a quarter of its bounds box's surface (m2).</summary>
+    public struct RenderedGlow
+    {
+        public bool Ok;  // false: nothing could be rendered (no renderer facility, the object isn't drawn)
+        public double Brightest;
+        public double Glow;
+    }
+
     /// <summary>One orthographic view: where the camera is, which way it looks (its forward), how wide it sees (m,
     /// square) and how deep (m from the camera).</summary>
     public struct DrawnView
@@ -497,7 +507,7 @@ namespace TaskProbe
             forcedOff.Clear();
         }
 
-        // ---------------------------------------------------------------- lit / glow as rendered (Hooks.GlowRender)
+        // ---------------------------------------------------------------- lit / glow as rendered
 
         static int glowFrame = -1, glowLeft;
         static readonly Dictionary<int, RenderedGlow> glowSeen = new Dictionary<int, RenderedGlow>();
@@ -508,12 +518,6 @@ namespace TaskProbe
         /// <summary>Glow renders since the play started and the time they took (cost reports).</summary>
         public static int GlowCalls;
         public static double GlowMs;
-
-        [ProbeInit]
-        static void Register()
-        {
-            Hooks.GlowRender = Glow;
-        }
 
         /// <summary>One renderer alone with no light at all, from the four corners of a tetrahedron in its own frame
         /// (128 x 128, orthographic, HDR). At most 64 renders a frame (a sample) across every caller, each renderer

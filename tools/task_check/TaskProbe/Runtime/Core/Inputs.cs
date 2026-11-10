@@ -170,7 +170,7 @@ namespace TaskProbe
             var widget = Json.Str(row, "widget");
             if (widget != null)
             {
-                var clicked = Probe.WidgetClick != null && Probe.WidgetClick(widget);
+                var clicked = UiScan.Click(widget);
                 Probe.Log(clicked ? $"clicked {widget}" : $"no visible button matches '{widget}'");
                 return;
             }

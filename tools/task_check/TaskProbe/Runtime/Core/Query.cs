@@ -1,6 +1,5 @@
 // A query: one of the checker's measures, sampled with the track. One class per kind under Runtime/Queries, marked
-// [ProbeQuery("kind")] and found by reflection, so adding a kind touches no other file. A class may also have static
-// methods marked [ProbeInit], called once when the probe starts (to register hooks such as Probe.WidgetClick).
+// [ProbeQuery("kind")] and found by reflection, so adding a kind touches no other file.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,9 +12,6 @@ namespace TaskProbe
         public readonly string Kind;
         public ProbeQueryAttribute(string kind) { Kind = kind; }
     }
-
-    [AttributeUsage(AttributeTargets.Method)]
-    public sealed class ProbeInitAttribute : Attribute { }
 
     /// <summary>What a query needs of the frame drawn right after a sample.</summary>
     public enum FrameNeed

@@ -595,12 +595,6 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- widget click
 
-        [ProbeInit]
-        static void RegisterClick()
-        {
-            Probe.WidgetClick = Click;
-        }
-
         /// <summary>Clicks the first visible, interactable uGUI Selectable whose object's name matches `want` (a wildcard)
         /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it. False when none.</summary>
         public static bool Click(string want)
