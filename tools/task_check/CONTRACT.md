@@ -263,9 +263,10 @@ original's, unchanged (`probes.py`).
     with every Light off and a black ambient, from the four corners of a tetrahedron in its own frame (a mesh's local
     box turned and scaled with it, a skinned mesh's in its root bone's frame, anything else's world box), orthographic,
     128 x 128, HDR. Lit when its brightest pixel's luminance is above 0.01; glow the views' luminance x pixel area
-    summed, over the area of the box they see, times a quarter of the box's surface. At most 64 such renders a frame
-    across every query (`DrawnRender.GlowBudget`), each renderer once a frame, none on the UI layer; past that a mesh
-    whose materials have the interface reads the bound they give (a texture taken as white), anything else no value that
+    summed, over the area of the box they see, times a quarter of the box's surface. At most 64 such renders a pass
+    across every query (`DrawnRender.GlowBudget`; a pass is `Probe.Stamp`'s: the inputs before the game's scripts and
+    the samples after them each have their own), each renderer once a pass, none on the UI layer; past that a mesh whose
+    materials have the interface reads the bound they give (a texture taken as white), anything else no value that
     sample;
   - a row with `lit` or `glow` carries `glow_sources` (the kinds lit: `light`, `emissive`, `unlit`, `effect`) and
     `glow_read` (`props`, `render`, `bound`, or `unread`: no way to read one; the original's `graph`, `render`,
@@ -309,11 +310,11 @@ original's, unchanged (`probes.py`).
   2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
   post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
   `directional`, `sky`, `lights` (the sources that lit it, the ambient counting as one) and `point`.
-- **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings
-  of the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and
-  layer mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when
-  it updates by script (`camera_stack`); `source` is `none` when there is no stack to read (no URP, no camera, or
-  URP's volume framework not set up yet, as at a play's first sample). The stack is read as the constants URP's
+- **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings of
+  the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
+  mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
+  updates by script (`camera_stack`); `source` is `none` when there is no stack to read (no URP, no camera, or URP's
+  volume framework not set up yet, as at a play's first sample). The stack is read as the constants URP's
   ColorGradingLutPass prepares: `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation`
   (multipliers, 1 neutral), `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`,
   `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off
@@ -321,16 +322,17 @@ original's, unchanged (`probes.py`).
   lit_color}` of the strongest directional light that is on, or null), `sky` (`{mode, color, intensity}`), `fog`
   (`{enabled, density, color, mode}`), `source`, `pipeline`, `post_processing`, `grading_mode` (`ldr`, `hdr`); colours
   are linear. A `post:<Component>.<parameter>` asked for is the parameter's value after blending (one no volume
-  overrides reads the component's default): the component by its type's name among
-  `VolumeManager.baseComponentTypeArray` (any case as a fallback), the parameter a field of that name, a third part a
-  member of its value (`.r`-`.a` of a colour, `.x`-`.w` of a vector); a name that doesn't resolve, or a colour or
-  vector without its part, is null and a `query_errors` line. The checker computes
-  `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast` (`colour.colour`) from a neutral grey 0.18 lit by the key
-  light's hue (the sun's `lit_color`, else its colour, else the sky's), run through URP's ColorGrade order: post
-  exposure (2^EV, which URP applies before the grading lookup) and LDR grading's saturate, LMS balance, contrast in
-  LogC around 0.4135884 (ACEScc mid-grey, about 0.2248 linear), colour filter, gain and lift, gamma, hue shift,
-  saturation and the lookup's saturate (the LDR order; the tonemapper is left out, a tonemapping change is read through
-  `post:Tonemapping.mode`; constants from the URP package source in
+  overrides reads the component's default): the component by its type's name or full name, exactly, among
+  `VolumeManager.baseComponentTypeArray`, the parameter a field of that name, a third part a channel of its value by
+  either spelling (`r` or `x` the first, `g` or `y`, `b` or `z`, `a` or `w`; `GradingQuery.Channel`, as the editor
+  pass's `AssetValues.Channel`); a name that doesn't resolve, a colour or vector without its part, a part of anything
+  else and a parameter with no single number (a curve) are null and a `query_errors` line (`grading <id>: ...`). The
+  checker computes `grey`, `cast`, `warmth`, `tint`, `saturation`, `contrast` (`colour.colour`) from a neutral grey 0.18
+  lit by the key light's hue (the sun's `lit_color`, else its colour, else the sky's), run through URP's ColorGrade
+  order: post exposure (2^EV, which URP applies before the grading lookup) and LDR grading's saturate, LMS balance,
+  contrast in LogC around 0.4135884 (ACEScc mid-grey, about 0.2248 linear), colour filter, gain and lift, gamma, hue
+  shift, saturation and the lookup's saturate (the LDR order; the tonemapper is left out, a tonemapping change is read
+  through `post:Tonemapping.mode`; constants from the URP package source in
   `Library/PackageCache/com.unity.render-pipelines.*`). What an untouched stack reads: task-probes.md 2.8.
 - **spawns** (`SpawnsQuery`; the original counts actors of a class spawned and destroyed): every frame of the play's
   clock, a wait's frames included, the objects carrying the component type (active ones; subtypes too) are compared
