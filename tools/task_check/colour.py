@@ -15,7 +15,8 @@ The order and the constants are URP's (Unity 6.3, com.unity.render-pipelines.* i
   shift (RgbToHsv, RotateHue, HsvToRgb), the global saturation around GetLuminance, and saturates the result. Split
   toning, the channel mixer, shadows/midtones/highlights and the curves are left out (the probe doesn't read them; at
   their defaults they change nothing, but for the top of the range: the curves are 128 texels (TextureCurve.cs), read
-  after the saturation, so a channel graded past 127/128 comes out of the shader as 0.992 and reads 1 here).
+  after the saturation, so a channel graded past 127/128 comes out of the shader as 127/128 (0.992), where this module
+  keeps it as graded, up to 1).
 The tonemapper is left out too (Neutral or ACES: before the lookup with LDR grading; with HDR grading at the end of the
 lookup, ACES also taking the contrast into ACEScc): a task reads a tonemapping change through `post:Tonemapping.mode`.
 HDR grading without a tonemapper is the same maths but for the saturates, so there only a colour above 1 before the
