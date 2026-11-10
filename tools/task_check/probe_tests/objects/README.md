@@ -68,13 +68,13 @@ each is good to about 1 ms):
 
 | query | ms a sample |
 |---|---|
-| objects, every object, `x y z speed extent_x hidden collision spin` | 24 |
-| objects, every object, `lit glow` (1000 emissive boxes read by their properties) | 15 |
-| objects, every object, `changed bounds_change spread` | 25 |
-| objects, `has.lit` (1022 matches) | 5 |
-| objects, tag `ObjEnemy` (300 rows), 2 fields | 2 |
-| components, every MeshRenderer (3001), `x spin lit glow changed visible` | 20 |
-| pieces, ground (a 32 x 32 grid), spawns, camera | under 1 each |
+| objects, every object, `x y z speed extent_x hidden collision spin` | 28 |
+| objects, every object, `lit glow` (1000 emissive boxes read by their properties) | 20 |
+| objects, every object, `changed bounds_change spread` | 22 |
+| objects, `has.lit` (1022 matches) | 15 |
+| objects, tag `ObjEnemy` (300 rows), 2 fields | 4 |
+| components, every MeshRenderer (3001), `x spin lit glow changed visible` | 25 |
+| pieces, ground (a 32 x 32 grid), spawns, camera | under 2 each |
 
 A render for `lit` or `glow` (a texture, a Shader Graph, a custom shader, a sprite, a line, a live effect) costs a few
 ms more each, at most 64 a sample (the drawn family measures it).
