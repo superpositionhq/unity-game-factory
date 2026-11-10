@@ -425,17 +425,20 @@ Every text file of the delivery is scrubbed (the studio and tool names, agent, m
 and machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a
 name left in a text file or a path refuses the package (exit 2, nothing zipped; the hits are in
 `<repo>\.dataset\<slug>.refused-hits.tsv`). Binary files are never changed: names found in them are listed in
-`<repo>\.dataset\<slug>.binary-hits.tsv` and refuse the package only with `--strict-binaries`. Commit ids change with
-the rewrite: the delivery uses the new ids everywhere, and `<repo>\.dataset\<slug>.commit-map.tsv` keeps original ->
-delivered.
+`<repo>\.dataset\<slug>.binary-hits.tsv`, and one inside a string (8 or more printable characters in a row) refuses
+the package too; `--lenient-binaries` lists them without refusing, to review a refusal. Commit ids change with the
+rewrite: the delivery uses the new ids everywhere, and `<out>\<slug>\<slug>_<sha8>.commit-map.tsv` keeps original ->
+delivered for each delivered release (`<sha8>`: the delivered release commit's; `<out>`: env `UGF_OUT`, config `out`,
+else `<root>\deliverables`); the scratch's `<repo>\.dataset\<slug>.commit-map.tsv` is emptied by the next run.
 
 It ends with the checks a consumer runs: the dataset checks of `tools/validate-game.py` and, where PowerShell is
 installed, `tools/validate-dataset.ps1`. An error refuses the package. Then it writes the zip (`--no-zip` stops after
 the checks) and, unless `--no-repo-dataset`, the repo's `Dataset/` folder (`README.md`, `git.log`, `workflow.jsonl`,
-`Brief/`, `Screenshots/`, `manifest.json`), which the game session then commits. It never commits and never changes the
-game repo's history. Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts them and the zip in
-another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50). Standard
-library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
+`Brief/`, `Screenshots/`, `manifest.json`, and a `.gitattributes` that keeps them byte for byte as `manifest.json`
+lists them: no line-ending conversion, images in Git LFS), which the game session then commits. It never commits and
+never changes the game repo's history. Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts
+them and the zip in another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default
+50). Standard library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
 
 ## Names that must not reach the games
 

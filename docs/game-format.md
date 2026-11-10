@@ -40,17 +40,20 @@ python tools/package-dataset.py <slug>
 Builds the dataset of the game at `<root>\games\<slug>` from its repo at the release commit (`--commit <rev>`, default
 `HEAD`), its recording `<root>\.recording\<slug>\` and its player build `<repo>\Build\Windows` (made with
 `Scripts\unity.ps1 build`), and writes `<repo>\Dataset.pending.zip` and the repo's `Dataset/` folder, which the game
-session commits. It is the first version: `Gameplay/` and `ReplayScripts/` are not packed yet (the recorder and the
-creation replay are not available yet), so every dataset it makes is `pending`; a complete `Dataset.zip` needs both.
+session commits (with a `.gitattributes` that keeps its files byte for byte as `manifest.json` lists them: no
+line-ending conversion, images in Git LFS). It is the first version: `Gameplay/` and `ReplayScripts/` are not packed yet
+(the recorder and the creation replay are not available yet), so every dataset it makes is `pending`; a complete
+`Dataset.zip` needs both.
 
 It scrubs every text file of the delivery, then scans: a name left in a text file or a path refuses the package (exit
-2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv` and
-refuse the package only with `--strict-binaries`. It ends with the dataset checks of [Validate](#validate), and an
+2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv`, and
+one inside a string (8 or more printable characters in a row) refuses the package too; `--lenient-binaries` lists
+them without refusing, to review a refusal. It ends with the dataset checks of [Validate](#validate), and an
 error there refuses the package too. It never commits and never changes the game repo's history; its scratch and
 reports are in `<repo>\.dataset\`. Options: `--repo <folder>` (a game repo elsewhere), `--commit <rev>`,
 `--version <n>`, `--build <folder>`, `--brief <file>` and `--design <file>` (else the repo's `Brief/brief.md` and
 `Brief/design.md`), `--tasks-ref <ref>`, `--exclude-sessions <ids>`, `--recording <folder>`, `--out <folder>`,
-`--strict-binaries`, `--no-repo-dataset`, `--no-zip`, `--dry-run` (print what would go in, write nothing). Standard
+`--lenient-binaries`, `--no-repo-dataset`, `--no-zip`, `--dry-run` (print what would go in, write nothing). Standard
 library Python 3.10+, `git` and `git-lfs`. What it does, entry by entry:
 [unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager).
 
@@ -153,8 +156,10 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 **The history is rewritten for delivery** (the game repos are not changed): authors and committers become `dev_NN`,
 agent trailer lines go, the scrub rules apply to every message and text blob. Commit ids therefore differ from the
 private repo; the dataset uses the delivered ids everywhere (`manifest.json` `commit`, `git.log`, `ReplayScripts/`,
-the tasks' seeds), and the packager keeps the old -> new map in its scratch folder
-(`<repo>\.dataset\<slug>.commit-map.tsv`), never in the package. Restore a commit:
+the tasks' seeds), and the packager keeps the old -> new map, never in the package, in
+`<out>\<slug>\<slug>_<sha8>.commit-map.tsv`, one per delivered release (`<sha8>`: the delivered release commit's;
+`<out>`: env `UGF_OUT`, config `out`, else `<root>\deliverables`), and in its scratch folder
+(`<repo>\.dataset\<slug>.commit-map.tsv`, emptied by the next run). Restore a commit:
 
 ```bash
 git clone History/<game>.bundle <game>
