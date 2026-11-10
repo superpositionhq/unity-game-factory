@@ -189,10 +189,10 @@ and `visible_triangles`; every `screen` field; `audio` `volume`, `max_volume` an
 `drawn` field but `drawn`. Each section says why.
 
 When the start can't be measured (its play ended before the window), a calibrated threshold anchors on the fix alone:
-`r - 0.25 * |r|` for `>`/`>=`, `r + 0.25 * |r|` for `<`/`<=`. When the fix can't be measured, or the start of a
-`start_times`/`start_plus` check can't, the task is invalid for that check if it is required. A probe left without a
-threshold, this way or by a start and fix that measure the same, fails as `uncalibrated` on every side; one that
-isn't required is only a note (section 4).
+`r - 0.25 * |r|` for `>`/`>=`, `r + 0.25 * |r|` for `<`/`<=` (a fix of 0 leaves no threshold, as a quarter of
+nothing is no margin). When the fix can't be measured, or the start of a `start_times`/`start_plus` check can't, the
+task is invalid for that check if it is required. A probe left without a threshold, this way or by a start and fix
+that measure the same, fails as `uncalibrated` on every side; one that isn't required is only a note (section 4).
 
 ## 2. Measures
 
