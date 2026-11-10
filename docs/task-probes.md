@@ -304,7 +304,9 @@ renderers, else its position.
 - `select`: every key given must match. By default only objects active in the hierarchy match.
   - `component`: a component on the object itself (one on a descendant is found with `has`, below), by its C# type
     name (`CastlePiece`, `MeshRenderer`, `Rigidbody`) or full name (`MyGame.CastlePiece`); the type, any of its base
-    types and its interfaces match (`Collider` takes in `BoxCollider`; `MonoBehaviour` every script).
+    types and its interfaces match (`Collider` takes in `BoxCollider`; `MonoBehaviour` every script). A name no
+    component can have (a typo, a type only the fix adds, read on the start; a plain C# class) matches nothing, and
+    the play's `query_errors` says `objects <id>: no component type <T>` (for a `has` `component` too).
   - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's whole name (`*` any
     run of characters, `?` one character, any case). Every object whose name fits matches: `Coin*` takes a
     `CoinSpawner` or a `CoinPool` as well as the coins, and a select that picks one match (`teleport_to`, a point,
@@ -420,10 +422,14 @@ Behaviour or Renderer, else its first other component (its Transform and MeshFil
 `{"probe": "components", "select": {"component": "ParticleSystem", "owner": <object select>, "near": ...}, "field":
 "count|active|visible|...", ...}`: components of a type (particle systems, decals, audio sources, lights, renderers,
 the moving parts of an object), optionally of an owner object (on it or on its descendants) and near a point (by its
-object's position), so effects that are not objects of their own count too. `"name": "<wildcard>"` keeps components
-whose object's name matches (as an object select's `name`, section 2.4), `"mesh": "<wildcard>"` keeps components whose
-mesh asset's name matches (a renderer's, a MeshFilter's or a MeshCollider's, as `pieces` has it), and `"visible": true`
-only the components drawn (as the `visible` field reads them), so one part, a lamp's bulb, can be picked out.
+object's position), so effects that are not objects of their own count too. `component` names a type as an object
+select's does (section 2.4): its base types and its interfaces match (`Renderer` takes every renderer; an interface,
+the components that implement it); a name no component can have matches nothing, and the play's `query_errors` says
+`components <id>: no component type <T>` (for an `owner` select's `component` too).
+`"name": "<wildcard>"` keeps components whose object's name matches (as an object select's `name`, section 2.4),
+`"mesh": "<wildcard>"` keeps components whose mesh asset's name matches (a renderer's, a MeshFilter's or a
+MeshCollider's, as `pieces` has it), and `"visible": true` only the components drawn (as the `visible` field reads
+them), so one part, a lamp's bulb, can be picked out.
 Components of inactive objects are left out unless the select says `"inactive": true`. `"effect": true` keeps only live
 effects, with or without `component`: a ParticleSystem that is alive (playing or holding particles), a VisualEffect
 holding particles, an enabled DecalProjector, a TrailRenderer drawing points; a pooled or finished system not at all.
