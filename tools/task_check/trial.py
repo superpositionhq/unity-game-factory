@@ -360,7 +360,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
             workspace(repo, shas["commit"], folder)
             transcript = evidence / label / "transcript.jsonl"
             transcript.parent.mkdir(parents=True, exist_ok=True)
-            settings = evidence / "claude-settings.json"
+            settings = scratch / "claude-settings.json"  # on the agent's command line: never a path into the game repo
             settings.write_text(json.dumps({"disableAllHooks": True}), encoding="utf-8")
             argv = agent_argv(agent, exe, limits, settings, model, extra)
             log(f"  {label}: {agent} working (up to {limits['max_minutes']} min)")

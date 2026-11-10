@@ -439,6 +439,25 @@ class Whole(unittest.TestCase):
             self.assertEqual(result["status"], "DONE", result["reasons"])
             self.assertEqual(at_grade, {"run1": [], "work": True}, "its work is graded, never its editor's state")
 
+    def test_the_agents_command_line_names_neither_the_repo_nor_the_results(self):
+        """An agent that lists processes (to stop a stray editor, say) sees its own command line: the settings file
+        that turns its hooks off lies in the try's folder, not beside the results in the game repo."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            out, seen = Path(tmp) / "repo-results", {}
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                settings = Path(argv[argv.index("--settings") + 1])
+                seen.update(outside=trial.outside(settings, [repo, out]),
+                            settings=json.loads(settings.read_text(encoding="utf-8")))
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            with faked(agent):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", out, "claude", "claude",
+                                        log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual(seen, {"outside": True, "settings": {"disableAllHooks": True}})
+
     def test_the_brief_names_the_editor_of_the_start(self):
         """The workspace is the start: when the thread moved the game to another 6000.3 release, the agent is still
         given the start's editor, not the reference's."""
