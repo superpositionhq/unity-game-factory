@@ -1070,6 +1070,9 @@ class Grading(unittest.TestCase):
                                              {"measures": {qid: sampled([{}, warm])}}), 0.18)
         self.assertEqual(probes.reduce(m(probe="grading", field="contrast", at="end"),
                                        {"measures": {qid: sampled([{"contrast": 1.3}])}}), 1.3)
+        unread = m(probe="grading", field="cast", at="end")
+        self.assertIsNone(probes.reduce(unread, {"measures": {qid: [{"t": 0.0}]}}),
+                          "a sample the probe couldn't read reads nothing, never a neutral grade")
 
 
 # -- the editor pass ------------------------------------------------------------------------------------------------------

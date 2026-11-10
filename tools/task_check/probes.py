@@ -76,9 +76,9 @@ def needs(measure):
 
 
 def hears(queries):
-    """Whether a play's queries (a list, or a query file) measure audio: the play spec's `sound`. A play that does has
-    the probe tap the AudioListener (it measures the mix, then silences it) and runs paced to real time; every other
-    play runs as fast as the machine renders, its audio untouched by the probe."""
+    """Whether a play's queries (a list, or a query file) measure audio: the play spec's `sound`, which paces the play
+    to real time (sound plays in real time); every other play runs as fast as the machine renders. In every play the
+    probe's tap on the AudioListener measures the mix and then silences it."""
     found = queries.get("queries") if isinstance(queries, dict) else queries
     return any(isinstance(q, dict) and q.get("kind") == "audio" for q in found or [])
 
@@ -449,7 +449,9 @@ def series(measure, probe):
     if probe_kind == "grading":
         if field.startswith("post:"):
             return [(t, number(v.get(field))) for t, v in values]
-        return [(t, grading.colour(v)[field]) for t, v in values]
+        # a sample the probe couldn't read has no value: no grade, never a neutral one
+        return [(s["t"], grading.colour(s["value"])[field] if isinstance(s.get("value"), dict) else None)
+                for s in samples]
     if probe_kind == "spawns":  # cumulative counts since the play started -> the count in each sample's interval
         out, before = [], 0.0
         for t, v in values:
