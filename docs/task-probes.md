@@ -128,9 +128,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       `teleported next to <name>: asked (x, y, z) yaw <degrees>, now at (x, y, z)` or
       `teleport_to skipped (no object matches)`: check it in the fix's play;
     - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 120) puts the player back
-      at the spot (its position; its view stays free) after every frame's game logic for that many seconds of play.
-      For a game that sets its player's ground position every frame, which would otherwise undo a teleport at once.
-      Without `hold`, a teleport places the player once;
+      at the spot (its position; its view stays free) after every frame's game logic for that many seconds of play:
+      after the scripts' `Update` and again after their `LateUpdate`, so a camera that follows the player in
+      `LateUpdate` frames the spot; a hold lasts through a `wait` and a scene load. For a game that sets its player's
+      ground position every frame, which would otherwise undo a teleport at once. Without `hold`, a teleport places the
+      player once;
     - a wait in real time: `{"t": 8.0, "wait": 30}` (seconds, more than 0). Plays run on a fixed 30 fps clock as fast
       as the machine renders, so what runs on the wall clock (a menu that pages on `Time.unscaledTime` or
       `Time.realtimeSinceStartup`, a timer on the system clock) sees less real time than the play's seconds. At `t`
