@@ -292,16 +292,16 @@ renderers, else its position.
 ```
 
 - `select`: every key given must match. By default only objects active in the hierarchy match.
-  - `component`: a component on the object, by its C# type name (`CastlePiece`, `MeshRenderer`, `Rigidbody`) or full
-    name (`MyGame.CastlePiece`); the type, any of its base types and its interfaces match (`Collider` takes in
-    `BoxCollider`; `MonoBehaviour` every script).
+  - `component`: a component on the object itself (one on a descendant is found with `has`, below), by its C# type
+    name (`CastlePiece`, `MeshRenderer`, `Rigidbody`) or full name (`MyGame.CastlePiece`); the type, any of its base
+    types and its interfaces match (`Collider` takes in `BoxCollider`; `MonoBehaviour` every script).
   - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's whole name (`*` any
     run of characters, `?` one character, any case). Every object whose name fits matches: `Coin*` takes a
     `CoinSpawner` or a `CoinPool` as well as the coins, and a select that picks one match (`teleport_to`, a point,
     `"of": "first"`) may pick the spawner. To pick the things themselves, select them by their own component
     (`"component": "Coin"`) or by their full name: an object instantiated at run time is named `<Prefab>(Clone)`
     (`Coin(Clone)`).
-  - `near`: within `radius` m of a point. `{"player": true}`: the player.
+  - `near`: its position (its transform's, the pivot) within `radius` m of a point. `{"player": true}`: the player.
   - `has`: a part the object carries, `{"has": {"component": ..., "lit": true, "visible": true, "near": {"point":
     <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on any of its
     descendants, inactive ones included) matches every key given. `component` is the part's type or a base type, as a
@@ -399,15 +399,15 @@ renderers, else its position.
 
 `{"probe": "components", "select": {"component": "ParticleSystem", "owner": <object select>, "near": ...}, "field":
 "count|active|visible|...", ...}`: components of a type (particle systems, decals, audio sources, lights, renderers,
-the moving parts of an object), optionally of an owner object (on it or on its descendants) and near a point, so
-effects that are not objects of their own count too. `"name": "<wildcard>"` keeps components whose object's name
-matches (as an object select's `name`, section 2.4), `"mesh": "<wildcard>"` keeps components whose mesh asset's name
-matches (a renderer's, a MeshFilter's or a MeshCollider's, as `pieces` has it), and `"visible": true` only the
-components drawn (as the `visible` field reads them), so one part, a lamp's bulb, can be picked out. Components of
-inactive objects are left out unless the select says `"inactive": true`. `"effect": true` keeps only live effects,
-with or without `component`: a ParticleSystem that is alive (playing or holding particles), a VisualEffect holding
-particles, an enabled DecalProjector, a TrailRenderer drawing points; a pooled or finished system not at all. With
-`near` and `count`, how many effects play at a spot: read before and after a restart (an input of a task play), it
+the moving parts of an object), optionally of an owner object (on it or on its descendants) and near a point (by its
+object's position), so effects that are not objects of their own count too. `"name": "<wildcard>"` keeps components
+whose object's name matches (as an object select's `name`, section 2.4), `"mesh": "<wildcard>"` keeps components whose
+mesh asset's name matches (a renderer's, a MeshFilter's or a MeshCollider's, as `pieces` has it), and `"visible": true`
+only the components drawn (as the `visible` field reads them), so one part, a lamp's bulb, can be picked out.
+Components of inactive objects are left out unless the select says `"inactive": true`. `"effect": true` keeps only live
+effects, with or without `component`: a ParticleSystem that is alive (playing or holding particles), a VisualEffect
+holding particles, an enabled DecalProjector, a TrailRenderer drawing points; a pooled or finished system not at all.
+With `near` and `count`, how many effects play at a spot: read before and after a restart (an input of a task play), it
 catches effects that pile up. A select names its `component`, or `effect`, or both.
 A Terrain is one component however many trees it draws: count placed meshes with `pieces` (section 2.14).
 
@@ -562,10 +562,10 @@ parameter's effective value at the camera after blending.
 - Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
   untouched volume stack gives exactly `grey` 0.18, whatever the key light (only its hue counts), and `cast` 0 under a
-  white one; a coloured sun or sky casts its hue even then (a sun of colour (1, 0.57, 0.26): `cast` and `warmth`
-  1.16). LDR grading clips: a deep blue key light (blue above about twice its red plus 6.6 times its green) puts the
-  grey's blue above 1, so its `grey` reads below 0.18, and an over-exposed grey reads white (`grey` 1), as the frame
-  shows it. The checker's colour maths follows URP's LDR grading (under HDR grading, which doesn't clip before the
+  white one; a coloured sun or sky casts its hue even then (a sun of linear colour (1, 0.57, 0.26): `cast` and
+  `warmth` 1.16). LDR grading clips: a deep blue key light (blue above about twice its red plus 6.6 times its green)
+  puts the grey's blue above 1, so its `grey` reads below 0.18, and an over-exposed grey reads white (`grey` 1), as the
+  frame shows it. The checker's colour maths follows URP's LDR grading (under HDR grading, which doesn't clip before the
   grading, only a colour above 1 there reads differently) and leaves out tonemapping, split toning, the channel mixer,
   shadows/midtones/highlights and the curves: read a tonemapping change with `post:Tonemapping.mode`.
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
@@ -755,7 +755,9 @@ light arriving at a point and sees none of that.
   `size` (the frame's width and height), for the logs.
 - **The threshold is calibrated or relative to the start, never a literal value** (`tools/validate-game.py` refuses
   one): the numbers depend on the GPU, the driver and the resolution, so they compare only within one machine's plays.
-  A fade-in, a teleport or a scene's own exposure animation takes time to settle: put the window after it.
+  Two plays of one build on one machine read the same (measured: identical series), to about 1e-5 with a realtime
+  reflection probe that refreshes every frame. A fade-in, a teleport or a scene's own exposure animation takes time to
+  settle: put the window after it.
 
 ### 2.16 `audio`: what the player hears
 
