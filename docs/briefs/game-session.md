@@ -99,8 +99,8 @@ Steps:
 1) Design doc + story bible (systems, classes, ScriptableObjects, scene plan, scenarios, AI, art/audio/UI direction
    with the list of sound cues, acceptance checklist).
 2) Create the project and repo (new-game.ps1), workflow.jsonl from the very first operation.
-3) Build the core loop first, compiling through Scripts\unity.ps1 and testing as you go (-nographics for logic tests);
-   commit each working step.
+3) Build the core loop first, compiling through Scripts\unity.ps1 and testing as you go (-nographics for logic); commit
+   each working step.
 4) Once scenario 1 is playable end to end, make the game ready for AutoPlay (the drop-in is not available yet: no
    AutoPlay code, no bot): every scenario starts with -scenario <n>, all input through the Input System, no pause or
    mute on focus loss, every action reachable by input; the design doc's status says AutoPlay is open. Framing check
