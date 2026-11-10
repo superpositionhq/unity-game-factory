@@ -431,8 +431,8 @@ def path_problems(text, files, skip=lambda line, name: False):
         name, line = m.group(1), line_of(body, m.start())
         if text[max(0, m.start() - 1)] in '/\\' or skip(line, name):
             continue
-        if len(names.get(name, ())) != 1:
-            out.append((line, name, f'{len(names.get(name, ()))} files of the repo are named {name}'))
+        if name not in names:               # several is fine: each probe test family has its tests.py
+            out.append((line, name, f'no file of the repo is named {name}'))
     return out
 
 
