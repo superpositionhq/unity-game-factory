@@ -6,4 +6,4 @@ the top of the file.
 
 Editor steps are C# static methods under `Assets/Editor/Steps/` (see the README there), run with
 `Scripts/unity.ps1 step -Method <Namespace.Class.Method> -Reason "..."`. Keep this call shape: the creation replay
-recognises it in the recorded command.
+(not available yet) will recognise it in the recorded command.

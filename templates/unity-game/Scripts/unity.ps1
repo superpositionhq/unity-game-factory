@@ -6,9 +6,10 @@
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 build [-Development] [-Backend mono|il2cpp] [-Reason "..."]
 #   powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 play [-Scenario <n>] [-Render] [-Seconds 60] [-Extra "..."]
 # `step` runs one editor step (a static method under Assets/Editor/Steps/) with -batchmode -executeMethod. Keep this call
-# shape: the creation replay recognises "unity.ps1 step -Method <Ns.Class.Method>" in the recorded command. The step
-# logs its own workflow.jsonl rows; -Reason reaches it as $env:UNITY_RUN_REASON. -Render drops -nographics (the job then
-# holds a GPU slot): only for steps that need the GPU (lightmap bakes, screenshots, shader warm-up).
+# shape: the creation replay (not available yet) will recognise "unity.ps1 step -Method <Ns.Class.Method>" in the
+# recorded command. The step logs its own workflow.jsonl rows; -Reason reaches it as $env:UNITY_RUN_REASON. -Render
+# drops -nographics (the job then holds a GPU slot): only for steps that need the GPU (lightmap bakes, screenshots,
+# shader warm-up).
 # Editor: $env:UNITY_EDITOR, else the version in ProjectSettings/ProjectVersion.txt (<root>\tools\ugf-root.ps1
 # Get-UGFUnity, else C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe). Limiter: $env:UGF_ROOT\tools, else
 # two folders up (<root>). Unity locks the project: close any editor that has it open first.
@@ -144,7 +145,7 @@ exit `$p.ExitCode
     else { & $Heavy -Label "__SLUG__ play $Tag" -- powershell -NoProfile -ExecutionPolicy Bypass -File $wrap *> $null }
     $code = $LASTEXITCODE
     if (Test-Path $log) { Select-String -Path $log -Pattern 'Exception|Error' | Select-Object -Last 20 | ForEach-Object { $_.Line.Trim() } }
-    if ($code -eq 124) { Write-Host "stopped after $Seconds s (the game did not quit by itself; expected unless the run ends itself, e.g. AutoPlay)" }
+    if ($code -eq 124) { Write-Host "stopped after $Seconds s (the game did not quit by itself: the timeout, not a crash)" }
     Done $code
   }
 }

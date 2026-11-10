@@ -3,8 +3,8 @@
 __DESCRIPTION__
 
 <!-- PLACEHOLDER, replace before the game is content-complete: 5-7 real gameplay stills in Docs/screenshots/ (jpg,
-     in Git LFS, from validated recordings or the framing-gate screenshots), shown here as a hero image plus a
-     captioned gallery, e.g.
+     in Git LFS, from the framing-gate screenshots: recordings are not available yet), shown here as a hero image plus
+     a captioned gallery, e.g.
        ![<title>](Docs/screenshots/hero.jpg)
        | ![](Docs/screenshots/<name>.jpg) | ![](Docs/screenshots/<name>.jpg) |
        |---|---|
@@ -35,4 +35,4 @@ __DESCRIPTION__
 | `Scripts/unity.ps1` | headless editor runs: setup, compile, editor steps, tests, player build, player runs |
 | `workflow.jsonl` | one row per editor/code operation, written as it happened |
 | `assets.manifest.json`, `Docs/ThirdPartyNotices.md` | third-party assets: source, licence, files used, changes |
-| `Dataset/` | the built dataset (gameplay videos, screenshots, replay scripts) |
+| `Dataset/` | the built dataset (gameplay videos, screenshots, replay scripts), from the dataset packager (not available yet) |

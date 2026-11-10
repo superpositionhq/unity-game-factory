@@ -35,7 +35,7 @@
 /Assets/Resources/PerformanceTestRun*
 __pycache__/
 *.pyc
-# generated export for review (recreate with git log); the dataset's git.log is built by the packager
+# generated export for review (recreate with git log); the dataset's git.log will be built by the packager (not available yet)
 /git.log
 # the full dataset delivery and its packaging scratch: local only, too big for git
 /Dataset.zip

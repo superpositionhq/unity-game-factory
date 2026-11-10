@@ -9,7 +9,8 @@ prefabs, materials, import settings or data assets, run headless with
 run, unchanged: write a new one (`BuildHarborV2.cs`) instead of editing one that already ran, so each `workflow.jsonl`
 row's `source.script` and `source.sha256` still point at the real code.
 
-These steps are replayed to rebuild the project from its history, so:
+The creation replay (not available yet) will run these steps again to rebuild the project from its history, and each
+`workflow.jsonl` row already points at the step that wrote it, so, from the first step on:
 
 - commit every step you run, here, together with what it changed (and every new asset's `.meta`);
 - reach files through the project: asset paths (`"Assets/Scenes/Harbor.unity"`), `Application.dataPath`, or the

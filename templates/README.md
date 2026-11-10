@@ -37,8 +37,9 @@ What the skeleton carries, and why:
 | `Docs/ThirdPartyNotices.md`, `assets.manifest.json`, `Docs/screenshots/` | third-party credits; the asset manifest (`assets-manifest/v1`); README images |
 | `Dataset/` | the dataset placeholder (`Gameplay/`, `Screenshots/`, `ReplayScripts/`, README) |
 
-Not in the skeleton yet: the AutoPlay drop-in (docs/autoplay-contract.md describes the contract; the shared
-implementation comes with the recording pipeline) and the replay configuration (comes with the creation replay).
+Not in the skeleton: the AutoPlay drop-in and the replay configuration, which are not available yet (they come with
+the recording pipeline and the creation replay); until then a game starts each scenario from the command line with
+`-scenario <n>` and reads all input through the Input System (docs/autoplay-contract.md).
 
 `workflow.jsonl` conventions (schema `unity-workflow/v0`, one row per operation at the moment it happens, id prefix
 per game, row ids in commit messages) are in the unity-commit-always and unity-game-session skills (`skills/`).
