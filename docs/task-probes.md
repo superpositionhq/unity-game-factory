@@ -514,10 +514,11 @@ read either way.
   `unlit` in any case (URP's `Universal Render Pipeline/Unlit`) and that has `_BaseColor` or `_Color` gives that
   colour (its texture: `_BaseMap` or `_MainTex`); a shader with `_EmissionColor` that declares an `_EMISSION` keyword
   gives, when the material has the keyword enabled, its emission colour (its texture: `_EmissionMap`; keyword off: no
-  light, whatever its colour and texture). Colours are read in linear space, as the shader gets them (an HDR emission
-  colour the material holds as (4, 3, 2) has a luminance of 12.9). MaterialPropertyBlock overrides on the renderer
-  count, their textures too. The brightest material counts, over the renderer's whole local bounds; lit above a
-  luminance of 0.01. `glow_read` is `props`.
+  light, whatever its colour and texture). A colour is read as the shader gets it: one its shader marks [HDR] (URP
+  Lit's `_EmissionColor`) as the material holds it (an emission colour of (4, 3, 2) has a luminance of 3.14), any
+  other made linear in a linear-space project. MaterialPropertyBlock overrides on the renderer count, their textures
+  too (a block's colour is made linear whatever the property, as a block hands it on). The brightest material counts,
+  over the renderer's whole local bounds; lit above a luminance of 0.01. `glow_read` is `props`.
 - **As rendered**, when any material has a texture on the colour it gives (a texture may be an atlas, or dark but for
   a spot) or another shader (a Shader Graph, or a custom shader whose glow comes from its own code): the renderer is
   drawn alone with every light off, ambient black, reflections and fog off, orthographic from four fixed views around
