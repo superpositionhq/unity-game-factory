@@ -112,10 +112,12 @@ def fetch_wav(s, repo, mono):
     if not (repo / rel).exists():
         (repo / SFX_DIR).mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory() as tmp:
-            mp3 = Path(tmp) / 'preview.mp3'
+            mp3, wav = Path(tmp) / 'preview.mp3', Path(tmp) / 'clip.wav'
             mp3.write_bytes(fetch(s['preview'], timeout=300)[0])
+            # decoded beside the preview and moved in whole: a decode that dies leaves no half WAV to be taken for done
             subprocess.run([ffmpeg(), '-v', 'error', '-y', '-i', str(mp3), '-map_metadata', '-1', '-bitexact',
-                            *(['-ac', '1'] if mono else []), '-c:a', 'pcm_s16le', str(repo / rel)], check=True)
+                            *(['-ac', '1'] if mono else []), '-c:a', 'pcm_s16le', str(wav)], check=True)
+            shutil.move(str(wav), str(repo / rel))
     return rel
 
 
@@ -172,12 +174,15 @@ def measure(a):
         try:
             w = wave.open(name, 'rb')
         except (OSError, EOFError, wave.Error) as e:  # a missing or broken file, not the network
-            sys.exit(f'{name}: {e}')
+            sys.exit(f'{name}: {str(e) or "the file ends inside its header"}')
         with w:
             if w.getsampwidth() != 2:
                 sys.exit(f'{name}: expected 16-bit PCM')
-            ch, rate = w.getnchannels(), w.getframerate()
-            samples = array.array('h', w.readframes(w.getnframes()))
+            ch, rate, frames = w.getnchannels(), w.getframerate(), w.getnframes()
+            data = w.readframes(frames)
+        if len(data) < frames * ch * 2:  # a download or a decode that died
+            sys.exit(f'{name}: cut short: {len(data) // (2 * ch)} of {frames} frames')
+        samples = array.array('h', data)
         if sys.byteorder == 'big':
             samples.byteswap()
         if not samples:
