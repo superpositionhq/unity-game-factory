@@ -160,8 +160,8 @@ A task is **VALID** when all of this holds:
 - the start fails every required probe outside `still_works` (or doesn't build by design): each is one issue of the
   thread, and one the start already passes rewards no work;
 - every required probe in the `still_works` milestone already passes at the start. What must keep working has to work
-  before the change, or the probe is broken and would fail every correct solution. A still-works probe the start
-  measured nothing for (its play crashed, which is often the task's own bug) doesn't count against it;
+  before the change, or the probe is broken and would fail every correct solution. A still-works probe that has no
+  samples at the start (its play crashed, which is often the task's own bug) doesn't count against it;
 - a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
   `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other probe the start
   already passes, a `"required": false` one too (the task check measures that). Judges and trace probes aren't
