@@ -149,8 +149,14 @@ def main():
         crs.pop()
     eol = '\r\n' if crs and crs[-1] else '\n'
     body = '\n'.join(l + ('\r' if c else '') for l, c in zip(lines, crs)) + '\n' + json.dumps(corr, ensure_ascii=False) + eol
-    with open(path, 'wb') as f:
-        f.write((b'\xef\xbb\xbf' if bom else b'') + body.encode('utf-8'))
+    tmp = path + '.tmp'   # written whole, then swapped in: a crash or a full disk leaves workflow.jsonl as it was
+    try:
+        with open(tmp, 'wb') as f:
+            f.write((b'\xef\xbb\xbf' if bom else b'') + body.encode('utf-8'))
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
     print('written %s' % path)
     return 0
 
