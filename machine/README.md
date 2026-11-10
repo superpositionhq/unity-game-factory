@@ -91,8 +91,10 @@ The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks
 `recording-sessions.json` (session id -> project map) is runtime state: bootstrap creates it empty next to the hooks
 and never overwrites it.
 
-Not ported yet from the Unreal factory (they come with the verifier and the recording pipeline): the per-commit live
-creation replay (its post-commit line), the recording queue and its recorder, packaging and the task checker.
+Not ported yet from the Unreal factory (they come with the recording pipeline): the per-commit live creation replay
+(its post-commit line), the recording queue and its recorder, and packaging. The task checker is here
+(`tools/task-check.py`, [../docs/task-check.md](../docs/task-check.md)): its builds and plays go through
+`unity-heavy.ps1` like every other heavy job.
 
 ### Recording
 
