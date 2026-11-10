@@ -10,7 +10,8 @@ build (<repo>/Build/Windows, made with Scripts/unity.ps1 build; --build names an
 
     History/<slug>.bundle     the history rewritten for delivery: authors and committers dev_NN, agent trailer lines
                               gone, the scrub rules on every message and text blob. The release commit as
-                              refs/heads/main and each task's start branch (refs/heads/starts/<task>), nothing else.
+                              refs/heads/main and each task's start branch (refs/heads/starts/<task>), nothing else:
+                              a side branch, a tag off main or a stash can hold work the tasks ask for.
     History/lfs/objects/      every Git LFS object of every commit of the bundle, from the repo's own store
     History/sessions/         the creation sessions as recorded: messages.jsonl (every prompt the person typed and
                               every reply the model wrote) and actions.jsonl (every tool call), rows up to the release
@@ -935,7 +936,8 @@ def package(args):
     n_commits = int(git_text(bare, 'rev-list', '--count', *refs))
     hist = os.path.join(stage, 'History')
     os.makedirs(lp(hist), exist_ok=True)
-    git(bare, 'bundle', 'create', os.path.join(hist, f'{game}.bundle'), *refs)
+    git(bare, 'symbolic-ref', 'HEAD', 'refs/heads/main')   # so a clone of the bundle checks main out
+    git(bare, 'bundle', 'create', os.path.join(hist, f'{game}.bundle'), 'HEAD', *refs)
     lfs_store = os.path.join(git_text(repo, 'rev-parse', '--absolute-git-dir'), 'lfs', 'objects')
     need = lfs_pointers(bare, refs)
     lfs_bytes = 0
