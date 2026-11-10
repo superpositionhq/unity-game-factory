@@ -186,11 +186,12 @@ def measure(a):
         peak = max(level)
         first = next(i for i, x in enumerate(level) if x >= peak / 2)  # attack: until half the peak (-6 dB)
         floor = peak / 100
-        last = next(i for i in range(len(level) - 1, -1, -1) if level[i] >= floor)  # tail: after 40 dB below the peak
+        last = next(i for i in range(len(level) - 1, -1, -1) if level[i] >= floor)
+        tail = last - level.index(peak) if peak else 0  # tail: how long it rings, from the peak to 40 dB below it
         rms = math.sqrt(sum(x * x for x in level) / len(level))
         to_ms = 1000 / (ch * rate)
         print(f'{name}\t{len(level) / (ch * rate):.2f}\t{ch}\t{rate}\t{db(peak):.1f}\t{db(rms):.1f}\t'
-              f'{first * to_ms:.0f}\t{(len(level) - 1 - last) * to_ms:.0f}')
+              f'{first * to_ms:.0f}\t{tail * to_ms:.0f}')
 
 
 def main():
