@@ -113,6 +113,25 @@ def remove_tree(path):
         shutil.rmtree(lp(path), onerror=writable_then_again)
 
 
+def hold_lock(path):
+    """The open file of an exclusive lock on path, held until the process ends (the OS frees it when a run dies); Refused
+    while another run holds it: two runs on one game empty each other's scratch and write the same Dataset/."""
+    os.makedirs(lp(os.path.dirname(path)), exist_ok=True)
+    f = open(lp(path), 'a+b')
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        raise Refused(f'another package-dataset run of this game holds {path}: wait for it to finish')
+    return f
+
+
 def files_under(root):
     """Relative paths (forward slashes) of every file under root, sorted."""
     out = []
@@ -980,6 +999,7 @@ def package(args):
         print(f'  would write {os.path.join(out_root, "Dataset.pending.zip")} (pending: {", ".join(PENDING)})')
         return 0
     ugfroot.check_free(out_root, 'package-dataset')
+    lock = hold_lock(os.path.join(ugfroot.out(), game, '.package.lock'))   # noqa: F841  held until the run ends
     remove_tree(scratch)
     os.makedirs(lp(stage))
 
@@ -1033,7 +1053,8 @@ def package(args):
             lfs_bytes += size
     step(f'history: {n_commits} commits, {len(refs)} ref(s), head {head[:12]}; {hstats["blobs_scrubbed"]} blobs and '
          f'{hstats["messages_scrubbed"]} messages scrubbed; {len(need)} LFS objects')
-    write_text(os.path.join(scratch, f'{game}.commit-map.tsv'), 'original\tdelivered\n' + ''.join(f'{o}\t{n}\n' for o, n in cmap.items()))
+    map_text = 'original\tdelivered\n' + ''.join(f'{o}\t{n}\n' for o, n in cmap.items())
+    write_text(os.path.join(scratch, f'{game}.commit-map.tsv'), map_text)
 
     # ---- UnityProject, workflow.jsonl, git.log ----
     step('writing UnityProject/ and git.log')
@@ -1241,6 +1262,9 @@ def package(args):
                 print('  x ' + e)
             raise Refused(f'{ds} is not valid ({len(rv["errors"])} error(s))')
     remove_tree(bare)
+    # the old -> new map of this delivery, kept where the next run does not empty it (the scratch is emptied each run)
+    keep = os.path.join(ugfroot.out(), game, f'{game}_{head[:8]}.commit-map.tsv')
+    write_text(keep, map_text)
 
     sizes = {}
     for rel in files_under(stage):

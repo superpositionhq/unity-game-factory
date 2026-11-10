@@ -254,6 +254,25 @@ class Refusals(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset')))
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
 
+    def test_one_run_per_game(self):
+        # a run holds <out>/<slug>/.package.lock: a second one at the same time is refused before it touches the scratch
+        lock = os.path.join(self.inp['root'], 'deliverables', SLUG, '.package.lock')
+        os.makedirs(os.path.dirname(lock))
+        with open(lock, 'a+b') as f:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('another package-dataset run of this game', r.stderr)
+        r = run(self.inp, '--no-repo-dataset')   # the lock freed
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        maps = [n for n in os.listdir(os.path.dirname(lock)) if n.endswith('.commit-map.tsv')]
+        self.assertEqual(len(maps), 1)   # kept beside the deliveries: <slug>_<delivered head 8>.commit-map.tsv
+
     def test_a_second_run(self):
         # git writes its pack files read-only: the first run's scratch must not stop the second (on Windows it did)
         for _ in range(2):
