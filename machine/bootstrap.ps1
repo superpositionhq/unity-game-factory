@@ -38,21 +38,33 @@
       -HooksDir C:\ugf-test\home\.unity-game-factory\hooks -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Agent both -FfmpegArchive <.7z>
 #>
 param(
-    [string]$Root,                                              # default: UGF_ROOT / existing config / %USERPROFILE%\UnityWork
-    [string]$UnityHubEditors,                                   # default: config / C:\Program Files\Unity\Hub\Editor
-    [string]$UnityVersion,                                      # default: config / 6000.3 (its newest installed patch; new games)
-    [ValidateSet('auto', 'claude', 'codex', 'both')][string]$Agent = 'auto',   # which coding agents to wire up
+    # default: UGF_ROOT / existing config / %USERPROFILE%\UnityWork
+    [string]$Root,
+    # default: config / C:\Program Files\Unity\Hub\Editor
+    [string]$UnityHubEditors,
+    # default: config / 6000.3 (its newest installed patch; new games)
+    [string]$UnityVersion,
+    # which coding agents to wire up
+    [ValidateSet('auto', 'claude', 'codex', 'both')][string]$Agent = 'auto',
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
-    [string]$CodexDir,                                          # default: CODEX_HOME / %USERPROFILE%\.codex
-    [string]$AgentsSkillsDir = (Join-Path $env:USERPROFILE '.agents\skills'),   # Codex's personal skills folder
-    [string]$HooksDir,                                          # default: config hooks_dir (lib\ugf-root.ps1 Get-UGFHooksDir)
-    [string]$ConfigPath,                                        # default: UGF_CONFIG / %USERPROFILE%\.unity-game-factory\config.json
-    [string]$FfmpegArchive,                                     # a downloaded ffmpeg-8.1.2-full_build.7z (still verified)
+    # default: CODEX_HOME / %USERPROFILE%\.codex
+    [string]$CodexDir,
+    # Codex's personal skills folder
+    [string]$AgentsSkillsDir = (Join-Path $env:USERPROFILE '.agents\skills'),
+    # default: config hooks_dir (lib\ugf-root.ps1 Get-UGFHooksDir)
+    [string]$HooksDir,
+    # default: UGF_CONFIG / %USERPROFILE%\.unity-game-factory\config.json
+    [string]$ConfigPath,
+    # a downloaded ffmpeg-8.1.2-full_build.7z (still verified)
+    [string]$FfmpegArchive,
     [switch]$SkipFfmpeg,
     [switch]$CloneGames,
-    [string]$Org,                                               # GitHub org/user of the game repos -> config github_org
-    [switch]$Force,                                             # also replace heavy_slots / gpu_slots someone set by hand
-    [switch]$Yes                                                # install the recording hooks without asking
+    # GitHub org/user of the game repos -> config github_org
+    [string]$Org,
+    # also replace heavy_slots / gpu_slots someone set by hand
+    [switch]$Force,
+    # install the recording hooks without asking
+    [switch]$Yes
 )
 $hooksDeclined = $false
 $ErrorActionPreference = 'Stop'

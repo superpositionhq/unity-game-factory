@@ -21,12 +21,16 @@
 param(
     [string]$Root,
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
-    [string]$CodexDir,                                          # default: CODEX_HOME / %USERPROFILE%\.codex
+    # default: CODEX_HOME / %USERPROFILE%\.codex
+    [string]$CodexDir,
     [string]$AgentsSkillsDir = (Join-Path $env:USERPROFILE '.agents\skills'),
-    [string]$HooksDir,                                          # default: config hooks_dir
+    # default: config hooks_dir
+    [string]$HooksDir,
     [string]$ConfigPath,
-    [string]$Org,                   # default: the config's github_org (UGF_ORG)
-    [int]$MinFreeGB = 200,          # WARN below this, FAIL below a third of it
+    # default: the config's github_org (UGF_ORG)
+    [string]$Org,
+    # WARN below this, FAIL below a third of it
+    [int]$MinFreeGB = 200,
     [int]$MinDriver = 610,
     [string]$Json
 )

@@ -14,8 +14,10 @@
   powershell -ExecutionPolicy Bypass -File machine\get-ffmpeg.ps1 -Archive D:\downloads\ffmpeg-8.1.2-full_build.7z
 #>
 param(
-    [string]$Root,                       # machine root; default from machine/lib/ugf-root.ps1
-    [string]$Archive,                    # use an already downloaded .7z instead of downloading (still verified)
+    # machine root; default from machine/lib/ugf-root.ps1
+    [string]$Root,
+    # use an already downloaded .7z instead of downloading (still verified)
+    [string]$Archive,
     [string]$Version = '8.1.2',
     [string]$Sha256 = '0fff188997a499b5382e0f66e845d4556c48c54f0113ebed4853d556dbdd7059',
     [long]$Bytes = 166721853,

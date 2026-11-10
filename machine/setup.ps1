@@ -37,18 +37,28 @@
       -HooksDir C:\ugf-test\home\.unity-game-factory\hooks -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Agent both
 #>
 param(
-    [string]$Root,                     # default: the config's root, else asked (%USERPROFILE%\UnityWork offered)
-    [string]$Org,                      # GitHub org/user that owns unity-game-factory and the game repos (config github_org)
-    [switch]$CloneGames,               # also clone every <org>/unity-game-* repo (asked when not given)
-    [switch]$Yes,                      # answer yes to every question (installs, settings, hooks)
-    [switch]$DryRun,                   # no installs, Windows settings, sign-ins or game clones; bootstrap runs only
-                                       # given -ConfigPath, -ClaudeDir, -CodexDir, -AgentsSkillsDir and -HooksDir
-    [string]$RepoUrl,                  # where to clone unity-game-factory from (default https://github.com/<org>/unity-game-factory)
-    [ValidateSet('', 'claude', 'codex', 'both')][string]$Agent = '',   # the coding agent(s); asked when not given
+    # default: the config's root, else asked (%USERPROFILE%\UnityWork offered)
+    [string]$Root,
+    # GitHub org/user that owns unity-game-factory and the game repos (config github_org)
+    [string]$Org,
+    # also clone every <org>/unity-game-* repo (asked when not given)
+    [switch]$CloneGames,
+    # answer yes to every question (installs, settings, hooks)
+    [switch]$Yes,
+    # no installs, Windows settings, sign-ins or game clones; bootstrap runs only
+    # given -ConfigPath, -ClaudeDir, -CodexDir, -AgentsSkillsDir and -HooksDir
+    [switch]$DryRun,
+    # where to clone unity-game-factory from (default https://github.com/<org>/unity-game-factory)
+    [string]$RepoUrl,
+    # the coding agent(s); asked when not given
+    [ValidateSet('', 'claude', 'codex', 'both')][string]$Agent = '',
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
-    [string]$CodexDir,                 # default: CODEX_HOME / %USERPROFILE%\.codex
-    [string]$AgentsSkillsDir,          # default: %USERPROFILE%\.agents\skills (Codex's personal skills)
-    [string]$HooksDir,                 # default: the config's hooks_dir
+    # default: CODEX_HOME / %USERPROFILE%\.codex
+    [string]$CodexDir,
+    # default: %USERPROFILE%\.agents\skills (Codex's personal skills)
+    [string]$AgentsSkillsDir,
+    # default: the config's hooks_dir
+    [string]$HooksDir,
     [string]$ConfigPath,
     [switch]$SkipFfmpeg
 )
