@@ -828,6 +828,28 @@ class CleanUp(unittest.TestCase):
             self.assertTrue((elsewhere / "Temp" / "keep.txt").is_file(), "the other folder's files stay")
             self.assertFalse((elsewhere / "Packages").exists(), "nothing is added to it either")
 
+    @unittest.skipUnless(os.name == "nt", "junctions")
+    def test_a_game_folder_swapped_for_a_link_is_not_graded_and_nothing_is_written_through_it(self):
+        """The probe package goes into Packages/ and the grade's Unity writes under Assets/ and ProjectSettings/: with
+        one of them a link, that would be someone else's folder."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            elsewhere = Path(tmp) / "elsewhere"
+            elsewhere.mkdir()
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                shutil.rmtree(Path(cwd) / "Packages", ignore_errors=True)
+                _winapi.CreateJunction(str(elsewhere), str(Path(cwd) / "Packages"))
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            with faked(agent):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertFalse(result["runs"][0]["solved"])
+            self.assertIn("Packages is now a link", result["runs"][0]["why"])
+            self.assertEqual(list(elsewhere.iterdir()), [], "nothing is added to the folder the link points at")
+
     @unittest.skipUnless(os.name == "nt", "taskkill, Win32_Process")
     def test_what_the_try_stops_names_its_folder_whole_in_either_spelling(self):
         """A process names the folder when its command line has the folder's whole name, as Windows or Git Bash (Claude

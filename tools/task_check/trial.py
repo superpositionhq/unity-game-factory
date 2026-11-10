@@ -36,6 +36,7 @@ LIMITS = {"max_turns": 200, "max_minutes": 240}  # the schema's defaults (game-t
 # holds the agent's editor state (build profiles with their own defines and scenes, compiled scripts, build caches),
 # which a game's files never carry; the grade imports everything again, as the task check does for each copy.
 BUILT = ("Library", "Temp", "Obj", "Logs", "Build", "Builds")
+GAME = ("Assets", "Packages", "ProjectSettings")  # the game's own folders: a grade reads and writes inside them
 NO_RECORDING = ("UGF_NO_RECORDING", "GF_NO_RECORDING")  # the machines' record-action hooks record nothing when set
 # Nothing points the agent at a machine root, its config (which names the root), its deliverables (every game's history)
 # or the organisation that holds the game repos.
@@ -389,6 +390,10 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
             try:
                 if outside(folder, [scratch]):  # the agent swapped its folder for a link: nothing there is the try's
                     raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
+                for name in GAME:  # the probe package and the grade's Unity would write through such a link
+                    if os.path.islink(folder / name) or os.path.isjunction(folder / name):
+                        raise FileNotFoundError(f"{name} is now a link to {os.path.realpath(folder / name)}: not "
+                                                "graded")
                 for d in BUILT:  # (one the agent made a link goes as the link: seeds.remove never follows one)
                     seeds.remove(folder / d)
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
