@@ -99,6 +99,17 @@ def keys(t, play):
     t.ok("an undefined tag puts no line in the game's log", "NoSuchTag" not in play.log, play.log.count("NoSuchTag"))
 
 
+def _yaml_text(raw):
+    r"""A name as a saved scene or prefab writes it: plain, single-quoted ('' for a quote; Unity quotes a name that starts
+    with a sign such as > or ends in a space) or double-quoted with escapes (Unity saves "Snö☃" as
+    "Sn\xF6\u2603")."""
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        return raw[1:-1].replace("''", "'")
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        return raw[1:-1].encode("ascii", "backslashreplace").decode("unicode_escape")
+    return raw
+
+
 def _fileids(project, scene, wanted):
     """{GameObject name: its fileID} for `wanted` names in a saved scene, and the scene's root list as SceneRoots holds it
     (the Hierarchy's order) as names."""
@@ -111,8 +122,8 @@ def _fileids(project, scene, wanted):
         kind, fid = head.group(1), int(head.group(2))
         if kind == "1":
             name = re.search(r"(?m)^  m_Name: (.*)$", block)
-            if name and name.group(1) in wanted:
-                ids[name.group(1)] = fid
+            if name and _yaml_text(name.group(1)) in wanted:
+                ids[_yaml_text(name.group(1))] = fid
         elif kind == "4":
             go = re.search(r"m_GameObject: \{fileID: (-?\d+)\}", block)
             transforms[fid] = int(go.group(1)) if go else None
@@ -146,7 +157,7 @@ def _saved_roots(project, scene, prefab):
     docs = list(_documents((project / scene).read_text(encoding="utf-8")))
     for kind, fid, _, block in docs:
         if kind == 1:
-            gos[fid] = re.search(r"(?m)^  m_Name: (.*)$", block).group(1)
+            gos[fid] = _yaml_text(re.search(r"(?m)^  m_Name: (.*)$", block).group(1))
     for kind, fid, stripped, block in docs:
         if kind in (4, 224) and not stripped and _ref(block, "m_Father") == 0:
             roots.append({"name": gos[_ref(block, "m_GameObject")], "class": kind, "id": fid})
@@ -158,7 +169,7 @@ def _saved_roots(project, scene, prefab):
               if strip and kind == 4 and _ref(block, "m_CorrespondingSourceObject") == top_tr}
     for kind, fid, _, block in docs:
         if kind == 1001 and _ref(block, "m_TransformParent") == 0:
-            name = re.search(r"propertyPath: m_Name\s+value: (.*)", block).group(1)
+            name = _yaml_text(re.search(r"propertyPath: m_Name\s+value: (.*)", block).group(1))
             roots.append({"name": name, "class": 4, "instance": fid, "stripped": strips.get(fid),
                           "xor": (fid ^ top_tr) & MASK, "xor_go": (fid ^ top_go) & MASK})
     return roots

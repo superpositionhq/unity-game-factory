@@ -47,10 +47,11 @@ work) and its late half (the samples).
   object are never matched or read.
 - `order`: a scene's roots come in the player's root list, not the Hierarchy's order: the check compares the list
   `SelRootInfo` reads with the saved scene file (plain roots by file id; the UI roots and the prefab instances by the
-  rule it finds that list follows); every root reports sibling index 0 in a player; children in sibling order; the
-  DontDestroyOnLoad scene last, an additively loaded scene after the one loaded before it; a root made at run time
-  and a child made a root come after the saved roots; two components of one type on one object in the Inspector's
-  order; 300 matches keep the first 200 rows with `total` and a `full` entry for every field asked for.
+  rule it finds that list follows; it reads the file's names as Unity writes them: plain, in single quotes, or in double
+  quotes with escapes, as `Snö☃` is); every root reports sibling index 0 in a player; children in sibling order; the
+  DontDestroyOnLoad scene last, an additively loaded scene after the one loaded before it; a root made at run time and a
+  child made a root come after the saved roots; two components of one type on one object in the Inspector's order; 300
+  matches keep the first 200 rows with `total` and a `full` entry for every field asked for.
 - `props`: every `prop:` path and the value it reads; reads through `material`, `materials`, `mesh`, a collider's
   `material` and a `fontMaterial` read the shared asset and copy nothing; a spec nested 100,000 deep ends the player
   with exit code 2 and its reason, not a stack overflow.
@@ -61,9 +62,9 @@ work) and its late half (the samples).
 ## Cost
 
 Measured in a non-development Windows player on the machine the family was written on, with other builds running; the
-bounds the checks hold are eight times the measure or more, as such numbers vary from machine to machine. The late half is the
-probe's sampling, the update half its per-frame work; a cost per sample is the late half's over the play less the idle
-play's, per sample.
+bounds the checks hold are eight times the measure or more, as such numbers vary from machine to machine. The late half
+is the probe's sampling, the update half its per-frame work; a cost per sample is the late half's over the play less the
+idle play's, per sample.
 
 | Play | Query | Measured | Bound |
 |---|---|---|---|
