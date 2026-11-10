@@ -41,11 +41,11 @@ the store packs you use (any folder under Assets/, binaries through LFS, never g
 never public or shared outside the org); never run tools/unity-pipeline/enqueue.ps1 yourself (send me the commit and
 the framing screenshots); push only when I say. Your game's full dataset is
 {{UGF_ROOT}}\games\{{SLUG}}\Dataset.zip, made by the packager (python tools/package-dataset.py {{SLUG}} in
-unity-game-factory, run once the game has its tasks and a player build; today it writes Dataset.pending.zip: the
-recorder and the creation replay make Gameplay/ and ReplayScripts/, but the packager does not take them yet; until its
-first run Dataset/ stays as the template made it): keep /Dataset.zip, /Dataset.pending.zip and /.dataset/ in your
-.gitignore and never commit them; Dataset/ you commit. Your commits are replayed in the background after each one
-(unity-game-session skill, "Replay-friendly work"): fix what the hook's [replay] lines report in your next commits.
+unity-game-factory) from the release commit, its pipeline build and recordings (I queue them) and its creation replay
+(unity-game-session skill, "Dataset"); until its first run Dataset/ stays as the template made it: keep
+/Dataset.zip, /Dataset.pending.zip and /.dataset/ in your .gitignore and never commit them; Dataset/ you commit.
+Your commits are replayed in the background after each one (unity-game-session skill, "Replay-friendly work"): fix
+what the hook's [replay] lines report in your next commits.
 Blockers: write them in your design doc, message me once, carry on.
 AUTOPLAY'S GOAL IS NOT TO WIN. The bot only drives the game with human-like input so a recording shows the game
 running. Never tune, fix or re-test the bot to win, score, finish, reach targets, resupply or avoid getting stuck;
@@ -122,6 +122,10 @@ Steps:
    and Tasks/ on the repo's orphan tasks branch (its own worktree, never on main) holds the game's tasks, up to about
    10, every one a long thread of multiple edits (unity-write-tasks skill); and tools/validate-game.py on your repo
    says VALID (docs/game-format.md). Report back with a short summary and the commit sha when done or blocked.
+7) The release, when I say (unity-game-session skill, "Dataset"): send me the release commit to record (no other
+   commit until it is packaged), run unity_replay.py release with HEAD at that commit, then, once I say the recording
+   is done, package-dataset.py; commit the Dataset/ it writes and report whether it made Dataset.zip or
+   Dataset.pending.zip (and what it lists as missing).
 
 Shared notes folder for this group of sessions (outside the repo; read siblings' notes there, leave hand-over notes
 or large findings there instead of pasting them into messages): {{NOTES_DIR}}

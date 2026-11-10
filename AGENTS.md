@@ -69,12 +69,13 @@ and the run checker, tag `milestone/autoplay-<n>` and report to the coordinator 
 **Dataset.** Each game's full dataset is `games\<slug>\Dataset.zip`: the same name everywhere, git-ignored
 (`/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/`), produced by the packager, never committed. The committed
 `Dataset\` is the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`. The packager is
-`python tools/package-dataset.py <slug>` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)). Today it
-writes `Dataset.pending.zip` and the repo's `Dataset\`: the recorder makes the gameplay videos for `Gameplay/` (each
-validated run's `gameplay.mp4`) and the creation replay makes `ReplayScripts/`
-(`python tools/unity-replay/unity_replay.py release --game <slug>`, [docs/unity-replay.md](docs/unity-replay.md)), but
-the packager does not take them yet, so every dataset is still pending. Before its first run a game's `Dataset\` stays
-as the template made it, and nobody assembles a dataset by hand.
+`python tools/package-dataset.py <slug>` ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)). It packs
+the release commit with three products of it: the pipeline's release build, the gameplay video of each scenario's
+first valid recording of that commit (`Gameplay/`) and the creation replay's package (`ReplayScripts/`, made by
+`python tools/unity-replay/unity_replay.py release --game <slug>`, [docs/unity-replay.md](docs/unity-replay.md)). With
+a video and the replay it writes `Dataset.zip` (a FAIL verdict too); while either is missing it writes
+`Dataset.pending.zip` and lists what is missing. The release steps are in the unity-game-session skill ("Dataset").
+Before its first run a game's `Dataset\` stays as the template made it, and nobody assembles a dataset by hand.
 
 This checkout is shared by several sessions at once: stage explicit paths only and never commit another session's
 changes.
@@ -92,7 +93,7 @@ changes.
 | AutoPlay drop-in (`tools/unity-pipeline/autoplay/`, `install.ps1`, `Scripts/unity.ps1 autoplay`) | available: [docs/autoplay-contract.md](docs/autoplay-contract.md) |
 | recording pipeline: release build from a commit, recorder, queue, run checker, stills, gameplay videos (`tools/unity-pipeline/`) | available: [docs/unity-pipeline.md](docs/unity-pipeline.md) |
 | creation replay, live after every commit and at release (`tools/unity-replay/`) | available: [docs/unity-replay.md](docs/unity-replay.md) |
-| dataset packager (`tools/package-dataset.py`) | available, first version: it builds `Dataset.pending.zip`, everything but `Gameplay/` and `ReplayScripts/`, which the recorder and the creation replay make but it does not take yet ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
+| dataset packager (`tools/package-dataset.py`) | available: `Dataset.zip` from the release commit, its pipeline build, its recordings and its creation replay; `Dataset.pending.zip` while a recording or the replay is missing ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
 
 Where a skill or doc names a part that is not available yet, it says what to do instead: do that, and report the rest
 as open. Never stand in for a missing tool by hand or with another factory's tool.

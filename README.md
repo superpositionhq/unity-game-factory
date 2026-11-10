@@ -5,8 +5,7 @@ Game-**creation** data: how a game gets made, step by step, with the finished pr
 We build new 3D games in Unity 6.3 LTS (Universal Render Pipeline) and record the creation as it happens: real
 editor operations with timestamps, code commits, every tool call, prompt and reply of the sessions that build the game,
 and recorded playtests of each scenario by an in-game bot (screen video, game audio and inputs). Every part of that is
-here; the dataset packager is a first version that does not take the gameplay videos and the replay scripts yet
-([AGENTS.md](AGENTS.md), "What is here and what is coming").
+here ([AGENTS.md](AGENTS.md), "What is here and what is coming").
 
 **Priorities (user decision).** What ships is what matters, in this order: the game plays; the game builds (editor and
 the Windows release player); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
@@ -63,10 +62,11 @@ coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key
    commit, one recorded run per scenario, one gameplay mp4 each ([docs/unity-pipeline.md](docs/unity-pipeline.md)).
 6. **Scrub and privacy**: no user names, machine paths or tool names in anything that ships (the packager's scrub rules
    and scan, the release build's leak scan; `tools/validate-game.py` checks a repo's tracked text for the names).
-7. **Dataset v1**: `tools/package-dataset.py` writes the dataset and the repo's `Dataset/`. The recorder makes the
-   gameplay videos and the creation replay's release run (`unity_replay.py release`: with the live replay current,
-   only the last commits and a full final check remain) makes `ReplayScripts/`; until the packager takes both, it
-   writes `games\<slug>\Dataset.pending.zip`, and with them `Dataset.zip`.
+7. **Dataset v1**: at the release commit, the coordinator queues its recording (the pipeline builds its release player
+   and records each ready scenario), the creation replay's release run (`unity_replay.py release`: with the live replay
+   current, only the last commits and a full final check remain) makes `ReplayScripts/`, and `tools/package-dataset.py`
+   packs the commit with the three into `games\<slug>\Dataset.zip` and the repo's `Dataset/`
+   (`Dataset.pending.zip` while a recording or the replay is missing).
 
 ## Dataset format (layout v1, all games)
 
@@ -95,10 +95,12 @@ Each game repo keeps the same delivery in `Dataset/`, minus `UnityProject/`, `Bu
 tasks live in `Tasks/` on the repo's orphan `tasks` branch, never on main). The game repo itself follows the same
 format's repo rules (one `assets.manifest.json` format, every asset committed with its `.meta`). Machine-readable:
 [docs/game-format-v1.json](docs/game-format-v1.json), [docs/dataset-layout-v1.json](docs/dataset-layout-v1.json),
-[docs/schemas/](docs/schemas/). Build it with `python tools/package-dataset.py <slug>`: today it writes
-`Dataset.pending.zip`, without `Gameplay/` and `ReplayScripts/`; before its first run a repo's `Dataset/` stays as the
-template made it. Check a repo and its datasets with `python tools/validate-game.py <repo>` (or `--dataset <zip>`); its
-"not packaged yet" warning is expected before the packager's first run.
+[docs/schemas/](docs/schemas/). Build it with `python tools/package-dataset.py <slug>` at the release commit, once it
+has its pipeline build, a valid recording and the creation replay's package: it writes `Dataset.zip`, or
+`Dataset.pending.zip` (the missing entries listed) while a recording or the replay is missing; before its first run a
+repo's `Dataset/` stays as the template made it. Check a repo and its datasets with
+`python tools/validate-game.py <repo>` (or `--dataset <zip>`); its "not packaged yet" warning is expected before the
+packager's first run.
 
 ## Read first
 
@@ -127,7 +129,7 @@ template made it. Check a repo and its datasets with `python tools/validate-game
 ```
 tools/unity-pipeline/              release player from a commit, recorder, queue, run checker, stills, gameplay videos; autoplay/ = the AutoPlay drop-in
 tools/unity-replay/                creation replay: per commit (live) and at release; ReplayScripts/ of the dataset
-tools/package-dataset.py           a game's dataset: Dataset.pending.zip and the repo's Dataset/ (first version)
+tools/package-dataset.py           a game's dataset: Dataset.zip (Dataset.pending.zip while an entry is missing) and the repo's Dataset/
 tools/task-check.py, task-try.py   a task checked on the engine; tried with a coding agent (internal) (task_check/)
 tools/thread-stats.py              a thread's own commits counted against the task floors (git only)
 tools/sfx.py                       sound effects for a game: search Freesound, fetch into the repo, measure (unity-sound skill)
