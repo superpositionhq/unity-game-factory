@@ -614,9 +614,9 @@ def schema_words():
 # neither the schema's nor here is a field or key the page documents and the schema lacks.
 LOGGED = (  # keys and values of probe.json's samples, which the page names "for the logs": no check reads them
     'query_errors', 'total', 'full', 'class', 'glow_sources', 'glow_read', 'props', 'render', 'bound', 'unread',
-    'emissive', 'unlit', 'local', 'directional', 'sky', 'lights', 'pixels', 'size', 'primitives', 'points', 'loudest', 'peak',
-    'listener', 'source', 'ugui', 'uitk', 'ocr', 'camera_stack', 'post_processing', 'grading_mode', 'ldr', 'hdr',
-    'pipeline', 'hue_shift', 'sun', 'fog', 'mode')
+    'emissive', 'unlit', 'local', 'directional', 'sky', 'lights', 'pixels', 'size', 'primitives', 'points', 'loudest',
+    'peak', 'listener', 'source', 'ugui', 'uitk', 'ocr', 'camera_stack', 'post_processing', 'grading_mode', 'ldr',
+    'hdr', 'pipeline', 'hue_shift', 'sun', 'fog', 'mode')
 NOT_OURS = ('true', 'false', 'null',        # JSON's own words
             'materials',                    # Unity's Renderer.materials, named as what a prop: should not read
             'display', 'visibility',        # UI Toolkit style properties ("display: none")
