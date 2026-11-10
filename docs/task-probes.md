@@ -931,10 +931,14 @@ percent, a sprite).
 
 - What is read: the elements on screen in the frame drawn right after each sample (the sample's own frame, read once it
   is drawn: no play time passes in between). Only what is on screen: an inactive object, a disabled Canvas, a
-  CanvasGroup at an alpha of 0.004 or less, a UI Toolkit element hidden (`display: none`, `visibility: hidden`) or at
-  an opacity that low, and everything under them, are not read; nor is a disabled graphic, one whose own colour is
-  that transparent, one culled by a RectMask2D, a blank text, an Image filled to 0, or an element entirely off the
-  frame. No value when no frame is drawn.
+  CanvasGroup at an alpha of 0.004 or less, a UI Toolkit element with `display: none` or at an opacity that low, and
+  everything under them, are not read; nor is a UI Toolkit element whose own visibility is hidden (a child may show
+  again under a hidden parent), a disabled graphic, one whose own colour is that transparent, one culled by a
+  RectMask2D, a blank text, an Image filled to 0, an element of no size or entirely off the frame, or anything on a
+  canvas or in a panel drawn into a texture or on another display. No value when no frame is drawn. Should the scan
+  of the uGUI canvases or of the UI Toolkit panels fail, that sample misses their elements and the play's
+  `query_errors` says `ui: the uGUI canvases couldn't be read: <type> (the exception is in probe.log)` (or the UI
+  Toolkit panels).
 - Each element is one row: on a screen-space canvas (Overlay or Camera), a `Text` or `TMP_Text` is `text`, an `Image`
   or `RawImage` with a sprite or texture is `image`, any other drawn Graphic is `box`; in a UI Toolkit panel drawn on
   the screen, a `TextElement` with text (an empty field: its placeholder) is `text`, an element with an image (an
@@ -1003,10 +1007,13 @@ percent, a sprite).
   - Give the rect a margin around the text so its edge is background: a stroke that touches the rect's edge makes the
     line refused, and a stroke's caps reach half the stroke width beyond the glyph. Write `\s*` where the text has a
     space (spaces are read from the gaps between glyphs).
-  - Measured limits: TextMeshPro at 32 px in its default font is too bold for its size and reads nothing through the
-    frame (it reads as a `ugui` element anyway); with strokes drawn as rectangles the reader can refuse a "3" (the
-    thickened joins put its fit just over the limit). Where a readout drawn without UI components matters, check in
-    the fix's play that it reads.
+  - Measured limits: an O never reads (each of its shapes is also a 0's), so a word with an O, such as SCORE, never
+    reads from the frame; D, Q, B and S often don't (in readouts drawn with `OnGUI` at 16, 24 and 36 px: O at no
+    size, D and Q at 16 and 36 px, B and S at 36 px). A 3 with short hooks at both ends, as stroke fonts often draw
+    it, is refused at most stroke widths however its strokes end (its centre lines stop short of the hooks' ends, so
+    its fit is over the limit); a flat-topped 3 reads. TextMeshPro at 32 px in its default font is too bold for its
+    size and reads nothing through the frame (it reads as a `ugui` element anyway). Where a readout drawn without UI
+    components matters, check in the fix's play that it reads.
   - Where a line-drawn readout still doesn't read as text, `ui` has nothing else to read it by: there are no line
     elements to count. Grade another outcome of the same issue.
 - Limits: world-space canvases and text in the 3D scene (a `TextMeshPro` 3D text, a `TextMesh`) are not UI elements
