@@ -780,6 +780,11 @@ class Units(unittest.TestCase):
         for what in ('status complete but no ReplayScripts/Verification/report.json', 'status complete with pending entries',
                      'status complete needs replay_verification with pass true or false', 'no scenario videos'):
             self.assertIn(what, errs)
+        for cut in ('ReplayScripts/Verification/report.json', 'UnityProject/assets.manifest.json'):
+            write(ds, cut, '{"schema": ')   # cut short: an error, never a traceback
+        rep, errs = check(variant='full')
+        self.assertEqual([a for s, a, m in rep.items if m.startswith('not JSON: ')],
+                         ['dataset: report.json', 'dataset: UnityProject/assets.manifest.json'])
         write(ds, 'manifest.json', 'not json')
         rep = vg.Report()
         vg.check_dataset(rep, ds, 'dataset')

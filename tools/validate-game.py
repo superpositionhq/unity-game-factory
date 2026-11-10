@@ -379,16 +379,20 @@ def _check_dataset(rep, v, area):
     # replay report
     rp = 'ReplayScripts/Verification/report.json'
     if v.has(rp):
-        r = v.json(rp)
-        if schema_errors(rep, f'{area}: report.json', r, 'replay-report'):
-            if r['final_commit'] != m['commit']:
-                rep.error(f'{area}: report.json', f'final_commit {r["final_commit"][:12]} differs from manifest commit {m["commit"][:12]}')
-            # the verdict is metadata (user rule: the replay is required but need not pass); manifest and report agree
-            rv = m.get('replay_verification')
-            if isinstance(rv, dict) and 'pass' in rv and bool(rv['pass']) != bool(r['verdict']['pass']):
-                rep.error(f'{area}: report.json', f'verdict pass {r["verdict"]["pass"]} differs from manifest replay_verification.pass {rv["pass"]}')
-            if not r['verdict']['pass']:
-                rep.note(f'{area}: report.json', 'creation replay verification FAIL (metadata)')
+        try:
+            r = v.json(rp)
+        except ValueError as e:
+            rep.error(f'{area}: report.json', f'not JSON: {e}')
+        else:
+            if schema_errors(rep, f'{area}: report.json', r, 'replay-report'):
+                if r['final_commit'] != m['commit']:
+                    rep.error(f'{area}: report.json', f'final_commit {r["final_commit"][:12]} differs from manifest commit {m["commit"][:12]}')
+                # the verdict is metadata (user rule: the replay is required but need not pass); manifest and report agree
+                rv = m.get('replay_verification')
+                if isinstance(rv, dict) and 'pass' in rv and bool(rv['pass']) != bool(r['verdict']['pass']):
+                    rep.error(f'{area}: report.json', f'verdict pass {r["verdict"]["pass"]} differs from manifest replay_verification.pass {rv["pass"]}')
+                if not r['verdict']['pass']:
+                    rep.note(f'{area}: report.json', 'creation replay verification FAIL (metadata)')
     elif m['status'] == 'complete':
         rep.error(area, f'status complete but no {rp}')
     if m['status'] == 'complete':
@@ -427,8 +431,13 @@ def _check_dataset(rep, v, area):
     if m['variant'] == 'full':
         am = 'UnityProject/assets.manifest.json'
         if v.has(am):
-            check_assets_manifest(rep, f'{area}: {am}', v.json(am),
-                                  lambda f: v.has_dir('UnityProject/' + f) if f.endswith('/') else (v.has('UnityProject/' + f) or v.has_dir('UnityProject/' + f)))
+            try:
+                data = v.json(am)
+            except ValueError as e:
+                rep.error(f'{area}: {am}', f'not JSON: {e}')
+            else:
+                check_assets_manifest(rep, f'{area}: {am}', data,
+                                      lambda f: v.has_dir('UnityProject/' + f) if f.endswith('/') else (v.has('UnityProject/' + f) or v.has_dir('UnityProject/' + f)))
         else:
             rep.error(area, f'no {am}')
     rep.note(area, f'{m["game"]} {m["variant"]} {m["status"]}: {len(m["files"])} files, {len(m["scenarios"])} scenario video(s)')
