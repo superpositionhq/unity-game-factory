@@ -92,7 +92,7 @@ def inputs(t, play):
     t.eq("the widget click clicked the button once", play.row("button", 6.0, "PushButton").get("prop:CoreButton.clicks"), 1)
     t.ok("the click is in probe.log", "clicked PushButton" in play.probe_log)
     t.ok("a click on no button says so", "no visible button matches 'NoSuchButton'" in play.probe_log)
-    t.eq("inputs_sent counts every input", play.probe.get("inputs_sent"), 14)
+    t.eq("inputs_sent counts every input", play.probe.get("inputs_sent"), 15)
     t.eq("the game counted itself focused in every frame", walker(play, 6.0, "unfocused"), 0)
     t.eq("and never lost the focus", walker(play, 6.0, "focusLost"), 0)
 
@@ -393,8 +393,8 @@ PLAYS = {
     # this play reads the wall clock on purpose
     "clocks": {"check": clocks, "varies": ["clocks"]},
     "fine": {"check": fine, "args": ["-corelast"]},
-    "inputs": {"check": inputs, "errors": [r"^inputs: the keyboard has no key nokey$"]},
-    "pad": {"check": pad},
+    "inputs": {"check": inputs, "errors": [r"^inputs: the keyboard has no key nokey$", r"^inputs: the mouse has no control position/x$"]},
+    "pad": {"check": pad, "errors": [r"^inputs: the gamepad has no control a$"]},
     "teleport": {"check": teleport},
     "hold": {"check": hold, "args": ["-coredrift"]},
     "body_cc": {"check": body(0)},

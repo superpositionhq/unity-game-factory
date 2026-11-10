@@ -42,6 +42,11 @@
    "t": 1.5,
    "key": "<Gamepad>/buttonSouth",
    "press": false
+  },
+  {
+   "t": 1.6,
+   "key": "<Gamepad>/a",
+   "press": true
   }
  ]
 }

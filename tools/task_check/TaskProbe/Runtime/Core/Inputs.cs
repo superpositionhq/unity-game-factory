@@ -210,16 +210,14 @@ namespace TaskProbe
 
         static readonly Dictionary<string, MouseButton> MouseButtons = new Dictionary<string, MouseButton>(StringComparer.OrdinalIgnoreCase)
         {
-            ["leftButton"] = MouseButton.Left, ["press"] = MouseButton.Left, ["rightButton"] = MouseButton.Right,
+            ["leftButton"] = MouseButton.Left, ["rightButton"] = MouseButton.Right,
             ["middleButton"] = MouseButton.Middle, ["forwardButton"] = MouseButton.Forward, ["backButton"] = MouseButton.Back,
         };
 
         static readonly Dictionary<string, GamepadButton> PadButtons = new Dictionary<string, GamepadButton>(StringComparer.OrdinalIgnoreCase)
         {
             ["buttonSouth"] = GamepadButton.South, ["buttonNorth"] = GamepadButton.North, ["buttonEast"] = GamepadButton.East,
-            ["buttonWest"] = GamepadButton.West, ["a"] = GamepadButton.South, ["b"] = GamepadButton.East, ["x"] = GamepadButton.West,
-            ["y"] = GamepadButton.North, ["cross"] = GamepadButton.South, ["circle"] = GamepadButton.East,
-            ["square"] = GamepadButton.West, ["triangle"] = GamepadButton.North,
+            ["buttonWest"] = GamepadButton.West,
             ["leftShoulder"] = GamepadButton.LeftShoulder, ["rightShoulder"] = GamepadButton.RightShoulder,
             ["start"] = GamepadButton.Start, ["select"] = GamepadButton.Select,
             ["leftStickPress"] = GamepadButton.LeftStick, ["rightStickPress"] = GamepadButton.RightStick,
@@ -252,8 +250,6 @@ namespace TaskProbe
                 else if (control == "delta/y") pointer.delta = new Vector2(pointer.delta.x, value);
                 else if (control == "scroll/x") pointer.scroll = new Vector2(value, pointer.scroll.y);
                 else if (control == "scroll/y") pointer.scroll = new Vector2(pointer.scroll.x, value);
-                else if (control == "position/x") pointer.position = new Vector2(value, pointer.position.y);
-                else if (control == "position/y") pointer.position = new Vector2(pointer.position.x, value);
                 else { probe.Error("inputs: the mouse has no control " + control); return; }
                 QueueMouse();
                 return;
@@ -304,7 +300,7 @@ namespace TaskProbe
             var there = target.transform.position;
             var side = here - there;
             side.y = 0f;
-            if (side.sqrMagnitude < 1e-6f) side = -target.transform.forward;  // the player is right above it: in front of it
+            if (side.sqrMagnitude < 1e-6f) side = -target.transform.forward;  // the player is right above it: the side its back is to
             side.y = 0f;
             side = side.sqrMagnitude < 1e-6f ? Vector3.back : side.normalized;
             var offset = Vector3.zero;

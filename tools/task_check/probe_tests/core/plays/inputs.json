@@ -44,6 +44,11 @@
    "press": true
   },
   {
+   "t": 0.5,
+   "key": "<Mouse>/position/x",
+   "axis": 100.0
+  },
+  {
    "t": 1.0,
    "key": "<Keyboard>/w",
    "press": true
