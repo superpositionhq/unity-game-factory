@@ -208,9 +208,10 @@ game without one replays with the defaults). What it cannot replay costs a manua
   above).
 - **`ReplayConfig.json` kept current**: a store pack you copy into `Assets/` with a shell command gets an `asset_drops`
   entry (the copy command as `match`, `from_git` the pack's folder in the repo), a wrapper of your own that starts the
-  editor a `run_patterns` entry. Paths in it are written `{root}` / `{home}`, never with the account name. Commit a
-  change with a `workflow.jsonl` row (op `replay.config`). A game made before the template had the file copies
-  `templates/unity-game/ReplayConfig.json` in when it first needs a setting (docs/unity-replay.md, section 4).
+  editor a `run_patterns` entry (and, when it logs a row of its own per run, that op in `wrapper_row_ops`, or the
+  replay counts it as the step's row). Paths in it are written `{root}` / `{home}`, never with the account name.
+  Commit a change with a `workflow.jsonl` row (op `replay.config`). A game made before the template had the file
+  copies `templates/unity-game/ReplayConfig.json` in when it first needs a setting (docs/unity-replay.md, section 4).
 - **Never amend or rebase** a commit you made.
 
 After a commit, the hook prints `[replay] ...` when the last replay found something: fix those in your next commits.

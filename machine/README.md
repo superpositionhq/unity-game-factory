@@ -154,8 +154,9 @@ builds and plays go through `unity-heavy.ps1` like every other heavy job. So is 
 - Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `messages.jsonl` rows
   `"schema": "agent-message/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows
-  (`input.command` = the patch), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose response
-  shows the exit code).
+  (`input.command` = the patch; the creation replay's ledger applies them like Write/Edit,
+  `tools/unity-replay/patchfx.py`), and there is no `PostToolUseFailure` (a failed call is a `PostToolUse` whose
+  response shows the exit code).
 - Nothing is recorded (and nothing replayed) while `UGF_NO_RECORDING` (or another factory's `GF_NO_RECORDING`) is
   set: a task try's agent is not a game session.
 - **Codex hook trust.** Codex runs a hook from `hooks.json` only after it is trusted (a hash of the hook in
