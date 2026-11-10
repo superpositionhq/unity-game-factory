@@ -309,6 +309,9 @@ select that also matches another object can take the player there instead:
 `"component": "Coin"`, or their full name, `Coin(Clone)`: task-probes.md, section 2.4); `teleport_to skipped (no
 object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain boot
 (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
+`reference fails X: build failed (exit N)` (or `(timed out)`: it ran past `--build-timeout`) means the reference doesn't
+build as committed; every check that `needs` it then fails `not run: needs X`, and so on down the chain. Its
+`reference\build\build.log` says why, as for `start doesn't build` below.
 
 **`start: Assets/Scenes/X.unity names N of its M assets that the commit doesn't have`** (a note). The scene refers to
 asset GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`;
