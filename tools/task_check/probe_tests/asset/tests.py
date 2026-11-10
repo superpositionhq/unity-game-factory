@@ -393,6 +393,7 @@ def facts(t, play):
                  "    m_StaticBatching: 1"):
         t.ok(f"the project keeps its own setting: {line.strip()}", line in settings)
     t.ok("the project keeps its own scripting backend: IL2CPP", re.search(r"scriptingBackend:\n\s+Standalone: 1\b", settings))
+    t.ok("the project keeps its own code stripping: High", re.search(r"managedStrippingLevel:\n\s+Standalone: 3\b", settings))
 
     twins = _twins(t)
     t.eq("two plays at once both run to their end (several instances allowed)",
