@@ -85,9 +85,10 @@ def set_tasks(repo, tasks, extra=None):
     """The orphan tasks branch with Tasks/<name>.json per task (plumbing: the work tree stays on main)."""
     entries = []
     for name, t in tasks.items():
-        blob = git(repo, 'hash-object', '-w', '--stdin', input=json.dumps(t, indent=2).encode())
+        data = t if isinstance(t, str) else json.dumps(t, indent=2)   # a string as written: a file that is no JSON
+        blob = git(repo, 'hash-object', '-w', '--stdin', input=data.encode())
         entries.append(f'100644 blob {blob}\t{name}.json')
-    sub = git(repo, 'mktree', input=('\n'.join(entries) + '\n').encode())
+    sub = git(repo, 'mktree', input=''.join(e + '\n' for e in entries).encode())
     root_entries = [f'040000 tree {sub}\tTasks']
     readme = git(repo, 'hash-object', '-w', '--stdin', input=b'# Tasks\n')
     root_entries.append(f'100644 blob {readme}\tREADME.md')
@@ -327,9 +328,15 @@ class Meta(Base):
 class RepoRules(Base):
     def test_banned_name(self):
         asset(self.repo, 'Assets/Data/credits.txt', 'Made with Game-Factory tools.\n')
+        asset(self.repo, 'Assets/Data/paths.txt', 'Saved to C:/Users/Kilnmaker/AppData.\n')    # the machine's account
+        asset(self.repo, 'Assets/Editor/Steps/BuildYard.cs', '// ran from C:/Users/Kilnmaker/Work\n')  # a step that ran
+        write(self.repo, 'Dataset/README.md', 'Built with Claude.\n')                       # the packager's, skipped
         commit(self.repo, 'Credits')
-        errs = errors(self.check(), 'repo: banned names')
+        with unittest.mock.patch.dict(os.environ, {'USERNAME': 'Kilnmaker'}):
+            errs = errors(self.check(), 'repo: banned names')
         self.assertTrue(any(e.startswith('Assets/Data/credits.txt') for e in errs), errs)
+        self.assertIn('Assets/Data/paths.txt: the account name x1', errs)
+        self.assertEqual(len(errs), 2, errs)
 
     def test_unity_repo_name_banned(self):
         rx = vg.SPEC['repo']['banned_names']['patterns'][1]
@@ -364,12 +371,17 @@ class RepoRules(Base):
         self.assertTrue(any(e.startswith('Assets/ThirdParty/_probe_/Probe.fbx') for e in errs), errs)
 
     def test_generated_folder_tracked_and_not_ignored(self):
-        write(self.repo, '.gitignore', '/Dataset.zip\n/Dataset.pending.zip\n/.dataset/\n')
+        write(self.repo, '.gitignore', '/Dataset.zip\n/Dataset.pending.zip\n')
         write(self.repo, 'Library/ArtifactDB', 'x')
+        write(self.repo, 'KilnRun.csproj', '<Project/>\n')
+        write(self.repo, 'Unity_v6000.x.ulf', 'licence\n')
         commit(self.repo, 'Oops')
         errs = errors(self.check(), 'repo')
         self.assertTrue(any('Library/ArtifactDB' in e for e in errs), errs)
         self.assertTrue(any(e.startswith('Library/ is not ignored') for e in errs), errs)
+        for what in ('(e.g. KilnRun.csproj): Unity regenerates', '(e.g. Unity_v6000.x.ulf): a Unity licence file',
+                     'missing /.dataset/'):
+            self.assertTrue(any(what in e for e in errs), (what, errs))
 
     def test_lfs(self):
         attrs = os.path.join(self.repo, '.gitattributes')
@@ -382,6 +394,7 @@ class RepoRules(Base):
         asset(self.repo, 'Assets/Prefabs/Crate.prefab', YAML.format('Crate'))
         asset(self.repo, 'Assets/Scenes/Main/NavMesh.asset', b'\0\1binary navmesh')
         asset(self.repo, 'Assets/Pack/Binary.asset', b'\0\1a store pack\'s binary asset')
+        asset(self.repo, 'Assets/Data/Packed.asset', b'\0\1binary, with no LFS pattern of its own')
         commit(self.repo, 'LFS mistakes')   # the copy's files are all re-added: the base's crate.png and Hero.prefab too
         self.assertIn('ProjectSettings/NavMeshAreas.asset', git(self.repo, 'lfs', 'ls-files', '--name-only'))
         errs = errors(self.check(), 'repo: LFS')
@@ -391,6 +404,8 @@ class RepoRules(Base):
             [f"Unity YAML or C# in LFS: {f} (it loses its diffs and merges; .gitattributes must keep it plain git text, "
              "as the template's does)" for f in ('Assets/Prefabs/Crate.prefab', 'Assets/Prefabs/Hero.prefab',
                                                  'ProjectSettings/NavMeshAreas.asset')]))   # a binary .asset in LFS is right
+        self.assertIn(('warning', 'repo: LFS', 'binary content in plain git: Assets/Data/Packed.asset (give its type an '
+                       'LFS pattern in .gitattributes)'), self.check().items)
         real = subprocess.run
 
         def no_lfs(args, **kw):   # a machine without Git LFS: git says lfs is no git command
@@ -425,6 +440,28 @@ class RepoRules(Base):
         errs = errors(self.check(), 'repo: workflow.jsonl')
         self.assertTrue(any('duplicate id kr-00002' in e for e in errs), errs)
         self.assertTrue(any('ue-workflow/v0' in e for e in errs), errs)
+
+    def test_readme(self):
+        write(self.repo, 'README.md', '# Kiln Run\n\n![hero](Docs/screenshots/hero.jpg "The kiln")\n'
+              '<img src="./Docs/screenshots/gone.jpg">\n![web](https://example.com/x.png)\n<!-- ![old](old.png) -->\n')
+        commit(self.repo, 'Readme')
+        rep = self.check()
+        self.assertEqual(errors(rep, 'repo: README'), ['links Docs/screenshots/gone.jpg, which is not committed'])
+        self.assertIn(('warning', 'repo: README', '2 images; the rule is a hero + gallery of 5-7 gameplay stills'),
+                      rep.items)
+        write(self.repo, 'README.md', '# Kiln Run\n\nNo stills yet.\n')
+        commit(self.repo, 'Readme without stills')
+        self.assertEqual(errors(self.check(), 'repo: README'), ['shows no gameplay image'])
+
+    def test_task_files(self):
+        set_tasks(self.repo, {f'{SLUG}-a': 'not json', f'{SLUG}-b': [1],
+                              f'{SLUG}-c': task(self.start, self.ref, name='other')})
+        errs = errors(self.check(), 'repo: Tasks')
+        for what in (f'tasks:Tasks/{SLUG}-a.json: not JSON', f'tasks:Tasks/{SLUG}-b.json: not a task object',
+                     f"tasks:Tasks/{SLUG}-c.json: name 'other' differs from the file name"):
+            self.assertTrue(any(e.startswith(what) for e in errs), (what, errs))
+        set_tasks(self.repo, {})
+        self.assertTrue(any(e.startswith('no task files in Tasks/ on tasks') for e in errors(self.check(), 'repo: Tasks')))
 
     def test_tasks_on_main(self):
         write(self.repo, f'Tasks/{SLUG}-x.json', '{}')
@@ -627,6 +664,95 @@ class Units(unittest.TestCase):
                 ({'oneOf': either + [{'type': 'number'}], 'discriminator': {'propertyName': 'k'}}, 2, None)):
             self.assertEqual(list(vg.check_schema(good, schema)), [], (schema, good))
             self.assertNotEqual(list(vg.check_schema(bad, schema)), [], (schema, bad))
+
+    def test_workflow_rows_unit(self):
+        """workflow.jsonl beyond one row: JSON, seq order, user.direction rows and the links to them, an empty reason
+        (a warning), no rows."""
+        lines = [workflow_row(1), 'not json', workflow_row(3, seq=1),
+                 workflow_row(4, op='user.direction', actor='user', reason_source='user_direction', params={'via': 'x'}),
+                 workflow_row(5, direction='kr-00009'), workflow_row(6, reason=' ')]
+        rep = vg.Report()
+        self.assertEqual(vg.check_workflow(rep, 'w', lines), {'kr-00004'})
+        errs = ' | '.join(errors(rep))
+        for what in ('line 2: not JSON', 'line 3: seq 1 not after 1', 'line 4: user.direction row needs actor user',
+                     'line 5: direction kr-00009 is not an earlier user.direction row'):
+            self.assertIn(what, errs)
+        self.assertIn(('warning', 'w', '1 row(s) with an empty reason'), rep.items)
+        rep = vg.Report()
+        vg.check_workflow(rep, 'w', [])
+        self.assertEqual(errors(rep), ['no rows'])
+
+    def test_git_log_unit(self):
+        """git.log's form: its first line, commit lines, the fields in order, dev_NN authors, ISO dates, each commit
+        once, its last commit returned."""
+        a, b = 'a' * 40, 'b' * 40
+
+        def entry(sha, author='dev_1', date='2026-11-01T10:00:00+01:00'):
+            return [f'commit {sha}', 'Parents: ', f'Author: {author}', f'AuthorDate: {date}', 'Committer: dev_1',
+                    'CommitDate: 2026-11-01T10:00:00Z', '', '    A message', '']
+        rep = vg.Report()
+        self.assertEqual(vg.check_git_log(rep, 'g', io.StringIO('\n'.join(['GIT-LOG 1', '# a header'] + entry(a)))), a)
+        self.assertEqual(errors(rep), [])
+        bad = ['GIT-LOG 2', 'commit xyz'] + entry(b, 'Jane Doe', 'yesterday') + [f'commit {a}', 'Parents: ', 'Commit: x']
+        rep = vg.Report()
+        vg.check_git_log(rep, 'g', io.StringIO('\n'.join(bad + entry(b))))
+        errs = ' | '.join(errors(rep))
+        for what in ('first line must be "GIT-LOG 1"', "bad commit line 'commit xyz'", 'Author "Jane Doe" is not anonymised',
+                     'AuthorDate "yesterday" is not ISO 8601', 'expected "Author:" after commit aaaaaaaa',
+                     'a commit appears twice'):
+            self.assertIn(what, errs)
+        rep = vg.Report()
+        vg.check_git_log(rep, 'g', io.StringIO('GIT-LOG 1\n'))
+        self.assertEqual(errors(rep), ['no commits'])
+
+    def test_dataset_rules_unit(self):
+        """A repo Dataset/ folder's cross-file rules, and a zip's one top folder (no git needed)."""
+        tmp = tempfile.mkdtemp(prefix='ugfd')
+        self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
+        ds = os.path.join(tmp, 'Dataset')
+        write(ds, 'workflow.jsonl', workflow_row(1) + '\n')
+        write(ds, 'Brief/brief.md', '# Brief\n')
+        write(ds, 'History/x.txt', 'x')
+        write(ds, 'Tasks/README.md', 'x')
+        scenario = {'file': f'Gameplay/{SLUG}_S1.mp4', 'scenario': 1, 'name': 'Rush', 'result': 'win', 'seconds': 30}
+
+        def check(**over):
+            m = {'layout': 'unity-dataset-layout/v1', 'game': SLUG, 'title': 'Kiln Run', 'version': '1.0',
+                 'commit': 'a' * 40, 'status': 'pending', 'variant': 'repo-dataset', 'pending': ['Gameplay'],
+                 'scenarios': [scenario], 'totals': {'files': 5, 'bytes': 0},
+                 'files': [{'path': 'workflow.jsonl', 'bytes': 1, 'sha256': '0' * 64},
+                           {'path': 'Gone.txt', 'bytes': 1, 'sha256': '0' * 64}],
+                 'replay_verification': None, 'build': {'config': 'Release', 'commit': 'a' * 40, 'exe': 'Build/K.exe'},
+                 'history': None, 'brief': {'brief': 'Brief/brief.md', 'design': 'Brief/design.md'}, 'tasks': None}
+            write(ds, 'manifest.json', json.dumps(dict(m, **over)))
+            rep = vg.Report()
+            vg.check_dataset(rep, ds, 'dataset')
+            return rep, ' | '.join(errors(rep))
+        rep, errs = check()
+        for what in ('files[] lists Gone.txt, not in the dataset', 'workflow.jsonl: ', 'totals do not match files[]',
+                     f'scenario file Gameplay/{SLUG}_S1.mp4 not in files[]', 'variant repo-dataset has build null',
+                     'replay_verification is null but ReplayScripts/ is not listed as pending', 'no git.log',
+                     'no Brief/design.md', 'Brief/brief.md is nearly empty', 'a repo Dataset/ has no History/',
+                     'a repo Dataset/ has no Tasks/'):
+            self.assertIn(what, errs)
+        warns = ' | '.join(m for s, a, m in rep.items if s == 'warning')
+        self.assertIn('status pending: Gameplay', warns)
+        self.assertIn('no user.direction rows', warns)
+        rep, errs = check(status='complete', pending=['ReplayScripts'], scenarios=[])
+        for what in ('status complete but no ReplayScripts/Verification/report.json', 'status complete with pending entries',
+                     'status complete needs replay_verification with pass true or false', 'no scenario videos'):
+            self.assertIn(what, errs)
+        write(ds, 'manifest.json', 'not json')
+        rep = vg.Report()
+        vg.check_dataset(rep, ds, 'dataset')
+        self.assertTrue(errors(rep)[0].startswith('manifest.json is not JSON'), rep.items)
+        z = os.path.join(tmp, 'two.zip')
+        with zipfile.ZipFile(z, 'w') as zf:
+            zf.writestr('a/manifest.json', '{}')
+            zf.writestr('b/x.txt', 'x')
+        rep = vg.Report()
+        vg.check_dataset(rep, z, 'dataset')
+        self.assertEqual(errors(rep), ['the zip must hold exactly one top folder (<game>/)'])
 
     def test_wildcard_takes_one(self):
         """A select that takes one object by a wildcard name alone is a warning, never an error (the sample game's
