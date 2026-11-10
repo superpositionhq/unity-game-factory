@@ -46,6 +46,20 @@ namespace TaskProbe
         public virtual void FrameDrawn(FrameImage frame, Dictionary<string, object> sample) { }
 
         protected bool Reads(string field) => Fields.Contains(field);
+
+        /// <summary>Leaves out the fields this kind doesn't have (one of `plain`, or a prefix with a name after it), each
+        /// said once as "&lt;kind&gt; &lt;id&gt;: no field F".</summary>
+        protected void KnownFields(ICollection<string> plain, params string[] prefixes)
+        {
+            Fields.RemoveAll(f =>
+            {
+                if (plain.Contains(f)) return false;
+                foreach (var p in prefixes)
+                    if (f.Length > p.Length && f.StartsWith(p, StringComparison.Ordinal)) return false;
+                Probe.Error(Kind + " " + Id + ": no field " + f);
+                return true;
+            });
+        }
     }
 
     /// <summary>A frame as displayed: `Pixels` row by row from the bottom (Unity's order), sRGB-encoded 8 bit.</summary>
@@ -56,6 +70,19 @@ namespace TaskProbe
 
         /// <summary>The pixel at column x, row y counted from the top.</summary>
         public Color32 At(int x, int yFromTop) => Pixels[(Height - 1 - yFromTop) * Width + x];
+
+        /// <summary>The pixels a rect [x0, y0, x1, y1] in viewport fractions (y down) covers: columns x0..x1-1 and rows
+        /// y0..y1-1 from the top, its corners in either order, clamped to the frame and at least one pixel (as the
+        /// original reads a screen rect).</summary>
+        public void Area(double[] rect, out int x0, out int y0, out int x1, out int y1)
+        {
+            x0 = Clamp(Math.Floor(Math.Min(rect[0], rect[2]) * Width), 0, Width - 1);
+            y0 = Clamp(Math.Floor(Math.Min(rect[1], rect[3]) * Height), 0, Height - 1);
+            x1 = Clamp(Math.Ceiling(Math.Max(rect[0], rect[2]) * Width), x0 + 1, Width);
+            y1 = Clamp(Math.Ceiling(Math.Max(rect[1], rect[3]) * Height), y0 + 1, Height);
+        }
+
+        static int Clamp(double v, int lo, int hi) => !(v > lo) ? lo : v > hi ? hi : (int)v;  // NaN: lo
     }
 
     /// <summary>The rows of one selection sample: at most 200 kept, every match counted, and each field's numeric values

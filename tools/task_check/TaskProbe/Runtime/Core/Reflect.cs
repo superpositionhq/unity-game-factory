@@ -13,15 +13,28 @@ namespace TaskProbe
     public static class Reflect
     {
         const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
-        static readonly Dictionary<string, Type> TypesByName = new Dictionary<string, Type>(StringComparer.Ordinal);
+        static readonly Dictionary<string, Type[]> TypesByName = new Dictionary<string, Type[]>(StringComparer.Ordinal);
 
         /// <summary>A type by its name (`Projectile`) or full name (`Game.Projectile`), in any loaded assembly; null when
         /// there is none. Of several types of one name, a Component type wins, then the first found.</summary>
         public static Type TypeNamed(string name)
         {
-            if (string.IsNullOrEmpty(name)) return null;
+            Type first = null;
+            foreach (var t in TypesNamed(name))
+            {
+                if (typeof(Component).IsAssignableFrom(t)) return t;
+                if (first == null) first = t;
+            }
+            return first;
+        }
+
+        /// <summary>Every type of the loaded assemblies named `name` (name or full name), in the order the assemblies
+        /// and their types are loaded; none for an empty name.</summary>
+        public static Type[] TypesNamed(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return Type.EmptyTypes;
             if (TypesByName.TryGetValue(name, out var cached)) return cached;
-            Type found = null;
+            var found = new List<Type>();
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 Type[] types;
@@ -29,15 +42,18 @@ namespace TaskProbe
                 catch (ReflectionTypeLoadException e) { types = e.Types; }
                 catch { continue; }
                 foreach (var t in types)
-                {
-                    if (t == null || (t.Name != name && t.FullName != name)) continue;
-                    if (typeof(Component).IsAssignableFrom(t)) { found = t; break; }
-                    if (found == null) found = t;
-                }
-                if (found != null && typeof(Component).IsAssignableFrom(found)) break;
+                    if (t != null && (t.Name == name || t.FullName == name)) found.Add(t);
             }
-            TypesByName[name] = found;
-            return found;
+            return TypesByName[name] = found.ToArray();
+        }
+
+        /// <summary>Whether a component can be of a type named `name`: a Component type, an interface, or one of
+        /// Component's own bases (Object) has that name. A select naming anything else matches nothing.</summary>
+        public static bool NamesComponent(string name)
+        {
+            foreach (var t in TypesNamed(name))
+                if (typeof(Component).IsAssignableFrom(t) || t.IsInterface || t.IsAssignableFrom(typeof(Component))) return true;
+            return false;
         }
 
         /// <summary>Whether `type`, one of its base types or one of its interfaces is named `name` (name or full name).</summary>

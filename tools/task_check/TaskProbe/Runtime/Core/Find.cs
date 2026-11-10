@@ -78,11 +78,29 @@ namespace TaskProbe
             s.Has = HasSel.Parse(Json.Obj(select, "has"));
             return s;
         }
+
+        /// <summary>Parse, and a component type no component can be of (in `component` or `has.component`, here or in a
+        /// select inside a point) said once as "&lt;about&gt;: no component type T": a query passes its kind and id.</summary>
+        public static Sel Parse(Dictionary<string, object> select, string about)
+        {
+            if (about != null) Check(select, about, 0);
+            return Parse(select);
+        }
+
+        static void Check(Dictionary<string, object> select, string about, int depth)
+        {
+            if (select == null || depth > Find.MaxDepth) return;
+            var has = Json.Obj(select, "has");
+            foreach (var name in new[] { Json.Str(select, "component"), Json.Str(has, "component") })
+                if (!string.IsNullOrEmpty(name) && !Reflect.NamesComponent(name)) Probe.Active?.Error(about + ": no component type " + name);
+            foreach (var near in new[] { Json.Obj(select, "near"), Json.Obj(has, "near") })
+                Check(Json.Obj(Json.Obj(near, "point"), "object"), about, depth + 1);
+        }
     }
 
     public static class Find
     {
-        const int MaxDepth = 4;  // a select inside a point inside a select...
+        public const int MaxDepth = 4;  // a select inside a point inside a select...
         static readonly Dictionary<string, Regex> Wildcards = new Dictionary<string, Regex>(StringComparer.Ordinal);
 
         /// <summary>A wildcard match (* any run, ? one character), case-insensitive, on the whole text.</summary>
@@ -205,6 +223,52 @@ namespace TaskProbe
             return false;
         }
 
+        /// <summary>The objects an `owner` select matches now, as a set to test a component's object and its ancestors
+        /// against (OwnedBy): the components, pieces, audio and ground selects. Empty when its points don't resolve.</summary>
+        public static HashSet<GameObject> Owners(Sel owner) => new HashSet<GameObject>(Objects(owner, int.MaxValue, out _));
+
+        /// <summary>Whether `component`'s object, or one of its ancestors, is one of `owners`.</summary>
+        public static bool OwnedBy(Component component, HashSet<GameObject> owners)
+        {
+            for (var t = component.transform; t != null; t = t.parent)
+                if (owners.Contains(t.gameObject)) return true;
+            return false;
+        }
+
+        /// <summary>The components of the loaded scenes (the DontDestroyOnLoad scene too) whose type, a base type or an
+        /// interface is named `type` (name or full name), added to `found` in no particular order: on objects active in
+        /// the hierarchy, with `inactive` on inactive ones too; the probe's own left out. False when no component can be
+        /// of a type of that name (nothing is added).</summary>
+        public static bool Components(string type, bool inactive, List<Component> found)
+        {
+            var searched = new List<Type>();
+            foreach (var t in Reflect.TypesNamed(type))
+            {
+                Type search;
+                if (typeof(Component).IsAssignableFrom(t)) search = t;
+                else if (t.IsInterface || t.IsAssignableFrom(typeof(Component))) search = typeof(Component);  // every component, then IsA
+                else continue;
+                if (!searched.Contains(search)) searched.Add(search);
+            }
+            if (searched.Count == 0) return false;
+            var mode = inactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude;
+            var seen = searched.Count > 1 ? new HashSet<int>() : null;  // two searches can find one component twice
+            foreach (var search in searched)
+                foreach (var o in UnityEngine.Object.FindObjectsByType(search, mode, FindObjectsSortMode.None))
+                    if (o is Component c && c != null && !IsOwn(c) && Reflect.IsA(c.GetType(), type) && (seen == null || seen.Add(c.GetInstanceID())))
+                        found.Add(c);
+            return true;
+        }
+
+        /// <summary>A component of the probe's own: on its object, or the tap it puts on the game's AudioListener.</summary>
+        public static bool IsOwn(Component c)
+        {
+#if TASKPROBE_AUDIO
+            if (c is AudioTap) return true;
+#endif
+            return Probe.IsOwn(c.gameObject);
+        }
+
         static bool HasTag(GameObject go, string tag)
         {
             try { return go.CompareTag(tag); }
@@ -307,6 +371,48 @@ namespace TaskProbe
                 }
             return have ? box.center : go.transform.position;
         }
+
+        /// <summary>An enabled collider that isn't a trigger (3D or 2D) on `go`, or with `descendants` on it or one of
+        /// its descendants active in the hierarchy (collision, mesh_collision).</summary>
+        public static bool Collides(GameObject go, bool descendants)
+        {
+#if TASKPROBE_PHYSICS
+            foreach (var c in descendants ? go.GetComponentsInChildren<Collider>(false) : go.GetComponents<Collider>())
+                if (c.enabled && !c.isTrigger) return true;
+#endif
+#if TASKPROBE_PHYSICS2D
+            foreach (var c in descendants ? go.GetComponentsInChildren<Collider2D>(false) : go.GetComponents<Collider2D>())
+                if (c.enabled && !c.isTrigger) return true;
+#endif
+            return false;
+        }
+
+        /// <summary>The mesh a component draws or collides with: a MeshRenderer's (its MeshFilter's), a
+        /// SkinnedMeshRenderer's, a MeshFilter's or a MeshCollider's; null for any other component or when it has none.</summary>
+        public static Mesh MeshOf(Component c)
+        {
+            switch (c)
+            {
+                case SkinnedMeshRenderer skinned: return skinned.sharedMesh;
+                case MeshRenderer _: return c.TryGetComponent<MeshFilter>(out var filter) ? filter.sharedMesh : null;
+                case MeshFilter f: return f.sharedMesh;
+#if TASKPROBE_PHYSICS
+                case MeshCollider m: return m.sharedMesh;
+#endif
+            }
+            return null;
+        }
+
+        /// <summary>A Light that lights the scene: enabled, active in the hierarchy, of an intensity above 0 (lit, glow,
+        /// on, light, grading's sun).</summary>
+        public static bool LightOn(Light light) => light != null && light.enabled && light.gameObject.activeInHierarchy && light.intensity > 0f;
+
+        /// <summary>Rec. 709 luminance of a linear colour (glow, screen, drawn; the light measure weighs as URP does).</summary>
+        public static double Luminance(double r, double g, double b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+        /// <summary>A colour as the colour picker holds it, in the space shaders and lighting get it: linear in a
+        /// linear-space project.</summary>
+        public static Color Linear(Color c) => QualitySettings.activeColorSpace == ColorSpace.Linear ? c.linear : c;
 
         // ---------------------------------------------------------------- points
 
