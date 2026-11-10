@@ -28,7 +28,7 @@ the recording queue (not available yet) and the GPU slots, review your commits a
 
 Rules: follow the unity-game-session, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\ or
 ~\.agents\skills\, source unity-game-factory/skills/), and no other skill: never install, enable or invoke a personal,
-project, plugin, marketplace or agent built-in skill, nor the Unreal game-factory's skills. In short: every heavy or
+project, plugin, marketplace or agent built-in skill, nor another factory's skills. In short: every heavy or
 GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for you), one Unity process
 per project; content made by committed C# editor steps (Assets/Editor/Steps/, never hand-edited scene or prefab YAML);
 premium art from the bought/downloaded Asset Store packs and animation packs, every sound through the unity-sound

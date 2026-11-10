@@ -7,8 +7,8 @@ coordinator would do (queue recordings, decide pushes, relay directions, hand ou
 person at the keyboard. With the desktop app and several games at once, start each game session from
 [game-session.md](game-session.md) instead.
 
-Start: open a terminal in the machine root (`cd <root>`, e.g. `C:\Users\<name>\UnityWork`; not the Unreal
-game-factory's root, whose `CLAUDE.md` and `AGENTS.md` load its own rules) and run one of
+Start: open a terminal in the machine root (`cd <root>`, e.g. `C:\Users\<name>\UnityWork`; not another
+factory's root, whose `CLAUDE.md` and `AGENTS.md` load its own rules) and run one of
 
 - `claude` (its `<root>\CLAUDE.md` loads the unity-game-factory rules), or
 - `codex -s danger-full-access` (its `<root>\AGENTS.md` names the rules; the full-access sandbox is needed because
@@ -39,8 +39,8 @@ Read first: {{UGF_ROOT}}\unity-game-factory\AGENTS.md, README.md, docs/autoplay-
 and the unity-game-session, unity-commit-always and unity-sound skills
 ({{UGF_ROOT}}\unity-game-factory\skills\<name>\SKILL.md; installed for your agent too). They hold the rules; in short:
 - use only the unity-game-factory skills (unity-commit-always, unity-game-session, unity-sound, unity-write-tasks):
-  never install, enable or invoke any other skill (personal, project, plugin, marketplace, built into the agent, or the
-  Unreal game-factory's), even when one is offered;
+  never install, enable or invoke any other skill (personal, project, plugin, marketplace, built into the agent, or
+  another factory's), even when one is offered;
 - every editor, build or GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for
   you); one Unity process per project; content made by committed C# editor steps, never hand-edited scene or prefab
   YAML;

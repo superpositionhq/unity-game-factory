@@ -11,14 +11,14 @@ stopped.
 > installs, UAC steps, Unity Hub steps and sign-ins have not yet run end to end on a fresh Windows install. Report what
 > breaks on the first real clean run.
 
-**The Unreal game-factory on the same PC.** Both can live on one machine. This one has its own root
+**Another factory on the same PC.** Both can live on one machine. This one has its own root
 (`%USERPROFILE%\UnityWork`), config (`%USERPROFILE%\.unity-game-factory\config.json`), hooks folder
 (`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-sound`,
 `unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
 session is recorded by the factory whose `games\<slug>` folder one of its tool calls names. The two share one thing on
 purpose: the
-machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as `ue-heavy.ps1`, and also holds its GPU jobs
-back while the other factory records), so together they never run more heavy or GPU jobs than the PC holds.
+machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as that factory's `ue-heavy.ps1`, and also
+holds its GPU jobs back while the other factory records), so together they never run more heavy or GPU jobs than the PC holds.
 
 ## Before you start
 
@@ -104,7 +104,7 @@ the shared asset library (`<root>\asset-library`) are only needed for new games.
   either agent; you take the coordinator's decisions (pushes, recordings). What differs between the agents:
   [AGENTS.md](../AGENTS.md), "Agents".
 
-Start sessions in the UnityWork root (or a game folder under it), never in the Unreal factory's root: the root's
+Start sessions in the UnityWork root (or a game folder under it), never in another factory's root: the root's
 `CLAUDE.md` / `AGENTS.md` decides which factory's rules a session follows.
 
 ## Reference: what bootstrap writes
@@ -113,8 +113,9 @@ Start sessions in the UnityWork root (or a game folder under it), never in the U
 
 - `%USERPROFILE%\.unity-game-factory\config.json`: `root`, `unity_hub_editors`, `unity_version` (the editor new games
   use: `6000.3`, its newest installed patch, unless set to an exact version), `github_org`, `record_extra_projects`,
-  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the hardware (the Unreal factory's
-  formula), with their basis in `slots_auto` (values edited by hand are kept, `-Force` recomputes);
+  `agents`, `hooks_dir`; the job slots `heavy_slots` / `gpu_slots` sized from the hardware (the
+  same formula another factory on the machine uses), with their basis in `slots_auto` (values edited by hand are
+  kept, `-Force` recomputes);
 - the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`
   (`builds\`, `recordings\` and `deliverables\` wait for the recording pipeline and the packagers, which are not
   available yet);

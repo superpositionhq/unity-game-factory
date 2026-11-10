@@ -5,8 +5,8 @@
 > (the shared implementation every game will copy unchanged), and that class is not in the repo. Until it is, do not
 > implement AutoPlay, do not write a bot, and do not write a stand-in `AutoPlay` class of your own (it would not match
 > the drop-in): do what "Until the drop-in is here" below says instead. The drop-in and the recorder come with the
-> recording pipeline ([unity-pipeline.md](unity-pipeline.md)); their run files will be the Unreal game-factory's
-> (schemas `autoplay-*/2`) with `"engine": "unity"` in every header, so one pipeline reads both.
+> recording pipeline ([unity-pipeline.md](unity-pipeline.md)); their run files will use
+> the schemas `autoplay-*/2` with `"engine": "unity"` in every header.
 
 **Scenario** = a defined start state plus a win/lose condition, numbered 1..n in the game's design doc and named by the
 game. It may be a level, a chapter, a race stage or an open-world start setup. A run plays exactly one scenario from
@@ -111,7 +111,7 @@ and never pauses or mutes on focus loss.
   check when the drop-in is built).
 - **60 fps cap, vsync off**: `QualitySettings.vSyncCount = 0`, `Application.targetFrameRate = 60`. Vsync is off so frame
   pacing does not depend on the monitor's refresh rate; in windowed mode DWM composes the window, so captured frames
-  don't tear (measured with the Unreal factory's games; to check for a Unity player).
+  don't tear (to check for a Unity player).
 - The quality level fixed to the game's highest shipped level; no auto-detect.
 - **Never pause or mute on focus loss**: `Application.runInBackground = true` (the template sets it too); the game's
   `OnApplicationFocus` / `OnApplicationPause` handlers must not pause, open a menu or set `AudioListener.pause` while
@@ -255,8 +255,8 @@ that first frame (arrival time minus the buffer's duration); `silence_before` = 
 renderer stall); `audio_clock` = the mixer's own clock in seconds (`AudioSettings.dspTime`). Map a WAV position to the
 shared clock with the last row whose `frame` ≤ it: `t_ns = row.t_ns + (pos − row.frame) / rate · 1e9`. `outcome.json`
 adds `audio_frames`, `audio_silence_frames` and `audio_gaps`. The pipeline anchors the WAV with these rows and turns it
-into `system_audio.mka` (`aligned` when the clock drift stays ≤ 250 ms). (In the Unreal factory a mixer recording
-without per-buffer stamps dropped buffers under load: runs lost 8-23 s of audio, and the sound no longer lined up with
+into `system_audio.mka` (`aligned` when the clock drift stays ≤ 250 ms). (A mixer recording without per-buffer
+stamps dropped buffers under load on earlier games: runs lost 8-23 s of audio, and the sound no longer lined up with
 the video.)
 
 ### `ready.json`, `go`, `game.log`

@@ -2,8 +2,7 @@
 
 This repo coordinates coding-agent sessions (Claude Code or OpenAI Codex CLI) that build Unity 6.3 LTS games
 (`%UGF_ROOT%\games\<slug>`, private `<org>/unity-game-<slug>` repos, `<org>` = `github_org` in the machine config) and
-turn them into game-creation datasets. It is the Unity sibling of game-factory (Unreal Engine): the same process and
-rules, for Unity. `%UGF_ROOT%` is the machine root (env `UGF_ROOT`, else
+turn them into game-creation datasets. `%UGF_ROOT%` is the machine root (env `UGF_ROOT`, else
 `%USERPROFILE%\.unity-game-factory\config.json`, else `%USERPROFILE%\UnityWork`); see
 [machine/README.md](machine/README.md). Claude Code reads this file through [CLAUDE.md](CLAUDE.md); Codex reads it
 directly (and through `<root>\AGENTS.md`).
@@ -15,7 +14,7 @@ the Lab's checks.
 
 Skills (one source, [skills/](skills/); `machine/bootstrap.ps1` copies them to `~\.claude\skills\` for Claude Code and
 `~\.agents\skills\` for Codex; read the `SKILL.md` named here before the work it covers, whichever agent you are). They
-carry a `unity-` prefix so they install next to the Unreal game-factory's skills on a machine that runs both:
+carry a `unity-` prefix so they install next to another factory's skills on a machine that also runs one:
 
 - **unity-commit-always** ([skills/unity-commit-always/SKILL.md](skills/unity-commit-always/SKILL.md)): every session.
   Commit after every meaningful step, never end a turn with uncommitted work, every asset with its `.meta`, LFS for
@@ -34,12 +33,13 @@ carry a `unity-` prefix so they install next to the Unreal game-factory's skills
 **Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory
 use the four skills above and no others. Never install, enable or invoke any other skill: not the person's own
 personal or project skills, not a plugin's or a marketplace's skills, not the skills bundled with the agent (Claude
-Code's built-in skills and slash-command skills, Codex's system skills), and not the Unreal game-factory's skills
+Code's built-in skills and slash-command skills, Codex's system skills), and not another factory's skills
 (`commit-always`, `game-session`, `sound`, `write-tasks`) even when the machine has them installed. A skill the agent
 offers by name or description that is not one of the four is ignored. Work no skill here covers is done by hand under
 these rules, or asked about (the coordinator, or the person in a solo session). _(why: the recorded sessions are the
 dataset, so how a game gets made must follow these rules only; another skill brings instructions and habits nobody
-here reviewed into the creation record, and the Unreal skills give Unreal answers to Unity questions)_
+here reviewed into the creation record, and another factory's skills give answers for another engine to Unity
+questions)_
 
 Session briefs: [docs/briefs/](docs/briefs/README.md). New machine: [docs/new-machine.md](docs/new-machine.md).
 Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md).
@@ -71,16 +71,16 @@ changes.
 
 | Part | State |
 |---|---|
-| skills (`skills/`) | ported to Unity |
-| machine setup, recording hooks, job limiter (`machine/`) | ported to Unity |
-| game template + `new-game.ps1` (`templates/`) | ported to Unity |
-| sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | ported to Unity |
-| game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | ported to Unity: [docs/game-format.md](docs/game-format.md) |
-| task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | ported to Unity: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
+| skills (`skills/`) | available |
+| machine setup, recording hooks, job limiter (`machine/`) | available |
+| game template + `new-game.ps1` (`templates/`) | available |
+| sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | available |
+| game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | available: [docs/game-format.md](docs/game-format.md) |
+| task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | available: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
 | AutoPlay drop-in, recording pipeline (recorder, queue, run checker), creation replay, dataset packager | not available yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
 
 Where a skill or doc names a part that is not available yet, it says what to do instead: do that, and report the rest
-as open. Never stand in for a missing tool by hand or with a tool of the Unreal game-factory.
+as open. Never stand in for a missing tool by hand or with another factory's tool.
 
 ## Agents
 
@@ -106,7 +106,7 @@ Code's Bash tool on Windows), put each Windows path in single quotes: bash drops
 
 ## Rules
 
-Rules for agents working in this repository. Each rule says what went wrong without it (in the Unreal factory, where
+Rules for agents working in this repository. Each rule says what went wrong without it (on earlier games, where
 these were learned). Background is in `docs/`; keep this section to rules.
 
 ### Data

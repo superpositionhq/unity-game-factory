@@ -7,7 +7,7 @@ the dataset.
 
 > **Not available yet: the recording pipeline (the release build from a commit, the recorder, the queue, the run
 > checker, stills and gameplay videos), the creation replay and the dataset packager.** The sections that say so are the
-> plan, mirroring the Unreal game-factory's tools with the rules their failures taught; nothing in them can be run
+> plan, with the rules earlier failures taught; nothing in them can be run
 > today. Until they are here, a session never queues, requests or waits for a recording and reports to the coordinator
 > what is ready (the commit sha, the scenarios that start with `-scenario <n>`, the release build's result); a game's
 > `Dataset/` stays as the template made it and nobody assembles a dataset by hand; the replay-friendly rules of the
@@ -106,8 +106,8 @@ whatever the job did).
 
 Each slot is a named mutex (`machine/lib/ugf-root.ps1` `Get-UGFSlotMutexes`, `Enter-UGFSlot`). A job that is killed
 before it releases its slot (a cancelled tool call, a killed editor) leaves the mutex abandoned, and the next job takes
-it over, so no slot leaks. Counted semaphores, used before in the Unreal factory, lost one slot per killed holder until
-someone released it by hand. The counts are read from the config at every call, so a new `heavy_slots` / `gpu_slots`
+it over, so no slot leaks (a counted semaphore would lose one slot per killed holder until someone released it by
+hand). The counts are read from the config at every call, so a new `heavy_slots` / `gpu_slots`
 applies at once.
 
 | Slots | Named mutexes | Taken by | Count |
@@ -115,12 +115,12 @@ applies at once.
 | general | `Global\ue-heavy-slot-<n>` | every job: batchmode editor runs, player builds, tests, players, and GPU jobs too | config `heavy_slots`, else the formula |
 | GPU | `Global\ue-gpu-slot-<n>` | jobs that render (`Unity.exe` without `-nographics`, a player under a `Build`, `Builds` or `Packaged` folder or started with `-screen-*` / `-popupwindow`, anything run with `-Gpu`; `-nographics` in a command means no GPU slot, even with `-Gpu`), together with a general slot: a GPU job never holds one while waiting for the other | config `gpu_slots`, else the formula |
 
-**The mutex names are the Unreal game-factory's on purpose:** a machine that runs both factories has one set of slots,
-so a Unity build and an Unreal build never overcommit the same RAM and GPU. A recording waiting in either factory holds
-back new Unity GPU jobs (`ue-heavy.ps1` reads only its own root's flag), and a running recording holds every GPU slot
-of both.
+**The mutex names are another factory's on purpose:** a machine that runs both factories has one set of slots,
+so the builds of the two never overcommit the same RAM and GPU. A recording waiting in either factory holds
+back new Unity GPU jobs (the other factory's `ue-heavy.ps1` reads only its own root's flag), and a running
+recording holds every GPU slot of both.
 
-The formula (`ugf-root.ps1` `Get-UGFComputedSlots`, the Unreal factory's; bootstrap.ps1 writes its result to the
+The formula (`ugf-root.ps1` `Get-UGFComputedSlots`, the same as another factory's; bootstrap.ps1 writes its result to the
 config, and a value set by hand stays unless `bootstrap.ps1 -Force`):
 
 - `heavy_slots = clamp(1..8, min(floor((RAM GB - 6) / 6), floor(logical cores / 4), floor((commit limit GB - 6) / 8)))`:
@@ -137,7 +137,7 @@ Dynamic guards on top of the counts:
 - **Recordings have priority:** while a recorder waits for the GPU it keeps `builds\_queue\_recording-wants-gpu` fresh
   in its factory's root (rewritten every minute, removed once it holds the slots); `unity-heavy.ps1` holds back new GPU
   jobs while that file exists in either factory's root and is under 20 min old. A recording then takes every GPU slot,
-  so a capture has the GPU to itself. Today only the Unreal factory's recorder writes the flag; ours is not available
+  so a capture has the GPU to itself. Today only another factory's recorder can write the flag; ours is not available
   yet.
 - **`-Low`** (background work, such as the live creation replay will be): one low job machine-wide; it takes a general
   slot only while no other job waits for one and another slot stays free, at below-normal priority.
@@ -164,8 +164,8 @@ Not available yet (a session builds its own player with `Scripts/unity.ps1 build
 4. Leak scan of the build folder: a case-insensitive byte search (ASCII and UTF-16LE) for the Windows user name inside
    paths (`\<name>\`, `/<name>/`) and for superposition / game-factory / game_factory / gamefactory / claude /
    anthropic; hits are warned about and recorded (a build with hits can still be recorded but must not be handed out).
-   The clone sits outside `C:\Users` so the user name is not built in (in the Unreal factory, source paths in macros
-   and debug symbols carried it into the exe).
+   The clone sits outside `C:\Users` so the user name is not built in (source paths in macros and debug
+   symbols can carry it into the exe).
 5. A `builds.jsonl` row: `commit`, `short_sha`, `commit_subject`, `command`, `start`/`end`/`duration_s`, `status`,
    `exit_code`, `error_excerpt` (first matching error lines of the failing log), `log_path`, `output_path`,
    `exe_path`, `autoplay_version`, `leak_scan`, and `steps[]` (each with its exact command line, times, exit code,
@@ -193,8 +193,8 @@ fixed path per game means one prompt per game instead of one per build. Per run 
    under WDDM); after 120 min the run fails.
 1. Launch the player from `_run\` with the contract's flags (autoplay-contract.md section 1) plus `-goTimeout 300`,
    windowed 1920x1080, `-logFile <raw>\game.log`.
-2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (the Unreal factory's games
-   re-centred theirs after launch; a Unity player's to be checked), make it topmost (not activated), check the client
+2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (whether a Unity player
+   re-centres its window after launch is to be checked), make it topmost (not activated), check the client
    area is exactly 1920x1080 and fully on screen (physical pixels; the recorder is per-monitor DPI aware). If anything
    covers it (e.g. a first-run Firewall prompt), wait up to 240 s for it to clear.
 3. Start ffmpeg on that screen rectangle, wait for 30 captured frames, write `go`. Each capture attempt has its own
@@ -242,8 +242,8 @@ GPU frames first and only those are downloaded and converted (BT.709 matrix, lim
 ```
 
 The libx264 variant is the same with `format=yuv420p` and `-c:v libx264 -preset ultrafast -crf 17 -g 120 -bf 0
--pix_fmt yuv420p` (`veryfast` only reached 0.977x on the shared CPU). Fallbacks (`-Capture`), measured in the Unreal
-factory: `gdigrab-region` captures real content but only ~44 fps (24 % duplicates), `gdigrab-window` ~56 fps (8 %
+-pix_fmt yuv420p` (`veryfast` only reached 0.977x on the shared CPU). Fallbacks (`-Capture`), as measured
+on earlier games: `gdigrab-region` captures real content but only ~44 fps (24 % duplicates), `gdigrab-window` ~56 fps (8 %
 duplicates, 23 % gap time); both fail validation, so they are for emergencies. `auto` tries ddagrab, then (after waking
 the display) ddagrab once more, then gfxcapture, and gdigrab-region last, each only if the one before got fewer than 30
 frames in 10 s; each failed attempt is logged with its frame count, whether ffmpeg hung or exited (exit code) and the
@@ -255,8 +255,8 @@ broke the start estimate). If the game window stays covered for 240 s before cap
 modes and uses gfxcapture.
 
 Display: run it at a multiple of 60 Hz (e.g. 120 Hz) for recording sessions; with vsync off the game's frames reach the
-screen on the display's refresh grid, and a 60 Hz capture repeats some and misses some otherwise (measured in the Unreal
-factory: 13 % at 159 Hz, 7 % at 120 Hz on the AMF path, 0.3–1.1 % with NVENC). The recorder logs
+screen on the display's refresh grid, and a 60 Hz capture repeats some and misses some otherwise (measured
+on earlier games: 13 % at 159 Hz, 7 % at 120 Hz on the AMF path, 0.3–1.1 % with NVENC). The recorder logs
 `machine.display_refresh_hz` and warns (does not fail) when the rate is not a multiple of 60; `machine/check.ps1` checks
 it today.
 
@@ -298,7 +298,7 @@ recordings\<slug>\<slug>_S<scenario>_<yyyyMMdd-HHmmss>_s<seed>\
 `video.mkv` is H.264, 60 fps, no audio; `inputs.jsonl` has ns QPC timestamps; there is no microphone track (a bot has
 no voice). `video_start_offset_ns` is the capture clock's and does **not** subtract the way from game to screen (game
 thread → render thread → GPU → present → DWM → capture: a game event showed on video 14–29 ms after its `t_ns` with
-NVENC in the Unreal factory).
+NVENC on earlier games).
 
 ### Validation (per run)
 
@@ -336,7 +336,7 @@ scenario as `1=300,2=600,3=900` (unlisted ones keep 600; `*=700` changes the res
 values 30..7200. The request stores it as `max_seconds`, and the job's `pipeline.jsonl` row lists the limit used per
 scenario.
 
-**A game that is GPU-bound at its default quality** (coordinator rule 2026-10-18 in the Unreal factory: the GPU 3D
+**A game that is GPU-bound at its default quality** (coordinator rule 2026-10-18: the GPU 3D
 engine above ~95 % with the game under ~55 fps, so the capture fails on duplicated frames) is recorded one quality level
 lower and says so: the note goes to the run's `metadata.json` (`capture_notes`), then to the dataset's manifest
 (`scenarios[].capture_notes`) and a "Recording note" line under the README's Scenarios table. Nothing else changes (no
@@ -344,7 +344,7 @@ game repo edit, no bot change, same validation).
 
 Results: `.recording\<slug>\pipeline.jsonl` (summary), `runs.jsonl`, `builds\_queue\done\<request>.json`; the job
 summary lists the build's leak-scan hits (warn-only here; the packager blocks on them). No nightly run: runs are queued
-on demand (the user's decision in the Unreal factory).
+on demand (the user's decision).
 
 ### Machine notes and open items
 
@@ -352,12 +352,12 @@ Not available yet (they apply once the recorder runs):
 
 - Any display and scaling that holds a 1920x1080 window should work: a Unity player declares per-monitor DPI awareness
   (PerMonitorV2 in its exe's manifest, Mono and IL2CPP players of 6000.3 built from the template), so its 1920x1080
-  should be physical pixels at any scaling (the window itself to check; in the Unreal factory a DPI-unaware game was
-  stretched to 2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
+  should be physical pixels at any scaling (the window itself to check; a DPI-unaware game is
+  stretched, e.g. to 2880x1620 at 150 %). Vsync off and a 60 fps cap in the game keep it at 60 fps whatever the refresh.
 - The game window sits topmost with its 1920x1080 client area on the primary screen for the run. Runs start only after
   5 min without user input; if you come back mid-run, leave the window alone (moving or covering it stops the run
   safely). Its audio plays on the speakers during runs.
-- **Machine-path scrub before bundles leave the machine** (an open item carried over from the Unreal factory). Bundles
+- **Machine-path scrub before bundles leave the machine** (an open item). Bundles
   carry machine paths and the user name: `metadata.json` (build path, exe, ffmpeg command), `raw\game.log`,
   `raw\ffmpeg.log`, `raw\ready.json`. Per AGENTS.md (leak scan for `C:\Users\…`, real names, e-mails), a publish step
   must rewrite or drop these and re-hash `manifest.json` before any upload.
@@ -367,7 +367,7 @@ Not available yet (they apply once the recorder runs):
 Not available yet: there is no replay tool to run or configure, and a game holds no replay configuration. Until it is
 here, the replay-friendly rules of the unity-game-session skill keep a game's history replayable.
 
-The plan, mirroring the Unreal factory's: rebuild a game from its first commit by re-running, in order, what its
+The plan: rebuild a game from its first commit by re-running, in order, what its
 builder actually ran (each commit's inputs, the committed editor steps that created its scenes and placed every
 object, the shell steps that changed content outside the editor), then check the result against the game's final
 commit. It produces the dataset's `ReplayScripts/` with `Verification/report.json`
@@ -393,7 +393,7 @@ the editor its `ProjectSettings/ProjectVersion.txt` names.
 Not available yet: until it is here, a game's `Dataset/` stays as the template made it, nobody assembles a dataset or
 `Dataset.zip` by hand, and `tools/validate-game.py`'s "not packaged yet" warning is expected.
 
-The plan, mirroring the Unreal factory's packager: from the game repo at the release commit, its validated gameplay
+The plan for the packager: from the game repo at the release commit, its validated gameplay
 bundles, the release build and the creation replay's `ReplayScripts/`, it writes `<repo>\Dataset.zip` in layout
 `unity-dataset-layout/v1` ([game-format.md](game-format.md), [dataset-layout-v1.json](dataset-layout-v1.json), manifest
 [schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)), `Dataset.pending.zip` while

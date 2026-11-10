@@ -14,7 +14,7 @@ coordinator is the session that started you. Use the **unity-commit-always** ski
 
 **Only the unity-game-factory skills (owner's rule).** Use unity-commit-always, unity-game-session, unity-sound and
 unity-write-tasks and no other skill: never install, enable or invoke a personal, project, plugin, marketplace or agent
-built-in skill, even when the agent offers one, and that includes the Unreal game-factory's skills (commit-always,
+built-in skill, even when the agent offers one, and that includes another factory's skills (commit-always,
 game-session, sound, write-tasks) if this machine has them (AGENTS.md, "Only these skills"). Do what they don't cover
 by hand under these rules, or ask.
 
@@ -56,7 +56,7 @@ by hand under these rules, or ask.
   script, and without the backslash bash expands `$LASTEXITCODE` to nothing: either way the call returns 0 whatever
   the job did). The game's `Scripts/unity.ps1` already calls it for you; use that
   (`powershell -ExecutionPolicy Bypass -File Scripts/unity.ps1 <mode> ...` from the project folder; the modes are
-  listed at the top of the file). The slots are shared with the Unreal game-factory if this machine runs both (same
+  listed at the top of the file). The slots are shared with another factory if this machine also runs one (same
   machine-wide mutexes).
 - **GPU:** several GPU jobs run at once (one per GPU slot, each starting only while the VRAM guard allows; the counts
   come from the machine's hardware, docs/unity-pipeline.md "Machine-wide slots"); a recording takes all of them. Keep
