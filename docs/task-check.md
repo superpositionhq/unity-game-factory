@@ -356,9 +356,10 @@ the task file and check it again. The validator checks more than this: the long-
 each task, and on its `repo:` lines the game repo itself (`repo: README: shows no gameplay image`). Those never change
 a task check's verdict, but a game is delivered only with the validator's VALID too ([game-format.md](game-format.md)).
 
-**Exit code 198** (`exit 198`), or `No valid Unity Editor license` in `build.log`: Unity has no active licence, and the
-check of that task says nothing about it. Sign in to Unity Hub, check the licence there, and run again. Every Unity log
-also holds `[Licensing::...]` lines with `Error` in them when the licence works: those mean nothing.
+**`Unity has no active licence (exit N, "No valid Unity Editor license"): ...`** (an ERROR line; `exit 198` as a
+rule): Unity has no active licence, and the check of that task says nothing about it. Sign in to Unity Hub, check the
+licence there, and run again. Every Unity log also holds `[Licensing::...]` lines with `Error` in them when the licence
+works: those mean nothing.
 
 **`task-check.py: error: the scratch project folder ... is longer than 90 characters (N): ...`** (a usage error, exit
 code 2: nothing ran). Pass a `--scratch` of at most 68 characters on the repo's drive (`--scratch C:\tc`).
