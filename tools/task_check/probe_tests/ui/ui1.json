@@ -1,0 +1,468 @@
+{
+ "seconds": 20,
+ "shots": 4,
+ "every": 0.5,
+ "scene": "Assets/Scenes/UiTest.unity",
+ "sound": false,
+ "player": null,
+ "inputs": [
+  {
+   "t": 2.0,
+   "widget": "ChangeButton",
+   "click": true
+  },
+  {
+   "t": 3.0,
+   "widget": "UitkButton",
+   "click": true
+  },
+  {
+   "t": 4.0,
+   "widget": "SoundToggle",
+   "click": true
+  },
+  {
+   "t": 4.5,
+   "widget": "NoSuchButton",
+   "click": true
+  },
+  {
+   "t": 5.0,
+   "cursor": [
+    0.125,
+    0.667
+   ]
+  },
+  {
+   "t": 5.1,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 5.2,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 6.0,
+   "cursor": [
+    0.729,
+    0.796
+   ]
+  },
+  {
+   "t": 6.1,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 6.2,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  }
+ ],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.5,
+  "queries": [
+   {
+    "id": "wAll",
+    "kind": "widgets",
+    "select": {},
+    "fields": [
+     "count",
+     "visible"
+    ]
+   },
+   {
+    "id": "wVis",
+    "kind": "widgets",
+    "select": {
+     "visible": true
+    },
+    "fields": [
+     "count",
+     "text"
+    ]
+   },
+   {
+    "id": "wScore",
+    "kind": "widgets",
+    "select": {
+     "component": "TextMeshProUGUI",
+     "name": "ScoreText"
+    },
+    "fields": [
+     "text",
+     "visible",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wLegacy",
+    "kind": "widgets",
+    "select": {
+     "component": "Text",
+     "name": "LegacyLabel"
+    },
+    "fields": [
+     "text",
+     "visible",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wSlider",
+    "kind": "widgets",
+    "select": {
+     "component": "Slider"
+    },
+    "fields": [
+     "percent",
+     "value",
+     "interactable",
+     "visible",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wFill",
+    "kind": "widgets",
+    "select": {
+     "name": "FillBar"
+    },
+    "fields": [
+     "percent",
+     "has_brush",
+     "brush",
+     "visible"
+    ]
+   },
+   {
+    "id": "wToggle",
+    "kind": "widgets",
+    "select": {
+     "component": "Toggle"
+    },
+    "fields": [
+     "value",
+     "interactable",
+     "visible",
+     "text"
+    ]
+   },
+   {
+    "id": "wHidden",
+    "kind": "widgets",
+    "select": {
+     "name": "Hidden*"
+    },
+    "fields": [
+     "visible",
+     "text"
+    ]
+   },
+   {
+    "id": "wInactive",
+    "kind": "widgets",
+    "select": {
+     "name": "Inactive*"
+    },
+    "fields": [
+     "visible",
+     "text"
+    ]
+   },
+   {
+    "id": "wClick",
+    "kind": "widgets",
+    "select": {
+     "name": "ClickLabel"
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "wButtons",
+    "kind": "widgets",
+    "select": {
+     "component": "Button"
+    },
+    "fields": [
+     "text",
+     "interactable",
+     "visible",
+     "has_brush",
+     "brush",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wTextRx",
+    "kind": "widgets",
+    "select": {
+     "text": "^SCORE \\d+$"
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "wCam",
+    "kind": "widgets",
+    "select": {
+     "name": "Cam*"
+    },
+    "fields": [
+     "visible",
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wWorld",
+    "kind": "widgets",
+    "select": {
+     "name": "WorldText"
+    },
+    "fields": [
+     "visible",
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wLabel",
+    "kind": "widgets",
+    "select": {
+     "component": "Label"
+    },
+    "fields": [
+     "text",
+     "visible",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wLabelVis",
+    "kind": "widgets",
+    "select": {
+     "component": "Label",
+     "visible": true
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "wProgress",
+    "kind": "widgets",
+    "select": {
+     "component": "ProgressBar"
+    },
+    "fields": [
+     "percent",
+     "value",
+     "visible",
+     "interactable",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "wUitkClicks",
+    "kind": "widgets",
+    "select": {
+     "name": "UitkClicks"
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "uAll",
+    "kind": "ui",
+    "fields": [
+     "count",
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "uText",
+    "kind": "ui",
+    "select": {
+     "kind": "text"
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "uImage",
+    "kind": "ui",
+    "select": {
+     "kind": "image"
+    },
+    "fields": [
+     "count"
+    ]
+   },
+   {
+    "id": "uBox",
+    "kind": "ui",
+    "select": {
+     "kind": "box"
+    },
+    "fields": [
+     "count"
+    ]
+   },
+   {
+    "id": "uScoreRx",
+    "kind": "ui",
+    "select": {
+     "text": "SCORE"
+    },
+    "fields": [
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "uOcr",
+    "kind": "ui",
+    "select": {
+     "kind": "text",
+     "rect": [
+      0.022,
+      0.73,
+      0.43,
+      0.96
+     ]
+    },
+    "fields": [
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "uOcrScore",
+    "kind": "ui",
+    "select": {
+     "kind": "text",
+     "rect": [
+      0.0,
+      0.0,
+      0.35,
+      0.1
+     ]
+    },
+    "fields": [
+     "text",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "uRectBox",
+    "kind": "ui",
+    "select": {
+     "kind": "box",
+     "rect": [
+      0.6,
+      0.6,
+      1.0,
+      1.0
+     ]
+    },
+    "fields": [
+     "count",
+     "x",
+     "y",
+     "w",
+     "h"
+    ]
+   },
+   {
+    "id": "uOcrRx",
+    "kind": "ui",
+    "select": {
+     "text": "TIME\\s*\\d+:\\d\\d",
+     "rect": [
+      0.022,
+      0.73,
+      0.43,
+      0.96
+     ]
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "uOcrCut",
+    "kind": "ui",
+    "select": {
+     "kind": "text",
+     "rect": [
+      0.03,
+      0.73,
+      0.43,
+      0.96
+     ]
+    },
+    "fields": [
+     "text"
+    ]
+   },
+   {
+    "id": "wHiddenUitk",
+    "kind": "widgets",
+    "select": {
+     "name": "UitkHidden"
+    },
+    "fields": [
+     "visible",
+     "x",
+     "w"
+    ]
+   }
+  ]
+ }
+}
