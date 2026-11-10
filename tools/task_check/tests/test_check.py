@@ -847,6 +847,174 @@ class SavedData(unittest.TestCase):
             self.assertEqual(forgotten, [project])
             self.assertFalse((Path(tmp) / "run").exists())
 
+    @unittest.skipUnless(sys.platform == "win32", "the Windows registry and known folders")
+    def test_forgetting_a_copy_deletes_only_names_of_its_own_form(self):
+        """Whatever the copy's path (empty, a drive's root, with .., a trailing separator, a junction), the only
+        things deleted are HKCU\\Software\\TaskProbe.<12 hex> and TaskProbe_<12 hex> / TaskProbe.<12 hex> directly in
+        LocalLow and the temp folder."""
+        import winreg
+
+        keys, folders = [], []
+        with tempfile.TemporaryDirectory() as tmp:
+            link = Path(tmp) / "junction"
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), tmp], capture_output=True)
+            odd = ["", ".", "..", "C:", "C:\\", "\\", "C:\\tc\\x\\", "C:/tc/x/", "a\\..\\..\\b", str(link),
+                   "TaskProbe_0123456789ab", "\\\\?\\C:\\tc\\x"]
+            with mock.patch.object(seeds, "_drop_key", lambda root, name: keys.append((root, name))), \
+                    mock.patch.object(seeds, "_saves_folders", lambda: ("C:\\L", "C:\\T\\")), \
+                    mock.patch.object(seeds.shutil, "rmtree", lambda path, **kw: folders.append(path)):
+                for path in odd:
+                    seeds.forget_saves(path)
+        self.assertEqual(len(keys), len(odd))
+        for root, name in keys:
+            self.assertEqual(root, winreg.HKEY_CURRENT_USER)
+            self.assertRegex(name, r"^Software\\TaskProbe\.[0-9a-f]{12}$")
+        self.assertEqual(len(folders), 3 * len(odd))
+        for path in folders:
+            self.assertRegex(path, r"^(C:\\L\\TaskProbe_|C:\\T\\TaskProbe[._])[0-9a-f]{12}$")
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows known folders")
+    def test_locallow_is_windows_own_whatever_the_profile_variables_say(self):
+        low, temp = seeds._saves_folders()
+        self.assertTrue(os.path.isabs(low) and low.lower().endswith("\\appdata\\locallow"), low)
+        self.assertTrue(os.path.isabs(temp), temp)
+        for env in ({}, {"USERPROFILE": "C:\\nowhere", "LOCALAPPDATA": "C:\\nowhere\\AppData\\Local"}):
+            kept = {k: v for k, v in os.environ.items()
+                    if k.upper() not in ("USERPROFILE", "HOMEDRIVE", "HOMEPATH", "HOME", "APPDATA", "LOCALAPPDATA")}
+            with mock.patch.dict(os.environ, {**kept, **env}, clear=True):
+                self.assertEqual(seeds._saves_folders()[0], low, f"never ~ (a relative path) or {env}")
+
+    def test_a_folder_goes_only_by_its_exact_name_in_an_absolute_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent, outside = Path(tmp) / "LocalLow", Path(tmp) / "TaskProbe_0123456789ab"
+            names = ["TaskProbe_0123456789ab", "TaskProbe.0123456789ab", "TaskProbe_0123456789a",
+                     "TaskProbe_0123456789abc", "TaskProbe-0123456789ab", "other"]
+            for folder in [outside, parent / "rel" / names[0]] + [parent / name for name in names]:
+                folder.mkdir(parents=True)
+            for name in names + ["..", ".", "", "..\\TaskProbe_0123456789ab", "other\\..\\..\\TaskProbe_0123456789ab"]:
+                seeds._drop_folder(str(parent), name)
+            for relative in (None, "", "rel"):
+                with contextlib.chdir(parent):
+                    seeds._drop_folder(relative, names[0])
+            self.assertEqual(sorted(p.name for p in parent.iterdir()), sorted(names[2:] + ["rel"]))
+            self.assertTrue(outside.is_dir(), "nothing outside the folder")
+            self.assertTrue((parent / "rel" / names[0]).is_dir(), "nothing in a relative folder")
+        with tempfile.TemporaryDirectory() as tmp:  # (Windows folder names ignore case: one folder for both spellings)
+            (Path(tmp) / "TaskProbe_0123456789AB").mkdir()
+            for name in ("TaskProbe_0123456789AB", "taskprobe_0123456789ab"):
+                seeds._drop_folder(tmp, name)
+            self.assertTrue((Path(tmp) / "TaskProbe_0123456789AB").is_dir(), "only the name as saves_company spells it")
+
+    @unittest.skipUnless(sys.platform == "win32", "junctions")
+    def test_a_folder_is_deleted_without_going_through_a_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside, parent = Path(tmp) / "outside", Path(tmp) / "LocalLow"
+            outside.mkdir()
+            (outside / "keep.txt").write_text("not the copy's", encoding="utf-8")
+            parent.mkdir()
+            linked, real = parent / "TaskProbe_0123456789ab", parent / "TaskProbe.0123456789ab"
+            junction = lambda at: subprocess.run(["cmd", "/c", "mklink", "/J", str(at), str(outside)],  # noqa: E731
+                                                 capture_output=True).returncode == 0
+            if not junction(linked):
+                self.skipTest("no junctions here")
+            real.mkdir()
+            self.assertTrue(junction(real / "inner"))
+            seeds._drop_folder(str(parent), linked.name)
+            seeds._drop_folder(str(parent), real.name)
+            self.assertTrue((outside / "keep.txt").is_file(), "never through a junction, in the name's place or inside")
+            self.assertFalse(real.exists())
+            os.rmdir(linked)
+
+    def test_the_registry_walk_ends_and_never_goes_through_a_link(self):
+        """A subkey that can't be deleted ends the walk (it looped for ever); a symbolic link is neither followed nor
+        deleted (through one, the walk deleted a key that wasn't the company's)."""
+        fake = FakeRegistry({"Software": {"TaskProbe.0123456789ab": {"Smoke Test": {"Sub": {}}, "Locked": "locked",
+                                                                     "Link": ("link", ("Software", "Other"))},
+                                          "Other": {"Keep": {}}}})
+        with mock.patch.dict(sys.modules, {"winreg": fake}):
+            seeds._drop_key(fake.HKEY_CURRENT_USER, "Software\\TaskProbe.0123456789ab")
+        self.assertEqual(fake.deleted, [("Software", "TaskProbe.0123456789ab", "Smoke Test", "Sub"),
+                                        ("Software", "TaskProbe.0123456789ab", "Smoke Test")])
+        self.assertIn("Keep", fake.tree["Software"]["Other"], "the link's target is left alone")
+        self.assertLess(fake.listed, 20, "each key's subkeys listed once")
+
+    @unittest.skipUnless(sys.platform == "win32", "the Windows registry and known folders")
+    def test_forgetting_a_copy_deletes_its_key_and_folders_and_nothing_beside_them(self):
+        """Real ones, made by the test under names of the guarded form, for a copy that never existed."""
+        import winreg
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project, other = Path(tmp) / "copy", Path(tmp) / "other copy"
+            company, neighbour = seeds.saves_company(project), seeds.saves_company(other)
+            low, temp = seeds._saves_folders()
+            made = []
+            try:
+                for name in (company, neighbour):
+                    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, f"Software\\{name}\\Smoke Test\\Sub") as key:
+                        winreg.SetValueEx(key, "score_h1", 0, winreg.REG_DWORD, 3)
+                    for folder in (Path(low) / name.replace(".", "_"), Path(temp) / name.replace(".", "_"),
+                                   Path(temp) / name / "Smoke Test" / "Crashes"):
+                        folder.mkdir(parents=True)
+                        (folder / "saved.bin").write_bytes(b"x")
+                        made.append(folder)
+                seeds.forget_saves(project)
+                self.assertEqual([f.exists() for f in made], [False] * 3 + [True] * 3, "the copy's, not the other's")
+                with self.assertRaises(OSError):
+                    winreg.OpenKey(winreg.HKEY_CURRENT_USER, f"Software\\{company}").Close()
+                winreg.OpenKey(winreg.HKEY_CURRENT_USER, f"Software\\{neighbour}\\Smoke Test\\Sub").Close()
+            finally:
+                for name in (company, neighbour):
+                    seeds.forget_saves(project if name == company else other)
+
+
+class FakeRegistry:
+    """Just enough of winreg for seeds._drop_key over `tree`: a key is a dict of its subkeys, "locked" one that can't be
+    deleted, ("link", path) a symbolic link to the key at `path` (followed unless opened with REG_OPTION_OPEN_LINK)."""
+
+    HKEY_CURRENT_USER, KEY_READ, REG_OPTION_OPEN_LINK = (), 0x20019, 8
+
+    def __init__(self, tree):
+        self.tree, self.deleted, self.listed = tree, [], 0
+
+    def _node(self, path):
+        node = self.tree
+        for part in path:
+            node = node[part] if isinstance(node, dict) and part in node else None
+            if node is None:
+                raise FileNotFoundError(path)
+        return node
+
+    def OpenKey(self, root, name, reserved=0, access=0):  # noqa: N802 (winreg's names)
+        path = tuple(root) + tuple(name.split("\\"))
+        node = self._node(path)
+        if isinstance(node, tuple) and not reserved & self.REG_OPTION_OPEN_LINK:
+            path = node[1]
+        return contextlib.nullcontext(path)
+
+    def QueryValueEx(self, key, name):  # noqa: N802
+        node = self._node(key)
+        if name == "SymbolicLinkValue" and isinstance(node, tuple):
+            return "\\Registry\\User\\S-1\\" + "\\".join(node[1]), 6
+        raise FileNotFoundError(name)
+
+    def EnumKey(self, key, index):  # noqa: N802
+        self.listed += 1
+        node = self._node(key)
+        names = list(node) if isinstance(node, dict) else []
+        if index >= len(names):
+            raise OSError("no more")
+        return names[index]
+
+    def DeleteKey(self, root, name):  # noqa: N802
+        path = tuple(root) + tuple(name.split("\\"))
+        node = self._node(path)
+        if isinstance(node, tuple):
+            path, node = node[1], self._node(node[1])  # RegDeleteKey goes through a link to its target
+        if node == "locked" or (isinstance(node, dict) and node):
+            raise PermissionError(path)
+        del self._node(path[:-1])[path[-1]]
+        self.deleted.append(path)
+
 
 class ImportCache(unittest.TestCase):
     def test_a_copy_takes_a_built_copys_import_cache_without_its_code(self):

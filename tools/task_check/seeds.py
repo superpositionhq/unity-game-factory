@@ -205,6 +205,9 @@ def seed_library(donor, project):
     return True
 
 
+SAVES = re.compile(r"TaskProbe[._][0-9a-f]{12}")  # the only names forget_saves ever deletes
+
+
 def saves_company(project):
     """The company name the probe's build gives a scratch copy's player (TaskProbe/Editor/Build.cs `Tag`): "TaskProbe."
     and 12 hex digits of its folder's sha256. A play's saved data (PlayerPrefs in the registry, the persistent data
@@ -213,30 +216,80 @@ def saves_company(project):
     return "TaskProbe." + hashlib.sha256(folder.encode("utf-8")).hexdigest()[:12]
 
 
+def _saves_folders():
+    """(LocalLow, the temp folder) as Windows gives them to a player, None for one it doesn't. LocalLow is the known
+    folder, which no environment variable moves (taken from USERPROFILE, it was "~", a relative path, with that
+    unset); the temp folder is GetTempPathW's, from the environment the player inherits."""
+    import ctypes
+    from ctypes import wintypes
+
+    class Guid(ctypes.Structure):
+        _fields_ = [("data1", ctypes.c_uint32), ("data2", ctypes.c_uint16), ("data3", ctypes.c_uint16),
+                    ("data4", ctypes.c_ubyte * 8)]
+
+    local_low = Guid(0xA520A1A4, 0x1780, 0x4FF6, (ctypes.c_ubyte * 8)(0xBD, 0x18, 0x16, 0x73, 0x43, 0xC5, 0xAF, 0x16))
+    shell32, ole32, kernel32 = ctypes.WinDLL("shell32"), ctypes.WinDLL("ole32"), ctypes.WinDLL("kernel32")
+    shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(Guid), wintypes.DWORD, wintypes.HANDLE,
+                                             ctypes.POINTER(ctypes.c_void_p)]
+    shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    kernel32.GetTempPathW.argtypes = [wintypes.DWORD, wintypes.LPWSTR]
+    kernel32.GetTempPathW.restype = wintypes.DWORD
+    found = ctypes.c_void_p()
+    failed = shell32.SHGetKnownFolderPath(ctypes.byref(local_low), 0, None, ctypes.byref(found))
+    low = None if failed else ctypes.wstring_at(found.value)
+    ole32.CoTaskMemFree(found)  # whether it found the folder or not
+    buffer = ctypes.create_unicode_buffer(32768)
+    return low, buffer.value if kernel32.GetTempPathW(len(buffer), buffer) else None
+
+
+def _drop_folder(parent, name):
+    """The folder `name` in `parent` deleted when `name` is of SAVES' form and `parent` an absolute path: nothing else.
+    rmtree never goes through a link (it refuses a junction or symlink, and unlinks those inside without following)."""
+    if parent and os.path.isabs(parent) and SAVES.fullmatch(name):
+        shutil.rmtree(os.path.join(parent, name), ignore_errors=True)
+
+
 def _drop_key(root, name):
+    """The registry key `name` under `root` deleted with every key under it, as far as it can be. Each key's subkeys are
+    listed once (one that couldn't be deleted kept the walk going for ever), and a symbolic link is neither followed
+    nor deleted: through one, the walk deleted its target, a key that isn't the company's."""
     import winreg
 
     try:
-        with winreg.OpenKey(root, name, 0, winreg.KEY_ALL_ACCESS) as key:
+        with winreg.OpenKey(root, name, winreg.REG_OPTION_OPEN_LINK, winreg.KEY_READ) as key:
+            try:
+                winreg.QueryValueEx(key, "SymbolicLinkValue")
+                return  # a link
+            except OSError:
+                pass
+            subkeys = []
             while True:
                 try:
-                    _drop_key(key, winreg.EnumKey(key, 0))
+                    subkeys.append(winreg.EnumKey(key, len(subkeys)))
                 except OSError:
                     break
+            for subkey in subkeys:
+                _drop_key(key, subkey)
         winreg.DeleteKey(root, name)
     except OSError:
         pass  # not there, or not ours to delete
 
 
 def forget_saves(project):
-    """What the plays of the scratch copy `project` left outside it: its player's registry key and saved-data folder."""
+    """What the plays of the scratch copy `project` left outside it, under its company name: its PlayerPrefs (the
+    registry key HKCU\\Software\\<company>), its persistent data and temporary cache (<company> with its dot as an
+    underscore, as Unity writes those folders, in LocalLow and in the temp folder) and its crash handler's reports (the
+    temp folder's <company>, dot kept). Only a name of SAVES' form directly under one of those three is ever deleted."""
     company = saves_company(project)
-    if os.name == "nt":
-        import winreg
+    if os.name != "nt" or not SAVES.fullmatch(company):
+        return
+    import winreg
 
-        _drop_key(winreg.HKEY_CURRENT_USER, "Software\\" + company)
-    # Unity writes the folder's name with the company's dot as an underscore
-    shutil.rmtree(Path(os.path.expanduser("~")) / "AppData" / "LocalLow" / company.replace(".", "_"), ignore_errors=True)
+    _drop_key(winreg.HKEY_CURRENT_USER, "Software\\" + company)
+    low, temp = _saves_folders()
+    for parent, name in ((low, company.replace(".", "_")), (temp, company.replace(".", "_")), (temp, company)):
+        _drop_folder(parent, name)
 
 
 def _projects(path, depth=3):
