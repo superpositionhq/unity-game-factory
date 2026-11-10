@@ -2,6 +2,7 @@
 // properties, and member paths read by reflection with a SerializedObject property path as the fallback. Values are
 // the checker's plain values (Reflect.Plain): numbers, strings (through `match`) or null.
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEditor;
@@ -17,7 +18,7 @@ namespace TaskProbe.EditorTools
         {
             var path = Json.Str(m, "asset");
             var field = Json.Str(m, "field") ?? "";
-            var asset = AssetDatabase.LoadMainAssetAtPath(path);
+            var asset = AssetPass.InProject(path) ? AssetDatabase.LoadMainAssetAtPath(path) : null;
             if (asset == null) return AssetPass.Error("no asset " + path);
             if (field.StartsWith("prop:", StringComparison.Ordinal))
             {
@@ -160,48 +161,76 @@ namespace TaskProbe.EditorTools
         // ---------------------------------------------------------------- member paths
 
         /// <summary>`path` on a Unity object: by reflection (Reflect.ReadPath), else as a SerializedObject property path.
-        /// `ok` false when neither resolves.</summary>
-        public static object Path(UnityEngine.Object target, string path, out bool ok)
+        /// `ok` false only when it names a member the object doesn't have: a path that stops at an unset reference or
+        /// past the end of a list has no value, as in the original's editor pass.</summary>
+        static object Path(UnityEngine.Object target, string path, out bool ok)
         {
             var read = Reflect.ReadPath(target, path, out ok);
             if (ok) return Reflect.Plain(read);
-            return Serialized(target, path, out ok);
+            var value = Serialized(target, path, out ok);
+            if (!ok) ok = Stops(target, path);
+            return value;
         }
 
-        /// <summary>prop:&lt;Component&gt;.&lt;path&gt; on an object as Reflect.Prop reads it, else a SerializedObject path on the
-        /// named component (or the GameObject).</summary>
+        /// <summary>prop:&lt;Component&gt;.&lt;path&gt; on an object as Reflect.Prop reads it (the component on the object,
+        /// else the first in its descendants; the GameObject, else its Transform; a component's name alone: 1), else a
+        /// SerializedObject path on the named component or the GameObject. `ok` as for Path.</summary>
         public static object ObjectProp(GameObject go, string path, out bool ok)
         {
             ok = false;
             if (go == null || string.IsNullOrEmpty(path)) return null;
             var dot = path.IndexOf('.');
             var component = dot > 0 ? Reflect.ComponentNamed(go, path.Substring(0, dot)) : null;
-            var value = Reflect.Prop(go, component != null ? Shared(component, path, dot) : path);
-            if (value != null) { ok = true; return value; }
             if (component != null)
             {
-                value = Serialized(component, path.Substring(dot + 1), out ok);
+                var value = Path(component, Shared(component, path.Substring(dot + 1)), out ok);
                 if (ok) return value;
+            }
+            var own = Reflect.Prop(go, path);
+            if (own != null)
+            {
+                ok = true;
+                return own;
             }
             return Serialized(go, path, out ok);
         }
 
         /// <summary>A component's `material`, `materials` and `mesh` (and the like) read as their shared forms: in the
         /// editor the instancing getters copy the asset into the scene (and log a leak), which a read must never do.</summary>
-        static string Shared(Component component, string path, int dot)
+        static string Shared(Component component, string path)
         {
-            var rest = path.Substring(dot + 1);
-            var end = rest.IndexOfAny(new[] { '.', '[' });
-            var member = end < 0 ? rest : rest.Substring(0, end);
+            var end = path.IndexOfAny(new[] { '.', '[' });
+            var member = end < 0 ? path : path.Substring(0, end);
             if (member.Length == 0) return path;
             var shared = "shared" + char.ToUpperInvariant(member[0]) + member.Substring(1);
             if (component.GetType().GetProperty(shared) == null) return path;
-            return path.Substring(0, dot + 1) + shared + (end < 0 ? "" : rest.Substring(end));
+            return shared + (end < 0 ? "" : path.Substring(end));
+        }
+
+        /// <summary>Whether `path`, which doesn't read, names members `target` has and stops early: at an unset
+        /// reference, or at an index past the end of a list (the original's path_value reads None there).</summary>
+        static bool Stops(object target, string path)
+        {
+            var head = "";
+            foreach (var token in path.Split('.'))
+            {
+                var open = token.IndexOf('[');
+                var value = Reflect.ReadPath(target, head + (open < 0 ? token : token.Substring(0, open)), out var ok);
+                if (!ok) return false;
+                if (value == null || value is UnityEngine.Object o && o == null) return true;
+                if (open >= 0)
+                {
+                    Reflect.ReadPath(target, head + token, out ok);
+                    if (!ok) return value is IList;
+                }
+                head += token + ".";
+            }
+            return false;
         }
 
         /// <summary>A SerializedObject property path on `target` (`m_Name`, `m_Materials.Array.size`, `waves[2].count`
         /// as `waves.Array.data[2].count`), as a plain value. `ok` false when there is no such property.</summary>
-        public static object Serialized(UnityEngine.Object target, string path, out bool ok)
+        static object Serialized(UnityEngine.Object target, string path, out bool ok)
         {
             ok = false;
             if (target == null || string.IsNullOrEmpty(path)) return null;
@@ -228,7 +257,7 @@ namespace TaskProbe.EditorTools
 
         /// <summary>A serialized property as the checker takes it: numbers and bools as numbers, enums as their value, an
         /// object reference 1 when set, strings as they are, an array as its length; anything else (a colour or vector
-        /// without its channel) null.</summary>
+        /// without its channel, an ExposedReference, which only a director resolves) null.</summary>
         static object PlainProperty(SerializedProperty p)
         {
             if (p.isArray && p.propertyType != SerializedPropertyType.String) return (double)p.arraySize;
@@ -248,9 +277,7 @@ namespace TaskProbe.EditorTools
                 }
                 case SerializedPropertyType.String: return p.stringValue;
                 case SerializedPropertyType.Character: return ((char)p.intValue).ToString(CultureInfo.InvariantCulture);
-                case SerializedPropertyType.ObjectReference:
-                case SerializedPropertyType.ExposedReference:
-                    return p.propertyType == SerializedPropertyType.ObjectReference && p.objectReferenceValue != null ? 1.0 : 0.0;
+                case SerializedPropertyType.ObjectReference: return p.objectReferenceValue != null ? 1.0 : 0.0;
             }
             return null;
         }
