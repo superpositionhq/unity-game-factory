@@ -74,7 +74,7 @@ changes.
 | skills (`skills/`) | ported to Unity |
 | machine setup, recording hooks, job limiter (`machine/`) | ported to Unity |
 | game template + `new-game.ps1` (`templates/`) | ported to Unity |
-| sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py` with `unity_tasks.py`) | ported to Unity |
+| sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | ported to Unity |
 | game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | ported to Unity: [docs/game-format.md](docs/game-format.md) |
 | task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | ported to Unity: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |
 | AutoPlay drop-in, recording pipeline (recorder, queue, run checker), creation replay, dataset packager | not available yet: [docs/autoplay-contract.md](docs/autoplay-contract.md) and [docs/unity-pipeline.md](docs/unity-pipeline.md) hold the plan |
