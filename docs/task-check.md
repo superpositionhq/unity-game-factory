@@ -106,11 +106,13 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
    copy's build gets its own company name (`TaskProbe.<hash>`, so a play's saved data is never the real game's), no
    splash screen, no static batching (so each renderer keeps its own mesh name and triangle count), no code stripping
    (the probe reads members by name that the game may never call) and several instances allowed; the build puts each
-   of these settings back when it is done, and the game's assets and code are untouched. The window (960x540, not
-   full screen) comes from each play's command line. The build passes when Unity exits 0 and the probe's build result
-   says ok. A start that doesn't build makes the task INVALID, unless
-   its build check says so (`"fails_at_start": true`: making it build is the task); then the start failing to build is
-   the start failing the task, and it is never played.
+   of these settings back when it is done (the player settings file, `ProjectSettings/ProjectSettings.asset`, gets
+   back the bytes it had before the build), and the game's assets and code are untouched but for what Unity itself
+   rewrites in any player build (URP saves its pipeline assets' prefiltering fields and adds entries to its global
+   settings, as in a build of the game's own). The window (960x540, not full screen) comes from each play's command
+   line. The build passes when Unity exits 0 and the probe's build result says ok. A start that doesn't build makes
+   the task INVALID, unless its build check says so (`"fails_at_start": true`: making it build is the task); then the
+   start failing to build is the start failing the task, and it is never played.
 4. Checks the reference as if it were a solution: the task's checks in order (a check whose `needs` failed doesn't run
    and fails: `not run: needs X`): build, boot (a play of `seconds` that must run to its end without a crash: a player
    log line matching `Crash!!!`, `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`), `log_absent`,
@@ -234,12 +236,13 @@ without), so this is for drafts only.
 - A play's `probe.json` holds, per sample time: in `track` a row `[t, x, y, z]`, the player's position (`[t]` alone
   while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
-  there are some). A key of `measures` is a query's id, `q` and ten hex digits made from what the query selects (its
-  kind with its select, point or rect), so a query has the same id in every play and on both sides, and probes that
-  read other fields of one selection share one query. The file doesn't name the checks: `play_spec.json` beside it
-  gives each id's kind and select, which you match with the check's measure in the task file. A sample holds either
-  `rows` (one per object, component, widget or element matched, with its `name` and the fields asked for) or a
-  `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
+  there are some). `inputs_sent` counts the play's input rows as they were sent (one whose control the probe doesn't
+  know counts too, and is a `query_errors` line). A key of `measures` is a query's id, `q` and ten hex digits made
+  from what the query selects (its kind with its select, point or rect), so a query has the same id in every play and
+  on both sides, and probes that read other fields of one selection share one query. The file doesn't name the
+  checks: `play_spec.json` beside it gives each id's kind and select, which you match with the check's measure in the
+  task file. A sample holds either `rows` (one per object, component, widget or element matched, with its `name` and
+  the fields asked for) or a `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
   `spawns` sample holds running totals since the play started; the checker reads each sample's rise over the one
   before.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
@@ -296,7 +299,9 @@ found nothing, a widget click that matched no button). A `drawn` measure has no 
 the place alone (no graphics device, or a render pipeline other than URP with its Universal Renderer, URP's 2D
 Renderer among them), and `lit` or `glow` of a source the probe reads as rendered then reads its bound or nothing:
 the play's `query_errors` (in `probe.json`) holds one `rendering: ...` line saying why (task-probes.md, section
-2.19), and such a measure's reason quotes it after `; the probe said:`. Some fields have no value at first by
+2.19), and such a measure's reason quotes it after `; the probe said:`; an object's or a component's `lit` and
+`glow` also quote, after it, the line of a light source's own render that failed (`lit/glow: <ExceptionType> in a
+render (the exception is in probe.log)`), which a `drawn` measure doesn't. Some fields have no value at first by
 design: `spin` on the first sample an object is seen in, `speed` of an object with no velocity of its own then too,
 audio `level` in the play's first frames, the grading fields and a light's `exposure` and `brightness` at a play's
 first sample.
