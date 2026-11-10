@@ -321,8 +321,10 @@ the wrong thing. Pick a commit that has the assets, or commit them (each with it
 them; the checker never adds files from other commits.
 
 **`start doesn't build`.** The start's scripts don't compile on its 6000.3 editor as committed, or the player build
-fails (`build\build.log`: the `error CS` lines first). Pick a start that builds, or, when making it build is the task,
-set `"fails_at_start": true` on the build check (then no threshold may be relative to the start).
+fails. `start\build\build.log` starts with the build's own reason when it gave one (`[task-check] the build's result
+says it failed: ...`), then Unity's log: read its `error CS` lines first. `didn't build (timed out)` is a build that
+ran past `--build-timeout`. Pick a start that builds, or, when making it build is the task, set
+`"fails_at_start": true` on the build check (then no threshold may be relative to the start).
 
 **`start: ProjectSettings/ProjectVersion.txt names Unity ...: a task's commits must be Unity 6000.3 projects as
 committed`** (or `reference: ...`). That commit was made on another Unity, and the checker never upgrades a project.
