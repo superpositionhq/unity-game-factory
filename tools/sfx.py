@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sound effects for a game from Freesound (sound skill): search, fetch into the game repo, measure.
+"""Sound effects for a game from Freesound (unity-sound skill): search, fetch into the game repo, measure.
 
   python sfx.py search "<English query>" [--license cc0|by] [--sort relevance|downloads|rating|short] [-n N] [--pages K] [--urls]
   python sfx.py get <repo> --used-for "<cue>" [--mono] fs:<id> [fs:<id> ...]
