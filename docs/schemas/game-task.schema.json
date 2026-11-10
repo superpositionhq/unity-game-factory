@@ -61,7 +61,7 @@
     },
     "AssetMeasure": {
       "additionalProperties": false,
-      "description": "The project as saved, read in a headless editor pass: an asset's property (`asset` + prop:<path>, import:<path>,\nshader:<Property> or keyword:<NAME>), or objects of a scene or a prefab (`scene` or `prefab` + `select`).",
+      "description": "The project as saved, read in a headless editor pass: an asset's property (`asset` + prop:<path>, import:<path>,\nshader:<Property> with .r|g|b|a or .x|y|z|w of a colour or vector or .name of a texture, shader:name, or\nkeyword:<NAME>), or objects of a scene or a prefab (`scene` or `prefab` + `select`: count, material_default,\nmaterial:<Property> as shader: reads it or material:keyword:<NAME> per material slot, mesh_collision,\nprop:<Component>.<path>) (docs/task-probes.md, section 2.11).",
       "properties": {
         "asset": {
           "anyOf": [
@@ -1383,7 +1383,7 @@
               "type": "string"
             },
             {
-              "pattern": "^post:[A-Za-z_][A-Za-z0-9_]{0,63}\\.[A-Za-z_][A-Za-z0-9_]{0,63}$",
+              "pattern": "^post:[A-Za-z_][A-Za-z0-9_]{0,63}\\.[A-Za-z_][A-Za-z0-9_]{0,63}(\\.[rgbaxyzw])?$",
               "type": "string"
             }
           ],
