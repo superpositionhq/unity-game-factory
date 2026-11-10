@@ -452,6 +452,10 @@ class RepoRules(Base):
         write(self.repo, 'README.md', '# Kiln Run\n\nNo stills yet.\n')
         commit(self.repo, 'Readme without stills')
         self.assertEqual(errors(self.check(), 'repo: README'), ['shows no gameplay image'])
+        for f in ('workflow.jsonl', 'assets.manifest.json'):   # tracked, gone from the checkout: an error, no traceback
+            os.remove(os.path.join(self.repo, f))
+        self.assertEqual(errors(self.check(), 'repo')[0], '2 tracked file(s) not in the working tree (e.g. '
+                                                          'assets.manifest.json): check out the release commit as it is')
 
     def test_task_files(self):
         set_tasks(self.repo, {f'{SLUG}-a': 'not json', f'{SLUG}-b': [1],
@@ -553,6 +557,12 @@ class TaskRules(Base):
         for floor in ('game file(s) against the start, fewer than 5', 'code line(s) against the start, fewer than 100',
                       'commit(s) change the game from seed.commit to seed.reference, fewer than 4'):
             self.assertTrue(any(floor in e for e in errs), (floor, errs))
+        r = subprocess.run([sys.executable, os.path.join(TOOLS, 'thread-stats.py'), self.repo, self.ref, '--span',
+                            f'{self.start}..{self.ref}'], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)   # counted as the validator counts: the whole thread meets the floors
+        self.assertIn('span: 4 game commit(s), 6 game file(s), 124 code line(s), 3 system(s) (code, config, prefab)',
+                      r.stdout)
+        self.assertIn('below the floors on its own: 1 game commits (floor 4); 2 game files (floor 5)', r.stdout)
 
     def test_noop_and_outcomes(self):
         ms = task(self.start, self.ref)['milestones']
@@ -776,6 +786,28 @@ class Units(unittest.TestCase):
         rep = vg.Report()
         vg.check_dataset(rep, z, 'dataset')
         self.assertEqual(errors(rep), ['the zip must hold exactly one top folder (<game>/)'])
+
+    def test_split_tasks(self):
+        """split-tasks.py: the agent's half (everything but milestones, the seed without its reference: play_scene,
+        play_args and player included) and the grader's half (milestones, seed.reference), which merge back into the
+        task; exit 2 for a file that isn't JSON or whose name isn't its file's."""
+        tmp = tempfile.mkdtemp(prefix='ugfs')
+        self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
+        t = task('a' * 40, 'b' * 40)
+        write(tmp, f'in/{t["name"]}.json', json.dumps(t))
+        write(tmp, 'in/broken.json', '{')
+        write(tmp, 'in/other.json', json.dumps(dict(t, name='renamed')))
+        r = subprocess.run([sys.executable, os.path.join(TOOLS, 'split-tasks.py'), os.path.join(tmp, 'in'),
+                            os.path.join(tmp, 'out')], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual(json.loads(r.stdout), [{'name': t['name'], 'title': t['title'], 'kind': 'bug_fix',
+                                                 'difficulty': 'hard'}])
+        agent = json.loads(read(os.path.join(tmp, 'out', t['name'], 'task.json')))
+        grader = json.loads(read(os.path.join(tmp, 'out', t['name'], 'grader.json')))
+        self.assertEqual(sorted(agent), sorted(k for k in t if k != 'milestones'))
+        self.assertNotIn('reference', agent['seed'])
+        self.assertEqual(grader, {'name': t['name'], 'seed': {'reference': 'b' * 40}, 'milestones': t['milestones']})
+        self.assertEqual(dict(agent, milestones=grader['milestones'], seed=dict(agent['seed'], **grader['seed'])), t)
 
     def test_wildcard_takes_one(self):
         """A select that takes one object by a wildcard name alone is a warning, never an error (the sample game's

@@ -1263,6 +1263,10 @@ def check_repo(rep, repo):
         rep.error('repo', 'not a git repo, or nothing tracked')
         return
     tracked = set(files)
+    gone = [f for f in files if not os.path.lexists(os.path.join(repo, f))]
+    if gone:   # the rules below read the checkout
+        rep.error('repo', f'{len(gone)} tracked file(s) not in the working tree (e.g. {gone[0]}): check out the release '
+                          'commit as it is')
     for req in R['required_files']:
         hits = [f for f in files if re.match(req['pattern'], f)]
         if not hits:
@@ -1404,7 +1408,7 @@ def check_repo(rep, repo):
     # every asset with its .meta, no orphan .meta
     check_meta(rep, repo, files)
     # assets.manifest.json: unified format, every listed file committed under Assets/, Packages/ or RawAssets/
-    if 'assets.manifest.json' in tracked:
+    if 'assets.manifest.json' in tracked and os.path.isfile(os.path.join(repo, 'assets.manifest.json')):
         try:
             data = json.load(open(os.path.join(repo, 'assets.manifest.json'), encoding='utf-8-sig'))
         except ValueError as e:
@@ -1414,7 +1418,7 @@ def check_repo(rep, repo):
             check_assets_manifest(rep, 'repo: assets.manifest.json', data,
                                   lambda p: any(t.startswith(p) for t in files) if p.endswith('/') else (p in tracked or any(t.startswith(p + '/') for t in files)))
     # workflow.jsonl: same row schema as the dataset copy (the packager rewrites nothing else)
-    if 'workflow.jsonl' in tracked:
+    if 'workflow.jsonl' in tracked and os.path.isfile(os.path.join(repo, 'workflow.jsonl')):
         with open(os.path.join(repo, 'workflow.jsonl'), encoding='utf-8-sig', errors='replace') as f:
             check_workflow(rep, 'repo: workflow.jsonl', f)
     check_repo_tasks(rep, repo, files)
