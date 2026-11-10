@@ -1,8 +1,8 @@
 # ocr family tests (the ui query's frame reader)
 
 The frame reader (`TaskProbe/Runtime/Queries/UiOcr.cs`) reads text from the frame as drawn, inside the rect of a `ui`
-select of text (`"kind": "text"`, or a `text` regex, with a `rect`). It is the Unreal probe's glyph reader ported line
-for line, so these tests check both what it reads in a real player and that it reads as the original does.
+select of text (`"kind": "text"`, or a `text` regex, with a `rect`). These tests check what it reads in a real
+player; `harness/` checks that it still gives its reference readings.
 
 ## The scene
 
@@ -48,14 +48,14 @@ against the ink in the screenshot of the same frame, pixel for pixel.
 
 ## harness/
 
-The reader outside Unity, against the original: `python harness/check.py` draws the synthetic frames of
+The reader outside Unity, against its reference readings: `python harness/check.py` draws the synthetic frames of
 `harness/frames.py` (every shape of the reader's table, HUD strings at HUD sizes, every cap style, anti-aliased and
 not, every rule's case, rects of every kind), compiles `UiOcr.cs` with the Unity editor's own compiler, reads them on
-the editor's Mono (a player's runtime), and compares each reading with what the Unreal original read of the same frame
-(`harness/expected.txt`, recorded by compiling the original's own lines). About two and a half minutes; no player
-build. Run it after any change to `UiOcr.cs`: the plays check the reader in the engine, this checks it is still the
-original's. It first checks that the reader's glyph table is the original's 121 entries (`harness/table.txt`, which
-the frames are drawn from) and that `harness/Read.cs` reads a frame as `Query.cs` does. What it doesn't pin: the order
-of marks that start in one column (the sort is a port of the original's, compared once with it line by line and by
-traces; no frame is known whose reading depends on it), and many of the reader's thresholds (of 101 one-token changes
+the editor's Mono (a player's runtime), and compares each reading with the reader's reference reading of the same
+frame (`harness/expected.txt`). About two and a half minutes; no player build. Run it after any change to `UiOcr.cs`:
+the plays check the reader in the engine, this checks it still reads as its reference does. It first checks that the
+reader's glyph table is the reference table's 121 entries (`harness/table.txt`, which the frames are drawn from) and
+that `harness/Read.cs` reads a frame as `Query.cs` does. What it doesn't pin: the order of marks that start in one
+column (the sort of a line's marks was compared once with the reference line by line and by traces; no frame is
+known whose reading depends on it), and many of the reader's thresholds (of 101 one-token changes
 tried, 29 changed a reading here): a change to a threshold needs frames of its own on both sides of it.

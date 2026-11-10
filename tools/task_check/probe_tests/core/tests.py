@@ -340,8 +340,8 @@ def errors(t, play):
 
 
 def no_queries(t, play):
-    """A queries object the probe can't use (another format; no queries array): one error in the original's words, no
-    measures, and the play runs to its end."""
+    """A queries object the probe can't use (another format; no queries array): one error in fixed words, no measures,
+    and the play runs to its end."""
     t.eq("no measures", play.probe.get("measures"), None)
     t.eq("the track is whole", len(play.probe.get("track") or []), 4)
 

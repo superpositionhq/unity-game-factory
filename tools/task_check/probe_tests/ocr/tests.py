@@ -1,4 +1,4 @@
-"""The ocr family: the ui query's frame reader (UiOcr, the Unreal probe's glyph reader ported) in the real engine. What
+"""The ocr family: the ui query's frame reader (UiOcr) in the real engine. What
 it reads of readouts drawn without UI components (a mesh, GL quads, OnGUI textures), every character it knows at the
 sizes a HUD uses, what it refuses and why, the rows it makes, and which selects read the frame."""
 

@@ -1,5 +1,5 @@
-# What the original reader (TaskProbeQueries.cpp OcrRead and UiOcr, Unreal Engine 5.7, compiled from its own lines)
-# read in each reading of frames.py: <name>: | <text> <x>,<y>,<w>,<h> (the element's box in pixels of the frame) ...
+# The reader's reference readings, one for each reading of frames.py: <name>: | <text> <x>,<y>,<w>,<h> (the element's
+# box in pixels of the frame) ...
 tab000_sq:
 tab000_rd:
 tab001_sq:

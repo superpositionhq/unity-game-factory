@@ -7,7 +7,7 @@ text reader (`UiOcr`) has its own family, `ocr`; here only what `ui` decides abo
 read, and that a line an element already reads isn't read twice).
 
 Two rules say whether a widget shows, and the scenes pin both. `visible` (the `widgets` field and select, and what the
-widget click takes) is the original's state: the object active, every Canvas up the chain enabled, its graphic
+widget click takes) is a state: the object active, every Canvas up the chain enabled, its graphic
 enabled, the CanvasGroups' alpha above 0.004 (UI Toolkit: displayed, its own visibility visible, the opacity above
 0.004), on a canvas or panel drawn on the screen, inside the frame; its colour, its size and clipping don't count. A
 `ui` element is drawn: visible so, and its colour and CanvasRenderer alpha above 0.004 too, not culled by a RectMask2D

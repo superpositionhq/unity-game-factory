@@ -1,6 +1,6 @@
 // The frame reader (Runtime/Queries/UiOcr.cs, compiled as it is) on frames.py's frames, outside Unity: each reading of
 // cases.txt as the ui query makes it (UiOcr.Elements on a frame whose rows come from the bottom, as Unity reads one
-// back), printed as expected.txt has the original's: <name>: | <text> <x>,<y>,<w>,<h> (pixels of the frame).
+// back), printed as expected.txt has the reference readings: <name>: | <text> <x>,<y>,<w>,<h> (pixels of the frame).
 using System;
 using System.Collections.Generic;
 using System.Globalization;

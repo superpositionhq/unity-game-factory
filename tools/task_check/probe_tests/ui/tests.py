@@ -72,7 +72,7 @@ def no_rect(t, what, row):
 
 # ---------------------------------------------------------------- widgets
 
-VISIBLE = {  # widgets' visible, the original's state: a widget's colour, size and clipping don't count (ui's do)
+VISIBLE = {  # widgets' visible, a state: a widget's colour, size and clipping don't count (ui's do)
     "VisUnder": 1, "VisClear": 1, "VisFaint": 1, "VisDim": 1, "VisHalf": 1, "VisHalfText": 1, "VisZero": 1, "VisOff": 0,
     "VisEdge": 1, "VisClip": 1, "VisClipped": 1, "VisClippedIn": 1, "VisOffCanvas": 0, "VisOffCanvasText": 0,
     "VisOffGraphic": 0, "VisMuted": 1, "VisLocked": 1, "VisHidden": 0, "VisHiddenText": 0, "VisInactive": 0,

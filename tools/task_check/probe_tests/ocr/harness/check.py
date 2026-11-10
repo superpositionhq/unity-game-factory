@@ -1,11 +1,11 @@
-"""The frame reader (TaskProbe/Runtime/Queries/UiOcr.cs) outside Unity, against the Unreal original: frames.py's
-synthetic frames read by the port, every reading compared with what the original read of the same frame
-(expected.txt, recorded from the original's own code). It compiles UiOcr.cs with the Unity editor's own C# compiler and
+"""The frame reader (TaskProbe/Runtime/Queries/UiOcr.cs) outside Unity, against its reference readings: frames.py's
+synthetic frames read by UiOcr.cs, every reading compared with the reader's reference reading of the same frame
+(expected.txt). It compiles UiOcr.cs with the Unity editor's own C# compiler and
 runs it on the editor's Mono (the runtime a player runs it on), so it needs the editor and nothing else.
 
     python check.py [--unity <the editor folder: ...\\Hub\\Editor\\6000.3.x\\Editor>] [--keep DIR]
 
-Prints each reading that differs and the count; exit code 0 when every reading is the original's. About two and a half
+Prints each reading that differs and the count; exit code 0 when every reading is the reference's. About two and a half
 minutes. Standard library only."""
 import argparse
 import glob
@@ -32,12 +32,12 @@ def editor(given):
 
 
 def same_sources():
-    """What the readings can't show: the reader's glyph table is the original's (table.txt, which the frames are drawn
-    from), and Read.cs reads a frame as Query.cs does (FrameImage's At and Area)."""
+    """What the readings can't show: the reader's glyph table is the reference table (table.txt, which the frames are
+    drawn from), and Read.cs reads a frame as Query.cs does (FrameImage's At and Area)."""
     with open(UIOCR, encoding="utf-8") as f:
         table = re.findall(r"S\('(.)', \"([^\"]*)\"\)", f.read())
     if table != frames.TABLE:
-        sys.exit("UiOcr.cs's glyph table is not the original's (harness/table.txt)")
+        sys.exit("UiOcr.cs's glyph table is not the reference table (harness/table.txt)")
 
     def members(path):
         with open(path, encoding="utf-8") as f:
@@ -78,11 +78,11 @@ def main():
             want = [line.strip() for line in f if line.strip() and not line.startswith("#")]
         differ = [(w, g) for w, g in zip(want, got) if w != g]
         for w, g in differ:
-            print(f"  original: {w}\n  port:     {g}")
+            print(f"  expected: {w}\n  read:     {g}")
         if len(got) != len(want):
             print(f"{len(want)} readings expected, {len(got)} read")
-        print(f"{len(want)} readings, {sum(w.count(' | ') for w in want)} lines read by the original: "
-              + ("every reading the original's" if not differ and len(got) == len(want) else f"{len(differ)} differ"))
+        print(f"{len(want)} readings, {sum(w.count(' | ') for w in want)} lines in the reference readings: "
+              + ("every reading the reference's" if not differ and len(got) == len(want) else f"{len(differ)} differ"))
         return 0 if not differ and len(got) == len(want) else 1
     finally:
         if not args.keep:
