@@ -114,7 +114,9 @@ widening a threshold or window, making a required probe optional, removing a pro
 brief or narrowing what it asks. A plainly broken probe may be fixed only so that it asks at least as much as the
 brief. Otherwise drop the whole task and say so; fewer tasks is an acceptable result.
 
-The four kinds say where the thread comes from; each is a long thread, never one commit:
+The four kinds say where the thread comes from; each is a long thread, never one commit. The kind is `seed.kind`,
+and the file's name carries its short form: `fix` for `bug_fix`, `corr` for `correction`, `feat` for `feature`,
+`change` for `change`:
 
 | kind | the thread | `seed.commit` | `seed.reference` |
 |---|---|---|---|
@@ -127,7 +129,8 @@ The four kinds say where the thread comes from; each is a long thread, never one
 split: a chain whose first fix didn't hold is one task, not two; a direction with several issues fixed in several
 commits is one compound task with a probe per issue; neighbouring fixes of the same system in the same stretch belong
 together. A separate thread in the same stretch (another system, other issues) is its own task, even over the same
-commits (section 2).
+commits (section 2), when its own commits meet the floors; threads that are each too short on their own are merged
+into one compound task or dropped (section 2, "Measure the thread on its own commits").
 
 Not a task: a single fix or a single commit, a one-setting change, a bug with one cause in one file, status chatter,
 process rules, questions, praise, a fix that is only a re-import of assets the start does not have, a sweeping pass
@@ -186,9 +189,12 @@ depends on, or an unrelated later fix is needed for it to compile), give it a ma
   so a short thread inside another thread's stretch can pass the floors on the other thread's work. Which commits are
   the thread's own is your call (the commits that answer its directions or work on its issues); list them and count
   them: `python <UGF_ROOT>/unity-game-factory/tools/thread-stats.py <UGF_ROOT>/games/<slug> <commit> <commit> ...
-  --span <seed.commit>..<seed.reference>` (git only, seconds). A thread whose own commits are below the floors
-  (section 6) is too short, whatever the span says: extend it, merge it with its neighbouring issues, or drop it. When
-  you tell the person a task is ready, give its own line from the tool (commits, files, code lines, systems).
+  --span <seed.commit>..<seed.reference>` (git only, seconds). Its `thread` line adds up each listed commit's own
+  changes (a line two of them touch counts twice), its `span` line is the reference against the start, which is what
+  the validator holds to the floors; so the thread's code lines can be more than the span's. A thread whose own
+  commits are below the floors (section 6) is too short, whatever the span says: extend it, merge it with its
+  neighbouring issues, or drop it. When you tell the person a task is ready, give its own line from the tool
+  (commits, files, code lines, systems).
 - Asset-only fixes are fine (the agent can make the same change through editor steps or code); drop one only when its
   outcome cannot be seen.
 
@@ -223,6 +229,12 @@ plays). The game's first build scene doesn't run when a play opens another scene
 boot scene's `Start` is started through its own `play_args` with `play_scene` null. What a play does to the game, and
 the rules for the arguments (their form, the flags a task can't set), are in docs/task-probes.md, section 1.1. Check
 in the task check's screenshots and `track` that the reference's plays really start where the issue shows.
+
+The plays also need to know which object is the player (for `player` measures, teleports, a `near` around the
+player). The probe takes an active object tagged `Player`, else one with a `PlayerInput`, else one with a
+`CharacterController`, else the camera's root object. Where that finds the wrong object, or none worth the name, set
+the task's top-level `player`, an object select that names it for every play (`"player": {"name": "Boat"}`):
+docs/task-probes.md, "Words used here".
 
 ## 5. Milestones and checks: deterministic probes decide
 
