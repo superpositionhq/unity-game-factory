@@ -71,8 +71,9 @@ by hand under these rules, or ask.
   player builds need the Windows Build Support (IL2CPP) module and Visual Studio 2022's C++ workload; Mono builds need
   neither. `-runTests` must not be combined with `-quit` (the test run quits by itself; with `-quit` the editor exits 0
   before the run and writes no results). A batchmode run with compile errors aborts before your method runs: read
-  `error CS` lines in its log first. `-nographics` cannot render: no screenshots, no lightmap bake, no shader warm-up
-  from it.
+  `error CS` lines in its log first. `-nographics` cannot render: no screenshots, no shader warm-up and no lightmap bake
+  from it (a bake there returns true and writes a lightmap of nothing but the largest half-float value); run such a
+  step with `unity.ps1 step ... -Render`.
 - The first player build changes tracked files, and that is expected: URP writes its shader-stripping choices into
   the pipeline asset and fills `UniversalRenderPipelineGlobalSettings.asset` and `DefaultVolumeProfile.asset`, and
   Unity writes the platform's batching entry into `ProjectSettings.asset`. Commit them with the build's row; later
