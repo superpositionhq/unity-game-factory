@@ -117,7 +117,8 @@ namespace __PROJECT__.EditorTools
         /// <summary>Player and editor settings every game shares. Safe to run again.</summary>
         public static void Configure()
         {
-            // companyName is the game's own name: it becomes the exe's company and the persistentDataPath folder.
+            // companyName is the game's own name: it is written to the build's <Game>_Data\app.info and names the
+            // Application.persistentDataPath folder.
             PlayerSettings.companyName = "__TITLE__";
             PlayerSettings.productName = "__TITLE__";
             PlayerSettings.colorSpace = ColorSpace.Linear;
