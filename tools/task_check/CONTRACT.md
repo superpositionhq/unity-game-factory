@@ -395,16 +395,17 @@ original's, unchanged (`probes.py`).
   playing (and matching the select), in hierarchy order, at its volume at the listener (the first enabled AudioListener
   on an active object, in hierarchy order: `AudioTap.Listener`): its `volume` (0 when muted) x ((1 - `spatialBlend`) +
   `spatialBlend` x its rolloff at the listener's distance: logarithmic min distance / distance, linear down to 0 at max
-  distance, or its custom curve over distance / max distance). Mixer group volumes and `AudioListener.volume` are left
-  out (the original multiplies its sound classes' and mixes' volumes in). `level` has no counterpart in the original:
-  the RMS of the listener's mixed output since the previous sample, from `AudioTap`, an `OnAudioFilterRead` filter the
-  probe keeps on every enabled listener (`AudioTap.Follow`, before and after the game's scripts every frame: it adds a
-  tap, and switches one the game switched off back on), which sums the final mix (mixers and effects applied) and then
-  zeroes it, in every probe play, so no play is ever heard; a tap outside a probe play (the package copied into a game)
-  lets the sound through. A play that measures audio is paced to real time at 30 fps (the play spec's `sound`); every
-  other play runs as fast as the machine renders but for its waits and scene loads (section 4). The value's other keys,
-  and what was measured of Unity's audio (one-shot sounds, rolloff past max distance, `AudioListener.pause`, mixer
-  volumes), are in `docs/task-probes.md` section 2.16.
+  distance, or its custom curve over distance / max distance). Without the Audio module every sample reads silence, and
+  one `query_errors` line says so (`audio <id>: the project has no Audio module: no sound is read`). Mixer group volumes
+  and `AudioListener.volume` are left out (the original multiplies its sound classes' and mixes' volumes in). `level`
+  has no counterpart in the original: the RMS of the listener's mixed output since the previous sample, from `AudioTap`,
+  an `OnAudioFilterRead` filter the probe keeps on every enabled listener (`AudioTap.Follow`, before and after the
+  game's scripts every frame: it adds a tap, and switches one the game switched off back on), which sums the final mix
+  (mixers and effects applied) and then zeroes it, in every probe play, so no play is ever heard; a tap outside a probe
+  play (the package copied into a game) lets the sound through. A play that measures audio is paced to real time at 30
+  fps (the play spec's `sound`); every other play runs as fast as the machine renders but for its waits and scene loads
+  (section 4). The value's other keys, and what was measured of Unity's audio (one-shot sounds, rolloff past max
+  distance, `AudioListener.pause`, mixer volumes), are in `docs/task-probes.md` section 2.16.
 - **ground** (`GroundQuery`; the original traces the visibility channel, every pawn ignored): a ray straight down from y
   = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept; a 3D ray, so 2D colliders are
