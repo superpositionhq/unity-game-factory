@@ -123,14 +123,6 @@ namespace TaskProbe
             return Mathf.CorrelatedColorTemperatureToRGB(l.colorTemperature);
         }
 
-        /// <summary>The light's colour without its intensity, in the working space, temperature applied.</summary>
-        public static Color LitColor(Light l)
-        {
-            var c = Find.Linear(l.color) * TemperatureColor(l);
-            c.a = 1f;
-            return c;
-        }
-
         /// <summary>VisibleLight.finalColor as the engine builds it: colour x intensity (linear intensity in a linear
         /// project: URP sets lightsUseLinearIntensity there) x the temperature colour.</summary>
         public static Color FinalColor(Light l)

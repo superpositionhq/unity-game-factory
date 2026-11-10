@@ -211,7 +211,7 @@ namespace TaskProbe
             {
                 ["name"] = sun.name, ["color"] = Json.Rgb(Find.Linear(sun.color)), ["intensity"] = (double)sun.intensity,
                 ["temperature"] = (double)sun.colorTemperature, ["use_temperature"] = sun.useColorTemperature ? 1.0 : 0.0,
-                ["lit_color"] = Json.Rgb(LightKit.LitColor(sun)),
+                ["lit_color"] = Json.Rgb(Find.LightColour(sun)),
             };
         }
     }
