@@ -14,7 +14,8 @@
 # `record-unity-action.ps1 -Backfill <session id> [-TranscriptPath <file>]` does the same for a session mapped before
 # this existed: the rows go in just before that session's first row. Each session is backfilled at most once
 # (recording-backfill.json next to this file), and a call already in actions.jsonl is never written twice.
-# On Stop, leftover changes in a game repo are committed ("WIP") so no work stays uncommitted.
+# On Stop, leftover changes in a game repo are committed ("WIP") so no work stays uncommitted (not while conflicts
+# are unresolved: that commit would hold the conflict markers).
 # Nothing is recorded when UGF_NO_RECORDING (or the Unreal factory's GF_NO_RECORDING) is set: tools/task-try.py sets
 # both for the agent it runs on a task.
 # The Unreal game-factory's record-action.ps1 may run on the same calls (same agent settings): each factory maps only
