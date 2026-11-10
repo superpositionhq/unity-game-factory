@@ -1,7 +1,7 @@
 """The drawn family: what `drawn` reads in a place, lit / glow as rendered, and that a probe render puts back everything
 it changes (the game's frames are the same with and without the renders, whatever the game's camera callbacks do);
 the same values under URP's Forward, Forward+ and Deferred renderers, HDR off and render scale 0.75, D3D11 and D3D12;
-one error and no value where the probe can't render (no URP, the 2D renderer, no graphics device); a coin that spins
+one error and no value where the probe can't render (no URP, the 2D renderer); a coin that spins
 and bobs; the cap on renderers in a place; the cost of a render."""
 
 import math

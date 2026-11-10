@@ -9,14 +9,16 @@
 // ambient probe a flat white (or nothing, for the glow), fog off, the default reflection at intensity 0, the chosen
 // renderers' and terrains' lightmaps, light probes and reflection probes off (so the flat ambient is all that lights
 // them), no post-processing, shadows, MSAA, render scale or renderer features but RenderObjects (it may be how a layer
-// is drawn at all). One light gets through: under Forward+ with reflection probe blending on (URP's probe atlas), the
-// shader reads every reflection probe whose box holds the surface whatever the renderer's own setting, so a smooth
-// surface there keeps a little of what the probes reflect. Depth: a second render of the same view into a depth
+// is drawn at all). One light gets through: under a clustered renderer (Forward+ or Deferred+) with reflection probe
+// blending on (URP's probe atlas), the shader reads every reflection probe whose box holds the surface whatever the
+// renderer's own setting, so a smooth surface there keeps a little of what the probes reflect, and a realtime probe's
+// new picture reads as motion (read in URP's shaders; no play has blending on). Depth: a second render of the same view into a depth
 // texture, copied into a float texture by a shader of the package (Resources/TaskProbeDepthCopy) and read back.
 //
 // Each setting is saved before anything changes and each object recorded before it is changed, and all of it is put
-// back in a finally, whatever throws (a game's camera callback, a destroyed renderer). Only values change, never a
-// source or a mode, so nothing outlasts the sample. No game script runs in between but RenderPipelineManager
+// back in a finally, whatever throws (a game's camera callback, a destroyed renderer). The ambient and the default
+// reflection keep their modes and no reflection probe is touched: switching those had the engine build the environment
+// again after the sample, and the game's frames came out darker. No game script runs in between but RenderPipelineManager
 // callbacks, which see the probe's camera render like any other camera's.
 //
 // Why not move the chosen renderers to a spare layer: a layer change on an object with a collider refilters its
@@ -437,8 +439,8 @@ namespace TaskProbe
             }
 #endif
 
-            // the probe's light: the ambient probe alone, a flat white or nothing, with no fog and no reflection. Values
-            // only, never a source and never a reflection probe: switching the ambient or the default reflection to
+            // the probe's light: the ambient probe alone, a flat white or nothing, with no fog and no reflection. Never
+            // the ambient's or the default reflection's mode, never a reflection probe: switching the ambient or the default reflection to
             // another mode, or a reflection probe off and on, left the game's own frames changed after the sample (a
             // realtime probe lost its picture; play drawn.main against drawn.plain), and a probe's intensity counts only
             // from the next frame (a white cube read 0.016 of glow from the probe it stood in), so the chosen renderers

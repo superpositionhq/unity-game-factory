@@ -362,12 +362,13 @@ def clicks_for(module):
         t.eq("UI Toolkit: a ClickEvent handler: not by the widget click (2 s)", get(play, "uitk", 2.5, "UitkClicks", "prop:UiToolkitClicks.evt"), 0)
         log = play.probe_log
         for widget in ("UGoButton", "UEvtButton") + (("GoButton", "Toggle") if on else ()):
-            t.ok(f"probe.log: clicked {widget}", f"clicked {widget}" in log)
+            # the line names the widget clicked and its type, whether the input gave a name or a type
+            t.ok(f"probe.log: clicked {widget}", re.search(rf"clicked ({widget} \(\w+\)|\S+ \({widget}\))", log))
         if not on:
             for widget in ("GoButton", "GoField", "LockedButton2"):
                 line = f"no EventSystem: a click reaches no uGUI widget, so {widget} isn't clicked"
                 t.ok(f"probe.log: {line}", line in log)
-            t.ok("probe.log: no uGUI widget clicked", "clicked GoButton" not in log)
+            t.ok("probe.log: no uGUI widget clicked", "clicked GoButton" not in log and "(Toggle)" not in log)
             t.ok("the game's log has no exception (an InputField's pointer down throws without an EventSystem)",
                  "Exception" not in play.log)
         for widget in ("MutedButton", "OffButton", "UNoButton", "UOffButton", "NoSuchButton"):

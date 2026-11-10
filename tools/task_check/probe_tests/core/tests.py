@@ -92,7 +92,7 @@ def inputs(t, play):
     t.near("and 135 px from the bottom", walker(play, 6.0, "cursorY"), 135.0, FLOAT)
     t.eq("no gamepad unless an input names one", walker(play, 6.0, "pad"), 0)
     t.eq("the widget click clicked the button once", play.row("button", 6.0, "PushButton").get("prop:CoreButton.clicks"), 1)
-    t.ok("the click is in probe.log", "clicked PushButton" in play.probe_log)
+    t.ok("the click is in probe.log, by the widget's name and type", "clicked PushButton (Button)" in play.probe_log)
     t.ok("a click on no button says so", "no visible button matches 'NoSuchButton'" in play.probe_log)
     t.eq("inputs_sent counts every input", play.probe.get("inputs_sent"), 15)
     t.eq("the game counted itself focused in every frame", walker(play, 6.0, "unfocused"), 0)

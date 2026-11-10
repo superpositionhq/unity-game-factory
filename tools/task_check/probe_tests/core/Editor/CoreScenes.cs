@@ -7,6 +7,8 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -48,6 +50,8 @@ namespace ProbeTests.Core
                 // IL2CPP module nor the linker's minutes
                 PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
                 PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.Disabled);
+                // into an empty folder: Unity refuses one that holds a player built with another backend
+                FileUtil.DeleteFileOrDirectory("Build/ProbeTestsForeign");
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = new[] { Made + "/Clock.unity" }, locationPathName = "Build/ProbeTestsForeign/Game.exe",
@@ -122,6 +126,8 @@ namespace ProbeTests.Core
             Cube("Post", new Vector3(10f, 0f, 5f));
             Cube("Post", new Vector3(40f, 0f, 40f));
 
+            // a game's UI as a player can click it: with no EventSystem a click reaches no uGUI widget, the probe's neither
+            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
             var canvas = new GameObject("Canvas", typeof(Canvas), typeof(GraphicRaycaster));
             canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var badge = new GameObject("Badge", typeof(Image));

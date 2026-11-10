@@ -150,7 +150,8 @@ namespace TaskProbe
                 case "click":
                 {
                     var widget = Json.Str(row, "widget");
-                    Probe.Log(UiScan.Click(widget) ? $"clicked {widget}" : $"no visible button matches '{widget}'");
+                    var clicked = UiScan.Click(widget);
+                    Probe.Log(clicked != null ? "clicked " + clicked : $"no visible button matches '{widget}'");
                     break;
                 }
                 case "cursor":

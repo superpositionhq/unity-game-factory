@@ -682,8 +682,9 @@ namespace TaskProbe
         /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it (the original's
         /// FindButton and its pressed, released, clicked). Visible is the widgets' state (a fully transparent button
         /// takes a click). No raycast: an image over it doesn't stop it. Without an EventSystem a player's click reaches
-        /// no uGUI widget, and neither does this one (probe.log says so). False when none.</summary>
-        public static bool Click(string want)
+        /// no uGUI widget, and neither does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or
+        /// a type name may match several: the log names the one), or null when none.</summary>
+        public static string Click(string want)
         {
 #if TASKPROBE_UGUI
             var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
@@ -701,7 +702,7 @@ namespace TaskProbe
                     break;
                 }
                 UguiClick(s);
-                return true;
+                return s.gameObject.name + " (" + s.GetType().Name + ")";
             }
 #endif
 #if TASKPROBE_UITK
@@ -722,11 +723,11 @@ namespace TaskProbe
                         submit.target = button;
                         button.SendEvent(submit);
                     }
-                    return true;
+                    return NameOf(e) + " (" + e.GetType().Name + ")";
                 }
             }
 #endif
-            return false;
+            return null;
         }
 
 #if TASKPROBE_UGUI
