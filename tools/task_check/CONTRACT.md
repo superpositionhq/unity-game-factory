@@ -317,15 +317,20 @@ original's, unchanged (`probes.py`).
   own are skipped). The ambient (`LightKit.Ambient`): the spherical harmonics URP lights a moving object there with,
   evaluated straight up, the baked light probes around the point when the scene has them, else
   `RenderSettings.ambientProbe`, unshaded (URP doesn't shade ambient light by walls at run time). `exposure` is
-  2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without one or when the camera's
-  post-processing is off: URP has no auto-exposure, the original's eye adaptation. The value also holds `local`,
-  `directional`, `sky`, `lights` (the sources that lit it, the ambient counting as one) and `point`.
+  2^postExposure of the volume stack at the camera (as `grading` finds it), 1 without URP or when the camera's
+  post-processing is off, and null, with `brightness`, while the grade isn't known (`LightKit.GradeKnown`, as for
+  `grading` below; the original's exposure is null until the renderer has one): URP has no auto-exposure, the
+  original's eye adaptation. The value also holds `local`, `directional`, `sky`, `lights` (the sources that lit it,
+  the ambient counting as one) and `point`.
 - **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings of
   the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
   mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
-  updates by script (`camera_stack`); `source` is `none` when there is no stack to read (no URP, no camera, or URP's
-  volume framework not set up yet, as at a play's first sample); without URP one `query_errors` line says so (`grading
-  <id>: the render pipeline isn't URP: ...`). The stack is read as the constants URP's ColorGradingLutPass prepares:
+  updates by script (`camera_stack`). While the grade isn't known (`LightKit.GradeKnown`: URP is the pipeline and
+  there is no stack to read yet, because its volume framework isn't set up, as at a play's first sample, or because
+  there is no camera) the sample's value is null: a neutral grade no frame shows would enter every window from 0.
+  A camera that renders no post-processing has a neutral grade; without URP the grade is neutral too, `source` is
+  `none` and one `query_errors` line says so (`grading <id>: the render pipeline isn't URP: ...`). The stack is read
+  as the constants URP's ColorGradingLutPass prepares:
   `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral),
   `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`, `gain`
   (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off gives
