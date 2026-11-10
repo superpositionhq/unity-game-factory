@@ -465,9 +465,10 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   made it with;
 - `intensity` (a Light's own intensity, in its units) and `on` (1 when the Light lights the scene: enabled, active in
   the hierarchy, of an intensity above 0: the `light` probe's test of a Light that is on, section 2.7, which then
-  also leaves out a baked one). A lamp switched off by intensity 0 or by disabling the Light reads 0. One switched off by deactivating its object reads 0 when the select says
-  `"inactive": true`; without it, the Light is no longer selected (no row: `count` drops, `"of": "max"` has no value).
-  They see Lights only: use them when a task really needs a Light, else `lit` and `glow`;
+  also leaves out a baked one). A lamp switched off by intensity 0 or by disabling the Light reads 0. One switched
+  off by deactivating its object reads 0 when the select says `"inactive": true`; without it, the Light is no longer
+  selected (no row: `count` drops, `"of": "max"` has no value). They see Lights only: use them when a task really
+  needs a Light, else `lit` and `glow`;
 - `prop:<path>`: a member of the component itself by reflection, as an object's `prop:` reads it
   (`{"component": "AudioSource"}` with `prop:pitch`);
 - **`intensity`, `extent_*`, `bounds_change`, `pose_change`, `glow` and `spin` thresholds are calibrated or relative
