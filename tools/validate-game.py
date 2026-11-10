@@ -1439,6 +1439,8 @@ def check_repo(rep, repo):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # paths and names in any script, on any Windows console code page
+        stream.reconfigure(encoding='utf-8', errors='replace')
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('repo', nargs='?', help='a game repo (games/<slug>)')
     ap.add_argument('--dataset', help='validate only this dataset (Dataset.zip or a Dataset folder)')

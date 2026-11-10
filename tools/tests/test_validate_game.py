@@ -819,6 +819,23 @@ class Units(unittest.TestCase):
         self.assertEqual(grader, {'name': t['name'], 'seed': {'reference': 'b' * 40}, 'milestones': t['milestones']})
         self.assertEqual(dict(agent, milestones=grader['milestones'], seed=dict(agent['seed'], **grader['seed'])), t)
 
+    def test_cli_any_name(self):
+        """The findings print whatever the console's code page: a name it lacks (Ω, not in cp1252) is printed, and the
+        verdict is the exit code, never a traceback."""
+        tmp = tempfile.mkdtemp(prefix='ugfc')
+        self.addCleanup(shutil.rmtree, tmp, onerror=onerror)
+        repo = os.path.join(tmp, SLUG)
+        os.makedirs(repo)
+        git(repo, 'init', '-q', '-b', 'main')
+        for k, v in (('core.hooksPath', os.path.join(tmp, 'nohooks')), ('commit.gpgsign', 'false')):
+            git(repo, 'config', k, v)
+        write(repo, 'Assets/Ω.txt', 'x\n')
+        commit(repo, 'A file without its .meta')
+        r = subprocess.run([sys.executable, os.path.join(TOOLS, 'validate-game.py'), repo, '--quiet'], capture_output=True,
+                           env=dict(os.environ, PYTHONIOENCODING='cp1252'))
+        self.assertEqual(r.returncode, 2, r.stderr.decode('utf-8', 'replace'))
+        self.assertIn('Assets/Ω.txt: no .meta tracked', r.stdout.decode('utf-8'))
+
     def test_wildcard_takes_one(self):
         """A select that takes one object by a wildcard name alone is a warning, never an error (the sample game's
         grab_coin teleported to CoinSpawner); one narrowed by its component, tag or full name is not."""
