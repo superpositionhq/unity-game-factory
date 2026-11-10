@@ -183,7 +183,7 @@ namespace TaskProbe.EditorTools
             var component = dot > 0 ? Reflect.ComponentNamed(go, path.Substring(0, dot)) : null;
             if (component != null)
             {
-                var value = Path(component, Shared(component, path.Substring(dot + 1)), out ok);
+                var value = Path(component, path.Substring(dot + 1), out ok);
                 if (ok) return value;
             }
             var own = Reflect.Prop(go, path);
@@ -193,18 +193,6 @@ namespace TaskProbe.EditorTools
                 return own;
             }
             return Serialized(go, path, out ok);
-        }
-
-        /// <summary>A component's `material`, `materials` and `mesh` (and the like) read as their shared forms: in the
-        /// editor the instancing getters copy the asset into the scene (and log a leak), which a read must never do.</summary>
-        static string Shared(Component component, string path)
-        {
-            var end = path.IndexOfAny(new[] { '.', '[' });
-            var member = end < 0 ? path : path.Substring(0, end);
-            if (member.Length == 0) return path;
-            var shared = "shared" + char.ToUpperInvariant(member[0]) + member.Substring(1);
-            if (component.GetType().GetProperty(shared) == null) return path;
-            return shared + (end < 0 ? "" : path.Substring(end));
         }
 
         /// <summary>Whether `path`, which doesn't read, names members `target` has and stops early: at an unset
