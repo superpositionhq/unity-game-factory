@@ -324,11 +324,11 @@ tasks share is built once: docs/task-check.md, "Requirements"), and that they ca
 `<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
 `finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
 fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
-committed yet ([docs/task-check.md](../../docs/task-check.md)). The check
-builds each start and reference as a Windows player with the probe package, plays them on a Windows desktop of their
-own (nothing on the person's screen, the game counting itself focused) and writes VALID or INVALID per task with the
-reasons and the measured values. **A task ships only when the task check says VALID**; for INVALID, fix the task (the
-docs' "Common reasons and fixes"), never the threshold toward what the start happens to measure.
+committed yet ([docs/task-check.md](../../docs/task-check.md)). The check builds each start and reference as a
+Windows player with the probe package, plays them on a Windows desktop of their own (nothing on the person's screen,
+the game counting itself focused) and writes VALID or INVALID per task with the reasons and the measured values. **A
+task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common reasons and fixes"),
+never the threshold toward what the start happens to measure.
 
 ## 6. Difficulty, limits and what the validator enforces
 

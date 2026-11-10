@@ -23,7 +23,9 @@ built with), so a commit that is one task's start and another's reference, or tw
 copy is deleted after the last task that needs it (or when the disk runs below the floor, then rebuilt if a later task
 needs it). A shared copy is the commit exactly as committed, so sharing changes no result. A run of 10 tasks takes
 hours, so start it where it can run on its own and come back; a game session starts it as its own process
-(unity-write-tasks skill, section 5). `<out>\progress.txt` (and `progress.json`) is rewritten after every task: how many
+(unity-write-tasks skill, section 5). Two runs at once on one game each get their own scratch folder, but share
+`<out>` unless each is given its own `--out`: they rewrite each other's progress files, and a task checked by both
+loses its evidence to the other. `<out>\progress.txt` (and `progress.json`) is rewritten after every task: how many
 are done, each one's verdict and minutes, and which is running; it says `finished` at the end. Progress lines carry
 the time of day, and each build and play logs how long it took.
 
@@ -35,10 +37,10 @@ VALID   metro-runner-corr-cell-and-dead-meter
 INVALID island-survival-fix-hut-door: start already passes every required probe
 ```
 
-Options: `--keep` keeps the built copies (to look at a build or rerun a play by hand), `--out DIR` puts the results
-elsewhere, `--scratch DIR` puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Unity without
-the machine's job slots, `--timeout S` (a play or the editor pass, default 1800) and `--build-timeout S` (default
-3600).
+Options: `--keep` keeps the built copies (to look at a build or rerun a play by hand), not what their plays left
+outside them (a play starts from clean saved data anyway), `--out DIR` puts the results elsewhere, `--scratch DIR`
+puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Unity without the machine's job slots,
+`--timeout S` (a play or the editor pass, default 1800) and `--build-timeout S` (default 3600).
 
 ## Requirements
 
@@ -77,9 +79,11 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
   A 20 s play takes a few seconds of real time (one that measures audio takes its own seconds); the first play after a
   build starts about 20 s slower (the antivirus scans the new player). Every build, play and editor pass goes through
   `<root>\tools\unity-heavy.ps1` when the machine has it (plays with `-Gpu`), so checks share the machine's job slots
-  with everything else; its timeouts count from when a job starts, not the wait for a slot. The checker starts that
-  script itself, from any shell; if PowerShell still refuses to run it (an execution policy your organisation set),
-  each task's line is an ERROR that says so: pass `--direct`.
+  with everything else; its timeouts count from when a job starts, not the wait for a slot. A job waits for its slot
+  as long as the machine's slots are taken (an editor opened through the limiter holds one while it is open); the
+  job's progress line then says how long it waited. The checker starts that script itself, from any shell; if
+  PowerShell still refuses to run it (an execution policy your organisation set), each task's line is an ERROR that
+  says so: pass `--direct`.
 
 ## What it does
 
@@ -109,8 +113,8 @@ the machine's job slots, `--timeout S` (a play or the editor pass, default 1800)
    log line matching `Crash!!!`, `OUTPUTTING STACK TRACE`, `Fatal error` or `Out of memory`), `log_absent`,
    `file_exists`, and every probe against its threshold.
 5. Checks the start on its probes.
-6. Writes the result and deletes the scratch copies (unless `--keep`), with what their plays left outside them, all
-   under each copy's own company name (step 3) and nothing else: the registry key
+6. Writes the result and deletes the scratch copies (unless `--keep`) and, kept or not, what their plays left outside
+   them, all under each copy's own company name (step 3) and nothing else: the registry key
    `HKEY_CURRENT_USER\Software\TaskProbe.<hash>` (PlayerPrefs), the folders `TaskProbe_<hash>` in
    `%USERPROFILE%\AppData\LocalLow` and in the temp folder (persistent data, cache) and `TaskProbe.<hash>` in the temp
    folder (crash reports).
@@ -137,7 +141,8 @@ kept copy, has its window moved off-screen and deactivated by the probe instead;
 
 A boot is the same idle game as `"look"`, only longer, so on the side that boots (the reference; a start is never
 booted) one 60 s idle play with look's queries and screenshots serves both: the boot check reads all of it and
-`"look"` reads only its first 20 s, exactly what a 20 s play would have measured. That saves a game launch per task. A
+`"look"` reads only what a 20 s play samples (its first 20.5 s: a play samples on to half a second past its length),
+exactly what a 20 s play would have measured. That saves a game launch per task. A
 look probe that reads the log (`"probe": "log"`) keeps its own 20 s play, because a log covers the whole play. The kept
 files are then under `boot_60s\`, not `look\`. Each play's progress line says how long it took, and how much of that
 it waited for a machine slot (`unity-heavy.ps1`).
@@ -192,15 +197,16 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
   - `start` and `reference`: the side's `commit`, whether it `built`, its `missing_assets` (per scene the task plays,
     the asset GUIDs it names that the commit has no asset for, and how many assets it names), and how its copy was
     made (`files`, `lfs_linked`, `lfs_copied`, `engine`: the Unity.exe used, `slots`: `unity-heavy` or `direct`);
-  - `probes`: per probe its milestone (`group`), `required`, `op`, `expect`, the `start` and `reference` measures, the
-    `threshold`, and whether each side passed (`start_passed`, `reference_passed`);
-  - `start_checks`, `reference_checks`: every check's row on each side (`name`, `kind`, `group`, `required`, `weight`,
-    `passed` and a `detail`). A probe's detail is its `describe`, then `| measured V, threshold OP T`, with what the
-    start and the reference measured when the threshold came from them, and why it has no value: `... | measured 0,
-    threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing, threshold >= 1: no value in the window
-    (...)`. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
-    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
-    counts for nothing;
+  - `probes`: an object keyed by each probe check's name: its milestone (`group`), `required`, `op`, `expect`, the
+    `start` and `reference` measures, the `threshold`, and whether each side passed (`start_passed`,
+    `reference_passed`);
+  - `start_checks`, `reference_checks`: a list with every check's row on each side, in the task's order (`name`,
+    `kind`, `group`, `required`, `weight`, `passed` and a `detail`). A probe's detail is its `describe`, then
+    `| measured V, threshold OP T`, with what the start and the reference measured when the threshold came from them,
+    and why it has no value: `... | measured 0, threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing,
+    threshold >= 1: no value in the window (...)`. A detail starting `not asked` is a check that side doesn't run
+    (judges, trace probes and packaging on either side; on the start, everything but its probes and a
+    `fails_at_start` build check): it shows as passed and counts for nothing;
   - `task_sha256` (the task file's), `task`, `game`, `at` (when, UTC), `seconds` (how long the check took) and
     `evidence` (the task's folder of play files, below).
 - `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
@@ -316,9 +322,9 @@ select that also matches another object can take the player there instead:
 `"component": "Coin"`, or their full name, `Coin(Clone)`: task-probes.md, section 2.4); `teleport_to skipped (no
 object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain boot
 (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
-`reference fails X: build failed (exit N)` (or `(timed out)`: it ran past `--build-timeout`) means the reference doesn't
-build as committed; every check that `needs` it then fails `not run: needs X`, and so on down the chain. Its
-`reference\build\build.log` says why, as for `start doesn't build` below.
+`reference fails X: build failed (exit N: ...)` (or `(timed out)`: it ran past `--build-timeout`) means the reference
+doesn't build as committed; every check that `needs` it then fails `not run: needs X`, and so on down the chain. The
+reason names the first cause and `reference\build\build.log` holds the rest, as for `start doesn't build` below.
 
 **`start: Assets/Scenes/X.unity names N of its M assets that the commit doesn't have`** (a note). The scene refers to
 asset GUIDs the commit lacks, typically a store pack committed only later, or an asset committed without its `.meta`;
@@ -327,9 +333,12 @@ the wrong thing. Pick a commit that has the assets, or commit them (each with it
 them; the checker never adds files from other commits.
 
 **`start doesn't build`.** The start's scripts don't compile on its 6000.3 editor as committed, or the player build
-fails. `start\build\build.log` starts with the build's own reason when it gave one (`[task-check] the build's result
-says it failed: ...`), then Unity's log: read its `error CS` lines first. `didn't build (timed out)` is a build that
-ran past `--build-timeout`. Pick a start that builds, or, when making it build is the task, set
+fails. The reason itself names the first cause after the exit code (`didn't build (exit 1: ...)`), in one line of at
+most 200 characters: the build's own error, else the log's first compiler error (`<file>(<line>,<column>): error
+CS<n>: ...`), else its first `## Script Compilation Error for:` line (an assembly a post-processor failed on).
+`start\build\build.log` starts with the build's own reason when it gave one (`[task-check] the build's result says it
+failed: ...`), then Unity's log: read its `error CS` lines first. `didn't build (timed out)` is a build that ran past
+`--build-timeout`. Pick a start that builds, or, when making it build is the task, set
 `"fails_at_start": true` on the build check (then no threshold may be relative to the start).
 
 **`start: ProjectSettings/ProjectVersion.txt names Unity ...: a task's commits must be Unity 6000.3 projects as
@@ -347,6 +356,10 @@ Fix that and run again. One check's row reading `the checker failed (...)` is th
 **A Python traceback that ends the run.** The checker met a fault of its own that it doesn't turn into an ERROR line.
 The tasks it finished keep their results, `progress.txt` names the one it was checking, and the scratch copies are
 deleted (unless `--keep`). Report it with the traceback, and check the remaining tasks with `--task`.
+
+**`couldn't delete <folder> (...): delete it by hand`** (a progress line). A file of a scratch copy is held by a
+process outside the checker (a player that outlived an interrupt, a viewer); the run goes on. Close what holds it and
+delete the folder.
 
 **`a no-op scores N, not 0: give X "weight": 0, or drop them`.** Those checks already pass at the start (`still_works`
 probes, probes that aren't required), so a run that changes nothing would score `N` (the weighted share of checks
