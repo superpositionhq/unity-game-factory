@@ -506,7 +506,9 @@ Limits:
 - `select`: `component` (a uGUI component's type: `Image`, `Slider`, `TextMeshProUGUI`, a game's own component on a
   canvas object; or a UI Toolkit element's type: `Label`, `ProgressBar`, a game's own element; base types match too,
   so `Button` takes uGUI and UI Toolkit buttons alike), `name` (a wildcard on the GameObject's or the element's name),
-  `text` (a regular expression its text must match), `visible`.
+  `text` (a regular expression its text must match), `visible`. A `component` no loaded assembly has (a typo, or
+  `Label` in a project without UI Toolkit) matches nothing, and the play's `query_errors` says `widgets <id>: no
+  component type <T>`.
 - **To check what a HUD shows, whatever draws it, use `ui` (section 2.18).** `widgets` reads a named widget's own
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
@@ -515,11 +517,13 @@ Limits:
   Toolkit element with `display: none` or `visibility: hidden`, nor one culled by a RectMask2D or entirely outside the
   frame, so `count` counts what is on screen (a warning bar's shown messages, not the ones the game keeps hidden).
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
-  stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; a Selectable with no text of its own
-  reads its first child label's, so a Button reads its label); `percent` (0-1: a Slider's normalized value, a filled
-  Image's fill amount, a ProgressBar's share, a Scrollbar's or Scroller's position); `value` (a Slider's value, a
-  Toggle's 1/0, a ProgressBar's, Scrollbar's or Scroller's value, a Dropdown's selected index); `interactable` (1 when
-  a uGUI Selectable is interactable and enabled, no value for another uGUI widget; a UI Toolkit element's enabled
+  stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; an input field's (`InputField`,
+  `TMP_InputField`, UI Toolkit's `TextField`) what was typed, not its placeholder; a UI Toolkit `DropdownField`'s
+  caption and a `Toggle`'s label; a Selectable with no text of its own reads the first label below it that shows with
+  it, so a Button reads its label); `percent` (0-1: a Slider's normalized value, a filled Image's fill amount, a
+  ProgressBar's share, a Scrollbar's or Scroller's position); `value` (a Slider's value, a Toggle's 1/0, a
+  ProgressBar's, Scrollbar's or Scroller's value, a Dropdown's or DropdownField's selected index); `interactable` (1
+  when a uGUI Selectable is interactable and enabled, no value for another uGUI widget; a UI Toolkit element's enabled
   state); `has_brush` (1 when an Image's sprite, a RawImage's texture, or a UI Toolkit element's image or background
   image is set; no value for another uGUI widget); `brush` (that image's name, with `match`); `x`, `y`, `w`, `h` (the
   widget's rectangle in viewport fractions 0-1, **y down from the top**, whatever anchor or layout placed it; no value
