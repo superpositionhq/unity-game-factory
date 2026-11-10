@@ -4,7 +4,8 @@
 // name (wildcard on its object's name), owner (an object select its object or an ancestor matches), near (its
 // transform's place), mesh (wildcard on a renderer's, filter's or mesh collider's mesh asset name), visible (true:
 // drawn only), inactive (true: components of inactive objects too; default only active ones, as an object select).
-// rows: {"name" (its object's), "class" (its type), "owner" (its object's name), <fields>...}.
+// rows: {"name" (its object's), "class" (its type), "owner" (its object's name), <fields>...} (+ "glow_sources",
+// "glow_read" with lit or glow, for logs).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -134,9 +135,12 @@ namespace TaskProbe
             };
             var renderer = c as Renderer;
             var light = c as Light;
-            if (Reads("lit") || Reads("glow")) Glow.Of(c).Fill(row, Reads("lit"), Reads("glow"));
+            // changed, bounds_change, pose_change: a renderer against the first sample this query saw it in
             Changes.Reading change = default;
             if (renderer != null && Fields.Exists(Changes.IsField)) change = changes.Part(renderer);
+            // lit, glow: a light, a part or an effect as a source; no value for any other component
+            var glow = Reads("lit") || Reads("glow");
+            var shines = glow ? Glow.Of(c) : default;
             var speedRead = false;
             double? speed = null;
             foreach (var f in Fields)
@@ -173,7 +177,8 @@ namespace TaskProbe
                         break;
                     case "lit":
                     case "glow":
-                        continue;
+                        v = shines.Field(f);
+                        break;
                     case "intensity":
                         if (light != null) v = (double)light.intensity;
                         break;
@@ -186,6 +191,7 @@ namespace TaskProbe
                 }
                 if (v != null) row[f] = v;
             }
+            if (glow) shines.Note(row);
             return row;
         }
 

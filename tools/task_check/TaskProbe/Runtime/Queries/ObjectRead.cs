@@ -24,25 +24,47 @@ namespace TaskProbe
             return behaviour ?? other ?? "GameObject";
         }
 
-        /// <summary>The renderers whose bounds make an object's geometry (extent_, spread): drawn, not an effect (a
-        /// particle system or trail spans where its particles went), with a box.</summary>
-        static bool Geometry(Renderer r)
+        // ---------------------------------------------------------------- parts
+
+        /// <summary>The parts an object draws with, drawn or hidden (changed, spin, lit, glow; extent_ and spread take the
+        /// drawn ones): the renderers of itself and its descendants that draw a shape, each with something to draw (a
+        /// MeshRenderer's mesh with vertices, a SkinnedMeshRenderer's mesh, a SpriteRenderer's sprite), as the original
+        /// takes an actor's mesh components with a mesh, its 2D sprites and cables among them. Effects (particle systems,
+        /// trails, visual effects) are no parts: they span where their particles went. Sprite masks draw nothing.</summary>
+        public static void Parts(GameObject go, List<Renderer> parts)
         {
-            if (!Find.Drawn(r)) return false;
-#if TASKPROBE_PARTICLES
-            if (r is ParticleSystemRenderer) return false;
-#endif
-            if (r is TrailRenderer) return false;
-            return r.bounds.extents.sqrMagnitude > 1e-12f;
+            parts.Clear();
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                if (IsPart(r)) parts.Add(r);
         }
 
-        /// <summary>The world-aligned union of an object's drawn renderers' bounds, descendants included; false when it
-        /// draws nothing.</summary>
-        public static bool DrawnBox(GameObject go, out Bounds box)
+        static bool IsPart(Renderer r)
+        {
+            switch (r)
+            {
+                case MeshRenderer _:
+                    return r.TryGetComponent<MeshFilter>(out var filter) && filter.sharedMesh != null && filter.sharedMesh.vertexCount > 0;
+                case SkinnedMeshRenderer skinned: return skinned.sharedMesh != null;
+                case SpriteRenderer sprite: return sprite.sprite != null;
+                case TrailRenderer _:
+                case SpriteMask _:
+                    return false;
+#if TASKPROBE_PARTICLES
+                case ParticleSystemRenderer _: return false;
+#endif
+            }
+            return !Effects.IsRenderer(r);
+        }
+
+        /// <summary>A drawn part with a box: what extent_ and spread measure.</summary>
+        static bool Geometry(Renderer r) => Find.Drawn(r) && r.bounds.extents.sqrMagnitude > 1e-12f;
+
+        /// <summary>The world-aligned union of an object's drawn parts' bounds; false when it draws nothing.</summary>
+        public static bool DrawnBox(List<Renderer> parts, out Bounds box)
         {
             box = new Bounds();
             var have = false;
-            foreach (var r in go.GetComponentsInChildren<Renderer>(false))
+            foreach (var r in parts)
             {
                 if (!Geometry(r)) continue;
                 if (have) box.Encapsulate(r.bounds); else { box = r.bounds; have = true; }
@@ -50,14 +72,14 @@ namespace TaskProbe
             return have;
         }
 
-        /// <summary>spread: the diagonal of the box around its drawn renderers' bounds centres, a skinned mesh whose bones
+        /// <summary>spread: the diagonal of the box around its drawn parts' bounds centres, a skinned mesh whose bones
         /// carry several Rigidbodies (a ragdoll) by each body's place; 0 with one, null with none. A whole object reads
         /// its parts' own layout; one broken into pieces that fell or flew apart reads more.</summary>
-        public static object Spread(GameObject go)
+        public static object Spread(List<Renderer> parts)
         {
             var have = false;
             var box = new Bounds();
-            foreach (var r in go.GetComponentsInChildren<Renderer>(false))
+            foreach (var r in parts)
             {
                 if (!Geometry(r)) continue;
                 var bodies = 0;
@@ -353,8 +375,8 @@ namespace TaskProbe
     /// <summary>changed, bounds_change, pose_change: each part against the first sample it was seen in.</summary>
     public sealed class Changes
     {
-        public const float Bounds = 0.01f;  // m: changed when a part's world, or a skinned mesh's local, bounds moved more
-        public const float Pose = 0.05f;    // m: changed when a skinned mesh's bones moved more than this in all
+        const float Bounds = 0.01f;  // m: changed when a part's world, or a skinned mesh's local, bounds moved more
+        const float Pose = 0.05f;    // m: changed when a skinned mesh's bones moved more than this in all
 
         public static bool IsField(string f) => f == "changed" || f == "bounds_change" || f == "pose_change";
 
@@ -430,12 +452,11 @@ namespace TaskProbe
             return new Reading { Any = true, HasPose = now.Skinned };
         }
 
-        /// <summary>An object: changed when any part changed, a part drawn then is gone, or a part not there then is
-        /// drawn now; bounds_change its parts' largest, pose_change its skinned meshes' summed.</summary>
-        public Reading Object(GameObject go)
+        /// <summary>An object by its parts (ObjectRead.Parts): changed when any part changed, a part drawn then is gone,
+        /// or a part not there then is drawn now; bounds_change its parts' largest, pose_change its skinned meshes'
+        /// summed. The first sample records every part and reads unchanged.</summary>
+        public Reading Object(GameObject go, List<Renderer> parts)
         {
-            var parts = new List<Renderer>();
-            Find.MeshParts(go, parts);
             var key = go.GetInstanceID();
             var seen = firstParts.TryGetValue(key, out var before);
             var keys = new List<int>(parts.Count);

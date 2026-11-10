@@ -1,14 +1,15 @@
 // lit and glow (contract section 3): whether something gives off light and how much, one reading over every way a
-// build makes light (a Light, a mesh drawn with an emissive or unlit material, a live particle system), so a lamp lit by
-// a Light and a lamp drawn by a glowing material read the same.
+// build makes light (a Light, a part drawn with an emissive or unlit material, a live effect), so a lamp lit by a
+// Light and a lamp drawn by a glowing material read the same.
 //
 // A mesh renderer is read from its materials' properties when every material it draws with has a shader with the
 // standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`)
 // and no texture multiplies the colour read, MaterialPropertyBlock overrides included; else (a texture, a Shader Graph
 // or a custom shader) it is rendered alone (DrawnRender.Glow), as the original renders a mesh whose material graph it
-// can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot. A live particle
-// system is always read as rendered. Past the render budget a mesh reads the bound its properties give (a texture
-// taken as white: "bound"); a particle system then has no value ("unread").
+// can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot. Any other part
+// (a sprite, a line) and a live effect (a particle system, a trail, a visual effect) are always read as rendered: what
+// they draw is their own (a sprite, vertex colours), not their material's. Past the render budget a mesh reads the
+// bound its properties give (a texture taken as white: "bound"); anything else then has no value ("unread").
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -37,38 +38,33 @@ namespace TaskProbe
             Reads |= other.Reads;
         }
 
-        /// <summary>"light,emissive,unlit,effect": the kinds lit, for logs.</summary>
-        public string Sources()
+        /// <summary>lit or glow; null when it wasn't read.</summary>
+        public object Field(string f)
         {
-            var parts = new List<string>();
-            if ((Kinds & KindLight) != 0) parts.Add("light");
-            if ((Kinds & KindEmissive) != 0) parts.Add("emissive");
-            if ((Kinds & KindUnlit) != 0) parts.Add("unlit");
-            if ((Kinds & KindEffect) != 0) parts.Add("effect");
-            return string.Join(",", parts);
+            if (!Read) return null;
+            return f == "lit" ? Lit ? 1.0 : 0.0 : (object)Glow;
         }
 
-        /// <summary>"props,render,bound,unread": how its renderers were read, for logs; null with no renderer read.</summary>
-        public string ReadAs()
+        /// <summary>glow_sources (the kinds lit: "light,emissive,unlit,effect") and glow_read (how its renderers were read:
+        /// "props,render,bound,unread"; "unread": no value, and why), for logs, never a threshold.</summary>
+        public void Note(Dictionary<string, object> row)
         {
-            if (Reads == 0) return null;
-            var parts = new List<string>();
-            if ((Reads & ReadProps) != 0) parts.Add("props");
-            if ((Reads & ReadRender) != 0) parts.Add("render");
-            if ((Reads & ReadBound) != 0) parts.Add("bound");
-            if ((Reads & ReadUnread) != 0) parts.Add("unread");
-            return string.Join(",", parts);
-        }
-
-        /// <summary>Puts lit / glow (as asked) and glow_sources / glow_read into a row.</summary>
-        public void Fill(Dictionary<string, object> row, bool lit, bool glow)
-        {
-            var how = ReadAs();
-            if (how != null) row["glow_read"] = how;  // for logs, never a threshold ("unread": no value, and why)
-            if (!Read) return;
-            if (lit) row["lit"] = Lit ? 1.0 : 0.0;
-            if (glow) row["glow"] = Glow;
-            row["glow_sources"] = Sources();  // for logs, never a threshold
+            if (Read)
+            {
+                var kinds = new List<string>();
+                if ((Kinds & KindLight) != 0) kinds.Add("light");
+                if ((Kinds & KindEmissive) != 0) kinds.Add("emissive");
+                if ((Kinds & KindUnlit) != 0) kinds.Add("unlit");
+                if ((Kinds & KindEffect) != 0) kinds.Add("effect");
+                row["glow_sources"] = string.Join(",", kinds);
+            }
+            if (Reads == 0) return;
+            var reads = new List<string>();
+            if ((Reads & ReadProps) != 0) reads.Add("props");
+            if ((Reads & ReadRender) != 0) reads.Add("render");
+            if ((Reads & ReadBound) != 0) reads.Add("bound");
+            if ((Reads & ReadUnread) != 0) reads.Add("unread");
+            row["glow_read"] = string.Join(",", reads);
         }
     }
 
@@ -87,42 +83,36 @@ namespace TaskProbe
 
         static readonly ShaderTagId GraphTag = new ShaderTagId("ShaderGraphShader");
         static readonly Dictionary<int, Face> Faces = new Dictionary<int, Face>();  // by shader: its interface never changes
-        static readonly Dictionary<int, GlowReading> Frame = new Dictionary<int, GlowReading>();
-        static int frameOf = -1;
+        static readonly Dictionary<int, GlowReading> Seen = new Dictionary<int, GlowReading>();  // each part once a frame
+        static int seenFrame = -1;
         static MaterialPropertyBlock blockAll, blockOne;
 
         static double Luminance(Color c) => Find.Luminance(c.r, c.g, c.b);
 
         // ---------------------------------------------------------------- what reads as a source
 
-        /// <summary>One component as a source: a Light, a mesh renderer, a particle system (or its renderer); not read
-        /// (Read false) for anything else.</summary>
+        /// <summary>One component as a source: a Light, a renderer that draws a shape (a mesh, sprite or line), an effect
+        /// (a particle system, a trail, a visual effect, or its renderer); not read (Read false) for anything else.</summary>
         public static GlowReading Of(Component c)
         {
             var r = new GlowReading();
             if (c is Light light) AddLight(ref r, light);
-            else if (c is MeshRenderer || c is SkinnedMeshRenderer) AddMesh(ref r, (Renderer)c);
-#if TASKPROBE_PARTICLES
-            else if (c is ParticleSystem ps) AddEffect(ref r, ps);
-            else if (c is ParticleSystemRenderer psr && psr.TryGetComponent<ParticleSystem>(out var owner)) AddEffect(ref r, owner);
-#endif
+            else if (Effects.Drawn(c, out var effect, out var drawn)) AddEffect(ref r, effect, drawn);
+            else if (c is Renderer part && !(part is SpriteMask)) AddPart(ref r, part);
             return r;
         }
 
-        /// <summary>An object's sources: its Lights, its mesh parts (Find.MeshParts) and its particle systems, itself
-        /// and its descendants. An object with nothing that gives light reads 0; one with a source that couldn't be read
-        /// has no value unless another source is lit.</summary>
-        public static GlowReading OfObject(GameObject go)
+        /// <summary>An object's sources: its Lights, its parts (ObjectRead.Parts) and its effects, itself and its
+        /// descendants. An object with nothing that gives light reads 0; one with a source that couldn't be read has no
+        /// value unless another source is lit.</summary>
+        public static GlowReading OfObject(GameObject go, List<Renderer> parts)
         {
             var total = new GlowReading { Read = true };
             var unread = false;
             foreach (var light in go.GetComponentsInChildren<Light>(true)) AddLight(ref total, light);
-            var parts = new List<Renderer>();
-            Find.MeshParts(go, parts);
-            foreach (var part in parts) unread |= !AddMesh(ref total, part);
-#if TASKPROBE_PARTICLES
-            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) unread |= !AddEffect(ref total, ps);
-#endif
+            foreach (var part in parts) unread |= !AddPart(ref total, part);
+            foreach (var c in Effects.In(go))
+                if (Effects.Drawn(c, out var effect, out var drawn)) unread |= !AddEffect(ref total, effect, drawn);
             total.Read = total.Lit || !unread;
             return total;
         }
@@ -143,47 +133,48 @@ namespace TaskProbe
             r.Kinds |= GlowReading.KindLight;
         }
 
-        /// <summary>A mesh renderer, read once a frame (a select's has.lit and the fields share it); false when it
-        /// couldn't be read.</summary>
-        static bool AddMesh(ref GlowReading total, Renderer renderer)
+        /// <summary>A part, read once a frame (a select's has.lit and the fields share it); false when it couldn't be
+        /// read.</summary>
+        static bool AddPart(ref GlowReading total, Renderer renderer)
         {
-            if (frameOf != Time.frameCount)
+            if (seenFrame != Time.frameCount)
             {
-                frameOf = Time.frameCount;
-                Frame.Clear();
+                seenFrame = Time.frameCount;
+                Seen.Clear();
             }
             var id = renderer.GetInstanceID();
-            if (!Frame.TryGetValue(id, out var r)) Frame[id] = r = ReadMesh(renderer);
+            if (!Seen.TryGetValue(id, out var r)) Seen[id] = r = ReadPart(renderer);
             total.Add(r);
             return r.Read;
         }
 
-        /// <summary>A mesh as a source, lit when it is drawn and its light is above the floor; glow that light times a
-        /// quarter of the surface of its own bounds box (m2), what a lamp that size gives every way. Every material reads
-        /// exactly by its properties: the brightest material's luminance, as if it covered the whole mesh. Else (a
-        /// texture, another shader) rendered alone without light: lit by its brightest pixel, glow by its luminance over
-        /// the box summed and averaged over four views, which is the same amount for a box lit all over and less where
-        /// only part of it glows. Past the render budget, the bound its properties give.</summary>
-        static GlowReading ReadMesh(Renderer renderer)
+        /// <summary>A part as a source, lit when it is drawn and its light is above the floor; glow that light times a
+        /// quarter of the surface of its own bounds box (m2), what a lamp that size gives every way. A mesh whose every
+        /// material reads exactly by its properties: the brightest material's luminance, as if it covered the whole mesh.
+        /// Else (a texture, another shader; and any part but a mesh) rendered alone without light: lit by its brightest
+        /// pixel, glow by its luminance over the box summed and averaged over four views, which is the same amount for a
+        /// box lit all over and less where only part of it glows. Past the render budget, a mesh's bound.</summary>
+        static GlowReading ReadPart(Renderer renderer)
         {
             var r = new GlowReading();
-            // a mesh that isn't drawn gives no light, whatever its materials
+            // a part that isn't drawn gives no light, whatever its materials
             if (!Find.Drawn(renderer)) { r.Read = true; return r; }
+            var mesh = renderer is MeshRenderer || renderer is SkinnedMeshRenderer;
             var materials = renderer.sharedMaterials;
             var read = materials.Length == 0;  // a material said how bright it can be
-            var allRead = true;  // every material did
-            var exact = true;    // and with no texture: the value, not a bound
+            var allRead = mesh;  // every material did (a sprite's or a line's light is its own, not its material's)
+            var exact = mesh;    // and with no texture: the value, not a bound
             var allUnlit = materials.Length > 0;
             var best = 0.0;
             var bestUnlit = false;
-            var blocks = renderer.HasPropertyBlock();
+            var blocks = mesh && renderer.HasPropertyBlock();
             for (var i = 0; i < materials.Length; i++)
             {
                 var m = materials[i];
                 if (m == null || m.shader == null) { read = true; continue; }  // an empty slot draws nothing
                 var face = FaceOf(m.shader);
                 allUnlit &= face == Face.Unlit;
-                if (face == Face.None) { exact = allRead = false; continue; }
+                if (!mesh || face == Face.None) { exact = allRead = false; continue; }
                 read = true;
                 MaterialPropertyBlock one = null, all = null;
                 if (blocks)
@@ -234,13 +225,11 @@ namespace TaskProbe
             return r;
         }
 
-#if TASKPROBE_PARTICLES
-        /// <summary>A particle system: dark unless it is live and its renderer drawn; then as rendered. False when it
-        /// couldn't be read.</summary>
-        static bool AddEffect(ref GlowReading total, ParticleSystem ps)
+        /// <summary>An effect: dark unless it is live and its renderer drawn; then rendered alone as a part is (its world
+        /// box), lit by its brightest pixel. False when it couldn't be read.</summary>
+        static bool AddEffect(ref GlowReading total, Component effect, Renderer renderer)
         {
-            var renderer = ps.GetComponent<ParticleSystemRenderer>();
-            if (renderer == null || !Find.Drawn(renderer) || !Effects.Live(ps)) { total.Read = true; return true; }
+            if (renderer == null || !Find.Drawn(renderer) || !Effects.Live(effect)) { total.Read = true; return true; }
             var seen = Render(renderer);
             if (!seen.Ok) { total.Reads |= GlowReading.ReadUnread; return false; }
             total.Read = true;
@@ -253,7 +242,6 @@ namespace TaskProbe
             }
             return true;
         }
-#endif
 
         static RenderedGlow Render(Renderer renderer)
         {
@@ -345,12 +333,13 @@ namespace TaskProbe
         }
     }
 
-    /// <summary>Live effects (a components select's `effect`): a ParticleSystem that is alive (playing or holding
-    /// particles), a VisualEffect holding particles, an enabled DecalProjector, a TrailRenderer drawing points. The VFX
-    /// Graph and URP decals are read by reflection, so the probe needs neither package.</summary>
+    /// <summary>Live effects (a components select's `effect`, and lit / glow): a ParticleSystem that is alive (playing or
+    /// holding particles), a VisualEffect holding particles, an enabled DecalProjector, a TrailRenderer drawing points.
+    /// The VFX Graph and URP decals are read by name, so the probe references neither.</summary>
     public static class Effects
     {
         static readonly string[] Names = { "ParticleSystem", "TrailRenderer", "UnityEngine.VFX.VisualEffect", "UnityEngine.Rendering.Universal.DecalProjector" };
+        static readonly Type VisualEffect = Reflect.TypeNamed("UnityEngine.VFX.VisualEffect");
 
         /// <summary>The component types an effect can be, those this build has.</summary>
         public static IEnumerable<Type> Types()
@@ -378,6 +367,44 @@ namespace TaskProbe
             }
             if (Reflect.IsA(type, "DecalProjector")) return !(c is Behaviour d) || d.enabled;
             return false;
+        }
+
+        /// <summary>Whether a renderer is an effect's own (a particle system's, a trail, a visual effect's).</summary>
+        public static bool IsRenderer(Renderer r)
+        {
+#if TASKPROBE_PARTICLES
+            if (r is ParticleSystemRenderer) return true;
+#endif
+            return r is TrailRenderer || r.GetType().Name == "VFXRenderer";
+        }
+
+        /// <summary>An effect that draws light (lit, glow) and the renderer that draws it, from either of the two: a
+        /// ParticleSystem or its renderer, a TrailRenderer, a VisualEffect or its renderer. False for anything else (a
+        /// decal is no source).</summary>
+        public static bool Drawn(Component c, out Component effect, out Renderer renderer)
+        {
+            effect = null;
+            renderer = null;
+#if TASKPROBE_PARTICLES
+            if (c is ParticleSystem ps) { effect = ps; renderer = ps.GetComponent<ParticleSystemRenderer>(); return true; }
+            if (c is ParticleSystemRenderer psr) { effect = psr.GetComponent<ParticleSystem>(); renderer = psr; return effect != null; }
+#endif
+            if (c is TrailRenderer trail) { effect = renderer = trail; return true; }
+            if (VisualEffect == null) return false;
+            if (VisualEffect.IsInstanceOfType(c)) { effect = c; renderer = c.GetComponent<Renderer>(); return true; }
+            if (c is Renderer r && r.GetType().Name == "VFXRenderer") { effect = c.GetComponent(VisualEffect); renderer = r; return effect != null; }
+            return false;
+        }
+
+        /// <summary>The effects that draw light in an object and its descendants (inactive ones too: they read dark).</summary>
+        public static IEnumerable<Component> In(GameObject go)
+        {
+#if TASKPROBE_PARTICLES
+            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) yield return ps;
+#endif
+            foreach (var trail in go.GetComponentsInChildren<TrailRenderer>(true)) yield return trail;
+            if (VisualEffect == null) yield break;
+            foreach (var vfx in go.GetComponentsInChildren(VisualEffect, true)) yield return vfx;
         }
     }
 }

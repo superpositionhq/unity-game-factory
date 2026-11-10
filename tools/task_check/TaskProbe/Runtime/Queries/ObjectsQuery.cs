@@ -1,6 +1,6 @@
 // objects: GameObjects an object select matches, one row each (contract section 3, "objects"). Every match is read and
 // summed up in the sample; the first 200 are kept as rows.
-// rows: {"name", "class", <fields>...} (+ "glow_sources", "glow_read" with lit or glow).
+// rows: {"name", "class", <fields>...} (+ "glow_sources", "glow_read" with lit or glow, for logs).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,7 +14,8 @@ namespace TaskProbe
         readonly Places places = new Places();
         readonly Spins spins = new Spins();
         readonly Changes changes = new Changes();
-        bool change, glow;
+        readonly List<Renderer> parts = new List<Renderer>();
+        bool change, glow, withParts;
 
         static readonly HashSet<string> Plain = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -30,6 +31,7 @@ namespace TaskProbe
             sel = Sel.Parse(Json.Obj(Def, "select"), Kind + " " + Id);
             change = Fields.Exists(Changes.IsField);
             glow = Reads("lit") || Reads("glow");
+            withParts = change || glow || Reads("spin") || Reads("spread") || Fields.Exists(f => f.StartsWith("extent_", StringComparison.Ordinal));
         }
 
         public override void Frame(float dt)
@@ -52,16 +54,19 @@ namespace TaskProbe
         Dictionary<string, object> Row(GameObject go)
         {
             var row = new Dictionary<string, object>(StringComparer.Ordinal) { ["name"] = go.name, ["class"] = ObjectRead.ClassOf(go) };
-            var c = change ? changes.Object(go) : default;
-            if (glow) Glow.OfObject(go).Fill(row, Reads("lit"), Reads("glow"));
+            if (withParts) ObjectRead.Parts(go, parts);
+            // changed, bounds_change, pose_change: against the first sample this query saw the object in
+            var c = change ? changes.Object(go, parts) : default;
+            // lit, glow: over its lights, parts and effects
+            var light = glow ? Glow.OfObject(go, parts) : default;
             Vector3 velocity = Vector3.zero;
             double? speed = null;
             var speedRead = false;
             foreach (var f in Fields)
             {
-                if (f == "lit" || f == "glow") continue;
                 object v;
                 if (Changes.IsField(f)) v = c.Field(f);
+                else if (f == "lit" || f == "glow") v = light.Field(f);
                 else if (f == "speed" || f == "facing_vs_velocity")
                 {
                     if (!speedRead)
@@ -76,6 +81,7 @@ namespace TaskProbe
                 else v = Field(go, f);
                 if (v != null) row[f] = v;
             }
+            if (glow) light.Note(row);
             return row;
         }
 
@@ -99,13 +105,13 @@ namespace TaskProbe
                 case "extent_x":
                 case "extent_y":
                 case "extent_z":
-                    if (!ObjectRead.DrawnBox(go, out var box)) return null;
+                    if (!ObjectRead.DrawnBox(parts, out var box)) return null;  // it draws nothing
                     return ObjectRead.Axis(box.extents, f.Substring(7));
                 case "active": return go.activeInHierarchy ? 1.0 : 0.0;
                 case "hidden": return ObjectRead.Hidden(go) ? 1.0 : 0.0;
                 case "collision": return Find.Collides(go, true) ? 1.0 : 0.0;
                 case "simulating": return go.activeInHierarchy && Find.Simulates(go) ? 1.0 : 0.0;
-                case "spread": return ObjectRead.Spread(go);
+                case "spread": return ObjectRead.Spread(parts);
                 case "spin": return Spin(go);
                 case "clip": return ObjectRead.Clip(go);
             }
@@ -129,6 +135,7 @@ namespace TaskProbe
                     case "world_pitch":
                     case "world_roll":
                     {
+                        // the part's own rotation in the world, whether its object or the part itself turned
                         var part = Reflect.Part(go, rest);
                         if (part == null) return null;
                         var e = part.eulerAngles;
@@ -139,11 +146,9 @@ namespace TaskProbe
             return null;
         }
 
-        /// <summary>The fastest of its mesh parts; with none, its own transform.</summary>
+        /// <summary>The fastest of its parts (as changed takes them); with none, its own transform.</summary>
         object Spin(GameObject go)
         {
-            var parts = new List<Renderer>();
-            Find.MeshParts(go, parts);
             if (parts.Count == 0) return spins.Of(go.transform);
             double? best = null;
             foreach (var r in parts)
