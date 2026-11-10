@@ -634,7 +634,11 @@ a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in
 everything it started when `desk.py` goes, and exits with the player's exit code: 0 when the play ended (a game that
 refuses to quit is ended a few frames later, one whose shutdown hangs after 5 s, with 0 too), 2 when the play spec can't
 be read (missing, not a JSON object, another `format`: `TaskProbe: the play spec <file> couldn't be read: <why>` in
-`play.log`). What the play wrote into `out` is read back, then the folder deleted.
+`play.log`). What the play wrote into `out` is read back, then the folder deleted; the checker keeps those files and
+the play's spec (`unity.SPEC`) as the play's evidence (`check.Side._play`), since only the spec says which query id is
+which select. When `desk.py` itself fails (no window station to make its desktop on: it exits 1 with a line `desk.py:
+...` and the player never runs) the play raises `unity.NoDesktop`, a machine error: the task reads ERROR, never a
+play with no samples.
 
 **The build** (`unity.Project.build`, `TaskProbe.EditorTools.Build.Player`; one command, in the copy):
 

@@ -219,7 +219,8 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
 - `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
   `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
   The result doesn't name a check's play: it is the check's `play` in the task file. Each holds `probe.json`
-  (below), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
+  (below), `play_spec.json` (what the play was asked: its inputs, and its queries with their ids, kinds and
+  selects), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
   line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI
   included, evenly over the play), `play.log` (the game's own player log) and `output.txt` (what the play's job
   printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and `build\build.log`
@@ -230,9 +231,10 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
   there are some). A key of `measures` is a query's id, `q` and ten hex digits made from what the query selects (its
   kind with its select, point or rect), so a query has the same id in every play and on both sides, and probes that
-  read other fields of one selection share one query. The file doesn't name the checks: tell its queries apart by
-  what their samples hold, either `rows` (one per object, component, widget or element matched, with its `name` and
-  the fields asked for) or a `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
+  read other fields of one selection share one query. The file doesn't name the checks: `play_spec.json` beside it
+  gives each id's kind and select, which you match with the check's measure in the task file. A sample holds either
+  `rows` (one per object, component, widget or element matched, with its `name` and the fields asked for) or a
+  `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
   `spawns` sample holds running totals since the play started; the checker reads each sample's rise over the one
   before.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
@@ -377,8 +379,8 @@ Pick a start and a reference from the part of the game's history made on 6000.3.
 **`ERROR   <task>: the checker couldn't check it: ...`.** The checker itself failed on that task, so the line says
 nothing about the task; the run goes on with the next one, and the exit code is 1. The rest of the line says why: a
 missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a build that
-stopped (next entry), a disk error. Fix that and run again. One check's row reading `the checker failed (...)` is the
-same for that check alone.
+stopped (next entry), a player that couldn't be started on a desktop of its own, a disk error. Fix that and run
+again. One check's row reading `the checker failed (...)` is the same for that check alone.
 
 **`... didn't build: Unity stopped twice (exit N) with no compiler error and no result saying why: ...`** (or **`Unity
 was stopped at the build's time limit (N s) ...`**; an ERROR line). The build failed without a word about the game:

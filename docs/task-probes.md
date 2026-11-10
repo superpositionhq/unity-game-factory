@@ -411,8 +411,9 @@ renderers, else its position.
     and booleans as numbers, enums as their number, object references as 1 when set and 0 when not, strings through
     `match`; an array or list without an index gives its length, `[i]` its element (`prop:Inventory.items[0]`); a
     dictionary's entry by its key (`prop:Inventory.counts.coins`); a vector's `.x`, `.y`, `.z` and a colour's `.r`,
-    `.g`, `.b`, `.a`. Read a renderer's `sharedMaterial` and a MeshFilter's `sharedMesh`: the plain `material`,
-    `materials` and `mesh` give that object a copy of its own, which changes the game;
+    `.g`, `.b`, `.a`. A renderer's `material` and `materials`, a MeshFilter's `mesh` and a Collider's `material` in a
+    path are read as their `shared...` versions (the plain getters would give that object a copy of its own, which
+    changes the game), so either spelling reads the shared asset. A path of more than 16 steps reads nothing;
   - `bone:<Component>.<Bone>.x|y|z`: the world position of a bone of a SkinnedMeshRenderer, a human bone of an
     Animator (`bone:Animator.Head.y`), or a descendant transform of that name. Bone, Part (below) and Animator
     parameter names are written as Unity has them, dots, spaces, colons, parentheses and hyphens included

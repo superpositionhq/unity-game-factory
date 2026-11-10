@@ -618,7 +618,7 @@ LOGGED = (  # keys and values of probe.json's samples, which the page names "for
     'peak', 'listener', 'source', 'ugui', 'uitk', 'ocr', 'camera_stack', 'post_processing', 'grading_mode', 'ldr',
     'hdr', 'pipeline', 'hue_shift', 'sun', 'fog', 'mode')
 NOT_OURS = ('true', 'false', 'null',        # JSON's own words
-            'materials',                    # Unity's Renderer.materials, named as what a prop: should not read
+            'materials',                    # Unity's Renderer.materials, which a prop: reads as sharedMaterials
             'display', 'visibility',        # UI Toolkit style properties ("display: none")
             'h:mm:ss', 'm:ss')              # the forms of a clock on screen
 
