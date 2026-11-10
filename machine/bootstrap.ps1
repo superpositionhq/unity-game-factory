@@ -158,9 +158,13 @@ foreach ($k in 'heavy_slots', 'gpu_slots') {
     if ($byHand -and -not $Force) { $kept += "$k=$cur (set by hand; computed $($calc.$k))"; continue }
     $next[$k] = $calc.$k
 }
+# The basis is renewed with the values only: the commit limit in it moves with the page file, and rewriting the config
+# for that alone left a backup on every run.
+$basis = "logical cores $($hw.logical_cores), RAM $($hw.ram_gb) GB, commit limit $($hw.commit_gb) GB, $($hw.gpu_count) NVIDIA GPU(s), largest $($hw.vram_mb) MB VRAM"
+if ($auto -and $auto.basis -and [int]$auto.heavy_slots -eq $calc.heavy_slots -and [int]$auto.gpu_slots -eq $calc.gpu_slots) { $basis = [string]$auto.basis }
 $next['slots_auto'] = [ordered]@{
     heavy_slots = $calc.heavy_slots; gpu_slots = $calc.gpu_slots
-    basis = "logical cores $($hw.logical_cores), RAM $($hw.ram_gb) GB, commit limit $($hw.commit_gb) GB, $($hw.gpu_count) NVIDIA GPU(s), largest $($hw.vram_mb) MB VRAM"
+    basis = $basis
 }
 $before = ($now | ConvertTo-Json -Depth 32 -Compress)
 $after = ([pscustomobject]$next | ConvertTo-Json -Depth 32 -Compress)
