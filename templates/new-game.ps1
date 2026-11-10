@@ -22,18 +22,27 @@
 #>
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[a-z0-9][a-z0-9-]*[a-z0-9]$', Options = 'None')][string]$Slug,
-    [string]$Path,                      # required: the absolute <root>\games\<slug>, written out
-    [string]$Project,                   # default from the slug: island-survival -> IslandSurvival
-    [string]$Title,                     # default from the slug: Island Survival
+    # required: the absolute <root>\games\<slug>, written out
+    [string]$Path,
+    # default from the slug: island-survival -> IslandSurvival
+    [string]$Project,
+    # default from the slug: Island Survival
+    [string]$Title,
     [string]$Description = '',
-    [string]$IdPrefix,                  # workflow row id prefix; default the slug's initials (is, rr, td) or its first two letters
+    # workflow row id prefix; default the slug's initials (is, rr, td) or its first two letters
+    [string]$IdPrefix,
     [string]$Reason = 'Create the project from the standard Unity skeleton (Unity 6.3 LTS, visible meta files, text serialization, editor tools, LFS for every binary type)',
-    [string]$UnityVersion,              # default: the config's unity_version (the newest installed 6000.3 editor)
+    # default: the config's unity_version (the newest installed 6000.3 editor)
+    [string]$UnityVersion,
     [string]$Root,
-    [string]$HooksDir,                  # default: the config's hooks_dir (machine/lib/ugf-root.ps1 Get-UGFHooksDir)
-    [string]$Org,                       # default: the config's github_org (UGF_ORG)
-    [switch]$NoSetup,                   # skip the first editor open (tests, or no licence yet): run Scripts/unity.ps1 setup later
-    [switch]$NoGitHub                   # skip creating the GitHub repo (tests, offline)
+    # default: the config's hooks_dir (machine/lib/ugf-root.ps1 Get-UGFHooksDir)
+    [string]$HooksDir,
+    # default: the config's github_org (UGF_ORG)
+    [string]$Org,
+    # skip the first editor open (tests, or no licence yet): run Scripts/unity.ps1 setup later
+    [switch]$NoSetup,
+    # skip creating the GitHub repo (tests, offline)
+    [switch]$NoGitHub
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
