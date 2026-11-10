@@ -663,6 +663,67 @@ class Units(unittest.TestCase):
         self.assertIn("'Exception(' isn't a regular expression",
                       ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [absent]}]))))
 
+    def test_task_rules(self):
+        """The rules beyond the schema the other tests leave out: task plays, the ui, drawn, ground, asset and pieces
+        measures' own rules, a threshold from the start, a start that doesn't build, judges, check names and needs, and
+        a task without a required probe."""
+        def errs(*checks, **over):
+            t = task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': list(checks)}], **over)
+            return ' | '.join(vg.task_semantic_errors(t))
+
+        def probe(measure, play='look', expect=None, name='p'):
+            return {'name': name, 'kind': 'probe', 'describe': 'x', 'play': play, 'measure': measure,
+                    'expect': expect or {'op': '>=', 'value': 1}}
+        x, near = {'probe': 'player', 'field': 'x'}, {'point': {'xyz': [0, 0, 0]}, 'radius': 1}
+        key, wait = {'t': 5, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'wait': 200}
+        line = {'from': {'xyz': [0, 0, 0]}, 'to': {'xyz': [0, 0, 5]}, 'radius': 0.5}
+        for check, said in (
+                (probe(x, {'name': 'drive', 'seconds': 10}), "check p: a task play can't be named drive"),
+                (probe(x, {'name': 'fire', 'seconds': 5, 'inputs': [key]}),
+                 'check p: play fire has an input at or after its end (5 s)'),
+                (probe(x, {'name': 'fire', 'seconds': 60, 'inputs': [wait, dict(wait, t=2)]}),
+                 'check p: play fire waits 400 s in all, more than 300 s'),
+                (probe({'probe': 'ui', 'field': 'count', 'select': {'rect': [0.5, 0, 0.2, 1]}}),
+                 'check p: a ui select rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1'),
+                (probe({'probe': 'ui', 'field': 'count', 'select': {'kind': 'box', 'text': 'x'}}),
+                 "check p: a ui select's `text` picks text elements"),
+                (probe({'probe': 'drawn', 'field': 'drawn'}), 'check p: a drawn measure takes `near` (a point) or a `line`'),
+                (probe({'probe': 'drawn', 'field': 'reach', 'near': near}), 'check p: a drawn measure near a point reads'),
+                (probe({'probe': 'drawn', 'field': 'drawn', 'line': line, 'near': near}), 'one of them'),
+                (probe({'probe': 'drawn', 'field': 'motion', 'line': line}), 'check p: a drawn measure along a line reads'),
+                (probe({'probe': 'ground', 'field': 'hits', 'xz': [0, 0]}), 'check p: a ground measure at a point reads'),
+                (probe({'probe': 'ground', 'field': 'hit', 'box': [0, 0, 1, 1]}), 'check p: a ground measure over a box'),
+                (probe({'probe': 'ground', 'field': 'hits', 'box': [10, 0, 0, 10]}),
+                 'check p: a ground box is [x0, z0, x1, z1] with x0 < x1 and z0 < z1'),
+                (probe({'probe': 'asset', 'scene': 'Assets/Scenes/Main.unity', 'field': 'import:x'}, 'editor'),
+                 "check p: a scene's objects are read with count"),
+                (probe({'probe': 'pieces', 'select': {}, 'field': 'triangles'}),
+                 'check p: how many triangles a fair build draws depends on the meshes it chose'),
+                (probe(x, expect={'op': '>=', 'start_plus': 1}), 'check p sets its threshold from the start')):
+            self.assertIn(said, errs(check, seed=None) if 'from the start' in said else errs(check), said)
+        rubric = [{'key': 'k', 'criterion': 'c'}]
+        broken = {'name': 'b', 'kind': 'build', 'fails_at_start': True}
+        before = {'name': 'j', 'kind': 'judge', 'question': 'q', 'rubric': rubric, 'before': True}
+        said = errs(broken, probe(x, expect={'op': '>=', 'start_plus': 1}), before)
+        self.assertIn("check p: its threshold is relative to the start (start_plus), but the start doesn't build "
+                      '(b: fails_at_start)', said)
+        self.assertIn("check j compares with the start (before: true), but the start doesn't build", said)
+        said = errs({'name': 'c', 'kind': 'code_judge', 'question': 'q', 'rubric': rubric}, before,
+                    dict(before, name='r', before=False, reference=True), seed=None)
+        for what in ('check c: a code judge needs seed.reference', 'check j: a before/after judge needs a seed',
+                     'check r: a reference judge needs seed.reference'):
+            self.assertIn(what, said)
+        said = errs(probe(x), probe(x), dict(broken, name='q', needs=['p', 'z']))
+        self.assertIn('check p is named twice', said)
+        self.assertIn("check q needs ['z'], which come later or do not exist", said)
+        t = task('a' * 40, 'b' * 40)
+        for c in (c for m in t['milestones'] for c in m['checks'] if c['kind'] == 'probe'):
+            c['required'] = False
+        rep = vg.Report()
+        vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None)
+        self.assertIn('x: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)',
+                      errors(rep))
+
     def test_schema_keywords(self):
         """Every keyword the schemas use is one check_schema reads, an annotation, or the if/then/else that
         check_assets_manifest evaluates by hand (a keyword it ignored would be a rule never checked); each works."""
