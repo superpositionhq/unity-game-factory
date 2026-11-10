@@ -331,23 +331,24 @@ renderers, else its position.
     (`Coin(Clone)`).
   - `near`: its position (its transform's, the pivot) within `radius` m of a point. `{"player": true}`: the player.
   - `has`: a part the object carries, `{"has": {"component": ..., "lit": true, "visible": true, "near": {"point":
-    <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on any of its
-    descendants, inactive ones included) matches every key given. `component` is the part's type, a base type or an
-    interface, as a `components` select names it; `lit: true` reads it as the components `lit` field does (a Light
-    that lights the scene; a drawn renderer that gives off light, a mesh read from its material properties or else as
-    rendered, a sprite or a line as rendered; or a live effect that draws light; section 2.5); `visible: true` keeps a
-    Renderer that is drawn, as the components `visible` field reads a Renderer; `near` measures from the part's own
-    place, not the object's. At least one key, and only `true` for `lit`, `visible` and `simulating` (below). The way
-    to select by what an object does ("an object that gives light", "an object with a drawn mesh near here") rather
-    than by the type or name a build gave it. It works in every object select: these, other measures' (`owner`,
-    `ground`), points (section 2.13) and `teleport_to` (section 1.1). A scene as saved (`asset`) takes no `has`.
-    Because a part may sit on a descendant, an object that holds others (a spawner that parents what it spawns, a
-    pool, a manager) matches whatever one of its children matches: keep it out with a `component` on the object
-    itself that it lacks (`{"component": "MeshRenderer", "has": {"lit": true}}`: an object that draws a mesh itself
-    and gives light), a `near` or a height band (section 2.13).
-    `"simulating": true` (the part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an
-    object by what it can do: `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object
-    a player can shove, whichever component a build used.
+    <Point>, "radius": m}}}`: the object matches when at least one of its parts (a component on it or on one of its
+    descendants active in the hierarchy, inactive ones too when the select says `"inactive": true`; its Transform is
+    one of them, so a `has` with `near` alone reads where the object or a descendant is) matches every key given.
+    `component` is the part's type, a base type or an interface, as a `components` select names it; `lit: true` reads
+    it as the components `lit` field does (a Light that lights the scene; a drawn renderer that gives off light, a
+    mesh read from its material properties or else as rendered, a sprite or a line as rendered; or a live effect that
+    draws light; section 2.5); `visible: true` keeps a Renderer that is drawn, as the components `visible` field reads
+    a Renderer; `near` measures from the part's own place, not the object's. At least one key, and only `true` for
+    `lit`, `visible` and `simulating` (below). The way to select by what an object does ("an object that gives light",
+    "an object with a drawn mesh near here") rather than by the type or name a build gave it. It works in every object
+    select: these, other measures' (`owner`, `ground`), points (section 2.13) and `teleport_to` (section 1.1). A scene
+    as saved (`asset`) takes no `has`. Because a part may sit on a descendant, an object that holds others (a spawner
+    that parents what it spawns, a pool, a manager) matches whatever one of its children matches: keep it out with a
+    `component` on the object itself that it lacks (`{"component": "MeshRenderer", "has": {"lit": true}}`: an object
+    that draws a mesh itself and gives light), a `near` or a height band (section 2.13). `"simulating": true` (the
+    part is, or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D) finds an object by what it can do:
+    `{"teleport_to": {"has": {"simulating": true, "near": ...}}}` reaches the nearest object a player can shove,
+    whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
 - `field`:
   - `count`: the selection's size (`of` ignored);
@@ -638,9 +639,10 @@ parameter's effective value at the camera after blending.
   Without URP the constants are neutral and a `post:` field has no value, and the play's `query_errors` says so
   (`grading <id>: the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no value)`).
   Of two directional Lights of one intensity, the sun is the first in hierarchy order.
-- A play's first sample can come before URP has set up its volumes (or before there is a camera): the grade isn't
-  known then, and that sample has no value, for every grading field and for a light's `exposure` and `brightness`
-  (the next sample reads them). A window skips a sample with no value, so one that starts at 0 reads from the next
+- A play's first sample can come before URP has set up its volumes: for a camera that renders post-processing (or
+  with no camera yet) the grade isn't known then, and that sample has no value, for every grading field and for a
+  light's `exposure` and `brightness` (the next sample reads them; a camera without post-processing reads its
+  neutral grade from the first). A window skips a sample with no value, so one that starts at 0 reads from the next
   sample on; only reading them at the play's very start (`"at": [0]`) finds no value.
 - Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
@@ -650,7 +652,8 @@ parameter's effective value at the camera after blending.
   puts the grey's blue above 1, so its `grey` reads below 0.18, and an over-exposed grey reads white (`grey` 1), as the
   frame shows it. The checker's colour maths follows URP's LDR grading (under HDR grading, which doesn't clip before the
   grading, only a colour above 1 there reads differently) and leaves out tonemapping, split toning, the channel mixer,
-  shadows/midtones/highlights and the curves: read a tonemapping change with `post:Tonemapping.mode`.
+  shadows/midtones/highlights, the curves and a Color Lookup texture: read a tonemapping change with
+  `post:Tonemapping.mode`, a lookup's with `post:ColorLookup.contribution`.
 - A `post:` parameter no volume overrides reads the component's default. A number reads as it is, a boolean 1/0, an
   enum its value (`post:Tonemapping.mode` None reads 0), an object 1 when set, a colour or a vector by its channel,
   either spelling for either: `.r` or `.x` the first, `.g` or `.y` the second, `.b` or `.z` the third, `.a` or `.w`
