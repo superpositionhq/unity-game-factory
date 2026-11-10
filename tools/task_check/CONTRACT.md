@@ -884,34 +884,65 @@ is one class; one part still calls another directly, as in the original (`Inputs
 `Glow.Of`, `Glow` calls `DrawnRender.Glow`). The checker copies the folder into the copy as it is (section 5); the
 package holds no `.meta` files, which Unity makes in the copy.
 
-- `package.json`: the package `com.taskprobe`, for Unity 6000.0 and later.
-- `Runtime/` (`Runtime/TaskProbe.asmdef`: assembly `TaskProbe`, root namespace `TaskProbe`, not auto-referenced): no
-  hard dependency on any package or optional module. It references the Input System, uGUI, TextMeshPro and URP
+- `Runtime/` is the assembly `TaskProbe` (`Runtime/TaskProbe.asmdef`: root namespace `TaskProbe`, not auto-referenced),
+  with no hard dependency on any package or optional module. It references the Input System, uGUI, TextMeshPro and URP
   assemblies and compiles the code that uses each, and each optional built-in module (physics, 2D physics, audio,
   animation, particle systems, terrain, AI, UI Toolkit, image conversion), only under its `versionDefines` symbol
-  (`TASKPROBE_INPUTSYSTEM`, `TASKPROBE_UGUI`, `TASKPROBE_TMP`, `TASKPROBE_URP`, `TASKPROBE_PHYSICS` and the like);
-  the VFX Graph and URP decals are read by reflection. So a project without one of them still compiles it, and a
-  measure whose part the project lacks has no value. `Runtime/AssemblyInfo.cs`: `[assembly: AlwaysLinkAssembly]` and
-  `[assembly: Preserve]` keep it through managed stripping, since nothing in the game references it. It does nothing
-  unless the player's command line has `-taskProbe`.
-- `Runtime/Core/`: `Probe.cs` (the play loop: `Probe`, at execution order -32000, before the game's scripts),
-  `ProbeLate.cs` (its late half `ProbeLate`, at 32000, after them: a file of its own, since Unity keeps a
-  MonoBehaviour's execution order with its script), `Json.cs` (the files' JSON: `Dictionary<string, object>`,
-  `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (selects, points, hierarchy order, and the readers
-  several kinds share: `Components`, `Owners`, `Drawn`, `LightOn`, `LightColour`, `Luminance`, `Linear`, `Centre`,
-  `Collides`, `Simulates`, `Angle`), `Query.cs` (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn
-  after a sample), `Reflect.cs` (types and members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop
-  fallback), `AudioTap.cs`.
-- `Runtime/Queries/`: one class per query kind, `[ProbeQuery("kind")] public sealed class XQuery : Query`, found by
-  reflection when a play starts (a new kind touches no other file): `ObjectsQuery`, `ComponentsQuery`, `WidgetsQuery`,
-  `UiQuery`, `CameraQuery`, `LightQuery`, `GradingQuery`, `SpawnsQuery`, `PiecesQuery`, `ScreenQuery`, `AudioQuery`,
-  `GroundQuery`, `DrawnQuery`; and their helpers `ObjectRead`, `Glow` (with `Effects`), `LightKit`, `UiScan`, `UiOcr`,
-  `DrawnRender`.
-- `Runtime/Resources/TaskProbeDepthCopy.shader`: the depth copy `drawn` needs, under `Resources/` so a non-development
-  player ships it.
-- `Editor/` (`Editor/TaskProbe.Editor.asmdef`: assembly `TaskProbe.Editor`, root namespace `TaskProbe.EditorTools`,
-  Editor only, referencing `TaskProbe`): `Build.cs` (the player build), `AssetPass.cs` (the editor pass), and its
-  readers `AssetValues.cs` and `SceneRows.cs`.
+  (`TASKPROBE_INPUTSYSTEM`, `TASKPROBE_UGUI`, `TASKPROBE_TMP`, `TASKPROBE_URP`, `TASKPROBE_PHYSICS` and the like); the
+  VFX Graph and URP decals are read by reflection. So a project without one of them still compiles it, and a measure
+  whose part the project lacks has no value and says so once (section 5, `query_errors`). It does nothing unless the
+  player's command line has `-taskProbe`, and a `Probe` put on an object by hand does nothing (`Probe.Active`). Each
+  query kind is one class, `[ProbeQuery("kind")] public sealed class XQuery : Query`, found by reflection when a play
+  starts, so a new kind touches no other file.
+- `Editor/` is the assembly `TaskProbe.Editor` (`Editor/TaskProbe.Editor.asmdef`: root namespace
+  `TaskProbe.EditorTools`, Editor only, referencing `TaskProbe`): the player build and the editor pass, which the
+  original runs outside its plugin (its checker's `unreal` module builds its editor target; the editor pass is a Python
+  script in `probes.py`).
+
+Each file, what it is, and the lines of the original it ports (TP is `TaskProbe.cpp`, TPQ `TaskProbeQueries.cpp`, TPQ.h
+`TaskProbeQueries.h`; none: Unity needs it and the original has no counterpart). Every kind is a class of its own, every
+helper serves two kinds or more, or a kind and the loop, and the editor's three files split one pass by concern:
+
+| File | What it is | Of the original |
+|---|---|---|
+| `package.json` | the manifest: `com.taskprobe`, for Unity 6000.0 and later | `TaskProbe.uplugin` |
+| `Runtime/TaskProbe.asmdef` | the runtime assembly and its defines | `TaskProbe.Build.cs` |
+| `Runtime/AssemblyInfo.cs` | keeps the assembly whole through managed stripping | none |
+| `Runtime/Core/Probe.cs` | the play loop (`Probe`, order -32000) | TP 63-114, 374-515; TPQ 5830-6184, 6723-6742 |
+| `Runtime/Core/ProbeLate.cs` | the loop's late half (`ProbeLate`, order 32000, a file of its own) | TP `Tick` |
+| `Runtime/Core/Inputs.cs` | the scripted inputs | TP 38-372; TPQ 1525-1584 |
+| `Runtime/Core/Find.cs` | selects, points, order, readers | TPQ 227-519, 806, 915-936, 1711-1717, 1812, 2904-2956 |
+| `Runtime/Core/Reflect.cs` | types and members by name, `prop:` paths | TPQ 227-243, 521-801 |
+| `Runtime/Core/Json.cs` | the files' JSON | TPQ 151-170 and the engine's JSON |
+| `Runtime/Core/Query.cs` | `Query`, its attribute, `RowSet`, `FrameImage` | TPQ.h 251-276; TPQ 146-147, 172-222 |
+| `Runtime/Core/Window.cs` | the user's-desktop fallback | none |
+| `Runtime/Core/AudioTap.cs` | the listener's tap: the level, then silence | none (the original plays with -nosound) |
+| `Runtime/Queries/ObjectsQuery.cs` | `objects` | TPQ 1166-1302, 6186-6235 |
+| `Runtime/Queries/ObjectRead.cs` | what objects and components read of a part | TPQ 809-911, 961-1165, 7521-7580 |
+| `Runtime/Queries/ComponentsQuery.cs` | `components` | TPQ 1766-1781, 6357-6587 |
+| `Runtime/Queries/Glow.cs` | lit and glow, `Effects` | TPQ 941-953, 2366-2472, 2677-2994 |
+| `Runtime/Queries/CameraQuery.cs` | `camera` | TPQ 7461-7520 |
+| `Runtime/Queries/SpawnsQuery.cs` | `spawns` | TPQ 6013-6073 |
+| `Runtime/Queries/PiecesQuery.cs` | `pieces` | TPQ 1730-1805, 6589-6722 |
+| `Runtime/Queries/GroundQuery.cs` | `ground` | TPQ 5961-5999, 7044-7131 |
+| `Runtime/Queries/WidgetsQuery.cs` | `widgets` | TPQ 6237-6356 |
+| `Runtime/Queries/UiQuery.cs` | `ui` | TPQ 4227-4252, 5927-5960, 6793-6945 |
+| `Runtime/Queries/UiScan.cs` | the UI as widgets and ui read it; the widget click | TPQ 1304-1650, 3013-3157 |
+| `Runtime/Queries/UiOcr.cs` | the frame text reader | TPQ 4253-5330 |
+| `Runtime/Queries/ScreenQuery.cs` | `screen` | TPQ 2995-3011, 5907-5926, 6743-6792 |
+| `Runtime/Queries/LightQuery.cs` | `light` | TPQ 7132-7275 |
+| `Runtime/Queries/LightKit.cs` | what light and grading share | TPQ 148, 5695-5829 |
+| `Runtime/Queries/GradingQuery.cs` | `grading` | TPQ 1651-1710, 7276-7460 |
+| `Runtime/Queries/AudioQuery.cs` | `audio` | TPQ 149, 6946-7043 |
+| `Runtime/Queries/DrawnQuery.cs` | `drawn` | TPQ 5472-5479, 5634-5694, 7669-7928 |
+| `Runtime/Queries/DrawnRender.cs` | the probe's renders (drawn; lit and glow as rendered) | TPQ 2473-2676, 5484-5633 |
+| `Runtime/Resources/TaskProbeDepthCopy.shader` | the depth copy `drawn` needs (a player ships it) | none |
+| `Editor/TaskProbe.Editor.asmdef` | the editor assembly | none |
+| `Editor/Build.cs` | the player build | the original checker's `unreal` module, 206-227 |
+| `Editor/AssetPass.cs` | the editor pass | `probes.py` 657-861 (its script) |
+| `Editor/AssetValues.cs` | the pass's reads of one asset, a material | `probes.py` 657-861 |
+| `Editor/SceneRows.cs` | the pass's rows of a scene's or prefab's objects | `probes.py` 657-861 |
+
 - A query never stops the play: anything unknown (a type, a member, a widget, a kind) gives empty rows or null values
   and a `query_errors` line, and an exception out of a query's `Load`, `Frame`, `Sample` or `FrameDrawn` is caught by
   the loop and becomes one.
