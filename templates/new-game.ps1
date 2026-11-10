@@ -20,9 +20,9 @@
   (<root> written out, e.g. C:\Users\<you>\UnityWork)
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidatePattern('^[a-z0-9][a-z0-9-]*[a-z0-9]$')][string]$Slug,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[a-z0-9][a-z0-9-]*[a-z0-9]$', Options = 'None')][string]$Slug,
     [string]$Path,                      # required: the absolute <root>\games\<slug>, written out
-    [ValidatePattern('^[A-Z][A-Za-z0-9]{1,30}$')][string]$Project,   # default from the slug: island-survival -> IslandSurvival
+    [string]$Project,                   # default from the slug: island-survival -> IslandSurvival
     [string]$Title,                     # default from the slug: Island Survival
     [string]$Description = '',
     [string]$IdPrefix,                  # workflow row id prefix; default the slug's initials (is, rr, td) or its first two letters
@@ -54,7 +54,10 @@ $words = $Slug -split '-'
 if (-not $Project) { $Project = ($words | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join '' }
 if (-not $Title) { $Title = ($words | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join ' ' }
 if (-not $IdPrefix) { $IdPrefix = if ($words.Count -ge 2) { ($words | ForEach-Object { $_[0] }) -join '' } else { $Slug.Substring(0, 2) } }
-if ($Project -notmatch '^[A-Z][A-Za-z0-9]{1,30}$') { throw "project name '$Project' must be PascalCase letters/digits (pass -Project)" }
+# Case-sensitive (-cnotmatch, Options = 'None' above): PowerShell matches ignore case, and an id like Ba-00001 or
+# 3m-00001 fails the row schema for good (rows are never edited).
+if ($Project -cnotmatch '^[A-Z][A-Za-z0-9]{1,30}$') { throw "project name '$Project' must be PascalCase letters/digits (pass -Project)" }
+if ($IdPrefix -cnotmatch '^[a-z]+$') { throw "workflow row id prefix '$IdPrefix' must be lower-case letters (pass -IdPrefix)" }
 # The title and description land in C# string literals and JSON: keep them plain text.
 foreach ($v in @($Title, $Description)) { if ($v -match '["\\`\r\n]') { throw "no quotes, backslashes or line breaks in title or description: '$v'" } }
 
@@ -95,7 +98,7 @@ $scriptSha = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.T
 $templateCommit = (& git -C $repo rev-parse --short=12 HEAD 2>$null)
 $rowId = '{0}-{1:D5}' -f $IdPrefix, 1
 $row = [ordered]@{
-    schema = 'unity-workflow/v0'; id = $rowId; seq = 1; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+    schema = 'unity-workflow/v0'; id = $rowId; seq = 1; time = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz', [Globalization.CultureInfo]::InvariantCulture)
     actor = 'agent'; op = 'project.create'; target = 'ProjectSettings/ProjectVersion.txt'
     params = [ordered]@{ engine = "unity $UnityVersion"; template = 'unity-game'; template_commit = $templateCommit; files = $count; namespace = $Project }
     reason = $Reason; reason_source = 'agent_note'; status = 'observed'
