@@ -110,11 +110,12 @@ applies at once.
 | Slots | Named mutexes | Taken by | Count |
 |---|---|---|---|
 | general | `Global\ue-heavy-slot-<n>` | every job: batchmode editor runs, player builds, tests, players, and GPU jobs too | config `heavy_slots`, else the formula |
-| GPU | `Global\ue-gpu-slot-<n>` | jobs that render (`Unity.exe` without `-nographics`, a player under a `Build`, `Builds` or `Packaged` folder or started with `-screen-*` / `-popupwindow` and without `-nographics`, anything run with `-Gpu`), together with a general slot: a GPU job never holds one while waiting for the other | config `gpu_slots`, else the formula |
+| GPU | `Global\ue-gpu-slot-<n>` | jobs that render (`Unity.exe` without `-nographics`, a player under a `Build`, `Builds` or `Packaged` folder or started with `-screen-*` / `-popupwindow`, anything run with `-Gpu`; `-nographics` in a command means no GPU slot, even with `-Gpu`), together with a general slot: a GPU job never holds one while waiting for the other | config `gpu_slots`, else the formula |
 
 **The mutex names are the Unreal game-factory's on purpose:** a machine that runs both factories has one set of slots,
 so a Unity build and an Unreal build never overcommit the same RAM and GPU. A recording waiting in either factory holds
-back new GPU jobs in both.
+back new Unity GPU jobs (`ue-heavy.ps1` reads only its own root's flag), and a running recording holds every GPU slot
+of both.
 
 The formula (`ugf-root.ps1` `Get-UGFComputedSlots`, the Unreal factory's; bootstrap.ps1 writes its result to the
 config, and a value set by hand stays unless `bootstrap.ps1 -Force`):
@@ -127,8 +128,9 @@ config, and a value set by hand stays unless `bootstrap.ps1 -Force`):
 Dynamic guards on top of the counts:
 
 - **VRAM guard:** a GPU job starts only while the GPU's used VRAM is under `gpu_vram_limit_mb` (default half the VRAM)
-  and no other GPU job started in the last 60 s (a new renderer's VRAM shows only once it has loaded); otherwise it
-  hands its slot back and looks again every 30 s (`vram_wait` rows).
+  and no other GPU job that still runs started in the last 60 s (a new renderer's VRAM shows only once it has loaded;
+  one that has ended holds none, and Unity plays last seconds); otherwise it hands its slot back and looks again every
+  30 s (`vram_wait` rows).
 - **Recordings have priority:** while a recorder waits for the GPU it keeps `builds\_queue\_recording-wants-gpu` fresh
   in its factory's root (rewritten every minute, removed once it holds the slots); `unity-heavy.ps1` holds back new GPU
   jobs while that file exists in either factory's root and is under 20 min old. A recording then takes every GPU slot,
