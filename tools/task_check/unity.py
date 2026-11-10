@@ -202,6 +202,10 @@ class BuildStopped(MachineError):
     or stopped at its time limit."""
 
 
+class NoDesktop(MachineError):
+    """desk.py couldn't start the player on a desktop of its own: the player never ran."""
+
+
 def _licensed(found, log):
     """Raises Unlicensed when the batchmode Unity job `found` (`log`: its output and log) stopped for want of a
     licence."""
@@ -387,6 +391,12 @@ class Project:
                 probe = None
         log = _read_text(log_path)
         shutil.rmtree(out, ignore_errors=True)
+        # desk.py's own failure (no window station to make a desktop on, say), in its own words: the player's output
+        # isn't read, so the line is never the game's. Read as a play that wrote no probe file, it failed the reference.
+        said = re.search(r"^desk\.py: .*$", found.output or "", re.M)
+        if said and found.exit_code not in (0, None) and "probe.json" not in files:
+            raise NoDesktop(f"the player couldn't be started on a desktop of its own ({said.group(0).strip()}): the "
+                            "machine's fault, no evidence about the game")
         return Played(found.exit_code, found.timed_out, found.output, found.seconds,
                       probe if isinstance(probe, dict) else None, log, files, found.waited)
 

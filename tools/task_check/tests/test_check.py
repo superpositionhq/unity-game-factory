@@ -856,6 +856,22 @@ class Plays(unittest.TestCase):
             self.assertEqual(specs[1]["queries"], {"format": "game-probe-queries/1", "every": 0.5, "queries": []})
 
     @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
+    def test_a_player_desk_py_couldnt_start_is_the_machines_error_never_a_play_with_no_samples(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Build" / "TaskProbe" / "Game.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            refused = "desk.py: [WinError 5] CreateDesktopW TaskProbe: Access is denied"
+            project = unity.Project(tmp, FakeMachine(answer=lambda argv, cwd: refused, code=1), "t")
+            with self.assertRaises(unity.NoDesktop) as raised:
+                project.play(5, 2, 60)
+            self.assertIn(refused, str(raised.exception))
+            self.assertIn("no evidence about the game", str(raised.exception))
+            self.assertTrue(issubclass(unity.NoDesktop, unity.MachineError), "check_task reports it as ERROR")
+            # a player that started and exited 1 without a probe file is the game's: a play with no samples, as before
+            crashed = unity.Project(tmp, FakeMachine(answer=lambda argv, cwd: "", code=1), "t").play(5, 2, 60)
+            self.assertEqual((crashed.exit_code, crashed.probe), (1, None))
+
     def test_a_play_after_a_killed_one_waits_for_its_files_and_never_reads_them(self):
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Build" / "TaskProbe" / "Game.exe"
