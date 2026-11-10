@@ -169,7 +169,10 @@ def widgets(t, play):
 
     for name, want in VISIBLE.items():
         t.eq(f"visible: {name} ({WHY[name]})", get(play, "vis", 1.0, name, "visible"), want)
-    t.eq("visible: true keeps exactly the visible ones", sorted(names(play, "visonly", 1.0)),
+    # "Vis*" also matches the unnamed parts of the UI Toolkit controls (a ProgressBar's bar, a Slider's input): a row
+    # of an unnamed element is named by its type, VisualElement
+    t.ok("an unnamed part of a UI Toolkit control is a widget named by its type", "VisualElement" in names(play, "vis", 1.0))
+    t.eq("visible: true keeps exactly the visible ones", sorted(n for n in names(play, "visonly", 1.0) if n != "VisualElement"),
          sorted(n for n, v in VISIBLE.items() if v))
     t.eq("interactable: a disabled Button, a non-interactable one, a disabled UI Toolkit Button",
          [get(play, "vis", 1.0, n, "interactable") for n in ("VisMuted", "VisLocked", "VisUitkDisabled")], [0, 0, 0])
@@ -194,10 +197,12 @@ def widgets(t, play):
     t.ok("an element without a name is named by its type, and a select by that name finds it",
          "ANON" in [r.get("text") for r in play.rows("anon", 1.0)], play.rows("anon", 1.0))
 
+    # a built player lists a scene's root objects in an order of its own (the same in every play of one build), not
+    # the Hierarchy's: only the order of siblings is the scene's
     order = names(play, "order", 1.0)
-    t.eq("rows in hierarchy order: the first uGUI widgets", order[:6],
-         ["ScoreText", "TypeText", "VisUnder", "LegacyLabel", "RawTagText", "DoomedText"])
-    t.ok("uGUI widgets (a world canvas last) come before UI Toolkit's", "RectBack" in order and "UitkLabel" in order
+    first = ["ScoreText", "TypeText", "VisUnder", "LegacyLabel", "RawTagText", "DoomedText"]
+    t.eq("rows in sibling order: HudCanvas's first children", [n for n in order if n in first], first)
+    t.ok("uGUI widgets (a world canvas's too) come before UI Toolkit's", "RectBack" in order and "UitkLabel" in order
          and order.index("RectBack") < order.index("UitkLabel"), order)
     shown, bg = (play.value("shown", 1.0) or {}).get("luma"), (play.value("bg", 1.0) or {}).get("luma")
     t.ok("the frame shows UI Toolkit's visible child of a hidden parent (green there)", shown is not None and shown > 0.5, shown)
@@ -267,11 +272,12 @@ def ui(t, play):
     t.eq("a text regex, UI Toolkit", names(play, "uitkrx", 1.0), ["UitkLabel"])
     t.eq("a text regex, TMP", names(play, "scorerx", 1.0), ["ScoreText"])
     # a layout change in a sample's frame (at 1 s LayoutA leaves its row, UitkMover moves): ui reads the frame drawn after
-    # the sample, laid out; a widgets sample reads the place before the frame's layout pass
+    # the sample, laid out; a widgets sample reads uGUI's place before the frame's layout pass (uGUI lays a canvas out
+    # when it's drawn) and UI Toolkit's after it (the player loop lays the panels out before LateUpdate)
     for at, row, mover in ((0.5, 360, 620), (1.0, 300, 700), (1.5, 300, 700)):
         t.near(f"ui at {at} s: LayoutB's x", get(play, "all", at, "LayoutB", "x"), row / W, FLOAT)
         t.near(f"ui at {at} s: UitkMover's x", get(play, "all", at, "UitkMover", "x"), mover / W, FLOAT)
-    for at, row, mover in ((0.5, 360, 620), (1.0, 360, 620), (1.5, 300, 700)):
+    for at, row, mover in ((0.5, 360, 620), (1.0, 360, 700), (1.5, 300, 700)):
         t.near(f"widgets at {at} s: LayoutB's x", get(play, "layout_w", at, "LayoutB", "x"), row / W, FLOAT)
         t.near(f"widgets at {at} s: UitkMover's x", get(play, "mover_w", at, "UitkMover", "x"), mover / W, FLOAT)
 
@@ -286,11 +292,14 @@ def life(t, play):
     t.eq("1 s: a canvas and a UI Toolkit element made this frame are widgets", names(play, "born_w", 1.0), ["BornText", "UitkBorn"])
     t.eq("... and elements on screen", sorted(names(play, "born_u", 1.0)), ["BornText", "UitkBorn"])
     times = [round(s["t"], 4) for s in play.samples("grey_w")]
-    t.eq("the game loads the Grey scene in the 1.5 s frame: the clock holds, that sample comes once it has loaded",
-         times, [round(1 / 30, 4), 0.5, 1.0, round(46 / 30, 4), 2.0, 2.5, 3.0, 3.5])
-    for at in (46 / 30, 2.0):
-        t.eq(f"{at:.3f} s: the Grey scene's UI, read by widgets and ui alike", (names(play, "grey_w", at), sorted(names(play, "grey_u", at))),
-             (["GreyRight"], ["BlackBox", "GreyRight", "WhiteBox"]))
+    t.eq("the game asks for the Grey scene in the 1.5 s frame: that frame's sample is taken in it", times,
+         [round(1 / 30, 4), 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    boxes = names(play, "grey_u", 1.5)
+    t.eq("1.5 s: a load isn't done in the frame that asks for it: widgets and ui alike still read the Hud",
+         (names(play, "grey_w", 1.5), "GreyRight" in boxes, "ScorePanel" in boxes, names(play, "born_w", 1.5)),
+         ([], False, True, ["BornText", "UitkBorn"]))
+    t.eq("2.0 s: the Grey scene's UI, read by widgets and ui alike", (names(play, "grey_w", 2.0), sorted(names(play, "grey_u", 2.0))),
+         (["GreyRight"], ["BlackBox", "GreyRight", "WhiteBox"]))
     t.eq("... and nothing of the Hud", (names(play, "doomed_w", 2.0), names(play, "born_w", 2.0)), ([], []))
     t.eq("scene", play.probe.get("scene"), MADE + "Grey.unity")
 
@@ -310,8 +319,8 @@ def count(play, t, name, field, index=0):
 
 
 def clicks_for(module):
-    """The widget clicks (the same under every input module: they need none) and the cursor clicks (only through the
-    Input System's UI module, `module` "system")."""
+    """The widget clicks (the same under every input module: they need none) and the cursor clicks (uGUI's only through
+    the Input System's UI module, `module` "system"; UI Toolkit's through that module or with no EventSystem)."""
     def check(t, play):
         system = module == "system"
         end = 5.0
@@ -338,10 +347,12 @@ def clicks_for(module):
             t.ok(f"probe.log: no visible button matches '{widget}'", f"no visible button matches '{widget}'" in log)
         t.eq("an EventSystem in the scene", get(play, "watch", 1.0, "Watch", "prop:UiClickWatch.system"), 0 if module == "none" else 1)
         t.eq("a click on a button that takes no selection leaves nothing selected", get(play, "watch", 1.5, "Watch", "prop:UiClickWatch.selected"), "")
-        cursor = 1 if system else 0
+        # UI Toolkit takes the Input System's pointer itself when the scene has no EventSystem; an EventSystem with the
+        # old module drives it with the old input, which this project doesn't read
+        cursor, uitk_cursor = (1 if system else 0), (0 if module == "old" else 1)
         t.eq("cursor click on a uGUI button", count(play, end, "CursorButton", "fired"), cursor)
-        t.eq("cursor click on a UI Toolkit button", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.cursor"), cursor)
-        t.eq("cursor click on a UI Toolkit ClickEvent handler", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.evt"), cursor)
+        t.eq("cursor click on a UI Toolkit button", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.cursor"), uitk_cursor)
+        t.eq("cursor click on a UI Toolkit ClickEvent handler", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.evt"), uitk_cursor)
         t.eq("cursor click on BlockedButton: the image over it takes it", count(play, end, "BlockedButton", "downs"), 1)
         if system:
             t.eq("widget click on an InputField: focused", get(play, "field", 1.0, "GoField", "prop:InputField.isFocused"), 1)
@@ -420,7 +431,8 @@ def crowd(t, play):
     s = play.sample("uguitexts", 1.0) or {}
     t.eq("widgets Text: total, rows kept", (s.get("total"), len(s.get("rows") or [])), (300, 200))
     t.eq("... in order", [r.get("name") for r in s.get("rows") or []], ["T%03d" % i for i in range(200)])
-    t.eq("... full is empty: text isn't a number", s.get("full"), {})
+    t.eq("... full has text with nothing summed: text isn't a number", s.get("full"),
+         {"text": {"n": 0, "nonzero": 0, "sum": 0, "min": None, "max": None}})
     labels = play.sample("labels", 1.0) or {}
     t.eq("widgets Label: every one, no total", (len(labels.get("rows") or []), labels.get("total")), (200, None))
     bare, alone, both = _real(play.earlier("crowd_bare")), _real(play.earlier("crowd_ui")), _real(play)

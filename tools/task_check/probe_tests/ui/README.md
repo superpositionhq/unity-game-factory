@@ -48,13 +48,17 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   of the rows; the frame shows the visible child of a hidden UI Toolkit parent.
 - `ui` (Hud): which elements are on screen, their kind, source, text and rectangle; the selects (`kind`, `text`,
   `rect`); a select of text in a rect reads the frame and leaves a line an element reads to that element; a layout
-  change made in a sample's frame is in the frame drawn after it (`ui`) and not yet at the sample (`widgets`).
+  change made in a sample's frame is in the frame drawn after it (`ui`); at the sample (`widgets`) UI Toolkit's is
+  already there (the player loop lays the panels out before LateUpdate) and uGUI's not yet (a canvas is laid out when
+  it's drawn).
 - `life` (Hud, `-uilife`): an object destroyed after a sample is still a widget at that sample and gone from the frame
-  drawn after it; a canvas and a UI Toolkit element made in mid-play; a scene loaded in mid-play.
+  drawn after it; a canvas and a UI Toolkit element made in mid-play; a scene load asked for in mid-play (the frame
+  that asks still holds the old scene, for `widgets` and `ui` alike; the next sample reads the new one).
 - `errors` (Hud): a regex that doesn't compile, a kind that isn't one and a field that doesn't exist each give their
   line in `query_errors`; the rest of the query still reads.
 - `clicks`, `clicks_old`, `clicks_none`: widget clicks (the same under every module: they need none) and cursor
-  clicks (only through the Input System's UI module).
+  clicks (uGUI's only through the Input System's UI module; UI Toolkit's through it, or on its own with no
+  EventSystem).
 - `screen`, `screen_post` (Grey): the values of known greys over rects of every kind (inverted, empty, on the edge,
   outside the frame, with fractional edges); after post-processing the camera's grey changes and the UI's doesn't.
 - `quit` (Grey, `-uiquit`): what the samples of the frame the game quits in hold.
