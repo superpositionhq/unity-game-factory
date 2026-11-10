@@ -298,6 +298,17 @@ class Refusals(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn('KilnRun_Data/level0', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.refused-hits.tsv')))
 
+    def test_a_name_on_a_start_branch_alone_refuses(self):
+        # git.log shows main's history only; a start branch's own commits are in the bundle alone, and are scanned there
+        repo = self.inp['repo']
+        base.git(repo, 'switch', '-q', f'starts/{SLUG}-fix-hero-hud')
+        commit(repo, {'Docs/Start.md': f'The art went to {ACCOUNT}_old first.\n'}, 'Make the start')
+        base.git(repo, 'switch', '-q', 'main')
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 2)
+        hits = base.read(os.path.join(repo, '.dataset', f'{SLUG}.refused-hits.tsv'))
+        self.assertIn(f'History/{SLUG}.bundle\thistory\tDocs/Start.md', hits)
+
     def test_the_account_name_glued_into_a_word_refuses(self):
         # OwnerNameDesktop: a lower -> upper boundary is a word's edge, so the name is found where the scrub leaves it
         commit(self.inp['repo'], {'Docs/Owner.md': f'The shortcut was named Owner{ACCOUNT.capitalize()}Desktop.\n'}, 'Add the owner note')
