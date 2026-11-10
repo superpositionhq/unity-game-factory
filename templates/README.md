@@ -4,8 +4,8 @@
 
 Skeleton of a game repo for Unity 6.3 LTS. `new-game.ps1` instantiates it:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File templates/new-game.ps1 -Slug island-survival -Path C:\Users\<you>\UnityWork\games\island-survival -Title "Island Survival" -Description "Stranded on a tropical island..."
+```bash
+powershell -ExecutionPolicy Bypass -File templates/new-game.ps1 -Slug island-survival -Path C:/Users/<you>/UnityWork/games/island-survival -Title "Island Survival" -Description "Stranded on a tropical island..."
 ```
 
 It copies `unity-game/`, replacing `__PROJECT__` (PascalCase C# namespace and assembly prefix, also the exe name;

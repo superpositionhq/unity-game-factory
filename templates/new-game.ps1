@@ -31,7 +31,7 @@ param(
     [string]$Root,
     [string]$HooksDir,                  # default: the config's hooks_dir (machine/lib/ugf-root.ps1 Get-UGFHooksDir)
     [string]$Org,                       # default: the config's github_org (UGF_ORG)
-    [switch]$NoSetup,                   # skip the first editor open (tests, or no licence yet): run Scripts\unity.ps1 setup later
+    [switch]$NoSetup,                   # skip the first editor open (tests, or no licence yet): run Scripts/unity.ps1 setup later
     [switch]$NoGitHub                   # skip creating the GitHub repo (tests, offline)
 )
 $ErrorActionPreference = 'Stop'
@@ -125,7 +125,7 @@ $sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nV
 
 # The first editor open: packages, URP, TextMeshPro's essential resources, shared settings (Scripts\unity.ps1 setup),
 # committed with the files it made.
-$setup = 'skipped (-NoSetup): run Scripts\unity.ps1 setup, then commit'
+$setup = 'skipped (-NoSetup): run Scripts/unity.ps1 setup, then commit'
 if (-not $NoSetup) {
     $editor = Get-UGFUnity $Path -ErrorAction SilentlyContinue
     if ($editor -and (Test-Path -LiteralPath $editor)) {
@@ -137,10 +137,10 @@ if (-not $NoSetup) {
             $sha = Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background. Generated .meta files and project settings committed.`n`nworkflow: $span"
             $setup = "done, commit $sha"
         } else {
-            $setup = "FAILED (exit $LASTEXITCODE): read Logs\unity-ps1\setup_*.log, fix (licence? editor?), run Scripts\unity.ps1 setup again, then commit"
+            $setup = "FAILED (exit $LASTEXITCODE): read Logs/unity-ps1/setup_*.log, fix (licence? editor?), run Scripts/unity.ps1 setup again, then commit"
         }
     } else {
-        $setup = "not run: Unity $UnityVersion is not installed (install it through Unity Hub with Windows Build Support (IL2CPP)), then run Scripts\unity.ps1 setup and commit"
+        $setup = "not run: Unity $UnityVersion is not installed (install it through Unity Hub with Windows Build Support (IL2CPP)), then run Scripts/unity.ps1 setup and commit"
     }
 }
 
@@ -166,4 +166,4 @@ Write-Host "created $Title ($Project, Unity $UnityVersion) at $Path"
 Write-Host "  files: $count, first row $rowId, commit $sha"
 Write-Host "  first open: $setup"
 Write-Host "  remote: $(if ($remote) { $remote } else { 'none' })"
-Write-Host "  next: write the design doc, build through Scripts\unity.ps1, log every operation in workflow.jsonl"
+Write-Host "  next: write the design doc, build through Scripts/unity.ps1, log every operation in workflow.jsonl"
