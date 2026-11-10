@@ -159,15 +159,18 @@ def _rgb(found):
 
 def colour(settings):
     """A neutral grey (0.18) lit by the key light's colour (the sun's lit_color, else its colour, else the sky's; its
-    luminance taken out, so only its hue counts), through URP's colour grading in the LUT builder's order:
-    {grey, cast, warmth, tint, saturation, contrast}. `settings` is the probe's grading value; a setting it lacks is
-    neutral."""
+    luminance taken out, so only its hue counts), times the post exposure (2^EV: URP multiplies the frame by it before
+    the grading lookup), through URP's colour grading in the LUT builder's order: {grey, cast, warmth, tint,
+    saturation, contrast}. `settings` is the probe's grading value; a setting it lacks is neutral."""
     settings = settings if isinstance(settings, dict) else {}
     sun = settings.get("sun") if isinstance(settings.get("sun"), dict) else {}
     sky = settings.get("sky") if isinstance(settings.get("sky"), dict) else {}
     light = _rgb(sun.get("lit_color")) or _rgb(sun.get("color")) or _rgb(sky.get("color")) or [1.0, 1.0, 1.0]
     luma = _luma(light)
     rgb = [GREY * c / luma for c in light] if luma > 0 else [GREY] * 3
+    exposure = _number(settings.get("post_exposure"), 0.0)
+    if exposure != 0.0:
+        rgb = [c * 2.0 ** exposure for c in rgb]
     rgb = white_balance(rgb, _numbers(settings.get("color_balance")) or NEUTRAL_LMS)
     con = _number(settings.get("contrast"), 1.0)
     if con != 1.0:  # LogC and back is the identity, up to rounding

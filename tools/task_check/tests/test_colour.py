@@ -126,3 +126,11 @@ class Steps(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PostExposure(unittest.TestCase):
+    def test_post_exposure_scales_the_grey_before_the_grading(self):
+        # URP multiplies the frame by 2^postExposure before the grading lookup: one stop doubles a neutral grey
+        self.assertAlmostEqual(colour.colour({"post_exposure": 1.0})["grey"], 0.36, places=9)
+        self.assertAlmostEqual(colour.colour({"post_exposure": -1.0})["grey"], 0.09, places=9)
+        self.assertEqual(colour.colour({"post_exposure": 0.0})["grey"], 0.18)

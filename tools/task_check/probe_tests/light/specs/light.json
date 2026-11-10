@@ -1,0 +1,133 @@
+{
+ "seconds": 14,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/Scenes/LightTests/LightLab.unity",
+ "sound": false,
+ "player": null,
+ "inputs": [],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.5,
+  "queries": [
+   {
+    "id": "qA",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qB1",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      20,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qB2",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      20.8,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qB3",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      23,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qC1",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      40,
+      1,
+      3
+     ]
+    }
+   },
+   {
+    "id": "qC2",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      40,
+      1,
+      -1
+     ]
+    }
+   },
+   {
+    "id": "qD1",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      60,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qD2",
+    "kind": "light",
+    "point": {
+     "xyz": [
+      73,
+      1,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qObj",
+    "kind": "light",
+    "point": {
+     "object": {
+      "name": "PointA"
+     },
+     "offset": [
+      0,
+      -2,
+      0
+     ]
+    }
+   },
+   {
+    "id": "qNone",
+    "kind": "light",
+    "point": {
+     "object": {
+      "name": "NoSuchThing"
+     }
+    }
+   },
+   {
+    "id": "qG",
+    "kind": "grading",
+    "fields": [
+     "post:ColorAdjustments.postExposure"
+    ]
+   }
+  ]
+ }
+}

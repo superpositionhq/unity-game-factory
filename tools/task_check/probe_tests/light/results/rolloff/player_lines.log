@@ -1,0 +1,15 @@
+RT: t=0.00 step 0: Logarithmic d=1 blend=1 mixer=False
+RT: t=2.00 step 1: Logarithmic d=2 blend=1 mixer=False
+RT: t=4.00 step 2: Logarithmic d=4 blend=1 mixer=False
+RT: t=6.00 step 3: Logarithmic d=8 blend=1 mixer=False
+RT: t=8.00 step 4: Logarithmic d=80 blend=1 mixer=False
+RT: t=10.00 step 5: Linear d=0.5 blend=1 mixer=False
+RT: t=12.00 step 6: Linear d=5.75 blend=1 mixer=False
+RT: t=14.00 step 7: Linear d=10.5 blend=1 mixer=False
+RT: t=16.00 step 8: Linear d=15.25 blend=1 mixer=False
+RT: t=18.00 step 9: Custom d=0.01 blend=1 mixer=False
+RT: t=20.00 step 10: Custom d=8 blend=1 mixer=False
+RT: t=22.00 step 11: Custom d=14 blend=1 mixer=False
+RT: t=24.00 step 12: Logarithmic d=4 blend=0.5 mixer=False
+RT: t=26.00 step 13: Logarithmic d=4 blend=0 mixer=False
+RT: t=28.00 step 14: Logarithmic d=4 blend=0 mixer=True

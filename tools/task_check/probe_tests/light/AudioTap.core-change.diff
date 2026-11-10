@@ -1,0 +1,15 @@
+--- Runtime/Core/AudioTap.cs	2026-11-10 00:38:33.367462700 -0500
++++ C:/ugf-c4/TaskProbe/Runtime/Core/AudioTap.cs	2026-11-10 01:11:08.551645800 -0500
+@@ -34,7 +34,11 @@
+         /// <summary>A tap on the listener in use (the first enabled one), added when it has none.</summary>
+         public static void Follow()
+         {
+-            var listener = FindFirstObjectByType<AudioListener>();
++            // the enabled one: FindFirstObjectByType also returns a disabled listener component (a game that switches
++            // cameras by disabling one listener and enabling another), which hears nothing
++            AudioListener listener = null;
++            foreach (var l in FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID))
++                if (l.enabled) { listener = l; break; }
+             if (listener == null || listener.GetComponent<AudioTap>() != null) return;
+             var tap = listener.gameObject.AddComponent<AudioTap>();
+             tap.hideFlags = HideFlags.HideInInspector | HideFlags.DontSave;

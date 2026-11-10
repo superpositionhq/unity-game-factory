@@ -1,0 +1,49 @@
+{
+ "seconds": 22,
+ "shots": 4,
+ "every": 0.5,
+ "scene": "Assets/Scenes/LightTests/GradeLab.unity",
+ "sound": false,
+ "player": null,
+ "inputs": [],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.5,
+  "queries": [
+   {
+    "id": "qG",
+    "kind": "grading",
+    "fields": [
+     "post:ColorAdjustments.postExposure",
+     "post:Bloom.intensity",
+     "post:Vignette.intensity",
+     "post:Vignette.color.r",
+     "post:Vignette.color",
+     "post:Tonemapping.mode",
+     "post:Bloom.highQualityFiltering",
+     "post:Nope.x",
+     "post:Bloom.nope",
+     "post:MotionBlur.intensity"
+    ]
+   },
+   {
+    "id": "qS",
+    "kind": "screen",
+    "rect": [
+     0.4,
+     0.4,
+     0.6,
+     0.6
+    ]
+   },
+   {
+    "id": "qL",
+    "kind": "light",
+    "point": {
+     "camera": true,
+     "forward": 1.0
+    }
+   }
+  ]
+ }
+}

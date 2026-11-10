@@ -1,0 +1,63 @@
+{
+ "seconds": 21,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/Scenes/LightTests/AudioLab.unity",
+ "sound": true,
+ "player": null,
+ "inputs": [],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.5,
+  "queries": [
+   {
+    "id": "qAll",
+    "kind": "audio"
+   },
+   {
+    "id": "qTone",
+    "kind": "audio",
+    "select": {
+     "sound": "Tone*"
+    }
+   },
+   {
+    "id": "qSfx",
+    "kind": "audio",
+    "select": {
+     "sound_class": "SFX"
+    }
+   },
+   {
+    "id": "qOwner",
+    "kind": "audio",
+    "select": {
+     "owner": {
+      "name": "Loop3D"
+     }
+    }
+   },
+   {
+    "id": "qShot",
+    "kind": "audio",
+    "select": {
+     "sound": "Shot*"
+    }
+   },
+   {
+    "id": "qPoint",
+    "kind": "audio",
+    "select": {
+     "sound": "Point*"
+    }
+   },
+   {
+    "id": "qLate",
+    "kind": "audio",
+    "select": {
+     "sound": "Late*"
+    }
+   }
+  ]
+ }
+}
