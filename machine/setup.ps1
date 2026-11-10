@@ -155,7 +155,7 @@ if (-not $nv) { Item INFO 'NVIDIA GPU' 'none: building works; the recorder, whic
 
 # --- 2. software -----------------------------------------------------------------------------------------------------
 Write-Host "2. software (winget)"
-function Test-Python { foreach ($c in @('py -3.12', 'python')) { $r = Quiet { Invoke-Expression "$c -c `"import sys; print(sys.version_info[1])`"" }; if ($r.code -eq 0 -and $r.out -match '^\d+$' -and [int]$r.out -ge 10) { return $true } }; return $false }
+function Test-Python { foreach ($c in @('py -3.12', 'python')) { $r = Quiet { Invoke-Expression "$c -c `"import sys; print(sys.version_info[1])`"" }; if ($r.code -eq 0 -and $r.out -match '^\d+$' -and [int]$r.out -ge 12) { return $true } }; return $false }
 # winget and the Microsoft Store install Hub as an MSIX package (WindowsApps\UnityTechnologies.UnityHub_*\app\), the
 # classic installer in Program Files (the same lookup as lib\ugf-root.ps1 Get-UGFUnityHub; setup runs before the clone)
 function Get-UnityHubExe {
