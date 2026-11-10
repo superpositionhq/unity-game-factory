@@ -197,19 +197,21 @@ original's, unchanged (`probes.py`).
   centre of its enabled colliders that aren't triggers (its descendants' too), else of its drawn renderers, else its
   position (`Find.Centre`; the original's: its colliding components' bounds centre).
 - **objects** (the original's `actors`; `ObjectsQuery`, `ObjectRead`):
-  - the drawn box of `extent_*` and `spread`: the renderers drawn (`Find.Drawn`: enabled, active in the hierarchy, not
-    `forceRenderingOff`) with non-empty bounds, ParticleSystemRenderers and TrailRenderers left out
-    (`ObjectRead.Geometry`; lower LODs count: task-probes.md 2.4). `spread` counts each renderer by its
-    bounds centre (the original also counts each physics body of a skeletal mesh by its place; here a ragdoll, one
-    SkinnedMeshRenderer over its bones' Rigidbodies, is one part);
-  - the mesh parts of `spin`, `changed`, `bounds_change`, `pose_change` and `lit`: MeshRenderers whose MeshFilter's
-    mesh has vertices, and SkinnedMeshRenderers with a mesh, inactive ones included (`Find.MeshParts`);
+  - the parts (`ObjectRead.Parts`; the original's mesh components with a mesh, its sprites and cables among them): the
+    renderers of the object and its descendants, inactive ones included, that draw a shape and have something to draw
+    (a MeshRenderer whose mesh has vertices, a SkinnedMeshRenderer with a mesh, a SpriteRenderer with a sprite, a
+    LineRenderer); effects (particle systems, trails, visual effects) and sprite masks are no parts. `spin`,
+    `changed`, `bounds_change`, `pose_change`, `lit` and `glow` read every part; `extent_*` and `spread` the drawn ones
+    (`Find.Drawn`: enabled, active in the hierarchy, not `forceRenderingOff`) with non-empty bounds (lower LODs count:
+    task-probes.md 2.4). `spread` counts each part by its bounds centre, and a skinned mesh whose bones carry two
+    Rigidbodies or more (a ragdoll) by each body's place, as the original counts a skeletal mesh's physics bodies;
   - `speed`: the first velocity source the object has (`ObjectRead.OwnVelocity`: a non-kinematic Rigidbody's
     `linearVelocity`, a Dynamic, simulated Rigidbody2D's, an enabled CharacterController's `velocity`, an enabled
-    NavMeshAgent's on its NavMesh), else its displacement since the query's previous sample (`Places`);
+    NavMeshAgent's on its NavMesh), else its displacement since the query's previous sample over the game time between
+    them, a wait's frames counted (`Places`);
   - `spin`: `Spins` follows each transform a sample read, frame by frame until the next sample (`Quaternion.Angle`
     between frames, summed), so a part turning many times a second still reads; a first sample has a non-kinematic
-    Rigidbody's angular velocity, or no value;
+    Rigidbody's or a Dynamic Rigidbody2D's angular velocity, or no value;
   - `changed`, `bounds_change`, `pose_change`: `Changes`, each part against the first sample it was seen in, with the
     original's thresholds in metres (`Changes.Bounds` 0.01 m, `Changes.Pose` 0.05 m);
   - `prop:` (`Reflect.Prop`, `Reflect.ReadPath`): instance fields and properties, public or not, along the class
