@@ -64,8 +64,8 @@ System**: virtual devices that the drop-in adds and drives (`InputSystem.AddDevi
 uses OS-level input (`SendInput`), the bot never calls gameplay code to act, and real devices are disabled during a
 run.
 
-Use the drop-in (not available yet) unchanged, so all games write identical files. Your game supplies two things: the
-`StartScenario` handler (set up scenario n) plus the `ScenarioStarted` call, and the bot.
+Use the drop-in (not available yet) unchanged, so all games write identical files. Your game will supply two things:
+the `StartScenario` handler (set up scenario n) plus the `ScenarioStarted` call, and the bot.
 
 ## 1. Command line
 
@@ -289,6 +289,8 @@ Not available yet: the hand test needs the drop-in, and the `milestone/autoplay-
 report what is ready to the coordinator instead, and take the framing stills from one short rendered play
 ("Until the drop-in is here").
 
+Once the drop-in is here:
+
 1. Build the player: `Scripts/unity.ps1 build` (release) or `-Development`.
 2. Run one scenario rendered through the limiter:
    `Scripts/unity.ps1 play -Scenario 1 -Render -Seconds 180 -Extra "-autoplay -goTimeout 0 -maxSeconds 120 -outputDir <abs dir>"`
@@ -299,7 +301,8 @@ report what is ready to the coordinator instead, and take the framing stills fro
    up a release.
 4. When scenario 1 passes, commit and tag it `milestone/autoplay-1` (later: `milestone/autoplay-<n>` = scenarios 1..n
    work; the pipeline records scenarios 1..n of the newest such tag), take the framing-gate screenshots
-   (unity-game-session skill) and send the request; only the coordinator queues recordings.
+   (unity-game-session skill) and, once the recorder is here too, send the request; only the coordinator queues
+   recordings.
 
 Changes to this contract go through the coordinating session; the drop-in's version (`autoplay_version`) goes up when
 the files change shape.
