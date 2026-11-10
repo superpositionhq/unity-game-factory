@@ -677,21 +677,46 @@ crash: `log_absent` checks for those.
 
 ## 6. The probe package (`tools/task_check/TaskProbe/` -> `Packages/com.taskprobe/`)
 
-- `Runtime/` (assembly `TaskProbe`, namespace `TaskProbe`): no hard dependency on any package. Input System, uGUI,
-  TextMeshPro, URP and UI Toolkit are used through `versionDefines` (`TASKPROBE_INPUTSYSTEM`, `TASKPROBE_UGUI`,
-  `TASKPROBE_URP`) or reflection, so it compiles in any project. `[assembly: AlwaysLinkAssembly]` and `[Preserve]`
-  keep it through stripping. It does nothing unless the command line has `-taskProbe`.
-- `Runtime/Core/`: `Probe.cs` (the play loop, `Probe` and `ProbeLate`), `Json.cs` (parse and write:
-  `Dictionary<string, object>`, `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (`Sel`, `NearSel`,
-  points, hierarchy order), `Query.cs` (`Query`, `RowSet`: rows, `total`, `full`; `FrameImage`: the frame drawn
-  after a sample), `Reflect.cs` (`prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop fallback), `AudioTap.cs`,
-  `Hooks.cs` (cross-family hooks such as the glow render).
-- `Runtime/Queries/`: one class per query kind, `[ProbeQuery("kind")] class XQuery : Query`, found by reflection, and
-  their helpers (`ObjectRead`, `Glow`, `LightKit`, `UiScan`, `UiOcr`, `DrawnRender`).
-- `Editor/` (assembly `TaskProbe.Editor`, namespace `TaskProbe.EditorTools`): `Build`, `AssetPass`, `AssetValues`,
-  `SceneRows`.
-- `probe_tests/<family>/`: per family, the editor scripts that build its test scenes, the game scripts, the play specs
-  and a README with what each play proved and the values read. In a test project each MonoBehaviour must be in its own
-  file named after it (several in one file made the player fail to load the scene).
-- Anything unknown (a type, a member, a widget, a kind) gives empty rows or null values and an entry in
-  `query_errors`; it never stops the play.
+The original is a plugin of two source files (`TaskProbe.cpp`, the play loop; `TaskProbeQueries.cpp`, every measure).
+The port is a package of small files, because Unity wants each MonoBehaviour in a file of its own and each query kind
+is one class; one part still calls another directly, as in the original (`Inputs` calls `UiScan.Click`, `Find` calls
+`Glow.Of`, `Glow` calls `DrawnRender.Glow`). The checker copies the folder into the copy as it is (section 5); the
+package holds no `.meta` files, which Unity makes in the copy.
+
+- `package.json`: the package `com.taskprobe`, for Unity 6000.0 and later.
+- `Runtime/` (`Runtime/TaskProbe.asmdef`: assembly `TaskProbe`, root namespace `TaskProbe`, not auto-referenced): no
+  hard dependency on any package or optional module. It references the Input System, uGUI, TextMeshPro and URP
+  assemblies and compiles the code that uses each, and each optional built-in module (physics, 2D physics, audio,
+  animation, particle systems, terrain, AI, UI Toolkit, image conversion), only under its `versionDefines` symbol
+  (`TASKPROBE_INPUTSYSTEM`, `TASKPROBE_UGUI`, `TASKPROBE_TMP`, `TASKPROBE_URP`, `TASKPROBE_PHYSICS` and the like);
+  the VFX Graph and URP decals are read by reflection. So a project without one of them still compiles it, and a
+  measure whose part the project lacks has no value. `Runtime/AssemblyInfo.cs`: `[assembly: AlwaysLinkAssembly]` and
+  `[assembly: Preserve]` keep it through managed stripping, since nothing in the game references it. It does nothing
+  unless the player's command line has `-taskProbe`.
+- `Runtime/Core/`: `Probe.cs` (the play loop: `Probe`, at execution order -32000, before the game's scripts, and its
+  late half `ProbeLate`, at 32000, after them), `Json.cs` (the files' JSON: `Dictionary<string, object>`,
+  `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (selects, points, hierarchy order), `Query.cs`
+  (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn after a sample), `Reflect.cs` (types and
+  members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop fallback), `AudioTap.cs`.
+- `Runtime/Queries/`: one class per query kind, `[ProbeQuery("kind")] public sealed class XQuery : Query`, found by
+  reflection when a play starts (a new kind touches no other file): `ObjectsQuery`, `ComponentsQuery`, `WidgetsQuery`,
+  `UiQuery`, `CameraQuery`, `LightQuery`, `GradingQuery`, `SpawnsQuery`, `PiecesQuery`, `ScreenQuery`, `AudioQuery`,
+  `GroundQuery`, `DrawnQuery`; and their helpers `ObjectRead`, `Glow` (with `Effects`), `LightKit`, `UiScan`, `UiOcr`,
+  `DrawnRender`.
+- `Runtime/Resources/TaskProbeDepthCopy.shader`: the depth copy `drawn` needs, under `Resources/` so a non-development
+  player ships it.
+- `Editor/` (`Editor/TaskProbe.Editor.asmdef`: assembly `TaskProbe.Editor`, root namespace `TaskProbe.EditorTools`,
+  Editor only, referencing `TaskProbe`): `Build.cs` (the player build), `AssetPass.cs` (the editor pass), and its
+  readers `AssetValues.cs` and `SceneRows.cs`.
+- A query never stops the play: anything unknown (a type, a member, a widget, a kind) gives empty rows or null values
+  and a `query_errors` line, and an exception out of a query's `Load`, `Frame`, `Sample` or `FrameDrawn` is caught by
+  the loop and becomes one.
+- `probe_tests/` (beside the package; never copied into a game): the probe's regression run on the real engine.
+  `run.py <scratch project>` adds the package and every family's material to the project, makes the families' scenes
+  in one editor start (`Setup.cs`), builds the player once as the checker does, runs each family's plays (each twice:
+  two plays of one build must write the same probe.json) and editor pass through the checker's own `unity.py` and
+  `desk.py`, checks every value and prints a pass/fail table (`probe_tests/README.md`). One folder per family of
+  measures; README.md gives a family's layout: `tests.py` (the manifest and the checks), `Editor/` (scene builders),
+  `Scripts/` (game scripts), `plays/` (play specs: section 5's without `format` and `out`, each query with an id of its
+  own) and a README saying what each play proves. In a test project each MonoBehaviour must be in its own file named
+  after it (several in one file made the player fail to load the scene).
