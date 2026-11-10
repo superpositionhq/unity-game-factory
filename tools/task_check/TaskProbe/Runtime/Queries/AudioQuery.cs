@@ -22,6 +22,9 @@ namespace TaskProbe
 
         public override void Load()
         {
+#if !TASKPROBE_AUDIO
+            Probe.Error("audio " + Id + ": the project has no Audio module: no sound is read");
+#endif
             var select = Json.Obj(Def, "select");
             if (select == null) return;
             sound = Json.Str(select, "sound");
