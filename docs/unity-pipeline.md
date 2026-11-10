@@ -183,7 +183,7 @@ fixed path per game means one prompt per game instead of one per build. Per run 
    display is already off, `SetThreadExecutionState` doesn't turn it back on, and Desktop Duplication delivers no frames
    (ddagrab hangs, gdigrab gets ~4 fps). An unanswered Windows Firewall prompt dims the whole screen and blocks capture
    until it is answered. **Idle override:** `builds\_queue\_idle-override.txt` (JSON `{idle_minutes, reason}`, written
-   by the coordinator) replaces the default when `-IdleMinutes` isn't given; `idle_minutes` 0 = record right away. It is
+   by the coordinator once the recorder is here) replaces the default when `-IdleMinutes` isn't given; `idle_minutes` 0 = record right away. It is
    standing (the user's "record now" instruction) unless it has `"one_drain": true`, which the drainer retires when the
    queue empties. The privacy guard and the display wake apply either way. Before launching, it also waits while more
    than 4096 MB of VRAM is in use (nvidia-smi total; per-process numbers are N/A under WDDM); after 120 min the run
@@ -320,8 +320,8 @@ A pipeline run of a game resolves the commit (default `HEAD`) and the scenarios 
 enough good runs of that commit (unless forced), then builds and records per scenario. Each step takes the lock itself,
 so other work can interleave between steps.
 
-**Queueing (the coordinator owns the queue).** Game sessions never enqueue; they ask the coordinating session. The
-queue tool refuses (exit 2, red message, nothing queued) unless the request says the coordinator made it, and records
+**Queueing (the coordinator owns the queue).** Game sessions never enqueue; once the queue is here they ask the
+coordinating session, and until then they only report what is ready. The queue tool refuses (exit 2, red message, nothing queued) unless the request says the coordinator made it, and records
 who did. It returns at once; one hidden drainer works through `builds\_queue\*.json` in file-name order (the
 coordinator reorders by renaming; a request being processed must not be renamed). Dropping a queued request: move it
 to `builds\_queue\done\` with a `result` note (status `dropped`). The drainer holds the recordings' GPU flag for each
