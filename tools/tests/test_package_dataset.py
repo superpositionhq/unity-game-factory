@@ -220,6 +220,21 @@ class Refusals(unittest.TestCase):
         self.assertIn('no player build', r.stdout)
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
 
+    def test_only_this_games_release_player(self):
+        # a development player: its UnityPlayer.dll names the development variant's debug symbols
+        base.write(self.inp['build'], 'UnityPlayer.dll', b'MZ\0\0' + b'C:\\build\\UnityPlayer_Win64_player_development_mono_x64.pdb\0')
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('KilnRun.exe is a development player', r.stdout)
+        # another product's release player (app.info: company, then product)
+        base.write(self.inp['build'], 'UnityPlayer.dll', b'MZ\0\0' + b'C:\\build\\UnityPlayer_Win64_player_mono_x64.pdb\0')
+        base.write(self.inp['build'], 'KilnRun_Data/app.info', b'Other Studio\nLamp Keeper')
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('is a player of "Lamp Keeper", not of this game ("Kiln Run"', r.stdout)
+        base.write(self.inp['build'], 'KilnRun_Data/app.info', b'Kiln Run\nKiln Run')
+        self.assertEqual(run(self.inp, '--dry-run').returncode, 0)
+
     def test_no_tasks(self):
         base.git(self.inp['repo'], 'update-ref', '-d', 'refs/heads/tasks')
         r = run(self.inp)

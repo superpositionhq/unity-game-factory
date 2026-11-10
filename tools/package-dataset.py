@@ -790,6 +790,22 @@ def find_exe(build):
     return exes[0] if exes else None
 
 
+def player_problem(repo, sha, build, exe):
+    """Why the player in build is not this game's release player, or None: a development player (its UnityPlayer.dll
+    names the development variant's debug symbols, UnityPlayer_Win64_player_development_<backend>_x64.pdb; its
+    boot.config also carries the build machine's network address), or another product than the game's
+    (<exe>_Data/app.info, company and product name, against ProjectSettings.asset productName at the commit)."""
+    up = os.path.join(build, 'UnityPlayer.dll')
+    if os.path.isfile(lp(up)) and re.search(rb'UnityPlayer_Win64_\w*_development_\w*\.pdb', read_bytes(up)):
+        return f'{exe} is a development player: the dataset ships the release player (Scripts\\unity.ps1 build, without -Development)'
+    m = re.search(r'(?m)^\s*productName:\s*(.+?)\s*$', git_text(repo, 'show', f'{sha}:ProjectSettings/ProjectSettings.asset', check=False))
+    info = os.path.join(build, exe[:-4] + '_Data', 'app.info')
+    lines = [l.strip() for l in read_bytes(info).decode('utf-8', 'replace').splitlines() if l.strip()] if os.path.isfile(lp(info)) else []
+    if m and lines and lines[-1] != m.group(1):   # app.info: company name, then product name
+        return f'{exe} is a player of "{lines[-1]}", not of this game ("{m.group(1)}" at the commit)'
+    return None
+
+
 # ---- scan ------------------------------------------------------------------------------------------------------------------
 def short_token(buf, at, n, w):
     """Whether a short needle (an account name of four or five letters) found at buf[at] with stride w (1 ASCII, 2
@@ -897,6 +913,8 @@ def package(args):
     exe = find_exe(build) if os.path.isdir(build) else None
     if not exe:
         problems.append(f'error: no player build at {build} (no .exe): build it with Scripts\\unity.ps1 build, or name the folder with --build')
+    elif why := player_problem(repo, sha, build, exe):
+        problems.append('error: ' + why)
     brief, design = find_brief(repo, game, args.brief, 'brief'), find_brief(repo, game, args.design, 'design')
     for kind, f in (('brief', brief), ('design', design)):
         if not f:
