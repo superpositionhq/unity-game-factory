@@ -1083,7 +1083,7 @@
     },
     "Cursor": {
       "additionalProperties": false,
-      "description": "The virtual mouse moved to a viewport point (fractions 0-1, y down from the top); a following <Mouse>/leftButton\npress clicks there.",
+      "description": "The virtual mouse moved to a viewport point (fractions 0-1, y down from the top); a following <Mouse>/leftButton\npress and release clicks there.",
       "properties": {
         "cursor": {
           "items": {

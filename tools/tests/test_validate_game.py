@@ -526,9 +526,9 @@ class TaskRules(Base):
         self.assertEqual(list(vg.denied_play_args(
             ['-ParentHWND', '5', '-single-instance', '-force-vulkan', '-screen-fullscreen', '0', '-logFile', 'x',
              '-PopupWindow', '-monitor', '2', '-quit', '-nographics', '-executeMethod', '-projectPath', '-ok',
-             'batchmode'])),
+             'batchmode', '-nolog', '--NoLog', '-window-mode', 'exclusive', 'nolog'])),
             ['ParentHWND', 'single-instance', 'force-vulkan', 'screen-fullscreen', 'logFile', 'PopupWindow',
-             'monitor', 'quit', 'nographics', 'executeMethod', 'projectPath'])
+             'monitor', 'quit', 'nographics', 'executeMethod', 'projectPath', 'nolog', 'NoLog', 'window-mode'])
 
     def test_bad_schema_field(self):
         ms = self.probe(2, probe='objects', select={'class': 'Enemy'}, field='bb:Speed')
@@ -630,6 +630,9 @@ class Units(unittest.TestCase):
         self.assertEqual(errs(dict(dist, to={'xyz': [0, 0, 0]})), '')
         self.assertIn('`to_angle` or `to_axis`, not both',
                       errs({'probe': 'camera', 'field': 'yaw', 'to_angle': 90, 'to_axis': 0}, expect={'op': '<=', 'value': 5}))
+        height = {'probe': 'player', 'field': 'y', 'window': [0, 1], 'at': [5.0]}
+        self.assertIn('`window` or `at`, not both', errs(height, expect={'op': '>=', 'value': 0}))
+        self.assertEqual(errs(dict(height, at=None), expect={'op': '>=', 'value': 0}), '')
         literal = {'op': '>=', 'value': 1}
         for measure in ({'probe': 'log', 'pattern': '([unclosed'}, {'probe': 'widgets', 'select': {'text': '[a'}},
                         {'probe': 'objects', 'select': {'name': 'Hud'}, 'field': 'prop:Hud.label', 'match': '(', 'of': 'first'}):

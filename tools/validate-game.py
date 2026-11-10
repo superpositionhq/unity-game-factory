@@ -543,15 +543,16 @@ GRADER_KEYS = ('milestones',)          # the grader's half of a task, with seed.
 # A play's command line (play_args, a task play's args): the player's own arguments, never the checker's
 # (docs/task-probes.md, section 1.1). An element starting with "-" and a letter is a flag, anything else a value.
 PLAY_FLAG = re.compile(r'^-+([A-Za-z][^=]*)')   # "--x" too: Unity's own parsing is not ours to second-guess
-DENIED_PLAY_ARGS = {'batchmode', 'nographics', 'quit', 'logfile', 'projectpath', 'executemethod', 'popupwindow',
-                    'monitor', 'parenthwnd', 'single-instance'}
+DENIED_PLAY_ARGS = {'batchmode', 'nographics', 'quit', 'logfile', 'nolog', 'projectpath', 'executemethod', 'popupwindow',
+                    'monitor', 'parenthwnd', 'single-instance', 'window-mode'}
 DENIED_PLAY_PREFIXES = ('screen-', 'force-', 'taskprobe')
 # a task play's `scene` and `args` take the task's place only when present, so they have no default here
 TASK_PLAY_DEFAULTS = {'inputs': [], 'every': None}
 
 
 def denied_play_args(args):
-    """The flags among `args` the checker sets itself (window, log, the probe's own), as written."""
+    """The flags among `args` the checker sets itself (window, log, the probe's own) or that would undo them (-nolog,
+    -window-mode), as written."""
     for arg in args or []:
         mm = PLAY_FLAG.match(arg) if isinstance(arg, str) else None
         if mm and (mm.group(1).lower() in DENIED_PLAY_ARGS or mm.group(1).lower().startswith(DENIED_PLAY_PREFIXES)):
@@ -627,13 +628,13 @@ def probe_errors(c, seed, ref, plays):
     own, and same-named task plays are identical; == and != take a literal value; a screen measure's threshold is
     calibrated or relative to the start (the frame's luminance moves between machines), and so is a pieces measure's
     triangles (they depend on the meshes a build chose) and every NEVER_LITERAL field; a screen rect [x0, y0, x1, y1]
-    has x0 < x1 and y0 < y1; a player measure's dist has its `to`; `to_angle` or `to_axis`, not both; a ground measure
-    takes a point `xz` or a `box` and the fields of that one; a drawn measure takes `near` or a `line` and the fields
-    of that one; a components select names its component or `effect`; a near's height band has y_min < y_max and
-    `y_relative` only with one of them; a task play's waits add at most 300 s; regular expressions that compile; a ui
-    measure takes `match` exactly when it reads text, `agg` changes, any, all or count when it reads its signature, and
-    a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a calibrated threshold needs seed.reference and a
-    start-relative one a seed."""
+    has x0 < x1 and y0 < y1; a player measure's dist has its `to`; `to_angle` or `to_axis`, not both; `window` or `at`,
+    not both; a ground measure takes a point `xz` or a `box` and the fields of that one; a drawn measure takes `near`
+    or a `line` and the fields of that one; a components select names its component or `effect`; a near's height band
+    has y_min < y_max and `y_relative` only with one of them; a task play's waits add at most 300 s; regular
+    expressions that compile; a ui measure takes `match` exactly when it reads text, `agg` changes, any, all or count
+    when it reads its signature, and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a calibrated threshold
+    needs seed.reference and a start-relative one a seed."""
     errs, n = [], c.get('name')
     play = c.get('play')
     measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
@@ -696,6 +697,8 @@ def probe_errors(c, seed, ref, plays):
         errs.append(f"check {n}: a player measure's dist is the distance to its `to` point, which it lacks")
     if measure.get('to_angle') is not None and measure.get('to_axis') is not None:
         errs.append(f'check {n}: `to_angle` or `to_axis`, not both')
+    if measure.get('window') is not None and measure.get('at') is not None:   # pick() would take the window alone
+        errs.append(f'check {n}: `window` or `at`, not both')
     if probe == 'ground':
         xz, box = measure.get('xz'), measure.get('box')
         if (xz is None) == (box is None):

@@ -85,7 +85,7 @@ class Tasks(unittest.TestCase):
                 task_with(*checks, seed=seed)
         for arg in ("-taskProbe", "-taskprobeseconds=99", "-batchmode", "-logFile", "-screen-width", "-force-d3d12",
                     "-popupwindow", "--quit", "-projectPath", "-executeMethod", "-monitor", "-parentHWND",
-                    "-single-instance"):
+                    "-single-instance", "-nolog", "-window-mode"):
             with self.assertRaisesRegex(ValueError, "can't set", msg=arg):
                 task_with(probe(play={"name": "fire", "seconds": 10, "args": [arg]}))
         with self.assertRaisesRegex(ValueError, "play_args can't set"):
