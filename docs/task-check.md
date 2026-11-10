@@ -28,7 +28,7 @@ are done, each one's verdict and minutes, and which is running; it says `finishe
 the time of day, and each build and play logs how long it took.
 
 Without `--task` or `--all` it lists the tasks on the branch. Each task prints one line, and the exit code is 0 only
-when every task is VALID (2 when the run couldn't start: a usage error):
+when every task is VALID (1 otherwise; 2 for a usage error, when nothing ran):
 
 ```
 VALID   metro-runner-corr-cell-and-dead-meter
