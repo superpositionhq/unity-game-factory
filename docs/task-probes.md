@@ -751,9 +751,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
     (`material:_BaseColor.r`, `material:_BaseMap.name`, `material:shader` for the shader's name), or
     `material:keyword:<NAME>`, 1 when that slot's material has the keyword enabled. An empty slot, a property its
     shader lacks or a colour without a channel is a row with no value, not an error;
-  - `mesh_collision`: one row per mesh (a MeshFilter with a mesh) in the object (rows named
-    `<object>/<mesh's object>`), 1 when its object or a parent up to the matched object has an enabled collider that
-    isn't a trigger;
+  - `mesh_collision`: one row per mesh (a MeshFilter with a mesh) in the object and its descendants (inactive ones
+    included; rows named `<object>/<mesh's object>`), 1 when its object or a parent up to the matched object has an
+    enabled collider (3D or 2D) that isn't a trigger;
   - `prop:<Component>.<path>`: one row per object, read as an object's `prop:` is (section 2.4), else as a
     SerializedObject property path of that component (`prop:MeshRenderer.m_Materials.Array.size`); an unknown member
     is a row with no value.
@@ -763,7 +763,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
 - Errors: the probe fails with "the editor couldn't measure it: " and the editor's message, one of these (`<...>` stands
   for the names in question):
   - `no asset <path>`, `no scene <path>`, `no prefab <path>` (also for a path that isn't `Assets/...` or
-    `Packages/...` with forward slashes, or that has a `.` or `..` part);
+    `Packages/...` with forward slashes, or that has a `.` or `..` part; a task's schema refuses the first before any
+    build, and `tools/validate-game.py` the second: `check <n>: <path> has a "." or ".." part: name the file by its
+    own path under Assets/ or Packages/`);
   - `the scene <path> couldn't be opened: <type>: <message>`, `the prefab <path> couldn't be loaded: <type>:
     <message>` (the file is there, but Unity can't open it);
   - `no property <path> on <asset type> <asset path>` (a `prop:` of an asset naming a member it doesn't have);
@@ -914,7 +916,8 @@ the probe sees only its source's own clip, not the one-shot's: on a source witho
   loud depends on the sounds a build chose. `count` and `audible` take a literal. Compare places by their own plays or
   windows: teleport into each zone (section 1.1) and read the zone's sound there.
 - Every play runs with its sound on, and in every play the probe's tap on each enabled AudioListener measures the mix
-  and then silences it, so nothing is heard on the machine. A play with an `audio` measure is paced to real time
+  and then silences it, so nothing is heard on the machine. The tap is a component on the listener's object: hidden
+  from the game's `FindObjectsByType`, seen by its `GetComponents`. A play with an `audio` measure is paced to real time
   (still 30 fps), so a sound lasts as long in play time as on a clock. Every other play runs as fast as the machine
   renders, often many times faster than real time, and a sound, which plays in real time, then lasts many times longer
   in play time: read sound only in a play with an `audio` measure.
