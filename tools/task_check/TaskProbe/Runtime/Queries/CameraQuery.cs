@@ -1,6 +1,7 @@
 // camera: the player's camera against the player (contract section 3, "camera"). The checker reads occluded and
-// player_on_screen from here; distance, height, pitch, yaw and fov come from the probe's camera rows, and are here too.
-// "value": {"distance", "height", "pitch", "yaw", "fov", "occluded", "player_on_screen"} (the player's fields null
+// player_on_screen from here; distance, height, pitch, yaw and fov it computes from the probe's camera and track rows
+// (probes.series), and they are here too, as in the original.
+// "value": {"pitch", "yaw", "fov", "distance", "height", "occluded", "player_on_screen"} (the player's fields null
 // without a player) | null without a camera.
 using System;
 using System.Collections.Generic;
@@ -11,6 +12,10 @@ namespace TaskProbe
     [ProbeQuery("camera")]
     public sealed class CameraQuery : Query
     {
+        static readonly string[] Plain = { "distance", "height", "pitch", "yaw", "fov", "occluded", "player_on_screen" };
+
+        public override void Load() => KnownFields(Plain);
+
         public override void Sample(double t, Dictionary<string, object> sample)
         {
             var view = Probe.View;
@@ -26,6 +31,7 @@ namespace TaskProbe
             var player = Probe.Player;
             if (player == null) return;
             var p = player.transform.position;
+            // the player's centre: its colliders' bounds centre, else its drawn renderers', else its place
             var centre = Find.Centre(player);
             value["distance"] = (double)Vector3.Distance(at, p);
             value["height"] = (double)(at.y - p.y);
@@ -35,7 +41,7 @@ namespace TaskProbe
         }
 
         /// <summary>A collider between the camera and the player's centre that is neither the player's nor the camera's
-        /// own (triggers aside).</summary>
+        /// own (triggers and the Ignore Raycast layer aside). Without the physics module there is no collider.</summary>
         static bool Occluded(Camera view, GameObject player, Vector3 from, Vector3 to)
         {
 #if TASKPROBE_PHYSICS

@@ -1,8 +1,11 @@
-// spawns: objects carrying a component that appeared (became active, or were made active) or went (were destroyed or
-// deactivated), counted every frame since the play's clock started (contract section 3, "spawns"); cumulative, the
-// checker differences them. Objects there when the clock starts aren't counted as spawned. A pooled object that is
-// deactivated and reused counts each time it comes and goes.
-// "value": {"spawned", "destroyed"} | null when the component type is unknown.
+// spawns: objects carrying a component (its type, a base type or an interface, as an object select's `component`) that
+// appeared (became active in the hierarchy) or went (were destroyed or deactivated), counted every frame since the play's
+// clock started (contract section 3, "spawns"); cumulative, the checker differences them. Unity raises no event when an
+// object is made, so the objects are compared frame to frame (the original counts its world's spawn and destroy
+// events): objects there when the clock starts aren't spawned; a pooled object counts each time it comes and goes; an
+// object that comes and goes within one frame isn't seen; a scene loaded or unloaded during the play brings and takes
+// its objects; an object given the component counts as one that appeared.
+// "value": {"spawned", "destroyed"} | null when no component can be of that type.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,17 +15,18 @@ namespace TaskProbe
     [ProbeQuery("spawns")]
     public sealed class SpawnsQuery : Query
     {
-        Type type;
+        string type;
+        readonly List<Component> found = new List<Component>();
         HashSet<int> before, now = new HashSet<int>();
         int spawned, destroyed;
 
         public override void Load()
         {
-            var name = Json.Str(Def, "component");
-            type = Reflect.TypeNamed(name);
-            if (type == null || !typeof(Component).IsAssignableFrom(type))
+            type = Sel.Text(Def, "component");
+            if (type == null) Probe.Error(Kind + " " + Id + ": no component named");
+            else if (!Reflect.NamesComponent(type))
             {
-                Probe.Error("spawns: no component type " + (name ?? "(none)"));
+                Probe.Error(Kind + " " + Id + ": no component type " + type);
                 type = null;
             }
         }
@@ -32,9 +36,10 @@ namespace TaskProbe
         void Count()
         {
             if (type == null) return;
+            found.Clear();
+            Find.Components(type, false, found);
             now.Clear();
-            foreach (var o in UnityEngine.Object.FindObjectsByType(type, FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                if (o is Component c && c != null && !Probe.IsOwn(c.gameObject)) now.Add(c.gameObject.GetInstanceID());
+            foreach (var c in found) now.Add(c.gameObject.GetInstanceID());
             if (before == null)
             {
                 before = new HashSet<int>(now);  // the clock's first frame: what is there already

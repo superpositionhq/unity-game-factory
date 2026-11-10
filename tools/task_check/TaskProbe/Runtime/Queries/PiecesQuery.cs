@@ -1,12 +1,14 @@
-// pieces: placed mesh pieces, whatever form the scene holds them in (contract section 3, "pieces"): a MeshRenderer whose
-// mesh has triangles is 1, a SkinnedMeshRenderer with a mesh is 1, a Terrain's tree instances are 1 each. Under a
+// pieces: placed mesh pieces, whatever form the scene holds them in (contract section 3, "pieces"): a MeshRenderer or a
+// SkinnedMeshRenderer whose mesh has triangles is 1, a Terrain's tree instances are 1 each. Under a
 // LODGroup only LOD 0's renderers count. Renderers of objects active in the hierarchy only (a deactivated object is
 // no placed piece; a disabled renderer is a piece that isn't drawn). Counted over every piece, never cut at a cap.
+// Unity has no instanced or procedural mesh component (the original's instances and sections): a mesh drawn from code
+// (Graphics.RenderMesh*) is no piece, a mesh built at run time is an ordinary one, its submeshes one piece.
 // select: component (MeshRenderer, SkinnedMeshRenderer, Terrain, Renderer...), name (wildcard on its object's name),
 // mesh (wildcard on its mesh asset's name; a tree's: its prototype's first mesh), owner (an object select its object
 // or an ancestor matches), near (each piece by its own place: a renderer's transform, a tree instance's position).
 // "value": {"count", "visible", "components", "objects", "triangles", "visible_triangles"} | null when near doesn't
-// resolve.
+// resolve or no component can be of the select's type.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -17,48 +19,47 @@ namespace TaskProbe
     public sealed class PiecesQuery : Query
     {
         string component, name, mesh;
+        bool unknown;
         Sel owner;
         NearSel near;
-        static readonly Dictionary<int, long> Triangles = new Dictionary<int, long>();
+        readonly Dictionary<int, long> triangles = new Dictionary<int, long>();  // this sample's meshes, read once each
 
         public override void Load()
         {
-            var s = Json.Obj(Def, "select") ?? new Dictionary<string, object>();
-            component = Json.Str(s, "component");
-            name = Json.Str(s, "name");
-            mesh = Json.Str(s, "mesh");
+            var s = Json.Obj(Def, "select");
+            component = Sel.Text(s, "component");
+            name = Sel.Text(s, "name");
+            mesh = Sel.Text(s, "mesh");
             var o = Json.Obj(s, "owner");
-            if (o != null) owner = Sel.Parse(o);
+            if (o != null) owner = Sel.Parse(o, Kind + " " + Id);
             near = NearSel.Parse(Json.Obj(s, "near"));
-            if (component != null && Reflect.TypeNamed(component) == null) Probe.Error("pieces: no component type " + component);
+            if (component != null && !Reflect.NamesComponent(component))
+            {
+                Probe.Error(Kind + " " + Id + ": no component type " + component);
+                unknown = true;
+            }
         }
 
-        /// <summary>Index count / 3 over a mesh's triangle submeshes (cached: a mesh asset rarely changes its
-        /// topology; a mesh built at run time is read again when its vertex count changes).</summary>
-        public static long TrianglesOf(Mesh m)
+        /// <summary>Index count / 3 over a mesh's triangle submeshes (an index count needs no read access).</summary>
+        long TrianglesOf(Mesh m)
         {
             if (m == null) return 0;
-            var key = m.GetInstanceID() ^ (m.vertexCount << 1);
-            if (Triangles.TryGetValue(key, out var n)) return n;
+            var id = m.GetInstanceID();
+            if (triangles.TryGetValue(id, out var n)) return n;
             n = 0;
             for (var i = 0; i < m.subMeshCount; i++)
                 if (m.GetTopology(i) == MeshTopology.Triangles) n += (long)m.GetIndexCount(i) / 3;
-            Triangles[key] = n;
-            return n;
+            return triangles[id] = n;
         }
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
+            sample["value"] = null;
+            if (unknown) return;
             var centre = Vector3.zero;
-            if (near != null && !near.Resolve(out centre)) { sample["value"] = null; return; }
-            Vector3 ownerCentre = Vector3.zero, ownerHas = Vector3.zero;
-            if (owner != null &&
-                ((owner.Near != null && !Find.Point(owner.Near.Point, out ownerCentre, 1)) ||
-                 (owner.Has?.Near != null && !Find.Point(owner.Has.Near.Point, out ownerHas, 1))))
-            {
-                sample["value"] = null;
-                return;
-            }
+            if (near != null && !near.Resolve(out centre)) return;
+            var owners = owner != null ? Find.Owners(owner) : null;
+            triangles.Clear();
 
             // renderers of LOD 1 and on that aren't in LOD 0 too
             var lower = new HashSet<int>();
@@ -79,19 +80,16 @@ namespace TaskProbe
             var objects = new HashSet<int>();
             foreach (var r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
-                Mesh m;
-                if (r is MeshRenderer) m = r.TryGetComponent<MeshFilter>(out var filter) ? filter.sharedMesh : null;
-                else if (r is SkinnedMeshRenderer smr) m = smr.sharedMesh;
-                else continue;
+                if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+                var m = Find.MeshOf(r);
                 if (m == null || lower.Contains(r.GetInstanceID()) || Probe.IsOwn(r.gameObject)) continue;
                 var each = TrianglesOf(m);
-                if (r is MeshRenderer && each == 0) continue;  // a mesh with no triangles draws nothing
-                if (!Keep(r, m.name, centre, ownerCentre, ownerHas)) continue;
+                if (each == 0) continue;  // a mesh with no triangles (lines, points) is no piece
+                if (!Keep(r, m.name, owners)) continue;
                 if (near != null && !near.Contains(centre, r.transform.position)) continue;
-                var drawn = Find.Drawn(r);
                 count++;
                 tris += each;
-                if (drawn) { visible++; visibleTris += each; }
+                if (Find.Drawn(r)) { visible++; visibleTris += each; }
                 components++;
                 objects.Add(r.gameObject.GetInstanceID());
             }
@@ -112,7 +110,7 @@ namespace TaskProbe
                 {
                     var p = tree.prototypeIndex;
                     if (p < 0 || p >= prototypes.Length) continue;
-                    if (!Keep(terrain, protoMesh[p], centre, ownerCentre, ownerHas)) continue;
+                    if (!Keep(terrain, protoMesh[p], owners)) continue;
                     if (near != null && !near.Contains(centre, origin + Vector3.Scale(tree.position, size))) continue;
                     n++;
                     nt += protoTris[p];
@@ -133,18 +131,18 @@ namespace TaskProbe
         }
 
         /// <summary>The select's keys but near (each piece by its own place).</summary>
-        bool Keep(Component c, string meshName, Vector3 centre, Vector3 ownerCentre, Vector3 ownerHas)
+        bool Keep(Component c, string meshName, HashSet<GameObject> owners)
         {
             if (component != null && !Reflect.IsA(c.GetType(), component)) return false;
             if (name != null && !Find.Wild(name, c.gameObject.name)) return false;
             if (mesh != null && !Find.Wild(mesh, meshName)) return false;
-            if (owner != null && !Find.OwnedBy(c, owner, ownerCentre, ownerHas)) return false;
+            if (owners != null && !Find.OwnedBy(c, owners)) return false;
             return true;
         }
 
         /// <summary>The triangles a tree prototype's prefab draws at full detail (LOD 0 under a LODGroup, else every mesh
         /// renderer in it), and its first mesh's name.</summary>
-        static long PrefabTriangles(GameObject prefab, out string meshName)
+        long PrefabTriangles(GameObject prefab, out string meshName)
         {
             meshName = null;
             if (prefab == null) return 0;
@@ -156,9 +154,8 @@ namespace TaskProbe
             long n = 0;
             foreach (var r in renderers)
             {
-                Mesh m = null;
-                if (r is MeshRenderer && r.TryGetComponent<MeshFilter>(out var filter)) m = filter.sharedMesh;
-                else if (r is SkinnedMeshRenderer smr) m = smr.sharedMesh;
+                if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+                var m = Find.MeshOf(r);
                 if (m == null) continue;
                 meshName ??= m.name;
                 n += TrianglesOf(m);

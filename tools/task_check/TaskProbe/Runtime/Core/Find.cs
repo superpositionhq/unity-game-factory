@@ -183,21 +183,6 @@ namespace TaskProbe
             return false;
         }
 
-        /// <summary>Whether `component`'s object, or one of its ancestors, matches `owner` (its points resolved: `centre`,
-        /// `hasCentre`). Owners and the set's OwnedBy do this once a sample.</summary>
-        public static bool OwnedBy(Component component, Sel owner, Vector3 centre, Vector3 hasCentre)
-        {
-            for (var t = component.transform; t != null; t = t.parent)
-            {
-                if (owner.Player)
-                {
-                    if (Probe.Active != null && Probe.Active.Player == t.gameObject && Matches(t.gameObject, owner, centre, hasCentre)) return true;
-                }
-                else if (Matches(t.gameObject, owner, centre, hasCentre)) return true;
-            }
-            return false;
-        }
-
         /// <summary>Adds the objects `sel` matches now to `found`, in hierarchy order when `ordered`.</summary>
         static void Collect(Sel sel, int depth, List<GameObject> found, bool ordered)
         {
