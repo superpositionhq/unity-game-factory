@@ -30,6 +30,11 @@ namespace TaskProbe
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
+            if (!LightKit.GradeKnown())
+            {
+                sample["value"] = null;  // URP hasn't set up its volumes yet (or there is no camera): no grade is known
+                return;
+            }
             var v = new Dictionary<string, object>(StringComparer.Ordinal);
             var pipeline = GraphicsSettings.currentRenderPipeline;
             if (LightKit.Urp)

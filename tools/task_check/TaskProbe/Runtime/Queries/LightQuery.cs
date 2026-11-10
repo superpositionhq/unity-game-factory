@@ -4,7 +4,7 @@
 // shadow strength's share). The ambient adds the spherical harmonics URP lights a moving object at the point with
 // (the baked light probes, else the ambient probe), straight up. In Unity's light units (not lux).
 // "value": {"illuminance", "exposure", "brightness", "local", "directional", "sky", "lights", "point": [x, y, z]} |
-// null when the point doesn't resolve.
+// null when the point doesn't resolve; `exposure` and `brightness` null while the grade isn't known (LightKit.GradeKnown).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -60,7 +60,8 @@ namespace TaskProbe
             var exposure = LightKit.Exposure();
             sample["value"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["illuminance"] = illuminance, ["exposure"] = exposure, ["brightness"] = illuminance * exposure,
+                ["illuminance"] = illuminance, ["exposure"] = exposure,
+                ["brightness"] = exposure.HasValue ? illuminance * exposure.Value : (object)null,
                 ["local"] = local, ["directional"] = directional, ["sky"] = sky, ["lights"] = (double)lit,
                 ["point"] = Json.Vec(p),
             };

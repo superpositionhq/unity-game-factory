@@ -226,8 +226,8 @@ namespace TaskProbe
         /// <summary>The volume stack in effect at the player's camera now, looked up once a pass: the camera's own stack
         /// when it is updated only by script (URP renders with it as it stands), else every volume blended for the
         /// camera's volume trigger and layer mask at this moment (as URP's UpdateVolumeFramework does before it renders
-        /// the camera). Null without URP's volume manager or a camera. `post`: whether the camera renders
-        /// post-processing at all.</summary>
+        /// the camera). Null without URP, a camera, or URP's volume framework (URP sets it up when it first draws, which
+        /// can come after a play's first sample). `post`: whether the camera renders post-processing at all.</summary>
         public static VolumeStack StackAt(out string source, out bool post)
         {
             if (stackStamp != Probe.Stamp)
@@ -245,12 +245,12 @@ namespace TaskProbe
             post = false;
             source = "none";
             if (!Urp) return null;
-            var manager = VolumeManager.instance;
-            if (manager == null || !manager.isInitialized) return null;
             var view = Probe.Active != null ? Probe.Active.View : null;
             if (view == null) return null;
             var data = view.GetComponent<UniversalAdditionalCameraData>();
             post = data != null && data.renderPostProcessing;
+            var manager = VolumeManager.instance;
+            if (manager == null || !manager.isInitialized) return null;
             if (data != null && !data.requiresVolumeFrameworkUpdate && data.volumeStack != null && data.volumeStack.isValid)
             {
                 source = "camera_stack";
@@ -264,16 +264,30 @@ namespace TaskProbe
             return own;
         }
 
-        /// <summary>2^postExposure of the stack at the camera; 1 without URP, a stack, or post-processing on the camera.</summary>
-        public static double Exposure()
+        /// <summary>Whether the grade the camera's frame gets is known now: without URP (no grade is read: neutral), for a
+        /// camera that renders no post-processing (its frame is ungraded), or once its stack can be read. Not without a
+        /// camera, nor before URP has set up its volume framework: no value then (the original's exposure has none
+        /// until the renderer has one), never a neutral one no frame shows.</summary>
+        public static bool GradeKnown()
         {
+            if (!Urp) return true;
+            if (StackAt(out _, out var post) != null) return true;
+            return !post && Probe.Active != null && Probe.Active.View != null;
+        }
+
+        /// <summary>2^postExposure of the stack at the camera; 1 without URP or post-processing on the camera; null while
+        /// the grade isn't known (GradeKnown).</summary>
+        public static double? Exposure()
+        {
+            if (!GradeKnown()) return null;
             var stack = StackAt(out _, out var post);
             if (stack == null || !post) return 1.0;
             var adjust = stack.GetComponent<ColorAdjustments>();
             return adjust != null ? Math.Pow(2.0, adjust.postExposure.value) : 1.0;
         }
 #else
-        public static double Exposure() => 1.0;
+        public static bool GradeKnown() => true;
+        public static double? Exposure() => 1.0;
 #endif
     }
 }
