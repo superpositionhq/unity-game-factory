@@ -278,17 +278,6 @@ def score(task, grade):
             "required": len(required), "milestones": {g: all(v) for g, v in groups.items()}}
 
 
-def clear(folder, names):
-    """The folders `names` of the agent's `folder` deleted. One the agent made a link (a symlink or a junction) goes as
-    a link: never what it points at, and never left for the grade's Unity to write through."""
-    for name in names:
-        path = Path(folder) / name
-        if os.path.islink(path) or os.path.isjunction(path):
-            os.unlink(path)
-        elif path.is_dir():
-            seeds.remove(path)
-
-
 def discard(folder, log):
     """`folder` deleted. A file something still holds (a process the try couldn't find, the antivirus) is reported, not
     raised: the try's result matters more than its scratch folder."""
@@ -396,7 +385,8 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
             try:
                 if outside(folder, [scratch]):  # the agent swapped its folder for a link: nothing there is the try's
                     raise FileNotFoundError(f"the workspace is now a link to {os.path.realpath(folder)}: not graded")
-                clear(folder, BUILT)
+                for d in BUILT:  # (one the agent made a link goes as the link: seeds.remove never follows one)
+                    seeds.remove(folder / d)
                 tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
                 grade = check.Grade(task, "reference", start, reference, thresholds, side=tried).run()
             except (seeds.WrongEngine, FileNotFoundError, RuntimeError) as exc:  # Unity version or project changed
