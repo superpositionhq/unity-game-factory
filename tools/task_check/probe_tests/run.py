@@ -98,16 +98,17 @@ class Image:
         self.rows, before = [], bytearray(stride)
         for y in range(self.height):
             kind, row = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
-            for i in range(stride):
-                a = row[i - n] if i >= n else 0
-                b, c = before[i], before[i - n] if i >= n else 0
-                if kind == 1:
-                    row[i] = (row[i] + a) & 255
-                elif kind == 2:
-                    row[i] = (row[i] + b) & 255
-                elif kind == 3:
-                    row[i] = (row[i] + (a + b) // 2) & 255
-                elif kind == 4:
+            if kind == 1:  # each byte is stored less the one a pixel to its left
+                for i in range(n, stride):
+                    row[i] = (row[i] + row[i - n]) & 255
+            elif kind == 2:  # less the one above
+                row = bytearray((x + b) & 255 for x, b in zip(row, before))
+            elif kind == 3:  # less the mean of the two
+                for i in range(stride):
+                    row[i] = (row[i] + ((row[i - n] if i >= n else 0) + before[i]) // 2) & 255
+            elif kind == 4:  # less the nearer of left, above and above left (Paeth)
+                for i in range(stride):
+                    a, b, c = (row[i - n], before[i], before[i - n]) if i >= n else (0, before[i], 0)
                     p = a + b - c
                     pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
                     row[i] = (row[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
@@ -200,11 +201,11 @@ class Family:
 
 
 def families(only):
-    found = [Family(f) for f in sorted(HERE.iterdir()) if (f / "tests.py").is_file()]
+    found = [f for f in sorted(HERE.iterdir()) if (f / "tests.py").is_file()]
     unknown = set(only or []) - {f.name for f in found}
     if unknown:
         sys.exit(f"no family {', '.join(sorted(unknown))} (there are: {', '.join(f.name for f in found)})")
-    return [f for f in found if not only or f.name in only]
+    return [Family(f) for f in found if not only or f.name in only]
 
 
 def same_names(chosen):
@@ -332,7 +333,11 @@ def run_play(project, family, name, entry, earlier, once):
     spec, queries = _spec(family, name)
     args, timeout = list(entry.get("args") or []), entry.get("timeout", 240)
     started = time.monotonic()
-    played = _play(project, spec, queries, args, timeout)
+    try:
+        played = _play(project, spec, queries, args, timeout)
+    except Exception as exc:  # the play couldn't be started at all: this play's failure, not the run's
+        t.ok(f"the play started ({type(exc).__name__}: {exc})", False)
+        return t, "", time.monotonic() - started
     play = Play(name, spec, played, earlier)
     kept = project.folder / KEPT / f"{family.name}.{name}"
     shutil.rmtree(kept, ignore_errors=True)
@@ -359,8 +364,11 @@ def run_play(project, family, name, entry, earlier, once):
     note = ""
     varies = entry.get("varies") or []
     if not once and varies is not True:
-        again = _play(project, spec, queries, args, timeout)
-        where = "no probe.json" if again.probe is None else _differs(_steady(play.probe, varies), _steady(again.probe, varies))
+        try:
+            again = _play(project, spec, queries, args, timeout)
+            where = "no probe.json" if again.probe is None else _differs(_steady(play.probe, varies), _steady(again.probe, varies))
+        except Exception as exc:
+            where = f"the second play couldn't be started ({type(exc).__name__}: {exc})"
         t.ok("a second play gives the same probe.json", where is None, where)
         note = "same twice" if where is None else "differs twice"
     return t, note, time.monotonic() - started
