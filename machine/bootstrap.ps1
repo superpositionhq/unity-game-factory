@@ -22,8 +22,9 @@
      (<ClaudeDir>\skills\, ~\.agents\skills\; other skill folders are never touched), and the
      root instructions (Claude Code: <root>\CLAUDE.md importing unity-game-factory\CLAUDE.md; Codex: <root>\AGENTS.md
      naming unity-game-factory\AGENTS.md; sessions start in the root).
-  4. Git: git-lfs filters (git lfs install --skip-repo), gh login check, the commit recorder in every
-     <root>\games\*\.git (machine\install-git-hook.ps1); -CloneGames clones every <org>/unity-game-* repo first.
+  4. Git: git-lfs filters (git lfs install --skip-repo), gh login check, the post-commit hook's two lines in every
+     <root>\games\*\.git, the commit recorder and the live creation replay (machine\install-git-hook.ps1); -CloneGames
+     clones every <org>/unity-game-* repo first.
   The GitHub organisation (or user) that owns unity-game-factory and the game repos is "github_org" in the config: -Org
   sets it, else the config's value is kept, else bootstrap asks (non-interactive runs warn and leave it unset).
   Any file it replaces is copied to a backup first (<root>\tools\_backup\<time>\, <hooks dir>\_backup\<time>\,
@@ -333,8 +334,10 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged) -and -not $Yes) {
     Write-Host "      earlier calls, imported from its transcript; at the end of each turn its uncommitted work is committed as WIP."
     Write-Host "    - The same session has every prompt you type and every reply the model writes recorded, read from its"
     Write-Host "      transcript, to $Root\.recording\<slug>\messages.jsonl (not the model's reasoning)."
-    Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl (every run adds"
-    Write-Host "      it to each game repo whatever the answer; removing its line from .git\hooks\post-commit stops it until bootstrap runs again)."
+    Write-Host "    - Each game repo's post-commit hook records commits to $Root\.recording\<slug>\commits.jsonl and starts the"
+    Write-Host "      live creation replay of the new commits (headless editor runs at low priority, in $Root\unity-replay\<slug>)"
+    Write-Host "      (every run adds both lines to each game repo whatever the answer; removing them from .git\hooks\post-commit"
+    Write-Host "      stops them until bootstrap runs again)."
     Write-Host "    - Sessions that never touch a game folder under $Root are not recorded; session ids in"
     Write-Host "      hooks\recording-exclude.txt never are. Other hooks in those files (e.g. another factory's) stay as they are."
     Write-Host "    These records become the game-creation dataset. Remove the entries from those files to stop recording tool calls."
@@ -442,12 +445,12 @@ if ($CloneGames) {
         }
     }
 }
-# _-prefixed folders (e.g. _pipeline-test) are tool test projects, not game data: no commit recorder.
+# _-prefixed folders (e.g. _pipeline-test) are tool test projects, not game data: no commit recorder, no live replay.
 $gameRepos = @(Get-ChildItem -LiteralPath (Join-Path $Root 'games') -Directory -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -notlike '_*' -and (Test-Path -LiteralPath (Join-Path $_.FullName '.git')) })
 foreach ($g in $gameRepos) {
     $msg = & (Join-Path $PSScriptRoot 'install-git-hook.ps1') -Repo $g.FullName -HooksDir $hooksDir 6>&1 | Out-String
-    Note $(if ($msg -match 'already') { 'ok' } else { 'added' }) "games\$($g.Name) post-commit recorder"
+    Note $(if ($msg -match 'already') { 'ok' } else { 'added' }) "games\$($g.Name) post-commit recorder and live replay"
 }
 if (-not $gameRepos.Count) { Note skip 'game repos' "none under $Root\games yet (new-game.ps1 or -CloneGames)" }
 

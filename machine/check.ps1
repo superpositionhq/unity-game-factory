@@ -11,7 +11,7 @@
   library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
   installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
   recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
-  AGENTS.md.
+  AGENTS.md, and each game repo's post-commit hook (the commit recorder and the live creation replay).
   Exit code = number of FAILs. -Json writes the report as JSON too.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\check.ps1
@@ -212,7 +212,7 @@ Try-Check 'ffmpeg 8.1.2 (pinned)' {
     if (-not (Test-Path $exe)) { Add-Result FAIL 'ffmpeg 8.1.2 (pinned)' "missing $exe" 'machine\get-ffmpeg.ps1'; return }
     $ok = (Test-Path $arc) -and ((Get-FileHash $arc -Algorithm SHA256).Hash -eq '0FFF188997A499B5382E0F66E845D4556C48C54F0113EBED4853D556DBDD7059')
     $nv = Run $exe @('-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=256x256:r=60', '-t', '0.1', '-c:v', 'h264_nvenc', '-f', 'null', '-')
-    $enc = if ($nv.code -eq 0) { 'h264_nvenc opens' } else { 'h264_nvenc does NOT open (recordings fall back to libx264)' }
+    $enc = if ($nv.code -eq 0) { 'h264_nvenc opens' } else { 'h264_nvenc does NOT open (recordings fall back to AMF, then libx264 on the CPU)' }
     if ($ok) { Add-Result $(if ($nv.code -eq 0) { 'PASS' } else { 'WARN' }) 'ffmpeg 8.1.2 (pinned)' "archive SHA-256 verified; $enc" }
     else { Add-Result WARN 'ffmpeg 8.1.2 (pinned)' "ffmpeg.exe present but the archive is missing or does not match the pin; $enc" 'machine\get-ffmpeg.ps1 -Force' }
 }
@@ -343,16 +343,23 @@ if ($Agents -contains 'codex') {
         else { Add-Result FAIL 'Root AGENTS.md' "$p missing or not naming $(Join-Path $repo 'AGENTS.md')" 'machine\bootstrap.ps1' }
     }
 }
+# A game repo's post-commit hook has two lines (machine\install-git-hook.ps1): the commit recorder, without which the
+# game's commits go unrecorded, and the live creation replay (tools\unity-replay\live-hook.ps1), without which the
+# session never hears what keeps its history from replaying until the release replay finds it.
 Try-Check 'Game repos record commits' {
     # _-prefixed folders (e.g. _pipeline-test) are tool test projects, not game data
     $repos = @(Get-ChildItem (Join-Path $Root 'games') -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notlike '_*' -and (Test-Path (Join-Path $_.FullName '.git')) })
-    if (-not $repos) { Add-Result PASS 'Game repos record commits' 'no game repos yet'; return }
-    $missing = @($repos | Where-Object {
-        $h = Join-Path $_.FullName '.git\hooks\post-commit'
-        -not ((Test-Path $h) -and ((Get-Content $h -Raw) -match 'record-unity-commit\.ps1'))
-    } | Select-Object -ExpandProperty Name)
+    if (-not $repos) { Add-Result PASS 'Game repos record commits' 'no game repos yet'; Add-Result PASS 'Game repos replay commits' 'no game repos yet'; return }
+    $missing = @(); $noReplay = @()
+    foreach ($r in $repos) {
+        $h = Join-Path $r.FullName '.git\hooks\post-commit'
+        $text = if (Test-Path $h) { [string](Get-Content $h -Raw) } else { '' }
+        if ($text -notmatch 'record-unity-commit\.ps1') { $missing += $r.Name }
+        if ($text -notmatch 'unity-replay[\\/]live-hook\.ps1') { $noReplay += $r.Name }
+    }
     if (-not $missing) { Add-Result PASS 'Game repos record commits' "$($repos.Count) repo(s)" } else { Add-Result FAIL 'Game repos record commits' "no recorder in: $($missing -join ', ')" 'machine\install-git-hook.ps1 <repo> (bootstrap.ps1 does all)' }
+    if (-not $noReplay) { Add-Result PASS 'Game repos replay commits' "$($repos.Count) repo(s)" } else { Add-Result FAIL 'Game repos replay commits' "no live replay in: $($noReplay -join ', ')" 'machine\install-git-hook.ps1 <repo> (bootstrap.ps1 does all)' }
 }
 
 # --- content ---------------------------------------------------------------------------------------------------------
