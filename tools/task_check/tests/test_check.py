@@ -372,6 +372,8 @@ def missing(*scenes, names=57):
             "missing": {s: {"missing": ["4f1c2a9e0b8d4c3a9f7e6d5c4b3a2910"], "names": names} for s in scenes}}
 
 
+# The free-space floor is the machine's (its config, its disk): it decides no test here.
+@mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0)
 class Whole(unittest.TestCase):
     def check(self, task, projects, tmp):
         """check_task with the scratch copies made for real and Unity faked: `projects` {side: FakeProject}."""

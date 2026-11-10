@@ -524,6 +524,8 @@ class Whole(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
             real = unity.Machine.for_project
+            config = Path(tmp) / "config.json"  # a machine config of the test's own, never this machine's
+            config.write_text(json.dumps({"unity_hub_editors": str(Path(tmp) / "editors")}), encoding="utf-8")
 
             def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
                 (Path(cwd) / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.99f1\n")
@@ -533,7 +535,8 @@ class Whole(unittest.TestCase):
                 return real(project, direct) if Path(project).parent.name.startswith("run") else \
                     cls(Path("C:/U/Unity.exe"), None)
 
-            with faked(agent), mock.patch.object(unity.Machine, "for_project", classmethod(machine)):
+            with faked(agent), mock.patch.object(unity.Machine, "for_project", classmethod(machine)), \
+                    mock.patch.dict(os.environ, {"UGF_CONFIG": str(config)}):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                         "claude", runs=2, log=lambda *a: None)
             self.assertEqual(result["status"], "DONE", result["reasons"])
