@@ -168,6 +168,16 @@
    ]
   },
   {
+   "id": "o_pair",
+   "kind": "objects",
+   "select": {
+    "name": "Pair*"
+   },
+   "fields": [
+    "changed"
+   ]
+  },
+  {
    "id": "o_lamps",
    "kind": "objects",
    "select": {

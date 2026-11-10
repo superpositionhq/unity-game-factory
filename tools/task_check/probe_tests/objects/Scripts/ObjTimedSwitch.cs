@@ -2,13 +2,13 @@ using UnityEngine;
 
 namespace ProbeTests.Objects
 {
-    // At `at` s of game time does one thing to its target, as a game would: deactivate it, disable its renderer, switch
+    // At `at` s of game time does one thing to its target, as a game would: deactivate or activate it, disable its renderer, switch
     // its Light on or off, set its emission colour through a MaterialPropertyBlock (on every material, or on material
     // `index` alone) or set it as a vector, switch its own material's _EMISSION keyword on, force its renderer off, kick
     // its Rigidbodies apart (`amount` m/s outward and 2 m/s up), or spin its Rigidbody2D at `amount` deg/s.
     public class ObjTimedSwitch : MonoBehaviour
     {
-        public enum Action { Deactivate, HideRenderer, LightOn, LightOff, EmissionOn, EmissionOnIndex, EmissionVector, KeywordOn, ForceOff, Kick, Spin2D }
+        public enum Action { Deactivate, HideRenderer, LightOn, LightOff, EmissionOn, EmissionOnIndex, EmissionVector, KeywordOn, ForceOff, Kick, Spin2D, Activate }
         public GameObject target;
         public Action action;
         public float at = 3f;
@@ -25,6 +25,7 @@ namespace ProbeTests.Objects
             switch (action)
             {
                 case Action.Deactivate: target.SetActive(false); break;
+                case Action.Activate: target.SetActive(true); break;
                 case Action.HideRenderer: r.enabled = false; break;
                 case Action.LightOn: target.GetComponent<Light>().enabled = true; break;
                 case Action.LightOff: target.GetComponent<Light>().intensity = 0f; break;

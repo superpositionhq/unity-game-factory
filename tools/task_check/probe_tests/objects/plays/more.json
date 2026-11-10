@@ -101,16 +101,7 @@
     "name": "Vfx"
    },
    "fields": [
-    "lit"
-   ]
-  },
-  {
-   "id": "m_vfx_glow",
-   "kind": "objects",
-   "select": {
-    "name": "Vfx"
-   },
-   "fields": [
+    "lit",
     "glow"
    ]
   },
@@ -145,7 +136,8 @@
    },
    "fields": [
     "active",
-    "lit"
+    "lit",
+    "glow"
    ]
   },
   {

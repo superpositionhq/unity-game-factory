@@ -32,6 +32,20 @@ namespace TaskProbe
             change = Fields.Exists(Changes.IsField);
             glow = Reads("lit") || Reads("glow");
             withParts = change || glow || Reads("spin") || Reads("spread") || Fields.Exists(f => f.StartsWith("extent_", StringComparison.Ordinal));
+#if !TASKPROBE_PHYSICS && !TASKPROBE_PHYSICS2D
+            Lacks("Physics", " read 0", " reads 0", Fields.FindAll(f => f == "collision" || f == "simulating"));
+#endif
+#if !TASKPROBE_ANIMATION
+            Lacks("Animation", " have no value", " has no value", Fields.FindAll(f => f == "clip" || f.StartsWith("anim:", StringComparison.Ordinal)));
+#endif
+        }
+
+        /// <summary>A field read through a module the project doesn't have keeps its value without it; the query says so
+        /// once, as every kind says what the project lacks.</summary>
+        void Lacks(string module, string many, string one, List<string> fields)
+        {
+            if (fields.Count == 0) return;
+            Probe.Error(Kind + " " + Id + ": the project has no " + module + " module: " + string.Join(" and ", fields) + (fields.Count > 1 ? many : one));
         }
 
         public override void Frame(float dt)
@@ -48,6 +62,7 @@ namespace TaskProbe
                 rows.Add(Row(go));
             places.End();
             spins.EndSample();
+            if (change) changes.EndSample();
             rows.WriteTo(sample);
         }
 

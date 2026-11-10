@@ -210,6 +210,12 @@ namespace ProbeTests.Objects
             var ghost = Prim(PrimitiveType.Cube, "Ghost", new Vector3(-6f, 0.5f, 2f), Vector3.one, plain);
             Switch(switches, vanisher, ObjTimedSwitch.Action.Deactivate, 3f);
             Switch(switches, ghost, ObjTimedSwitch.Action.HideRenderer, 3f);
+            // a parent and its child, each with a renderer, the child inactive until 3 s: one select takes the parent from
+            // the start and the child once active; the child's first sample must not stand in for the parent's
+            var pairParent = Prim(PrimitiveType.Cube, "PairParent", new Vector3(-14f, 0.5f, -2f), Vector3.one, plain);
+            var pairChild = Prim(PrimitiveType.Cube, "PairChild", new Vector3(2f, 0f, 0f), Vector3.one, plain, true, pairParent.transform);
+            pairChild.SetActive(false);
+            Switch(switches, pairChild, ObjTimedSwitch.Action.Activate, 3f);
 
             // lamps in a row at z 10, tagged ObjLamp, on layer ObjProps
             var lamps = new List<GameObject>();

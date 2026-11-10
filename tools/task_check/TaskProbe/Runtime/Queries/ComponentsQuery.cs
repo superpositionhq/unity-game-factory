@@ -16,7 +16,7 @@ namespace TaskProbe
     public sealed class ComponentsQuery : Query
     {
         string type;
-        bool effect, visibleOnly, inactive, broken;
+        bool effect, visibleOnly, inactive, broken, change, glow;
         string name, mesh;
         Sel owner;
         NearSel near;
@@ -45,6 +45,12 @@ namespace TaskProbe
             var o = Json.Obj(s, "owner");
             if (o != null) owner = Sel.Parse(o, Kind + " " + Id);
             near = NearSel.Parse(Json.Obj(s, "near"));
+            change = Fields.Exists(Changes.IsField);
+            glow = Reads("lit") || Reads("glow");
+#if !TASKPROBE_PHYSICS && !TASKPROBE_PHYSICS2D
+            // as every kind says what the project lacks: simulating keeps its value (0) without a physics module
+            if (Reads("simulating")) Probe.Error(Kind + " " + Id + ": the project has no Physics module: simulating reads 0");
+#endif
             if (type != null && !Reflect.NamesComponent(type))
             {
                 Probe.Error(Kind + " " + Id + ": no component type " + type);
@@ -72,6 +78,7 @@ namespace TaskProbe
             matched.Clear();
             places.End();
             spins.EndSample();
+            changes.EndSample();
             rows.WriteTo(sample);
         }
 
@@ -144,10 +151,8 @@ namespace TaskProbe
             var renderer = c as Renderer;
             var light = c as Light;
             // changed, bounds_change, pose_change: a renderer against the first sample this query saw it in
-            Changes.Reading change = default;
-            if (renderer != null && Fields.Exists(Changes.IsField)) change = changes.Part(renderer);
+            var changed = renderer != null && change ? changes.Part(renderer) : default;
             // lit, glow: a light, a part or an effect as a source; no value for any other component
-            var glow = Reads("lit") || Reads("glow");
             var shines = glow ? Glow.Of(c) : default;
             var speedRead = false;
             double? speed = null;
@@ -181,7 +186,7 @@ namespace TaskProbe
                     case "changed":
                     case "bounds_change":
                     case "pose_change":
-                        if (renderer != null) v = change.Field(f);
+                        if (renderer != null) v = changed.Field(f);
                         break;
                     case "lit":
                     case "glow":

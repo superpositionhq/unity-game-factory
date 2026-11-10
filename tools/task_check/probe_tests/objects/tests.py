@@ -230,6 +230,10 @@ def gone(t, play):
          [len(play.rows("c_visible", x)) for x in (2.5, 3.5)], [2, 0])
     t.eq("a components select leaves out the components of an inactive object", [len(play.rows("c_vanisher", x)) for x in (2.5, 3.5)], [1, 0])
     t.eq("unless it says inactive: true (they read active 0)", [field(play, "c_vanisher_all", x, "Vanisher", "active") for x in (2.5, 3.5)], [1.0, 0.0])
+    t.eq("PairParent, whose child is shown at 3 s: changed against its own first sample, at 2.5, 3.5 and 4.5 s",
+         [field(play, "o_pair", x, "PairParent", "changed") for x in (2.5, 3.5, 4.5)], [0.0, 1.0, 1.0])
+    t.eq("PairChild, matched from 3.5 s (the select takes active objects): unchanged against its own first sample",
+         [field(play, "o_pair", x, "PairChild", "changed") for x in (2.5, 3.5, 4.5)], [None, 0.0, 0.0])
 
 
 def lamps(t, play):
@@ -530,8 +534,7 @@ def more(t, play):
         t.eq("a VisualEffect holding particles is a live effect", "Vfx" in names(play, "m_effects", 1.0), True)
         t.eq("its component is active", field(play, "m_c_vfx", 1.0, "Vfx", "active"), 1.0)
         t.eq("it gives light, as rendered", (vfx.get("lit"), vfx.get("glow_sources"), vfx.get("glow_read")), (1.0, "effect", "render"))
-        t.ok("some glow (its value is left out of the comparison of two plays)", (field(play, "m_vfx_glow", 1.0, "Vfx", "glow") or 0) > 0,
-             field(play, "m_vfx_glow", 1.0, "Vfx", "glow"))
+        t.ok("some glow", (vfx.get("glow") or 0) > 0, vfx.get("glow"))
     else:
         t.eq("without the VFX Graph package: no VisualEffect", play.rows("m_c_vfx", 1.0), [])
 
@@ -644,10 +647,9 @@ PLAYS = {
         r"^objects o_bad: no field nonsense$", r"^components c_bad: no component type NoSuchType$",
         r"^components c_none: the select names no component and no effect$"]},
     "world": {"check": world, "errors": [r"^spawns( sp_bad)?: no component type Nope$"]},
-    # a VisualEffect simulates on the GPU: its glow differed between two plays before its seed was fixed, and a GPU
-    # isn't promised to repeat itself
-    "more": {"check": more, "varies": ["m_vfx_glow"]},
-    # a wait lasts its seconds of real time: how many frames the game runs in it differs from play to play
+    "more": {"check": more},
+    # a wait lasts its seconds of real time: how many frames the game runs in it differs from play to play, and with
+    # them x and the float rounding in speed and spin (measured: 2.0000041 m/s at 1.5 s, 2.0000267 from 2 s)
     "wait": {"check": wait_, "varies": True},
     "budget": {"check": budget},
     "stress_none": {"check": stress_none},

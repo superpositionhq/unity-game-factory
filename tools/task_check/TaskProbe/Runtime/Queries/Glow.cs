@@ -93,14 +93,15 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- what reads as a source
 
-        /// <summary>One component as a source: a Light, a renderer that draws a shape (a mesh, sprite or line), an effect
-        /// (a particle system, a trail, a visual effect, or its renderer); not read (Read false) for anything else.</summary>
+        /// <summary>One component as a source: a Light, a part (a renderer that draws a shape and has something to draw,
+        /// ObjectRead.IsPart, as an object's parts), an effect (a particle system, a trail, a visual effect, or its
+        /// renderer); not read (Read false) for anything else.</summary>
         public static GlowReading Of(Component c)
         {
             var r = new GlowReading();
             if (c is Light light) AddLight(ref r, light);
             else if (Effects.Drawn(c, out var effect, out var drawn)) AddEffect(ref r, effect, drawn);
-            else if (c is Renderer part && !(part is SpriteMask)) AddPart(ref r, part);
+            else if (c is Renderer part && ObjectRead.IsPart(part)) AddPart(ref r, part);
             return r;
         }
 
@@ -324,6 +325,14 @@ namespace TaskProbe
             return Color.white;
         }
 
+        static Texture BlockTexture(MaterialPropertyBlock block, int id, int fallback)
+        {
+            if (block == null) return null;
+            if (block.HasTexture(id)) return block.GetTexture(id);
+            if (id != fallback && block.HasTexture(fallback)) return block.GetTexture(fallback);
+            return null;
+        }
+
         static bool BlockValue(MaterialPropertyBlock block, int id, int fallback, out Color v)
         {
             v = default;
@@ -349,12 +358,8 @@ namespace TaskProbe
 
         static Texture TextureOf(Material m, MaterialPropertyBlock one, MaterialPropertyBlock all, int id, int fallback)
         {
-            foreach (var block in new[] { one, all })
-            {
-                if (block == null) continue;
-                if (block.HasTexture(id)) return block.GetTexture(id);
-                if (id != fallback && block.HasTexture(fallback)) return block.GetTexture(fallback);
-            }
+            var t = BlockTexture(one, id, fallback) ?? BlockTexture(all, id, fallback);
+            if (t != null) return t;
             if (m.HasProperty(id) && m.GetTexture(id) != null) return m.GetTexture(id);
             if (id != fallback && m.HasProperty(fallback)) return m.GetTexture(fallback);
             return null;

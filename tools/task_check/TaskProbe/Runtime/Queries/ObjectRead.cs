@@ -39,12 +39,17 @@ namespace TaskProbe
                 if (IsPart(r)) parts.Add(r);
         }
 
-        static bool IsPart(Renderer r)
+        /// <summary>Whether a renderer is a part: it draws a shape and has something to draw (lit and glow's sources take
+        /// the same rule, Glow.Of).</summary>
+        public static bool IsPart(Renderer r)
         {
             switch (r)
             {
                 case MeshRenderer _:
-                    return r.TryGetComponent<MeshFilter>(out var filter) && filter.sharedMesh != null && filter.sharedMesh.vertexCount > 0;
+                {
+                    var mesh = Find.MeshOf(r);
+                    return mesh != null && mesh.vertexCount > 0;
+                }
                 case SkinnedMeshRenderer skinned: return skinned.sharedMesh != null;
                 case SpriteRenderer sprite: return sprite.sprite != null;
                 case TrailRenderer _:
@@ -373,7 +378,9 @@ namespace TaskProbe
         }
     }
 
-    /// <summary>changed, bounds_change, pose_change: each part against the first sample it was seen in.</summary>
+    /// <summary>changed, bounds_change, pose_change: each part against the first sample it was seen in. Kept for the
+    /// query, as the original keeps its first states for the play; what was destroyed is forgotten after the sample
+    /// (an instance id is never used again).</summary>
     public sealed class Changes
     {
         const float Bounds = 0.01f;  // m: changed when a part's world, or a skinned mesh's local, bounds moved more
@@ -383,6 +390,7 @@ namespace TaskProbe
 
         sealed class State
         {
+            public Renderer Of;
             public bool Drawn, Skinned;
             public UnityEngine.Bounds World, Local;
             public Vector3[] Bones;
@@ -402,12 +410,24 @@ namespace TaskProbe
             }
         }
 
-        readonly Dictionary<int, State> firsts = new Dictionary<int, State>();
-        readonly Dictionary<int, List<int>> firstParts = new Dictionary<int, List<int>>();
+        /// <summary>An object's parts as its own first sample had them. A part is also each of its ancestors' (parts take
+        /// descendants), so one object's first sample must never stand in for another's: a child first matched later
+        /// than its parent (inactive until then, or come into a near) would else overwrite the parent's first state of
+        /// the child's renderer. (The original keys by component alone: there an actor's parts are its own.)</summary>
+        sealed class ObjectFirst
+        {
+            public GameObject Go;
+            public readonly Dictionary<int, State> Parts = new Dictionary<int, State>();
+        }
+
+        readonly Dictionary<int, State> firsts = new Dictionary<int, State>();  // a components row's renderer
+        readonly Dictionary<int, ObjectFirst> objects = new Dictionary<int, ObjectFirst>();
+        readonly HashSet<int> partsNow = new HashSet<int>();
+        readonly List<int> gone = new List<int>();
 
         static State Now(Renderer r)
         {
-            var s = new State { Drawn = Find.Drawn(r), World = r.bounds };
+            var s = new State { Of = r, Drawn = Find.Drawn(r), World = r.bounds };
             if (r is SkinnedMeshRenderer smr)
             {
                 s.Skinned = true;
@@ -459,22 +479,23 @@ namespace TaskProbe
         public Reading Object(GameObject go, List<Renderer> parts)
         {
             var key = go.GetInstanceID();
-            var seen = firstParts.TryGetValue(key, out var before);
-            var keys = new List<int>(parts.Count);
+            var seen = objects.TryGetValue(key, out var firstOf);
+            if (!seen) objects[key] = firstOf = new ObjectFirst { Go = go };
+            partsNow.Clear();
             var c = new Reading();
             foreach (var r in parts)
             {
                 var id = r.GetInstanceID();
-                keys.Add(id);
+                partsNow.Add(id);
                 var now = Now(r);
                 if (!seen)
                 {
-                    firsts[id] = now;
+                    firstOf.Parts[id] = now;
                     c.Any = true;
                     c.HasPose |= now.Skinned;
                     continue;
                 }
-                if (!before.Contains(id) || !firsts.TryGetValue(id, out var first))
+                if (!firstOf.Parts.TryGetValue(id, out var first))
                 {
                     c.Changed |= now.Drawn;  // a part added since, drawn
                     continue;
@@ -486,15 +507,23 @@ namespace TaskProbe
                 c.HasPose |= p.HasPose;
                 c.PoseMove += p.PoseMove;
             }
-            if (!seen)
-            {
-                firstParts[key] = keys;
-                return c;
-            }
-            foreach (var id in before)
-                if (!keys.Contains(id) && firsts.TryGetValue(id, out var first) && first.Drawn)
-                    c.Changed = true;  // a part drawn then is gone
+            if (!seen) return c;
+            foreach (var kv in firstOf.Parts)
+                if (kv.Value.Drawn && !partsNow.Contains(kv.Key)) c.Changed = true;  // a part drawn then is gone
             return c;
+        }
+
+        /// <summary>After a sample: forget the objects and renderers destroyed since (their ids never come back).</summary>
+        public void EndSample()
+        {
+            gone.Clear();
+            foreach (var kv in objects)
+                if (kv.Value.Go == null) gone.Add(kv.Key);
+            foreach (var k in gone) objects.Remove(k);
+            gone.Clear();
+            foreach (var kv in firsts)
+                if (kv.Value.Of == null) gone.Add(kv.Key);
+            foreach (var k in gone) firsts.Remove(k);
         }
     }
 }

@@ -10,7 +10,8 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
 
 - **ObjLab**: one of every thing the six kinds read. The player (a CharacterController driven by the keyboard, a turned
   visor on it), a camera that follows it and a wall that comes between them, a crate that falls, a kinematic lift, a
-  fan whose blade spins and carries a trail, an object deactivated and one whose renderer is disabled at 3 s, nine
+  fan whose blade spins and carries a trail, an object deactivated and one whose renderer is disabled at 3 s, a
+  parent whose child (each with a renderer) is activated at 3 s, nine
   lamps tagged `ObjLamp` on layer `ObjProps` (a Light, URP Lit with emission, URP Unlit, emission through a map, emission
   set at 4 s through a MaterialPropertyBlock, a spot Light enabled at 4 s, a Light set to intensity 0 at 4 s, a custom
   shader without the standard interface, a plain cube), a lamp the game lights at 3.99 s (in the frame an input
@@ -50,11 +51,10 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
   linear; that a property block's value is rendered (Unity makes a colour set on a block linear and hands a vector on
   as it is, and the block can't say which it holds: `ObjFacts`); sprites and lines as parts, the skinned
   meshes' boxes in their root bone's frame, 2D bodies, the NavMeshAgent's speed, human bones by name only, the
-  ragdoll's spread, and that the queries changed nothing. The VisualEffect's glow (`m_vfx_glow`) is left out of the
-  comparison of two plays: it differed between two plays before its seed was fixed, and a GPU isn't promised to
-  repeat itself.
+  ragdoll's spread, and that the queries changed nothing.
 - `wait` (ObjMore, a 2 s wait at 1 s): speed and spin over the sample after a wait divide by the game time that passed
-  (the play's clock holds while the game runs on). Played once: how many frames a wait runs depends on real time.
+  (the play's clock holds while the game runs on). Played once: how many frames a wait runs depends on real time, and
+  with them x and the float rounding in speed and spin (2.0000041 m/s at 1.5 s, 2.0000267 from 2 s).
 - `budget` (ObjBudget): at most 64 renders a sample, in hierarchy order, the same at every sample; past them a mesh
   with an emission map reads its bound and a custom shader has no value.
 - `stress_*` (ObjStress): one query alone, sampled every 0.1 s; its cost a sample is its play's real time less the
@@ -84,7 +84,8 @@ ms more each, at most 64 a sample (the drawn family measures it).
 - A gamma-space project: the colour space is a project setting, and these tests build one project (the conversion is
   `QualitySettings.activeColorSpace`'s, in `Find.Linear`).
 - A VisualEffect needs the VFX Graph package, which the template doesn't have: the scene has one, and `more` checks
-  it, only when the project's manifest lists `com.unity.visualeffectgraph`.
+  it (a live effect, active, lit as rendered), only when the project's manifest lists `com.unity.visualeffectgraph`. In
+  a project without it, as the shared test project, the VisualEffect path of `effect`, `lit` and `glow` is untested.
 - A Shader Graph needs the Shader Graph package (URP brings it); without it the scene has no `LampGraph` and `more`
   skips its two checks.
 - A Light's cookie is not read by `lit` or `glow` (documented), so nothing tests it.
