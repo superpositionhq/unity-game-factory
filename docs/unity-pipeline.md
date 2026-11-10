@@ -191,9 +191,9 @@ fixed path per game means one prompt per game instead of one per build. Per run 
 1. Launch the player from `_run\` with the contract's flags (autoplay-contract.md section 1) plus `-goTimeout 300`,
    windowed 1920x1080, `-logFile <raw>\game.log`.
 2. Wait for `ready.json`, find the window by PID, move it so the client area is at (40,80) (the Unreal factory's games
-   re-centred theirs after launch; a Unity player's to be checked), make it topmost (not activated), check the client area is exactly 1920x1080 and fully on screen (physical
-   pixels; the recorder is per-monitor DPI aware). If anything covers it (e.g. a first-run Firewall prompt), wait up to
-   240 s for it to clear.
+   re-centred theirs after launch; a Unity player's to be checked), make it topmost (not activated), check the client
+   area is exactly 1920x1080 and fully on screen (physical pixels; the recorder is per-monitor DPI aware). If anything
+   covers it (e.g. a first-run Firewall prompt), wait up to 240 s for it to clear.
 3. Start ffmpeg on that screen rectangle, wait for 30 captured frames, write `go`. Each capture attempt has its own
    files (`video.<mode>.mkv`, `raw\ffmpeg-<mode>.log`); a failed attempt is kept as `raw\failed-attempt-<mode>.mkv`.
 4. Watch every 100 ms until `outcome.json` appears (written while the result screen is still up).
