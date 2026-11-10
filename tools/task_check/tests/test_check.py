@@ -835,7 +835,7 @@ class SavedData(unittest.TestCase):
         # TaskProbe/Editor/Build.cs Tag: the same name from the same folder, whatever its case
         name = seeds.saves_company("C:/Scratch/ABC123")
         self.assertRegex(name, r"^TaskProbe\.[0-9a-f]{12}$")
-        self.assertEqual(name, seeds.saves_company("c:\scratch\abc123" if os.name == "nt" else "C:/Scratch/ABC123"))
+        self.assertEqual(name, seeds.saves_company(r"c:\scratch\abc123" if os.name == "nt" else "C:/Scratch/ABC123"))
         self.assertNotEqual(name, seeds.saves_company("C:/Scratch/ABC124"))
 
     def test_removing_a_folder_forgets_the_saves_of_the_projects_in_it(self):
