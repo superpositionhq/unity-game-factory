@@ -568,9 +568,10 @@ Limits:
   it at run time): the baked light probes around the point straight up when the scene has light probes, else the
   ambient probe's upward value (flat ambient ignores `ambientIntensity`; gradient ambient is a mix of the sky, equator
   and ground colours, not the sky colour). It is in Unity's own light units, not lux;
-- `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without one (so at a play's
-  first sample: section 2.8), or when the camera's post-processing is off. URP has no auto-exposure;
-- `brightness`: `illuminance * exposure`, what the player sees at that point.
+- `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without URP or when the
+  camera's post-processing is off; no value while the grade isn't known yet (a play's first sample: section 2.8).
+  URP has no auto-exposure;
+- `brightness`: `illuminance * exposure`, what the player sees at that point (no value while `exposure` has none).
 
 The sample's value also holds the parts of `illuminance` (`local`: point and spot lights, `directional`, `sky`: the
 ambient), `lights` (how many sources lit it) and `point`, for the logs. A point that doesn't resolve: no value.
@@ -608,10 +609,10 @@ parameter's effective value at the camera after blending.
   Without URP the constants are neutral and a `post:` field has no value, and the play's `query_errors` says so
   (`grading <id>: the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no value)`).
   Of two directional Lights of one intensity, the sun is the first in hierarchy order.
-- A play's first sample comes before URP has set up its volumes: it reads no stack (its `source` is "none"), so
-  neutral constants, exposure 1 and no `post:` value, whatever the scene's volumes hold (the next sample reads them).
-  Start a window that reads the grade, `exposure` or `brightness` after it (`"window": [0.5, 20]`), and never read
-  them `"at": [0]`.
+- A play's first sample can come before URP has set up its volumes (or before there is a camera): the grade isn't
+  known then, and that sample has no value, for every grading field and for a light's `exposure` and `brightness`
+  (the next sample reads them). A window skips a sample with no value, so one that starts at 0 reads from the next
+  sample on; only reading them at the play's very start (`"at": [0]`) finds no value.
 - Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
   untouched volume stack gives exactly `grey` 0.18, whatever the key light (only its hue counts), and `cast` 0 under a
@@ -1010,9 +1011,14 @@ returns: the game's own frames are the same with and without the measure.
   of it; `length` (m): how much of the line is drawn. A beam drawn as a mesh, a particle beam, a LineRenderer or a
   trail read alike.
 - **Every field but `drawn` depends on what a build drew: its threshold is calibrated or relative to the start, never
-  a literal value**; `drawn` takes a literal. A point that doesn't resolve: no value. The sample's value always holds
-  `pixels` and `primitives` (pixels in the place, renderers and terrains rendered), for the logs; its base colour is
-  null unless a `base_` field is asked for.
+  a literal value**; `drawn` takes a literal. No renderer, or a point that doesn't resolve: no value. No renderer is a
+  player that can't render the place alone: one without a graphics device (`-nographics`), without URP as its render
+  pipeline, or whose camera draws with a URP renderer other than the Universal Renderer (the 2D Renderer). Its play's
+  `query_errors` (in `probe.json`) then says why in one line ("rendering: the render pipeline isn't URP: drawn and
+  glow as rendered have no value", "rendering: the player's camera draws with a URP renderer that isn't the Universal
+  Renderer: drawn and glow as rendered have no value"); a place with nothing in it still reads `drawn` 0. The
+  sample's value always holds `pixels` and `primitives` (pixels in the place, renderers and terrains rendered), for
+  the logs; its base colour is null unless a `base_` field is asked for.
 - Limits: the player's own object counts like anything else in the place (keep it out, or teleport away); a lit
   translucent particle shows as lit by the white ambient light only; a surface that writes no base colour has none
   (an unlit one reads 0, a translucent one is left out); what isn't a renderer or a terrain (`GL` drawing,
