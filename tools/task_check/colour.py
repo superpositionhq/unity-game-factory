@@ -3,15 +3,23 @@ URP's colour grading as its LUT builder does it, from the constants the probe re
 (the values URP itself hands the shader). Nothing here runs Unity.
 
 The order and the constants are URP's (Unity 6.3, com.unity.render-pipelines.* in a project's Library/PackageCache):
-- ColorGradingLutPass.cs prepares `_ColorBalance` (ColorUtils.ColorBalanceToLMSCoeffs), `_HueSatCon` (saturation and
-  contrast as multipliers, 1 neutral), `_ColorFilter` (linear rgb) and `_Lift`, `_Gamma`, `_Gain`
-  (ColorUtils.PrepareLiftGammaGain): the probe sends them as `color_balance`, `saturation`, `contrast`,
-  `color_filter`, `lift`, `gamma`, `gain`;
+- ColorGradingLutPass.cs prepares `_ColorBalance` (ColorUtils.ColorBalanceToLMSCoeffs), `_HueSatCon` (the hue shift in
+  turns; saturation and contrast as multipliers, 1 neutral), `_ColorFilter` (linear rgb) and `_Lift`, `_Gamma`, `_Gain`
+  (ColorUtils.PrepareLiftGammaGain): the probe sends them as `color_balance`, `hue_shift` (degrees), `saturation`,
+  `contrast`, `color_filter`, `lift`, `gamma`, `gain`;
+- the uber pass multiplies the frame by 2^post_exposure and, with LDR grading, saturates it before the grading lookup
+  (PostProcessing/Common.hlsl ApplyColorGrading, ApplyTonemap);
 - LutBuilderLdr.shader applies them in this order: white balance in LMS (LinearToLMS, * _ColorBalance, LMSToLinear,
   core Color.hlsl), contrast in LogC around ACEScc_MIDGRAY (LinearToLogC / LogCToLinear, the fast form,
-  USE_PRECISE_LOGC 0), the colour filter, max(0), gain and lift (c * gain + lift), gamma (sign(c) * |c|^gamma), the
-  global saturation around GetLuminance. Split toning, the channel mixer, shadows/midtones/highlights and the curves
-  are left out (the probe doesn't read them; at their defaults they change nothing).
+  USE_PRECISE_LOGC 0), the colour filter, max(0), gain and lift (c * gain + lift), gamma (sign(c) * |c|^gamma), the hue
+  shift (RgbToHsv, RotateHue, HsvToRgb), the global saturation around GetLuminance, and saturates the result. Split
+  toning, the channel mixer, shadows/midtones/highlights and the curves are left out (the probe doesn't read them; at
+  their defaults they change nothing).
+The tonemapper is left out too (Neutral or ACES: before the lookup with LDR grading; with HDR grading at the end of the
+lookup, ACES also taking the contrast into ACEScc): a task reads a tonemapping change through `post:Tonemapping.mode`.
+HDR grading without a tonemapper is the same maths but for the saturates, so there only a colour above 1 before the
+grading reads differently. Where the shader's float gives -inf (the LogC of a channel below LogC's floor) or inf (a
+power that overflows), so does this module, and saturate turns them into 0 and 1: no setting stops the checker.
 
 Two of URP's numbers are rounded, so its neutral isn't exactly the identity: the LMS matrices are given to 6 digits
 (their round trip is off by up to 4e-6) and ColorBalanceToLMSCoeffs(0, 0) is off 1 by up to 4e-6. The white balance is
@@ -65,26 +73,6 @@ def lms_coeffs(temperature=0.0, tint=0.0):
     return [w / v for w, v in zip(D65_LMS, lms, strict=True)]
 
 
-def _gamma_to_linear(v):
-    """Mathf.GammaToLinearSpace (the sRGB curve)."""
-    return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
-
-
-def lift_gamma_gain(lift=(1, 1, 1, 0), gamma=(1, 1, 1, 0), gain=(1, 1, 1, 0)):
-    """ColorUtils.PrepareLiftGammaGain: the Lift Gamma Gain override's trackballs (rgb and the w offset) as the shader
-    constants the probe sends ({lift, gamma, gain}, rgb each; gamma is the exponent)."""
-    def lum(v):
-        return sum(w * c for w, c in zip(LUMA, v))
-
-    lt = [_gamma_to_linear(v) * 0.15 for v in lift[:3]]
-    out_lift = [c - lum(lt) + lift[3] for c in lt]
-    gm = [_gamma_to_linear(v) * 0.8 for v in gamma[:3]]
-    out_gamma = [1.0 / max(c - lum(gm) + gamma[3] + 1.0, 1e-3) for c in gm]
-    gn = [_gamma_to_linear(v) * 0.8 for v in gain[:3]]
-    out_gain = [c - lum(gn) + gain[3] + 1.0 for c in gn]
-    return {"lift": out_lift, "gamma": out_gamma, "gain": out_gain}
-
-
 NEUTRAL_LMS = lms_coeffs(0.0, 0.0)
 
 
@@ -105,14 +93,45 @@ def white_balance(rgb, coeffs):
     return _mul(_matmul(_NEUTRAL_INVERSE, _balance_matrix(coeffs)), rgb)
 
 
+def _pow(a, b):
+    """a ** b as the shader's float has it: inf where it overflows."""
+    try:
+        return a ** b
+    except (OverflowError, ZeroDivisionError):
+        return math.inf
+
+
+def _saturate(v):
+    """HLSL saturate: v clamped to [0, 1]; NaN reads 0, as on the GPU."""
+    return min(v, 1.0) if v > 0.0 else 0.0
+
+
 def linear_to_logc(x):
-    """core Color.hlsl LinearToLogC (the fast form URP compiles)."""
-    return LOGC["c"] * math.log10(max(LOGC["a"] * x + LOGC["b"], 0.0)) + LOGC["d"]
+    """core Color.hlsl LinearToLogC (the fast form URP compiles); -inf below LogC's floor, the shader's log10(0)."""
+    v = LOGC["a"] * x + LOGC["b"]
+    return LOGC["c"] * math.log10(v) + LOGC["d"] if v > 0.0 else -math.inf
 
 
 def logc_to_linear(x):
     """core Color.hlsl LogCToLinear (the fast form URP compiles)."""
-    return (10.0 ** ((x - LOGC["d"]) / LOGC["c"]) - LOGC["b"]) / LOGC["a"]
+    return (_pow(10.0, (x - LOGC["d"]) / LOGC["c"]) - LOGC["b"]) / LOGC["a"]
+
+
+def _rgb_to_hsv(c):
+    """core Color.hlsl RgbToHsv (its 1e-4 epsilon included)."""
+    r, g, b = c
+    p = (g, b, 0.0, -1.0 / 3.0) if g >= b else (b, g, -1.0, 2.0 / 3.0)
+    q = (r, p[1], p[2], p[0]) if r >= p[0] else (p[0], p[1], p[3], r)
+    d = q[0] - min(q[3], q[1])
+    top = q[0] + 1.0e-4
+    return [abs(q[2] + (q[3] - q[1]) / (6.0 * d + 1.0e-4)), d / top if top else math.inf, q[0]]
+
+
+def _hsv_to_rgb(c):
+    """core Color.hlsl HsvToRgb."""
+    h, s, v = c
+    return [v * (1.0 + (_saturate(abs((h + k) % 1.0 * 6.0 - 3.0) - 1.0) - 1.0) * s)
+            for k in (1.0, 2.0 / 3.0, 1.0 / 3.0)]
 
 
 def _luminance(rgb):
@@ -157,20 +176,19 @@ def _rgb(found):
     return [max(0.0, v) for v in found] if found else None
 
 
-def colour(settings):
-    """A neutral grey (0.18) lit by the key light's colour (the sun's lit_color, else its colour, else the sky's; its
-    luminance taken out, so only its hue counts), times the post exposure (2^EV: URP multiplies the frame by it before
-    the grading lookup), through URP's colour grading in the LUT builder's order: {grey, cast, warmth, tint,
-    saturation, contrast}. `settings` is the probe's grading value; a setting it lacks is neutral."""
+def grade(settings):
+    """The linear rgb of a neutral grey (0.18) lit by the key light's colour (the sun's lit_color, else its colour,
+    else the sky's; its luminance taken out, so only its hue counts), times the post exposure (2^EV: URP multiplies the
+    frame by it before the grading lookup), through URP's LDR colour grading in the LUT builder's order. `settings` is
+    the probe's grading value; a setting it lacks is neutral."""
     settings = settings if isinstance(settings, dict) else {}
     sun = settings.get("sun") if isinstance(settings.get("sun"), dict) else {}
     sky = settings.get("sky") if isinstance(settings.get("sky"), dict) else {}
     light = _rgb(sun.get("lit_color")) or _rgb(sun.get("color")) or _rgb(sky.get("color")) or [1.0, 1.0, 1.0]
     luma = _luma(light)
     rgb = [GREY * c / luma for c in light] if luma > 0 else [GREY] * 3
-    exposure = _number(settings.get("post_exposure"), 0.0)
-    if exposure != 0.0:
-        rgb = [c * 2.0 ** exposure for c in rgb]
+    exposure = _pow(2.0, _number(settings.get("post_exposure"), 0.0))
+    rgb = [_saturate(c * exposure) for c in rgb]
     rgb = white_balance(rgb, _numbers(settings.get("color_balance")) or NEUTRAL_LMS)
     con = _number(settings.get("contrast"), 1.0)
     if con != 1.0:  # LogC and back is the identity, up to rounding
@@ -178,12 +196,28 @@ def colour(settings):
     rgb = [max(0.0, c * f) for c, f in zip(rgb, _vec3(settings.get("color_filter"), 1.0), strict=True)]
     gain, lift = _vec3(settings.get("gain"), 1.0), _vec3(settings.get("lift"), 0.0)
     rgb = [c * g + lf for c, g, lf in zip(rgb, gain, lift, strict=True)]
-    rgb = [math.copysign(abs(c) ** g, c) for c, g in zip(rgb, _vec3(settings.get("gamma"), 1.0), strict=True)]
+    rgb = [math.copysign(_pow(abs(c), g), c) for c, g in zip(rgb, _vec3(settings.get("gamma"), 1.0), strict=True)]
+    shift = _number(settings.get("hue_shift"), 0.0)
+    if shift != 0.0:  # HSV and back moves a colour by URP's 1e-4 epsilon only
+        hsv = _rgb_to_hsv(rgb)
+        hue = hsv[0] + shift / 360.0
+        hsv[0] = hue + 1.0 if hue < 0.0 else hue - 1.0 if hue > 1.0 else hue  # RotateHue(hue, 0, 1)
+        rgb = _hsv_to_rgb(hsv)
     sat = _number(settings.get("saturation"), 1.0)
     if sat != 1.0:
         luma = _luminance(rgb)
         rgb = [luma + sat * (c - luma) for c in rgb]
+    return [_saturate(c) for c in rgb]
+
+
+def colour(settings):
+    """`grade(settings)` as {grey, cast, warmth, tint, saturation, contrast}: its luminance (grey); over the grey, the
+    spread of its channels (cast), red less blue (warmth), green less the mean of red and blue (tint); and the
+    saturation and contrast settings. `settings` is the probe's grading value."""
+    settings = settings if isinstance(settings, dict) else {}
+    rgb = grade(settings)
     grey = _luma(rgb)
     over = grey if grey > 1e-9 else 1e-9
     return {"grey": grey, "cast": (max(rgb) - min(rgb)) / over, "warmth": (rgb[0] - rgb[2]) / over,
-            "tint": (rgb[1] - (rgb[0] + rgb[2]) / 2) / over, "saturation": sat, "contrast": con}
+            "tint": (rgb[1] - (rgb[0] + rgb[2]) / 2) / over, "saturation": _number(settings.get("saturation"), 1.0),
+            "contrast": _number(settings.get("contrast"), 1.0)}
