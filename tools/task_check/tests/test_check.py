@@ -686,6 +686,13 @@ class Plays(unittest.TestCase):
             machine.code = 3
             result = {"ok": True}
             self.assertEqual(project.build(60, []).exit_code, 3)
+            machine.code = 1
+            result = {"ok": False, "error": "no scene to build: the project lists no enabled build scene and the task "
+                                            "plays none"}
+            unbuilt = project.build(60, [])
+            self.assertEqual(unbuilt.exit_code, 1)
+            self.assertTrue(unbuilt.output.startswith("[task-check] the build's result says it failed: no scene to "
+                                                      "build"), "Unity's own log never says it: only the result does")
 
     def test_a_unity_without_a_licence_is_the_machines_error_not_a_failed_build(self):
         with tempfile.TemporaryDirectory() as tmp:

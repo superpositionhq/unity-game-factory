@@ -294,10 +294,12 @@ class Project:
         report = _read_json(result)
         self.report = report
         code, said = found.exit_code, ""
-        if code == 0 and (report or {}).get("ok") is not True:
+        if report is not None and report.get("ok") is not True:  # some failures are in the result file alone
+            said = f"[task-check] the build's result says it failed: {report.get('error')}\n"
+        elif report is None and code == 0:
+            said = "[task-check] Unity exited 0 but the build wrote no result\n"
+        if code == 0 and said:
             code = 1
-            said = ("[task-check] Unity exited 0 but the build wrote no result\n" if report is None else
-                    f"[task-check] Unity exited 0 but the build's result says it failed: {report.get('error')}\n")
         return Result(code, cut(said + output), found.seconds, found.timed_out, found.waited, report)
 
     def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
