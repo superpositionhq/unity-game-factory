@@ -283,8 +283,12 @@ if (-not $NoStablePath) {
     Enter-PipelineLock "stage $Game run copy" -Game $Game
     try {
         Write-Step "mirroring $Build\Windows -> $runRoot\Windows"
-        & robocopy.exe (Join-Path $Build 'Windows') (Join-Path $runRoot 'Windows') /MIR /NJH /NJS /NP /NFL /NDL /R:2 /W:2 | Out-Null
+        # Unity's *_BurstDebugInformation_DoNotShip and *_BackUpThisFolder_ButDontShipItWithYourGame (debug symbols and
+        # IL2CPP's generated sources, about a gigabyte a build) are no part of a run: left out, and removed when an
+        # older copy has them (/XD skips them in the target too).
+        & robocopy.exe (Join-Path $Build 'Windows') (Join-Path $runRoot 'Windows') /MIR /XD '*_DoNotShip' '*_ButDontShipItWithYourGame' /NJH /NJS /NP /NFL /NDL /R:2 /W:2 | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "robocopy failed ($LASTEXITCODE)" }
+        Get-ChildItem (Join-Path $runRoot 'Windows') -Directory | Where-Object { $_.Name -match '(_DoNotShip|_ButDontShipItWithYourGame)$' } | Remove-Item -Recurse -Force
         Copy-Item (Join-Path $Build 'build_info.json') (Join-Path $runRoot 'build_info.json') -Force
     } finally { Exit-PipelineLock }
     $exe = Join-Path $runRoot "Windows\$(Split-Path $exe -Leaf)"
@@ -641,7 +645,11 @@ for ($i = 0; $i -lt $Runs; $i++) {
         if ($rows.Count -gt 0) {
             $sr = [double]$audio.sample_rate
             $first = $rows[0]; $last = $rows[$rows.Count - 1]
-            $audioStartNs = $first.t - [long]($first.f / $sr * 1e9)
+            # Each row says where the WAV's frame 0 lies on the QPC clock (t_ns - frame / rate). The first buffers after
+            # go arrive in a burst and the rest with up to a buffer of jitter, so the first row alone puts the WAV up to a
+            # buffer (~21 ms) early: the median of all rows anchors it.
+            $offs = @($rows | ForEach-Object { [double]$_.t - [double]$_.f / $sr * 1e9 } | Sort-Object)
+            $audioStartNs = [long]$offs[[int][math]::Floor(($offs.Count - 1) / 2)]
             $spanS = ($last.t - $first.t) / 1e9 + $last.n / $sr
             $silenceS = ((@($rows | ForEach-Object { $_.s }) | Measure-Object -Sum).Sum) / $sr
             $gaps = @($rows | Where-Object { $_.s -gt 0 }).Count

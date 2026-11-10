@@ -81,7 +81,11 @@ else {
         if ($rows.Count -eq 0) { [void]$problems.Add('audio_clock.jsonl has no rows') }
         else {
             $r0 = $rows[0]
-            $maxDrift = 0.0; foreach ($r in $rows) { $d = [math]::Abs((($r.t - $r0.t) / 1e9 - ($r.f - $r0.f) / $r0.r) * 1000); if ($d -gt $maxDrift) { $maxDrift = $d } }
+            # where each row puts the WAV's frame 0 (t_ns - frame / rate); the drift is each row's distance from their
+            # median (the first buffers arrive in a burst, so the first row is no anchor)
+            $offs = @($rows | ForEach-Object { [double]$_.t - [double]$_.f / $_.r * 1e9 } | Sort-Object)
+            $mid = $offs[[int][math]::Floor(($offs.Count - 1) / 2)]
+            $maxDrift = 0.0; foreach ($r in $rows) { $d = [math]::Abs(([double]$r.t - [double]$r.f / $r.r * 1e9 - $mid) / 1e6); if ($d -gt $maxDrift) { $maxDrift = $d } }
             $gapsN = @($rows | Where-Object { $_.s -gt 0 }).Count; $silS = (($rows | ForEach-Object { $_.s }) | Measure-Object -Sum).Sum / $r0.r
             [void]$notes.Add(("audio_clock: {0} buffers, {1} stalls filled ({2:N2} s silence), max drift {3:N0} ms" -f $rows.Count, $gapsN, $silS, $maxDrift))
             if ($maxDrift -gt 250) { [void]$problems.Add("audio_clock drift up to $([math]::Round($maxDrift)) ms: system_audio would be unaligned") }
