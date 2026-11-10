@@ -117,7 +117,7 @@ def make_game(repo):
     for k, v in (('core.hooksPath', hooks), ('core.autocrlf', 'false'), ('commit.gpgsign', 'false'),
                  ('user.name', 'dev_1'), ('user.email', 'dev_1@example.com')):
         git(repo, 'config', k, v)
-    git(repo, 'lfs', 'install', '--local')
+    git(repo, 'lfs', 'install', '--local', '--skip-repo')   # its filters, none of its hooks (0.4 s a commit)
     for name in ('.gitignore', '.gitattributes'):
         shutil.copy(os.path.join(TEMPLATE, name), os.path.join(repo, name))
     for rel in ('ProjectSettings/EditorSettings.asset', 'Scripts/unity.ps1', 'Docs/ThirdPartyNotices.md',
@@ -214,14 +214,26 @@ def onerror(fn, path, _):
     fn(path)
 
 
+BASE = {}   # the valid game, made once for the module (it takes seconds); every test works on a copy of it
+
+
+def tearDownModule():
+    if BASE:
+        shutil.rmtree(BASE['tmp'], onerror=onerror)
+
+
 @unittest.skipUnless(HAS_LFS, 'git-lfs is not installed')
 class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if not BASE:
+            tmp = tempfile.mkdtemp(prefix='ugfv')
+            base = os.path.join(tmp, 'base', SLUG)
+            start, ref = make_game(base)
+            set_tasks(base, {f'{SLUG}-fix-hero-hud': task(start, ref)})
+            BASE.update(tmp=tmp, base=base, start=start, ref=ref)
         cls.tmp = tempfile.mkdtemp(prefix='ugfv')
-        cls.base = os.path.join(cls.tmp, 'base', SLUG)
-        cls.start, cls.ref = make_game(cls.base)
-        set_tasks(cls.base, {f'{SLUG}-fix-hero-hud': task(cls.start, cls.ref)})
+        cls.base, cls.start, cls.ref = BASE['base'], BASE['start'], BASE['ref']
 
     @classmethod
     def tearDownClass(cls):
@@ -483,6 +495,11 @@ class RepoRules(Base):
 
 
 class TaskRules(Base):
+    def check(self):   # these tests change the tasks branch alone: its rules, without the rest of the repo's
+        rep = vg.Report()
+        vg.check_repo_tasks(rep, self.repo)
+        return rep
+
     def tasks(self, **over):
         set_tasks(self.repo, {f'{SLUG}-fix-hero-hud': task(self.start, self.ref, **over)})
         return errors(self.check(), 'repo: Tasks')
