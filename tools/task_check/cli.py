@@ -174,7 +174,8 @@ def main(argv=None):
             print(line(result), flush=True)
             write_progress(out, started, names, results)
     finally:
-        if args.keep:
+        if args.keep:  # the copies, not their plays' saved data outside them (a play starts without it anyway)
+            seeds.forget(scratch_root / tag)
             log(f"  kept the scratch copies in {scratch_root / tag}")
         else:
             builds.close()

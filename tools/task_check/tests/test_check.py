@@ -1064,6 +1064,29 @@ class Cli(unittest.TestCase):
             self.assertIn("VALID   g-fix-one  (1 min)", final)
             self.assertTrue(json.loads((out / "progress.json").read_text(encoding="utf-8"))["finished"])
 
+    def test_kept_copies_keep_nothing_of_theirs_outside_them(self):
+        """With --keep the copies stay, but not their plays' saved data (registry, LocalLow, Temp): deleting a kept copy
+        by hand would never take it, and every play starts from clean saved data anyway."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, _, _, _ = make_game(tmp)
+            path = Path(tmp) / "metro-runner-fix-x.json"
+            path.write_text(json.dumps({**task_with(probe()), "name": "metro-runner-fix-x"}), encoding="utf-8")
+            copies, forgotten = [], []
+
+            def fake(repo_, task, raw, scratch, out, **kw):
+                copy = Path(scratch) / ("0" * 12)
+                (copy / "ProjectSettings").mkdir(parents=True)
+                (copy / "ProjectSettings" / "ProjectVersion.txt").write_text(VERSION, encoding="utf-8")
+                copies.append(copy)
+                return {"task": task["name"], "verdict": "VALID", "reasons": []}
+
+            with mock.patch.object(check, "check_task", fake), mock.patch.object(seeds, "forget_saves", forgotten.append), \
+                    mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                cli.main([str(repo), "--task", str(path), "--scratch", str(Path(tmp) / "s"), "--keep"])
+            self.assertEqual(forgotten, copies)
+            self.assertTrue(copies[0].is_dir(), "the copy itself is kept")
+
     def test_two_runs_at_once_on_one_repo_have_folders_of_their_own(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo, _, _, _ = make_game(tmp)

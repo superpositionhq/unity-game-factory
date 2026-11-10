@@ -285,6 +285,12 @@ def _projects(path, depth=3):
     return found
 
 
+def forget(path):
+    """The saved data the plays of every scratch copy at or under `path` left outside it (forget_saves)."""
+    for project in _projects(path):
+        forget_saves(project)
+
+
 def remove(path):
     """`path` removed (a folder, read-only files included, or a file), and with a scratch copy the saved data its plays
     left outside it. What another process still holds is tried again for up to HELD seconds, then the error raised: a
@@ -296,8 +302,7 @@ def remove(path):
 
     path = Path(path)
     if path.is_dir():
-        for project in _projects(path):
-            forget_saves(project)
+        forget(path)
     end = time.monotonic() + HELD
     while True:
         try:
