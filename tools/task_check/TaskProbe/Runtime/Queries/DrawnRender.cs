@@ -5,12 +5,14 @@
 // single-camera render request with the renderer the player's camera draws with, seeing only the layers of the chosen
 // renderers (and terrains) and never the UI layer (world-space canvases aren't renderers and can't be forced off: a
 // renderer on that layer isn't drawn either). Every other drawn renderer on those layers inside the views is forced
-// off for the render, and every other terrain there stops drawing. The light is the probe's: every Light off, every
-// reflection probe and the default reflection at intensity 0, the ambient probe a flat white (or nothing, for the
-// glow), fog off, the chosen renderers' and terrains' lightmaps and light probes off (so the flat ambient is all that
-// lights them), no post-processing, shadows, MSAA, render scale or renderer features but RenderObjects (it may be how a
-// layer is drawn at all). Depth: a second render of the same view into a depth texture, copied into a float texture by
-// a shader of the package (Resources/TaskProbeDepthCopy) and read back.
+// off for the render, and every other terrain there stops drawing. The light is the probe's: every Light off, the
+// ambient probe a flat white (or nothing, for the glow), fog off, the default reflection at intensity 0, the chosen
+// renderers' and terrains' lightmaps, light probes and reflection probes off (so the flat ambient is all that lights
+// them), no post-processing, shadows, MSAA, render scale or renderer features but RenderObjects (it may be how a layer
+// is drawn at all). One light gets through: under Forward+ with reflection probe blending on (URP's probe atlas), the
+// shader reads every reflection probe whose box holds the surface whatever the renderer's own setting, so a smooth
+// surface there keeps a little of what the probes reflect. Depth: a second render of the same view into a depth
+// texture, copied into a float texture by a shader of the package (Resources/TaskProbeDepthCopy) and read back.
 //
 // Each setting is saved before anything changes and each object recorded before it is changed, and all of it is put
 // back in a finally, whatever throws (a game's camera callback, a destroyed renderer). Only values change, never a
@@ -83,7 +85,6 @@ namespace TaskProbe
         const string NotUniversal = "rendering: the player's camera draws with a URP renderer that isn't the Universal Renderer: drawn and glow as rendered have no value";
         const string NoFloat = "rendering: the player can't render to float textures: drawn and glow as rendered have no value";
         const string NoDepthShader = "rendering: the package's depth shader (Resources/TaskProbeDepthCopy) isn't in the player: drawn has no value";
-        const string Threw = "rendering: an exception during a render: no value that sample (the exception is in probe.log)";
 
         static GameObject rig;
         static Camera cam;
@@ -241,15 +242,19 @@ namespace TaskProbe
         // ---------------------------------------------------------------- rendering
 
         static readonly HashSet<int> ShowIds = new HashSet<int>();
-        static bool rendering, threw;
+        static bool rendering;
+        static Exception caught;  // the render's first exception
+        static string heardType;  // its type, when the render request caught it in a game's callback
 
         /// <summary>An exception logged while a render request runs: a game's camera callback threw, and the render
         /// request swallowed it, so the render stopped part way.</summary>
         static void Heard(string message, string stack, LogType type)
         {
-            if (!rendering || type != LogType.Exception) return;
-            if (!threw) Probe.Log("rendering: " + message + "\n" + stack);
-            threw = true;
+            if (!rendering || type != LogType.Exception || caught != null) return;
+            // the request logs it as "<type>: <message>"
+            var colon = message.IndexOf(':');
+            heardType = colon > 0 && message.IndexOf(' ', 0, colon) < 0 ? message.Substring(0, colon) : "Exception";
+            caught = new Exception(message + "\n" + stack);
         }
 
         /// <summary>Renders `show` (renderers and terrains) alone from each view (size x size) under `light`, with the depth when `depth`, into
@@ -270,7 +275,8 @@ namespace TaskProbe
                 }
                 mask &= ~(1 << UiLayer);
                 rendering = true;
-                threw = false;
+                caught = null;
+                heardType = null;
                 try
                 {
                     Isolate(show, mask, Seen(views), light);
@@ -297,18 +303,21 @@ namespace TaskProbe
                 }
                 catch (Exception e)
                 {
-                    threw = true;
-                    Probe.Log("rendering: " + e);
+                    caught ??= e;
                 }
                 finally
                 {
                     rendering = false;
                     Restore();
                 }
-                if (threw)
+                if (caught != null)
                 {
                     done = 0;
-                    Probe.Active?.Error(Threw);
+                    // as every exception of the probe's: its type in the error, its stack in probe.log once
+                    Probe.Active?.Failed(heardType != null ? "rendering: " + heardType + " in a render: no value that sample"
+                                                           : "rendering: {0} in a render: no value that sample", caught);
+                    caught = null;
+                    heardType = null;
                 }
             }
             if (done < views.Count)
@@ -349,7 +358,7 @@ namespace TaskProbe
             cam.targetTexture = target;
             cam.aspect = 1f;
             RenderPipeline.SubmitRenderRequest(cam, new UniversalRenderPipeline.SingleCameraRequest { destination = target });
-            return !threw;
+            return caught == null;
 #else
             return false;
 #endif
@@ -390,14 +399,14 @@ namespace TaskProbe
         static readonly List<Renderer> Tuned = new List<Renderer>();
         static readonly List<int> TunedLightmap = new List<int>();
         static readonly List<LightProbeUsage> TunedProbes = new List<LightProbeUsage>();
+        static readonly List<ReflectionProbeUsage> TunedReflections = new List<ReflectionProbeUsage>();
         static readonly List<Light> LightsOff = new List<Light>();
-        static readonly List<ReflectionProbe> ProbesDimmed = new List<ReflectionProbe>();
-        static readonly List<float> ProbeIntensities = new List<float>();
 #if TASKPROBE_TERRAIN
         static readonly List<Terrain> TerrainsOff = new List<Terrain>();
         static readonly List<bool> TerrainTrees = new List<bool>();
         static readonly List<Terrain> TunedTerrains = new List<Terrain>();
         static readonly List<int> TunedTerrainLightmap = new List<int>();
+        static readonly List<ReflectionProbeUsage> TunedTerrainReflections = new List<ReflectionProbeUsage>();
 #endif
 #if TASKPROBE_URP
         static readonly List<ScriptableRendererFeature> FeaturesOff = new List<ScriptableRendererFeature>();
@@ -429,9 +438,11 @@ namespace TaskProbe
 #endif
 
             // the probe's light: the ambient probe alone, a flat white or nothing, with no fog and no reflection. Values
-            // only, never a source: switching the ambient or the default reflection to another mode, or a reflection
-            // probe off and on, made the engine build the environment again after the sample, and the game's own frames
-            // were no longer the same (play drawn.main against drawn.plain)
+            // only, never a source and never a reflection probe: switching the ambient or the default reflection to
+            // another mode, or a reflection probe off and on, left the game's own frames changed after the sample (a
+            // realtime probe lost its picture; play drawn.main against drawn.plain), and a probe's intensity counts only
+            // from the next frame (a white cube read 0.016 of glow from the probe it stood in), so the chosen renderers
+            // stop reading probes instead
             var sh = new SphericalHarmonicsL2();
             if (light == DrawnLight.White) sh.AddAmbientLight(new Color(WhiteAmbient, WhiteAmbient, WhiteAmbient, 1f));
             RenderSettings.ambientProbe = sh;
@@ -462,15 +473,8 @@ namespace TaskProbe
                     LightsOff.Add(l);
                     l.enabled = false;
                 }
-            // a reflection probe gives nothing at intensity 0, and stays as it is (a realtime one keeps its picture)
-            foreach (var r in UnityEngine.Object.FindObjectsByType<ReflectionProbe>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-                if (r.enabled && r.intensity != 0f)
-                {
-                    ProbesDimmed.Add(r);
-                    ProbeIntensities.Add(r.intensity);
-                    r.intensity = 0f;
-                }
-            // the chosen renderers and terrains: lit by the ambient probe alone (no lightmap, no light probes)
+            // the chosen renderers and terrains: lit by the ambient probe alone (no lightmap, no light probes, no
+            // reflection probes)
             foreach (var c in show)
             {
                 if (c is Renderer r && r != null)
@@ -478,15 +482,19 @@ namespace TaskProbe
                     Tuned.Add(r);
                     TunedLightmap.Add(r.lightmapIndex);
                     TunedProbes.Add(r.lightProbeUsage);
+                    TunedReflections.Add(r.reflectionProbeUsage);
                     if (r.lightmapIndex >= 0 && r.lightmapIndex < 0xFFFE) r.lightmapIndex = -1;
                     if (r.lightProbeUsage != LightProbeUsage.Off) r.lightProbeUsage = LightProbeUsage.Off;
+                    if (r.reflectionProbeUsage != ReflectionProbeUsage.Off) r.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 }
 #if TASKPROBE_TERRAIN
                 else if (c is Terrain t && t != null)
                 {
                     TunedTerrains.Add(t);
                     TunedTerrainLightmap.Add(t.lightmapIndex);
+                    TunedTerrainReflections.Add(t.reflectionProbeUsage);
                     if (t.lightmapIndex >= 0 && t.lightmapIndex < 0xFFFE) t.lightmapIndex = -1;
+                    if (t.reflectionProbeUsage != ReflectionProbeUsage.Off) t.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 }
 #endif
             }
@@ -540,25 +548,29 @@ namespace TaskProbe
             foreach (var l in LightsOff)
                 if (l != null) l.enabled = true;
             LightsOff.Clear();
-            for (var i = 0; i < ProbesDimmed.Count; i++)
-                if (ProbesDimmed[i] != null) ProbesDimmed[i].intensity = ProbeIntensities[i];
-            ProbesDimmed.Clear();
-            ProbeIntensities.Clear();
             for (var i = 0; i < Tuned.Count; i++)
             {
                 var r = Tuned[i];
                 if (r == null) continue;
                 if (r.lightmapIndex != TunedLightmap[i]) r.lightmapIndex = TunedLightmap[i];
                 if (r.lightProbeUsage != TunedProbes[i]) r.lightProbeUsage = TunedProbes[i];
+                if (r.reflectionProbeUsage != TunedReflections[i]) r.reflectionProbeUsage = TunedReflections[i];
             }
             Tuned.Clear();
             TunedLightmap.Clear();
             TunedProbes.Clear();
+            TunedReflections.Clear();
 #if TASKPROBE_TERRAIN
             for (var i = 0; i < TunedTerrains.Count; i++)
-                if (TunedTerrains[i] != null && TunedTerrains[i].lightmapIndex != TunedTerrainLightmap[i]) TunedTerrains[i].lightmapIndex = TunedTerrainLightmap[i];
+            {
+                var t = TunedTerrains[i];
+                if (t == null) continue;
+                if (t.lightmapIndex != TunedTerrainLightmap[i]) t.lightmapIndex = TunedTerrainLightmap[i];
+                if (t.reflectionProbeUsage != TunedTerrainReflections[i]) t.reflectionProbeUsage = TunedTerrainReflections[i];
+            }
             TunedTerrains.Clear();
             TunedTerrainLightmap.Clear();
+            TunedTerrainReflections.Clear();
             for (var i = 0; i < TerrainsOff.Count; i++)
             {
                 if (TerrainsOff[i] == null) continue;
@@ -614,7 +626,7 @@ namespace TaskProbe
                 glowMs += ms;
                 glowRenders++;
                 if (glowRenders == 1 || glowRenders % 100 == 0)
-                    Probe.Log($"glow render: {ms:F2} ms this render, {glowMs / glowRenders:F2} ms a render over {glowRenders}");
+                    Probe.Log(FormattableString.Invariant($"glow render: {ms:F2} ms this render, {glowMs / glowRenders:F2} ms a render over {glowRenders}"));
             }
             GlowSeen[id] = read;
             return read;

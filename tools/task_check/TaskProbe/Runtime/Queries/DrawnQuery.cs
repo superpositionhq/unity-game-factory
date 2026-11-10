@@ -78,7 +78,7 @@ namespace TaskProbe
             ms += clock.Elapsed.TotalMilliseconds;
             samples++;
             if (samples == 1 || samples % 10 == 0)
-                Probe.Log($"drawn {Id}: {clock.Elapsed.TotalMilliseconds:F2} ms this sample, {ms / samples:F2} ms a sample over {samples}, {show.Count} renderer(s)");
+                Probe.Log(FormattableString.Invariant($"drawn {Id}: {clock.Elapsed.TotalMilliseconds:F2} ms this sample, {ms / samples:F2} ms a sample over {samples}, {show.Count} renderer(s)"));
         }
 
         /// <summary>The drawn renderers and terrains whose bounds `touches` says reach the place, but one whose bounds

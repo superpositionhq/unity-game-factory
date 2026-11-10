@@ -17,7 +17,7 @@ FLAT = 0.02  # the same for a flat quad seen at a slant: all of it is outline (a
 HALF = 5e-4  # the terrain shader blends its layers in half precision: two of its steps near 0.3
 GLOW = 1.5  # the luminance the family's glow shader gives off (_Glow 1.5 grey)
 TIMES = [2.0, 4.0, 5.5]  # when the pipeline plays are compared with the main play
-THREW = r"^rendering: an exception during a render: no value that sample \(the exception is in probe\.log\)$"
+THREW = r"^rendering: InvalidOperationException in a render: no value that sample \(the exception is in probe\.log\)$"
 
 
 def linear(c):
@@ -194,9 +194,10 @@ def glow(t, play, at):
     t.eq("and lit", r.get("lit"), 1.0)
     t.near("its glow is the emission's luminance (2, 1, 0.5 as the shader gets it) x 1.5", r.get("glow"),
            (0.2126 * 2 + 0.7152 * 1 + 0.0722 * 0.5) * 1.5, EDGE * 1.765)
-    r = g("G_WhiteRendered")
-    t.ok("a white Lit cube under the sun, a lamp and the ambient, as rendered: dark",
-         r.get("glow_read") == "render" and r.get("lit") == 0.0 and r.get("glow") == 0.0, r)
+    for name, where in (("G_WhiteRendered", "in the realtime reflection probe's box"), ("G_WhiteOutside", "outside it (the sky's reflection)")):
+        r = g(name)
+        t.ok(f"a white Lit cube {where}, under the sun, a lamp and the ambient, as rendered: dark",
+             r.get("glow_read") == "render" and r.get("lit") == 0.0 and r.get("glow") == 0.0, r)
     r = g("G_Zero")
     t.ok("a cube scaled to nothing: rendered, dark", r.get("glow_read") == "render" and r.get("lit") == 0.0 and r.get("glow") == 0.0, r)
     r = g("G_Ui")
@@ -296,7 +297,7 @@ def same_values(t, play, what, custom=True, filtered=False):
         if custom:
             want, got = row(main, "glow", at, "G_Custom").get("glow"), row(play, "glow", at, "G_Custom").get("glow")
             t.near(f"{what}: the custom glow at {at} s as in the main play", got, want, 1e-4 * (want or 1))
-        for name in ("G_Skinned", "G_LitRendered", "G_WhiteRendered"):
+        for name in ("G_Skinned", "G_LitRendered", "G_WhiteRendered", "G_WhiteOutside"):
             want, got = row(main, "glow", at, name).get("glow"), row(play, "glow", at, name).get("glow")
             if custom or name != "G_Skinned":
                 t.near(f"{what}: {name} glow at {at} s as in the main play", got, want, 1e-4 * (want or 1))

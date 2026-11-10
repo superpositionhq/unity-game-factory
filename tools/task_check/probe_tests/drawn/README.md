@@ -6,11 +6,12 @@ The probe's `drawn` measure and the render behind lit / glow "as rendered" (`Run
 
 ## Scenes (`Editor/DrawnScenes.cs`)
 
-The builder also adds a layer, `DrawnOnly`, and turns on the URP setting that keeps the shader variants of the URP
-assets the build's scenes reference (`IncludeAdditionalRPAssets.includeReferencedInScenes`), so the family's own URP
-asset can be switched to at run time: renderer 0 Forward (with a full-screen tint feature, and a RenderObjects pass
-that alone draws `DrawnOnly`), 1 Forward+, 2 Deferred, 3 the 2D renderer; and a second asset with HDR off and render
-scale 0.75.
+The builder also adds two layers, `DrawnOnly` and `DrawnNever`, and labels the family's URP assets `ProbeTestsDrawn`
+with the URP setting that keeps the shader variants of the assets with that label on
+(`IncludeAdditionalRPAssets.includeAssetsByLabel`: the referenced-in-scenes rule reads the editor's list of build
+scenes, which the checker's build doesn't use), so the family's own URP asset can be switched to at run time: renderer
+0 Forward (with a full-screen tint feature, a RenderObjects pass that alone draws `DrawnOnly`, and `DrawnNever`
+filtered out), 1 Forward+, 2 Deferred, 3 the 2D renderer; and a second asset with HDR off and render scale 0.75.
 
 - **DrawnLab**: under things a probe render must not show (an orange sun with soft shadows, a blue point light,
   exponential fog, a realtime reflection probe rendered once, a global volume with strong bloom and grading):
@@ -24,8 +25,9 @@ scale 0.75.
     and white Lit cubes, and, read as rendered: cubes, a sphere, a one-sided quad, a cube scaled to nothing and a
     cube 1000 m wide (far away) drawn with the family's own glow shader (`Assets/DrawnGlow.shader`: its light is its
     `_Glow` 1.5, no `_EmissionColor`), a skinned cube stretched 2 x 1 x 1 by its root bone, live particles, an
-    emissive Lit cube and a white Lit cube each with a second material that draws nothing
-    (`Assets/DrawnNothing.shader`, which puts them on the "as rendered" path), and a glow cube on the UI layer;
+    emissive Lit cube and two white Lit cubes (one in the realtime reflection probe's box, one outside it) each with a
+    second material that draws nothing (`Assets/DrawnNothing.shader`, which puts them on the "as rendered" path), and a
+    glow cube on the UI layer;
   - along z 60, 70 small glow cubes `B_00` to `B_69` for the budget of 64 renders a frame;
   - behind the player's camera, shadows off: a watcher cube, an Animator culled when unseen and a particle system
     paused when unseen, once inside a drawn place (z -45) and once in none (z -60);
@@ -47,10 +49,10 @@ scale 0.75.
   the views leave out (the UI layer) and keep (a world-space canvas on a chosen layer); lit / glow as rendered through
   `objects` and `components` queries (the glow formula on boxes, a sphere, a one-sided quad, a box of nothing, a huge
   box, a skinned mesh's root-bone frame, particles, one material read from its properties and as rendered, no light
-  reaching a render, the UI layer, the budget of 64 renders a frame in hierarchy order, one render a frame per
-  renderer); what the game sees of the renders (callbacks, visibility, culled animation and particles, the cameras it
-  can find); no state left changed in any frame; the game's screenshots the same as `plain`'s pixel for pixel; the
-  cost of a render.
+  reaching a render (not the sun, the lamp, the ambient, a reflection probe or the sky's reflection), the UI layer,
+  the budget of 64 renders a frame in hierarchy order, one render a frame per renderer); what the game sees of the
+  renders (callbacks, visibility, culled animation and particles, the cameras it can find); no state left changed in
+  any frame; the game's screenshots the same as `plain`'s pixel for pixel; the cost of a render.
 - `callbacks`: the game's camera callback throws at the probe's camera (one `query_errors` line, no value while it
   throws, values again after), switches the sun and fog on inside the render, destroys a renderer the render is
   drawing, and the probe's camera object is destroyed: nothing is left changed and the play goes on.

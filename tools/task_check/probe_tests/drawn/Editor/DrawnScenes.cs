@@ -400,8 +400,10 @@ namespace ProbeTests.Drawn
             // drawing nothing, has no standard interface)
             var nothing = Own("Nothing", "DrawnNothing", null);
             Prim("G_LitRendered", new Vector3(60, 1, 20), glowLit).GetComponent<Renderer>().sharedMaterials = new[] { glowLit, nothing };
-            // a white Lit surface as rendered under a strong sun, a blue lamp and ambient light: none of it reaches the render
+            // a white Lit surface as rendered under a strong sun, a blue lamp and ambient light: none of it reaches the render;
+            // nor does the realtime reflection probe it stands in, or (the twin outside the probe's box) the sky's reflection
             Prim("G_WhiteRendered", new Vector3(90, 1, 20), white).GetComponent<Renderer>().sharedMaterials = new[] { white, nothing };
+            Prim("G_WhiteOutside", new Vector3(120, 1, 20), white).GetComponent<Renderer>().sharedMaterials = new[] { white, nothing };
             Prim("G_Quad", new Vector3(65, 1, 20), custom, 1f, PrimitiveType.Quad);
             var zero = Prim("G_Zero", new Vector3(70, 1, 20), custom);
             zero.transform.localScale = Vector3.zero;
