@@ -624,6 +624,11 @@ class Units(unittest.TestCase):
         for measure in ({'probe': 'log', 'pattern': '([unclosed'}, {'probe': 'widgets', 'select': {'text': '[a'}},
                         {'probe': 'objects', 'select': {'name': 'Hud'}, 'field': 'prop:Hud.label', 'match': '(', 'of': 'first'}):
             self.assertIn("isn't a regular expression", errs(measure, expect=literal), measure)
+        for player in ({'player': True}, {'tag': 'Hero', 'near': {'point': {'player': True}, 'radius': 2}}):
+            self.assertIn('player: this select says which object the player is',
+                          ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, player=player))), player)
+        self.assertEqual(vg.task_semantic_errors(task('a' * 40, 'b' * 40, player={
+            'tag': 'Hero', 'near': {'point': {'camera': True, 'forward': 2}, 'radius': 9}})), [])
         absent = {'name': 'clean', 'kind': 'log_absent', 'pattern': 'Exception('}
         self.assertIn("'Exception(' isn't a regular expression",
                       ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [absent]}]))))
@@ -648,13 +653,31 @@ class Units(unittest.TestCase):
         for s in vg.SCHEMAS.values():
             walk(s)
         self.assertEqual(used - read - notes - {'if', 'then', 'else'}, set())
+        patterns = []
+
+        def collect(node):
+            if isinstance(node, dict):
+                patterns.extend(v for k, v in node.items() if k == 'pattern' and isinstance(v, str))
+                for v in node.values():
+                    collect(v)
+            elif isinstance(node, list):
+                for v in node:
+                    collect(v)
+        for s in vg.SCHEMAS.values():
+            collect(s)
+        for p in patterns:   # what _ecma relies on: a pattern's `$` is its last character, never escaped
+            self.assertTrue('$' not in p[:-1] and not p.endswith('\\$'), p)
+        self.assertNotEqual(list(vg.check_schema(['-scenario\n'], vg.SCHEMAS['game-task']['properties']['play_args'],
+                                                 vg.SCHEMAS['game-task'])), [])
         either = [{'type': 'string'}, {'type': 'integer'}]
         for schema, good, bad in (
                 ({'type': 'integer'}, 3, True), ({'type': ['string', 'null']}, None, 3), ({'required': ['a']}, {'a': 1}, {}),
                 ({'properties': {'a': {'type': 'string'}}}, {'a': 'x'}, {'a': 1}),
                 ({'properties': {'a': {}}, 'additionalProperties': False}, {'a': 1}, {'b': 1}),
                 ({'minProperties': 1}, {'a': 1}, {}), ({'enum': ['a', 1]}, 1, True), ({'const': True}, True, 1),
-                ({'pattern': '^a+$'}, 'aa', 'ab'), ({'minLength': 1}, 'a', ''), ({'maxLength': 1}, 'a', 'ab'),
+                ({'pattern': '^a+$'}, 'aa', 'ab'), ({'pattern': '^a+$'}, 'aa', 'aa\n'),   # $ ends the string
+                ({'pattern': '^\\d$'}, '7', '٧'),                                  # \d is 0-9, as in ECMA-262
+                ({'minLength': 1}, 'a', ''), ({'maxLength': 1}, 'a', 'ab'),
                 ({'minimum': 0}, 0, -1), ({'maximum': 1}, 1, 2), ({'exclusiveMinimum': 0}, 0.5, 0),
                 ({'exclusiveMaximum': 1}, 0.5, 1), ({'items': {'type': 'string'}}, ['a'], ['a', 1]),
                 ({'minItems': 1}, [1], []), ({'maxItems': 1}, [1], [1, 2]),

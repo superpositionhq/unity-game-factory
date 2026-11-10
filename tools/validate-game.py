@@ -60,6 +60,12 @@ def _same(a, b):
     return a == b and isinstance(a, bool) == isinstance(b, bool)
 
 
+def _ecma(pattern):
+    """A schema's pattern as JSON Schema (ECMA-262) reads it: its final `$` ends the string (Python's `$` also matches
+    before a final newline), and with re.ASCII `\\d` is 0-9 only. The schemas' patterns have `$` at their end only."""
+    return pattern[:-1] + r'\Z' if pattern.endswith('$') else pattern
+
+
 def check_schema(value, schema, root=None, path='$'):
     """Yield 'path: problem' strings for value against schema."""
     root = root or schema
@@ -97,7 +103,7 @@ def check_schema(value, schema, root=None, path='$'):
             yield f'{path}: empty'
         if 'maxLength' in schema and len(value) > schema['maxLength']:
             yield f'{path}: longer than {schema["maxLength"]}'
-        if 'pattern' in schema and not re.search(schema['pattern'], value):
+        if 'pattern' in schema and not re.search(_ecma(schema['pattern']), value, re.ASCII):
             yield f'{path}: {value[:80]!r} does not match {schema["pattern"]}'
     if _is(value, 'number'):
         if 'minimum' in schema and value < schema['minimum']:
@@ -530,7 +536,7 @@ def check_history(rep, area, v, m):
             rep.error(a, f'cannot read the bundle: {e}')
 
 
-TASK_NAME = re.compile(r'^[a-z0-9][a-z0-9-]{1,62}$')
+TASK_NAME = re.compile(r'^[a-z0-9][a-z0-9-]{1,62}\Z')
 GRADER_KEYS = ('milestones',)          # the grader's half of a task, with seed.reference
 
 
@@ -596,13 +602,13 @@ def near_errors(label, o):
     return errs
 
 
-def live(o):
+def live(o, keys=('player', 'camera')):
     """Whether a select names the player or the camera anywhere in it (a `player` select, a point on either), which
     only a running game has."""
     if isinstance(o, dict):
-        return bool(o.get('player') or o.get('camera')) or any(live(v) for v in o.values())
+        return any(o.get(k) for k in keys) or any(live(v, keys) for v in o.values())
     if isinstance(o, list):
-        return any(live(v) for v in o)
+        return any(live(v, keys) for v in o)
     return False
 
 
@@ -743,7 +749,7 @@ def task_semantic_errors(t):
     """What the schema cannot say (the task format's own rules): check names unique, `needs` naming earlier
     checks, a code judge or a reference judge only with seed.reference, a before/after judge only with a seed, a
     log_absent pattern that compiles, the task's play_args and player select (no flag of the checker's own; near
-    bands) and the probe rules (probe_errors);
+    bands; no `player` in the select that says which object the player is) and the probe rules (probe_errors);
     and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
     no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1)."""
     errs, seen, plays = [], set(), {}
@@ -752,6 +758,9 @@ def task_semantic_errors(t):
     for name in denied_play_args(t.get('play_args') if isinstance(t.get('play_args'), list) else []):
         errs.append(f"play_args can't set -{name}")
     errs += near_errors('player', t.get('player'))
+    if live(t.get('player'), ('player',)):
+        errs.append('player: this select says which object the player is, so it names no `player` and no point on the '
+                    "player (the probe drops a `player` key here and would take the scene's first object)")
     checks = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
               if isinstance(c, dict)]
     broken = next((c.get('name') for c in checks if c.get('kind') == 'build' and c.get('fails_at_start') is True), None)
