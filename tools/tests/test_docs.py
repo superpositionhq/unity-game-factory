@@ -5,6 +5,8 @@ Plain text checks: no Unity, no network, no git history.
     python -m unittest discover -s tools/tests -p "test_docs.py" -v
 
 What is not checked, so a green run does not claim it:
+- a field named in the section of the wrong kind (a field of `objects` under `components`) passes the check of names,
+  which holds each name to the schema as a whole; an example that uses it there is caught;
 - the files the probe and the checker exchange (CONTRACT.md section 5: the play spec, probe.json, the build and
   editor-pass requests and results) have no schema, so their examples are only told apart from task JSON;
 - a sketch (a snippet that leaves values out: {"name": ..., "seconds": ...}, {"t", "key", "press"}, an input shown
@@ -112,7 +114,7 @@ BARE = {'<Point>': '{"xyz": [0, 0, 0]}', '<object select>': '{"tag": "X"}', '<se
         '<asset measure>': '{"probe": "asset", "asset": "Assets/X.mat", "field": "keyword:_X"}'}
 QUOTED = {'<wildcard>': 'X*', '<regex>': 'X', '<type>': 'X', '<Component>': 'X', '<member>': 'x', '<sub>': 'x',
           '<parameter>': 'x', '<property>': '_X', '<Property>': '_X', '<NAME>': '_X', '<path>': 'x', '<Bone>': 'X',
-          '<Part>': 'X', '<Parameter>': 'X'}
+          '<Part>': 'X', '<Parameter>': 'X', '<id>': 'x-1'}
 EXPANDED = ('field', 'fact')     # keys whose "a|b|c" is a list of names; anywhere else "|" is a regular expression's
 
 
@@ -321,9 +323,24 @@ def members(code):
 
 
 def member_schemas(key):
-    """Every schema the task format gives a member of that name (the task's own properties and every definition's)."""
-    found = [TASK['properties'][key]] if key in TASK['properties'] else []
-    return found + [d['properties'][key] for d in DEFS.values() if key in d.get('properties', {})]
+    """[(schema of the member, its root)] for every place one of the repo's schemas gives a member of that name: the
+    task format first, then the manifests and the workflow row."""
+    found = []
+
+    def walk(node, root):
+        if isinstance(node, dict):
+            props = node.get('properties')
+            if isinstance(props, dict) and key in props:
+                found.append((props[key], root))
+            for v in node.values():
+                walk(v, root)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, root)
+
+    for name in sorted(vg.SCHEMAS, key=lambda n: n != 'game-task'):
+        walk(vg.SCHEMAS[name], vg.SCHEMAS[name])
+    return found
 
 
 def example_problems(text, strict=True):
@@ -371,8 +388,10 @@ def example_problems(text, strict=True):
         else:
             for key, v in members(code) or []:
                 fits = member_schemas(key)
-                if fits and all(list(vg.check_schema(v, s, TASK)) for s in fits):
-                    out.append((line, code, f'no "{key}" of the task format takes {json.dumps(v)}'))
+                if not fits:
+                    out.append((line, code, f'no schema of the repo has a key "{key}"'))
+                elif all(list(vg.check_schema(v, s, root)) for s, root in fits):
+                    out.append((line, code, f'no "{key}" in a schema of the repo takes {json.dumps(v)}'))
     return out
 
 
@@ -570,6 +589,71 @@ def unknown_kinds(text):
     return sorted(set(kind_sections(text)) - set(kinds()))
 
 
+def schema_words():
+    """Every name the task schema has: its keys, the values of its enums and constants, each measure's field names
+    and prefixes ("prop:")."""
+    out = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            out.update(node['properties'] if isinstance(node.get('properties'), dict) else ())
+            out.update(v for v in node.get('enum', ()) if isinstance(v, str))
+            out.update([node['const']] if isinstance(node.get('const'), str) else ())
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(TASK)
+    for name in kinds().values():
+        props = DEFS[name]['properties']
+        out |= field_words(props.get('field') or props['fact'])
+    return out
+
+
+# The words docs/task-probes.md writes in code that are no part of the task format, each for a reason. A word that is
+# neither the schema's nor here is a field or key the page documents and the schema lacks.
+LOGGED = (  # keys and values of probe.json's samples, which the page names "for the logs": no check reads them
+    'query_errors', 'total', 'full', 'class', 'glow_sources', 'glow_read', 'props', 'render', 'unread', 'emissive',
+    'unlit', 'local', 'directional', 'sky', 'lights', 'pixels', 'size', 'primitives', 'points', 'loudest', 'peak',
+    'listener', 'source', 'ugui', 'uitk', 'ocr', 'camera_stack', 'post_processing', 'grading_mode', 'ldr', 'hdr',
+    'pipeline', 'hue_shift', 'sun', 'fog', 'mode')
+NOT_OURS = ('true', 'false', 'null',        # JSON's own words
+            'materials',                    # Unity's Renderer.materials, named as what a prop: should not read
+            'display', 'visibility',        # UI Toolkit style properties ("display: none")
+            'h:mm:ss', 'm:ss')              # the forms of a clock on screen
+
+
+def unknown_names(text):
+    """[(section, word)] for the names docs/task-probes.md gives in code, in the sections that document measures
+    (2.1 common fields, 2.13 points, and each kind's), that the task schema doesn't have: a single lower-case word, a
+    `prefix:` form, or a `key: value`. Per kind this holds a field to the schema as a whole, not to that kind: a field
+    of another kind named in a section passes here, and is caught where an example uses it."""
+    known = schema_words() | set(LOGGED) | set(NOT_OURS)
+    prefixes = {w for w in known if w.endswith(':')}
+    known |= {w[:-1] for w in prefixes}             # `world_pitch` names the fields `world_pitch:<Part>`
+    secs, out = sections(text), []
+    for num in sorted({n for n, _ in kind_sections(text).values()} | ({'2.1', '2.13'} & set(secs)),
+                      key=lambda n: [int(x) for x in n.split('.')]):
+        for _, code in spans(secs[num][2]):
+            word = re.match(r'[a-z][a-z0-9_]*', code)
+            if not word or code in known:
+                continue
+            w, rest = word.group(0), code[word.end():]
+            if rest == '':
+                ok = w in known or (w.endswith('_') and any(k.startswith(w) for k in known))
+            elif rest.startswith(': '):
+                ok = w in known                     # `inactive: true`
+            elif rest.startswith(':'):
+                ok = w + ':' in prefixes            # `prop:Health.current`
+            else:
+                continue                            # not a name alone: a path, a sentence, JSON
+            if not ok:
+                out.append((num, code))
+    return out
+
+
 # ---- D. a skill's frontmatter -----------------------------------------------------------------------------------------
 def frontmatter_problems(folder, text):
     m = re.match(r'---\n(.*?)\n---\n', text, re.S)
@@ -665,6 +749,14 @@ class SchemaAndProbes(unittest.TestCase):
     def test_documented_kinds_exist(self):
         self.assertEqual(unknown_kinds(read(PROBES)), [], 'sections of docs/task-probes.md for kinds the schema lacks')
 
+    def test_documented_names_exist(self):
+        """The reverse: a field or key the page names in code is the schema's, or a listed key of probe.json."""
+        unknown = unknown_names(read(PROBES))
+        self.assertFalse(unknown, '\n' + '\n'.join(
+            f'  {PROBES} section {num}: `{word}` is no name of the task schema: correct it, or, when it is a key of '
+            f'probe.json the page names for the logs, list it in LOGGED in tools/tests/test_docs.py'
+            for num, word in unknown))
+
     def test_skill_names_every_kind(self):
         """The skill's section 5 is its index into task-probes.md."""
         body = sections(read(SKILL)).get('5', ('', 0, ''))[2]
@@ -700,6 +792,8 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertTrue(self.bad('`{"probe": "player", "field": "x" "y"}`'))                 # can't be expanded
         self.assertTrue(self.bad('`{"mystery": 1}`'))                                        # not recognised
         self.assertTrue(self.bad('`"weight": "heavy"`'))
+        self.assertTrue(self.bad('`"wieght": 0`'))                                          # no schema has the key
+        self.assertEqual(self.bad('`"origin": "studio"` in the assets manifest'), [])       # another schema's key
         # an example written out is read as it is: a string between two commas is no key left alone
         self.assertEqual(self.bad('`{"name": "aim", "seconds": 10, "args": ["-mode", "night", "fast"]}`'), [])
         self.assertEqual(self.bad('`{"probe": "log", "pattern": "first, then: second, third", "field": "count"}`'), [])
@@ -779,6 +873,13 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertNotIn(('screen field', 'luminance', 'section 2.15'), missing)
         self.assertIn(('probe kind', 'audio', 'a section "### 2.N `audio`: ..."'), missing)
         self.assertEqual(unknown_kinds('### 2.2 `pawn`: the player pawn\n'), ['pawn'])
+
+    def test_documented_names_exist(self):
+        page = ('### 2.4 `objects`: GameObjects\n`count`, `prop:Health.current`, `inactive: true`, `glow_read` (for '
+                'the logs), `MeshRenderer`, `extent_`, `{"probe": "objects"}`, `bb:Speed`, `pawn_on_screen`, `visble`, '
+                '`shown: true`\n### 3. Gates\n`anything`\n')
+        self.assertEqual(unknown_names(page), [('2.4', 'bb:Speed'), ('2.4', 'pawn_on_screen'), ('2.4', 'visble'),
+                                               ('2.4', 'shown: true')])
 
     def test_frontmatter(self):
         ok = "---\nname: a\ndescription: 'What it''s for. Use when writing.'\n---\n# A\n"
