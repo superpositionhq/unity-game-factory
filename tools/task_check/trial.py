@@ -307,7 +307,6 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
     plays under <out_dir>/<name>/)."""
     started = clock()
     name = task.get("name", "?")
-    evidence = Path(out_dir) / name
     result = {"format": FORMAT, "task": name, "game": (task.get("seed") or {}).get("game"),
               "task_sha256": tasks.digest(raw), "agent": agent, "model": model, "status": None, "reasons": [],
               "solved": 0, "runs": [], "limits": limits_of(task), "at": None, "seconds": None,
@@ -316,8 +315,9 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
     def finish(status, reasons=()):
         result.update(status=status, reasons=list(reasons), solved=sum(1 for r in result["runs"] if r.get("solved")),
                       seconds=round(clock() - started, 1), at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
-        (Path(out_dir) / f"{name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if check.valid_name(name):  # a task that doesn't validate may be named a/b, ../x or nothing: no file then
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
+            (Path(out_dir) / f"{name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
 
     found = tasks.problems(task)
@@ -326,12 +326,13 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
     seed = task["seed"]
     if not seed.get("reference"):
         return finish("ERROR", ["the task has no seed.reference: a try is graded against the start and the reference"])
+    evidence = Path(out_dir) / name
     scratch = Path(scratch)
     if scratch.exists():  # the try deletes it whole when it ends (an empty path is the current folder)
         return finish("ERROR", [f"the scratch folder {scratch.absolute()} exists already: a try makes its own"])
-    seeds.remove(evidence)
-    evidence.mkdir(parents=True)
     try:
+        seeds.remove(evidence)  # (an earlier try's files another program holds: this task's error, not the try's end)
+        evidence.mkdir(parents=True)
         shas = {k: seeds.resolve(repo, seed[k]) for k in ("commit", "reference")}
         for folder in [scratch / "start", scratch / "reference"] + [scratch / f"run{i}" / seed["game"]
                                                                   for i in range(1, runs + 1)]:
