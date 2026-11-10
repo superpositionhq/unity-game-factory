@@ -23,7 +23,7 @@ function Get-UGFConfigPath {
     return (Join-Path $env:USERPROFILE '.unity-game-factory\config.json')
 }
 
-$script:UGFDefaultUnityVersion = '6000.3'   # Unity 6.3 LTS: new games use its newest installed patch (Get-UGFUnityVersion)
+$script:UGFDefaultUnityVersion = '6000.3'   # Unity 6.3 LTS: new games use its newest installed patch
 
 function Get-UGFConfig {
     $cfg = [ordered]@{
@@ -61,9 +61,9 @@ function Get-UGFAgents($Cfg = (Get-UGFConfig)) {
     return $found
 }
 
-# The recording hooks' folder (record-unity-action.ps1, record-unity-commit.ps1, the session map), one for every agent: "hooks_dir"
-# in the config, else %USERPROFILE%\.unity-game-factory\hooks. Never the Unreal factory's hooks folder: each factory's
-# hooks record only the sessions mapped to its own root, and each keeps its own session map.
+# The recording hooks' folder (record-unity-action.ps1, record-unity-commit.ps1, the session map), one for every agent:
+# "hooks_dir" in the config, else %USERPROFILE%\.unity-game-factory\hooks. Never the Unreal factory's hooks folder: each
+# factory's hooks record only the sessions mapped to its own root, and each keeps its own session map.
 function Get-UGFHooksDir($Cfg = (Get-UGFConfig)) {
     if ($Cfg.PSObject.Properties['hooks_dir'] -and $Cfg.hooks_dir) { return [IO.Path]::GetFullPath([string]$Cfg.hooks_dir) }
     return (Join-Path $env:USERPROFILE '.unity-game-factory\hooks')
@@ -93,8 +93,9 @@ function Get-UGFUnity {
     return $null
 }
 
-# Unity.exe for an exact editor version: "unity_editors" in the config, else <unity_hub_editors>\<version>\Editor\Unity.exe.
-# '' when that version is not installed (callers say which version to install through Unity Hub).
+# Unity.exe for an exact editor version: "unity_editors" in the config, else
+# <unity_hub_editors>\<version>\Editor\Unity.exe. '' when that version is not installed (callers say which version to
+# install through Unity Hub).
 function Get-UGFUnityForVersion([string]$Version, $Cfg = (Get-UGFConfig)) {
     if (-not $Version) { return '' }
     if ($Cfg.PSObject.Properties['unity_editors'] -and $Cfg.unity_editors -and $Cfg.unity_editors.PSObject.Properties[$Version]) {

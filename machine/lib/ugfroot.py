@@ -1,4 +1,4 @@
-"""Machine root for Python tools (task check, packaging, ...); same rules as machine/lib/ugf-root.ps1.
+"""Machine root for Python tools (task-check, task-try, ...); same rules as machine/lib/ugf-root.ps1.
 
 Order: env UGF_ROOT, then "root" in the config file (env UGF_CONFIG, else %USERPROFILE%/.unity-game-factory/config.json),
 then %USERPROFILE%/UnityWork.
@@ -149,7 +149,7 @@ def slot_plan():
     """heavy_slots / gpu_slots in effect: the config's keys, else computed_slots()."""
     c = config()
     comp = None
-    res = {}
+    out = {}
     for k in ("heavy_slots", "gpu_slots"):
         try:
             v = int(c.get(k) or 0)
@@ -158,8 +158,8 @@ def slot_plan():
         if v <= 0:
             comp = comp or computed_slots()
             v = comp[k]
-        res[k] = v
-    return res
+        out[k] = v
+    return out
 
 
 def root():

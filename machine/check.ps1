@@ -130,7 +130,7 @@ Try-Check 'GitHub CLI' {
 Try-Check 'Python' {
     $py = Get-Command python -ErrorAction SilentlyContinue | Where-Object { $_.Source -notmatch 'WindowsApps' } | Select-Object -First 1
     $cmd = if ($py) { $py.Source } elseif (Get-Command py -ErrorAction SilentlyContinue) { 'py' } else { $null }
-    if (-not $cmd) { Add-Result FAIL 'Python' 'no python.exe (the Microsoft Store stub does not count)' 'winget install Python.Python.3.12 (sfx, thread-stats, scrub and validation tools)'; return }
+    if (-not $cmd) { Add-Result FAIL 'Python' 'no python.exe (the Microsoft Store stub does not count)' 'winget install Python.Python.3.12 (validate-game, task-check, task-try and sfx tools)'; return }
     $r = Run $cmd @('-c', 'import sys; print(sys.version.split()[0])')
     if ($r.code -eq 0 -and $r.out -match '^3\.(\d+)' -and [int]$Matches[1] -ge 10) { Add-Result PASS 'Python' "$($r.out) ($cmd)" }
     else { Add-Result FAIL 'Python' "unusable: $($r.out)" 'install Python 3.10+' }
