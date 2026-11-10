@@ -108,7 +108,7 @@ def workflow_row(n, op='project.create', **extra):
 
 
 def make_game(repo):
-    """A Unity 6000.3 game with a long thread (4 commits, 5 game files, 120 code lines, 3 systems). Returns
+    """A Unity 6000.3 game with a long thread (4 commits, 6 game files, 124 code lines, 3 systems). Returns
     (start, reference) of that thread."""
     os.makedirs(repo)
     git(repo, 'init', '-q', '-b', 'main')
