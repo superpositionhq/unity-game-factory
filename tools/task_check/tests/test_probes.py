@@ -317,13 +317,25 @@ class Reducers(unittest.TestCase):
                          (None, "no value in the window (nothing it selects was measured)"))
 
     def test_a_probe_with_no_value_says_what_the_probe_could_not_read(self):
-        measure = m(probe="objects", select={"component": "Nowhere"}, field="y", of="max")
+        """Its own query's error only: one naming the query's kind and id, else one naming its kind alone (the probe
+        writes a select's own errors so), never another query's or the play's."""
+        measure = m(probe="components", select={"component": "Nowhere"}, field="y", of="max")
+        qid = probes.query_id(probes.needs(measure)[0])
         found = {"format": "unity-probe/1", "ended": "time", "seconds": 20.0, "track": [[0.5, 0, 0, 0]], "camera": [],
-                 "measures": {probes.query_id(probes.needs(measure)[0]): [{"t": 0.5, "rows": []}]},
-                 "query_errors": ["q1: no component type named Nowhere"]}
+                 "measures": {qid: [{"t": 0.5, "rows": []}]},
+                 "query_errors": ["spawns: no component type Coin", "components: no component type Nowhere"]}
         value, why = probes.measured(measure, found)
         self.assertIsNone(value)
-        self.assertIn("the probe said: q1: no component type named Nowhere", why)
+        self.assertEqual(why, "no value in the window (nothing it selects was measured); the probe said: components: "
+                              "no component type Nowhere")
+        found["query_errors"] = ["components qffffffffff: not this one", "components: no component type Nowhere",
+                                 f"components {qid} (frame): this one"]
+        self.assertTrue(probes.measured(measure, found)[1].endswith(f"; the probe said: components {qid} (frame): "
+                                                                    "this one"))
+        found["query_errors"] = ["spawns: no component type Coin", "components qffffffffff: not this one",
+                                 "the frame couldn't be read: no"]
+        self.assertEqual(probes.measured(measure, found), (None, "no value in the window (nothing it selects was "
+                                                                 "measured)"), "another query's error is not quoted")
 
 
 class FairReadings(unittest.TestCase):

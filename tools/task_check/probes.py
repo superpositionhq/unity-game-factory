@@ -493,9 +493,22 @@ def measured(measure, probe, log=""):
     value = aggregate([v for _, v in picked], default_agg(measure))
     if value is not None:
         return value, None
-    errors = [str(e) for e in (probe.get("query_errors") or []) if isinstance(e, str)]
+    errors = _own_errors(measure, probe)
     said = f"; the probe said: {errors[0][:300]}" if errors else ""
     return None, f"no value in the window (nothing it selects was measured){said}"
+
+
+def _own_errors(measure, probe):
+    """The play's `query_errors` lines about `measure`'s own query: those naming its kind and id ("components
+    q1a2b3c4d5e: ..."), then those naming its kind alone ("components: no component type X": the probe writes a
+    select's own errors so); another query's or the play's are left out."""
+    query = next(iter(needs(measure)), None)
+    if query is None:
+        return []
+    kind, qid = query["kind"], query_id(query)
+    lines = [str(e) for e in (probe.get("query_errors") or []) if isinstance(e, str)]
+    return [e for e in lines if e.startswith((f"{kind} {qid}:", f"{kind} {qid} ("))] + \
+        [e for e in lines if e.startswith(f"{kind}: ")]
 
 
 # -- (c) the editor pass --------------------------------------------------------------------------------------------------
