@@ -4,18 +4,21 @@
     python tools/thread-stats.py <game repo> <commit> [<commit> ...] [--span START..REF]
 
 Which commits make up a thread is your judgement (a commit answers one of the thread's directions, or works on the
-issues it settled); this counts them the way the task validator counts a task's span (tools/unity_tasks.py): commits that change the game,
+issues it settled); this counts them the way validate-game.py counts a task's span: commits that change the game,
 game files changed, code lines added plus removed, and systems crossed. With --span it also prints the task's whole
 span from seed.commit to seed.reference, so a short thread padded by another thread's work in the same stretch shows.
 Reads git only: no build, a few seconds."""
 
 import argparse
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import unity_tasks as vg  # noqa: E402  (the thread definitions: game files, code lines, systems, floors)
+HERE = Path(__file__).resolve().parent
+_spec = importlib.util.spec_from_file_location("validate_game", HERE / "validate-game.py")
+vg = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(vg)
 
 
 def git(repo, *args):
@@ -49,7 +52,7 @@ def own(repo, commits):
 
 
 def span(repo, start, ref):
-    """The task's span as the task validator measures it: the reference's diff against the start."""
+    """The task's span as validate-game.py measures it: the reference's diff against the start."""
     numstat = git(repo, "diff", "--numstat", "--no-renames", start, ref)
     commits = int(git(repo, "rev-list", "--count", f"{start}..{ref}", "--", *vg.GAME_PATHS).strip() or 0)
     return commits, *size([numstat])
