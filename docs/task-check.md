@@ -104,9 +104,11 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
    TaskProbe.EditorTools.Build.Player`, a Windows x64 Mono non-development player in `<copy>\Build\TaskProbe\`, with
    every scene the task's plays open added after the project's own enabled build scenes. For the plays only, the
    copy's build gets its own company name (`TaskProbe.<hash>`, so a play's saved data is never the real game's), no
-   splash screen, no static batching (so each renderer keeps its own mesh name and triangle count), windowed 960x540,
-   running in the background, several instances allowed; the game's assets and code are untouched. The build passes
-   when Unity exits 0 and the probe's build result says ok. A start that doesn't build makes the task INVALID, unless
+   splash screen, no static batching (so each renderer keeps its own mesh name and triangle count), no code stripping
+   (the probe reads members by name that the game may never call) and several instances allowed; the build puts each
+   of these settings back when it is done, and the game's assets and code are untouched. The window (960x540, not
+   full screen) comes from each play's command line. The build passes when Unity exits 0 and the probe's build result
+   says ok. A start that doesn't build makes the task INVALID, unless
    its build check says so (`"fails_at_start": true`: making it build is the task); then the start failing to build is
    the start failing the task, and it is never played.
 4. Checks the reference as if it were a solution: the task's checks in order (a check whose `needs` failed doesn't run

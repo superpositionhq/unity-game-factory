@@ -78,7 +78,8 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
-    scene).
+    scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
+    one with a `.` or `..` part.
   - `args` (optional): the player's command-line arguments for this play instead of the task's `play_args` (`[]`:
     none), at most 16, each `^-?[A-Za-z0-9_.:=,/-]{1,60}$`. An element starting with `-` and a letter is a flag
     (`-scenario`, `-devmenu`); anything else is a value (`2`, `2:quest=bull,6:fell`). Never a flag the checker sets
@@ -106,7 +107,8 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       Selectable or UI Toolkit Button whose name (a wildcard) or type matches, as a player's click fires it: a uGUI
       Selectable gets the pointer events of a click at its centre (enter, down, up, click), a UI Toolkit Button a
       submit event, which fires `Button.clicked` (a game that handles a raw `ClickEvent` instead needs the cursor,
-      below). No match: nothing happens (the play's `probe.log` says `no visible button matches '<widget>'`);
+      below). The click casts no ray, so an image drawn over the button doesn't stop it. No match: nothing happens
+      (the play's `probe.log` says `no visible button matches '<widget>'`);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
       from the top; it starts at the centre); a following `<Mouse>/leftButton` press and release clicks there: uGUI
       through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit buttons, and the game through
