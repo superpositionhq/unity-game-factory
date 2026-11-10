@@ -277,15 +277,14 @@ class Project:
 
     def __init__(self, folder, machine, label):
         self.folder, self.machine, self.label = Path(folder), machine, label
-        self.report = None  # the last build's result file
 
     def logs(self):
         return self.folder / LOGS
 
     def player(self):
-        """The built player: the build result's exe when it is there, else Build/TaskProbe/Game.exe."""
-        exe = (self.report or {}).get("exe")
-        return Path(exe) if isinstance(exe, str) and exe and Path(exe).is_file() else self.folder / BUILD_DIR / PLAYER
+        """The built player, Build/TaskProbe/Game.exe: where the build is asked to put it, never a path its result
+        names (the game's own editor code runs during the build and could write any)."""
+        return self.folder / BUILD_DIR / PLAYER
 
     def _batch(self, log):
         return [self.machine.editor, "-batchmode", "-nographics", "-quit", "-projectPath", self.folder, "-logFile",
@@ -306,7 +305,6 @@ class Project:
         output = (found.output + "\n" if found.output.strip() else "") + _read_text(log)
         _licensed(found, output)
         report = _read_json(result)
-        self.report = report
         code, said = found.exit_code, ""
         if report is not None and report.get("ok") is not True:  # some failures are in the result file alone
             said = f"[task-check] the build's result says it failed: {report.get('error')}\n"

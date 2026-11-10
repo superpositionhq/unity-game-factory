@@ -703,6 +703,39 @@ class Plays(unittest.TestCase):
             self.assertEqual((found.exit_code, found.probe, machine.jobs), (1, None, []))
             self.assertIn("no built player", found.output)
 
+    def test_a_play_runs_the_copys_own_player_whatever_the_build_result_says(self):
+        """The build result is written while the game's own editor code runs: it names no program to start."""
+        with tempfile.TemporaryDirectory() as tmp:
+            def answer(argv, cwd):
+                if "-taskProbeBuild" in argv:
+                    request = json.loads(Path(after(argv, "-taskProbeBuild")).read_text(encoding="utf-8"))
+                    Path(request["result"]).write_text(json.dumps({"ok": True, "exe": sys.executable}),
+                                                       encoding="utf-8")
+                return ""
+
+            machine = FakeMachine(answer=answer)
+            project = unity.Project(tmp, machine, "t")
+            self.assertEqual(project.build(60, []).exit_code, 0)
+            found = project.play(5, 0, 60)
+            self.assertEqual(len(machine.jobs), 1, "only the build ran")
+            self.assertIn("no built player at", found.output)
+            self.assertIn(str(Path(tmp) / "Build" / "TaskProbe" / "Game.exe"), found.output)
+
+    def test_a_build_result_with_odd_missing_assets_reads_as_none(self):
+        task = task_with(probe(), play_scene="Assets/Scenes/Town.unity")
+        for missing in (5, [], {"Assets/Scenes/Town.unity": {"missing": 7, "names": 3}},
+                        {"Assets/Scenes/Town.unity": {"missing": [1, None], "names": "x"}},
+                        {"Assets/Scenes/Town.unity": "all"}):
+            project = FakeProject(report={"ok": True, "missing": missing})
+            found = side("start", project, task)
+            found.build()
+            self.assertEqual(found.missing_assets(), {}, missing)
+        kept = side("start", FakeProject(report={"ok": True, "missing": {"Assets/Scenes/Town.unity": {
+            "missing": ["4f1c2a9e0b8d4c3a9f7e6d5c4b3a2910", 3], "names": 57}}}), task)
+        kept.build()
+        self.assertEqual(kept.missing_assets(), {"Assets/Scenes/Town.unity": {
+            "missing": ["4f1c2a9e0b8d4c3a9f7e6d5c4b3a2910"], "names": 57}})
+
     def test_a_build_names_the_tasks_scenes_and_passes_only_with_its_result(self):
         with tempfile.TemporaryDirectory() as tmp:
             requests = []

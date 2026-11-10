@@ -222,11 +222,14 @@ class Side:
         The checker never fills them in: a task is built exactly as committed."""
         report = getattr(self._build, "report", None) if self._build is not None else None
         found = (report or {}).get("missing") if isinstance(report, dict) else None
-        if not isinstance(found, dict):
-            return {}
-        return {scene: {"missing": list(gap.get("missing") or []), "names": gap.get("names")}
-                for scene, gap in sorted(found.items())
-                if scene in self.scenes and isinstance(gap, dict) and gap.get("missing")}
+        out = {}
+        for scene, gap in sorted(found.items()) if isinstance(found, dict) else ():
+            # the result is written while the game's own editor code runs: take only what has the right shape
+            guids = [g for g in gap.get("missing") or [] if isinstance(g, str)] \
+                if isinstance(gap, dict) and isinstance(gap.get("missing"), list) else []
+            if scene in self.scenes and guids:
+                out[scene] = {"missing": guids, "names": gap.get("names")}
+        return out
 
     # -- plays ---------------------------------------------------------------------------------------------------------
 
