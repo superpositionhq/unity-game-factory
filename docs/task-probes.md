@@ -395,6 +395,9 @@ renderers, else its position.
     current clip on layer 0 (the heaviest while it blends), through `match`. Unity has no built-in AI blackboard: read
     an AI's state with `anim:` or a `prop:` of the component that holds it.
 
+A row (in `probe.json`, for the logs) holds the object's `name` and a `class`: its first script's type, else its first
+Behaviour or Renderer, else its first other component (its Transform and MeshFilter aside), else `GameObject`.
+
 ### 2.5 `components`: components in the scene
 
 `{"probe": "components", "select": {"component": "ParticleSystem", "owner": <object select>, "near": ...}, "field":
@@ -410,6 +413,8 @@ holding particles, an enabled DecalProjector, a TrailRenderer drawing points; a 
 With `near` and `count`, how many effects play at a spot: read before and after a restart (an input of a task play), it
 catches effects that pile up. A select names its `component`, or `effect`, or both.
 A Terrain is one component however many trees it draws: count placed meshes with `pieces` (section 2.14).
+A row (in `probe.json`, for the logs) holds its object's name as both `name` and `owner` (a Unity component has no
+name of its own; `owner` is not the object the `owner` select matched) and the component's type as `class`.
 
 - `field`: `count`; `active` (enabled and active in the hierarchy; a ParticleSystem also playing or holding
   particles; an AudioSource also playing); `visible` (a Renderer that is enabled, active and not forced off; any other
