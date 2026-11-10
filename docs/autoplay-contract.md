@@ -47,7 +47,9 @@ What a game does today, so that it is ready for AutoPlay (the task check's plays
 Report what is ready to the coordinator (the commit sha, the scenarios that start with `-scenario <n>`, the release
 build's result); never queue, request or wait for a recording, since there is no recorder yet. The framing check and the
 README's screenshots, which come from a bot run once the drop-in is here, come from one short rendered play of the
-built player until then (unity-game-session skill).
+built player until then (unity-game-session skill). With no bot and no input that play shows each scenario as it starts
+and nothing else: check the camera rules on what the frames show, list the rest as open in the design doc's status, and
+never script the player's movement for the capture (that is the bot, which waits for the drop-in).
 
 Everything below is the plan: what the drop-in will do, and what a game adds once it is here.
 
