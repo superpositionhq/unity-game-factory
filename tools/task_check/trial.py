@@ -239,6 +239,15 @@ def peeked(transcript, places):
     return found
 
 
+def worktrees(repo):
+    """The folders of `repo`'s other worktrees: its tasks branch is checked out in one, and the answers are there
+    (unity-write-tasks section 0), wherever the task came from."""
+    listed = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"], capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", check=False).stdout
+    found = [Path(line[len("worktree "):]).resolve() for line in listed.splitlines() if line.startswith("worktree ")]
+    return [f for f in found if f != Path(repo).resolve()]
+
+
 def outside(path, folders):
     """Whether `path` lies outside every one of `folders`."""
     real = os.path.realpath(path).lower()
@@ -497,8 +506,9 @@ def main(argv=None):
     cli.ignore_results(repo, out)
     unity.ugfroot.check_free(str(scratch_root), "task try")
     home = Path(os.path.expanduser("~"))
-    places = [repo, root, out, home / ".agents", home / ".claude", home / ".codex"] + (
-        [tasks_dir] if tasks_dir else [])
+    places = [repo, root, out, home / ".agents", home / ".claude", home / ".codex"] + worktrees(repo)
+    if tasks_dir and tasks_dir not in places:
+        places.append(tasks_dir)
 
     def log(text):
         print(text, file=sys.stderr, flush=True)

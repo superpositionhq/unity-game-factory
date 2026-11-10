@@ -562,13 +562,16 @@ class CodexHome(unittest.TestCase):
 
 class Main(unittest.TestCase):
     def test_the_transcript_is_read_for_every_place_that_holds_the_answer_or_its_measures(self):
-        """The game repo, the machine root, the harnesses' homes (the game sessions' transcripts), a task file's
-        worktree and the results folder (the start's and the reference's plays, earlier results) wherever it is."""
+        """The game repo, the machine root, the harnesses' homes (the game sessions' transcripts), the repo's other
+        worktrees (its tasks branch is checked out in one), a task file's folder and the results folder (the start's
+        and the reference's plays, earlier results) wherever it is."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, task = tried(tmp)
             given = Path(tmp) / "tasks" / "metro-runner" / "Tasks" / "probe-task.json"
             given.parent.mkdir(parents=True)
             given.write_text(json.dumps(task), encoding="utf-8")
+            elsewhere = Path(tmp) / "elsewhere" / "metro-runner-tasks"   # a tasks worktree outside the machine root
+            git(repo, "worktree", "add", "--detach", str(elsewhere))
             seen = {}
 
             def try_task(repo, task, raw, scratch, out, agent, exe, **options):
@@ -587,7 +590,8 @@ class Main(unittest.TestCase):
             home = Path(os.path.expanduser("~"))
             self.assertEqual(seen["places"], [str(p) for p in (repo.resolve(), Path(os.path.realpath(root)),
                                                                out.resolve(), home / ".agents", home / ".claude",
-                                                               home / ".codex", given.parent.parent.resolve())])
+                                                               home / ".codex", elsewhere.resolve(),
+                                                               given.parent.parent.resolve())])
             self.assertEqual(seen["scratch"].parent, Path(tmp, "tries").resolve(), "a folder of its own in --scratch")
 
 
