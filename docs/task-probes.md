@@ -600,8 +600,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   - `mesh_collision`: one row per mesh (a MeshFilter with a mesh) in the object (rows named
     `<object>/<mesh's object>`), 1 when its object or a parent up to the matched object has an enabled collider that
     isn't a trigger;
-  - `prop:<Component>.<path>`: one row per object, read as an object's `prop:` is (section 2.4); an unknown member is a
-    row with no value.
+  - `prop:<Component>.<path>`: one row per object, read as an object's `prop:` is (section 2.4), else as a
+    SerializedObject property path of that component (`prop:MeshRenderer.m_Materials.Array.size`); an unknown member
+    is a row with no value.
 - A select that needs a running game is an error for that measure, not empty rows: `player`, `has`, or a `near`
   around the player or the camera. A `near` around `{"xyz": [x, y, z]}` or `{"object": <select>}` works (the object
   resolved in the same scene or prefab; when nothing there matches it, nothing is near it).
@@ -625,7 +626,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   (`>=`/`<=` a little either side), never `==` on a fraction.
 - URP rewrites some material values on import: a material created with `_EMISSION` but default global illumination
   flags has the keyword turned off again. Read what the saved asset really holds, at both seeds.
-- A project that doesn't build fails its editor probes ("the project didn't build, so the editor couldn't open it").
+- A project that doesn't build fails its editor probes ("the project didn't build, so the editor couldn't open it"),
+  and so does a pass that ends without its result ("the editor pass gave no result (exit <code>)", or "(exit <code>,
+  timed out)" when it ran out of time).
 
 ### 2.12 `trace`: the agent's own trace (`play: "trace"`, never gating)
 
