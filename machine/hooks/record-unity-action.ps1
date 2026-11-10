@@ -276,13 +276,16 @@ try {
       # commit concluded the merge with the conflict markers in the files. Left for the session to resolve.
       if (@($dirty) -match '^(DD|AU|UD|UA|DU|AA|UU) ') { }
       elseif ($dirty) {
+        $before = git -C $repo rev-parse -q --verify HEAD
         git -C $repo add -A 2>$null | Out-Null
         # the commit's post-commit hook (record-unity-commit.ps1) takes this mutex: held through the commit, every WIP
         # commit waited out that script's 30 s timeout, and the session with it
         if ($held) { $mutex.ReleaseMutex() }
         git -C $repo commit -q -m "WIP" 2>$null | Out-Null
         if ($held) { $held = Enter-UGFMutex $mutex 30000 }
-        $row.auto_commit = [ordered]@{ sha = (git -C $repo rev-parse HEAD); files = @($dirty).Count }
+        # a commit the repo refused (a hook said no) is not recorded as one: the row then carries no auto_commit
+        $sha = git -C $repo rev-parse -q --verify HEAD
+        if ($sha -and $sha -ne $before) { $row.auto_commit = [ordered]@{ sha = $sha; files = @($dirty).Count } }
       } else { $row.auto_commit = $null }
     }
   } else {
