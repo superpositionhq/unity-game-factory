@@ -388,37 +388,69 @@ original's, unchanged (`probes.py`).
 
 ## 4. Plays and inputs
 
-`look`: 20 s idle, 6 screenshots. `drive`: 22 s, 8 screenshots: `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s,
-`<Keyboard>/w` 8-13 s with `<Keyboard>/space` 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s. A task play: 2
-screenshots. A boot: `seconds` idle (the 60 s boot serves `look` as in the original). Sampled every 0.5 s (`every`
-0.1-1.0). The play's clock is a fixed 30 fps (`Time.captureFramerate = 30`; play time = frames / 30), starting when
-the play's scene has loaded, holding while any scene is still loading and during a `wait`, counting on when the game
-sets `timeScale` 0. The probe asks for the play's `scene` before the game's first build scene has woken up: that scene's
-objects get `Awake` and `OnEnable`, then are destroyed before `Start`. `play_args` apply to every play (look, drive,
-boot, task plays); a task play's `args` key replaces them; `"scene": null` opens the first build scene. Every play
-starts from clean saved data (the build's company name is `TaskProbe.<hash>`; the probe clears PlayerPrefs and
-`persistentDataPath` at the start, the checker deletes them with the copy).
+The checker's plays are the original's in Unity's keys (`check.PLAYS`, `check.DRIVE`): `look`, 20 s idle, 6
+screenshots; `drive`, 22 s, 8 screenshots: `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s, `<Keyboard>/w` 8-13 s with
+`<Keyboard>/space` 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s (the original's W, D, SpaceBar, A). A task
+play: 2 screenshots. A boot check: `seconds` idle, 2 screenshots. A boot of 20 s or more also serves `look` when no look
+probe reads the play's log (`check.Side.idle`): it then takes 6 screenshots and look's queries, and look reads its first
+20.5 s, as far as a look of its own samples (`check.first_seconds`); a `log_absent` check reads the 60 s boot. Samples
+every 0.5 s (a task play's `every`, 0.1-1.0). `play_args` apply to every play (look, drive, boot, task plays); a task
+play's `args` key replaces them, its `scene` key the `play_scene` (`tasks.place`).
 
-Inputs go through the **Input System** on the probe's own virtual Keyboard, Mouse and Gamepad (real devices are not
-read; the old Input Manager cannot be driven). Keys and buttons are queued before the game's scripts and processed by
-the Input System at the next frame's start, so the game reads them one frame later. The Gamepad is added only when an
-input names `<Gamepad>`.
+The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast
+as the machine renders (vSync off, `Application.targetFrameRate` -1), but paced to real time at 30 fps in a play that
+measures audio (the spec's `sound`), during a `wait` and while a scene loads. It starts when the play's scene is the
+active scene and no scene is loading (after 600 frames without the play's scene, a `query_errors` line, and it starts
+in the scene that plays), holds while any scene is still loading and during a `wait`, and counts on when the game sets
+`timeScale` 0. The game's `Time.time` runs on it; `Time.unscaledTime`, `Time.unscaledDeltaTime`,
+`Time.realtimeSinceStartup` and the system clock follow the wall clock (measured by the probe's core tests: from play
+time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as `Time.realtimeSinceStartup` did). The probe asks for the
+play's `scene` at `BeforeSceneLoad`, before the game's first build scene has woken up: that scene's objects get `Awake`
+and `OnEnable`, then are destroyed before `Start` (a scene the build lacks: a `query_errors` line, and the game's own
+first scene plays). Every play starts from clean saved data: the build gives the copy a company name of its own
+(`TaskProbe.<hash>`, section 5), the probe clears PlayerPrefs and `persistentDataPath` when the play starts, and the
+checker deletes what the plays left outside the copy with it (section 5).
 
-- key: `{"t", "key": "<Keyboard>/w", "press": true|false}`; `key` is an Input System control path on `<Keyboard>`,
-  `<Mouse>` or `<Gamepad>` (`<Keyboard>/space`, `<Keyboard>/leftShift`, `<Keyboard>/f2`, `<Mouse>/leftButton`,
-  `<Gamepad>/buttonSouth`); pattern `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`.
-- axis: `{"t", "key": "<Mouse>/delta/x", "axis": 4.0}`. `<Mouse>/delta/*` and `<Mouse>/scroll/*` are one-frame
-  impulses; any other axis (`<Gamepad>/leftStick/x`) keeps its value until set again.
-- widget click: `{"t", "widget": "RetryButton", "click": true}`: the first visible, interactable uGUI Selectable or UI
-  Toolkit Button whose name (wildcard) or type matches, clicked as a player's click fires it (UI Toolkit: a submit
-  event, which fires `Button.clicked`; a raw `ClickEvent` handler needs the cursor path).
-- cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down): moves the virtual mouse; a following
-  `<Mouse>/leftButton` press clicks there (uGUI through an EventSystem with an InputSystemUIInputModule, UI Toolkit
-  buttons, the game through `Mouse.current`).
+Inputs go through the **Input System** on the probe's own virtual devices (`Inputs.cs`; the original sends FKey
+events): `TaskProbeKeyboard` and `TaskProbeMouse`, added before the game's first frame, and `TaskProbeGamepad` only when
+an input names `<Gamepad>` (a gamepad switches many games' prompts); `InputSystem.settings.backgroundBehavior` is
+`IgnoreFocus`, since the window never has the focus. Real devices are not read, and the old Input Manager can't be
+driven (a project without the Input System package gets one `query_errors` line for its keys, axes and cursor moves).
+Each device's whole state is queued with every change, before the game's scripts (the probe runs at execution order
+-32000), and the Input System processes it at the next frame's start, so the game reads an input one frame after its
+time. Inputs of one time go in the order the task wrote them. An unknown control is a `query_errors` line (`inputs:
+the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has no control <x>`), never a stop.
+
+- key: `{"t", "key": "<Keyboard>/w", "press": true|false}`: a key by its Input System name (`<Keyboard>/space`,
+  `<Keyboard>/leftShift`, `<Keyboard>/f2`), a mouse button (`<Mouse>/leftButton`, `rightButton`, `middleButton`,
+  `forwardButton`, `backButton`), a gamepad button by its Input System name or the usual alias (`<Gamepad>/buttonSouth`,
+  `a`, `cross`; `start`, `select`, the shoulders, the stick presses, `dpad/up` and the rest).
+- axis: `{"t", "key": "<Mouse>/delta/x", "axis": 4.0}`: `<Mouse>/delta/x|y` and `<Mouse>/scroll/x|y` are one-frame
+  impulses; `<Mouse>/position/x|y` set the pointer, in pixels; `<Gamepad>/leftStick/x|y`, `rightStick/x|y`,
+  `leftTrigger` and `rightTrigger` keep their value until set again.
+- widget click: `{"t", "widget": "RetryButton", "click": true}`: the first visible, interactable uGUI Selectable in
+  hierarchy order whose name (a wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit
+  Button (`UiScan.Click`). A uGUI one gets the pointer enter, down, up and click a player's click sends, at its centre
+  (`ExecuteEvents`), so `onClick`, toggles and the game's own `IPointer*Handler`s react; a UI Toolkit one a
+  `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor path).
+  `probe.log` says `clicked <widget>` or `no visible button matches '<widget>'`.
+- cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down): moves the virtual mouse there (it starts at the
+  window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an EventSystem with
+  an InputSystemUIInputModule, UI Toolkit buttons, the game through `Mouse.current`).
 - teleport: `{"t", "teleport": [x, y, z], "yaw": deg, "hold": s}`; teleport_to: `{"t", "teleport_to": <object
-  select>, "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`; wait: `{"t", "wait": s}`. Semantics as
-  the original (hold: put back after every frame's game logic; wait: the play's clock holds while the game runs paced
-  to real time).
+  select>, "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`. The original moves the pawn with
+  Unreal's TeleportTo, which finds a free spot near the point; the port sets the player's transform, its pivot, to
+  the point (`Inputs.Place`), through its CharacterController (disabled for the move), its NavMeshAgent (`Warp`, on its
+  NavMesh) or its Rigidbody (and a Rigidbody2D's position), with no free-spot search and no snap to the ground, and
+  stills its bodies. `yaw` turns it (the checker writes 0 when unset, as the original's does). teleport_to takes the
+  match nearest the player, the player and its children left out; the spot is `distance` from the target along the
+  level line toward the player (in front of the target when the player is right above it), plus `offset`; it faces
+  `face`, else the target (it keeps its yaw when what it faces is within a centimetre on the level). `hold`: after
+  every frame's game logic, for that many seconds, the player is put back at the spot and stilled. `probe.log` says
+  where each went (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped (no object
+  matches)`).
+- wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of
+  both real and game time have passed; the inputs after it wait for its end (the original's).
 
 ## 5. Files the probe and the checker exchange
 
