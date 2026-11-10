@@ -1026,7 +1026,7 @@ returns: the game's own frames are the same with and without the measure.
   (an unlit one reads 0, a translucent one is left out); what isn't a renderer or a terrain (`GL` drawing,
   `Graphics.RenderMesh*` from code, UI) reads nothing, nor does anything on the UI layer, where world-space canvases
   draw (a canvas on another layer isn't a renderer, so nothing switches it off: keep one out of the place). The probe
-  renders with the URP renderer the player's camera draws with, its RenderObjects features on and its other features
+  renders with the URP renderer the player's camera draws with, its RenderObjects features kept and its other features
   off, so a layer that renderer doesn't draw reads nothing; URP's Forward, Forward+ and Deferred renderers read the
   same, but a shader with only a forward pass draws nothing under Deferred, in the game as in the probe. Game code
   hooked to the render pipeline's camera callbacks also sees the probe's render (an exception it throws there leaves
