@@ -288,7 +288,15 @@ def build_rules(user, machine, session_ids, identities):
     # the build machine's per-session folders, before the account-name rules (which only rename their profile part)
     add('session-path', 'all', r'(?i)(AppData[\\/]+Local[\\/]+Temp([\\/]+))[^\\/\s\'"]+[\\/]+[^\\/\s\'"]+[\\/]+' + UUID +
         r'(?:([\\/]+)scratchpad(?![\w-]))?', session_folder, 'temp')
+    # a session folder cut short (a recorded command is clipped): Temp/<tool>/<project>/<start of the uuid> at a string's end
+    add('session-path', 'all', r'(?i)(AppData[\\/]+Local[\\/]+Temp[\\/]+)[^\\/\s\'"]+[\\/]+[^\\/\s\'"]+[\\/]+[0-9a-f]{8}'
+        r'(?:-[0-9a-f]{0,12}){0,4}(?=\\?"|\'|$)', r'\g<1>session', 'temp')
+    # the desktop app's side-session notes folder: AppData/Roaming/<app>/side-session-notes/local_<uuid>
+    add('session-path', 'all', r'(?i)(AppData([\\/]+)Roaming\2)[^\\/\s\'"]+\2side-session-notes\2local_' + UUID,
+        r'\g<1>session\g<2>notes', 'side-session')
     add('session-path', 'all', r'(?i)\blocal_' + UUID + r'\b', 'session', 'local_')
+    add('session-path', 'all', r'(?i)side-session-notes', 'session-notes', 'side-session')
+    add('session-path', 'all', r'(?i)scratchpad', 'scratch', 'scratchpad')
     if session_ids:
         add('session-path', 'all', r'(?i)\b(?:' + '|'.join(re.escape(s) for s in sorted(session_ids)) + r')\b', 'session')
     if machine and len(machine) >= 4:
