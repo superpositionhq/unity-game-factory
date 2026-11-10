@@ -89,3 +89,26 @@ holds and what each play proves. The scenes and their assets are made by `Editor
   only in the mix).
 - **stray**: in a probe play the tap silences the tone; the player started without `-taskProbe`, with a tap the game
   added itself, lets it through (the test's own `LightMute`, last in the chain, keeps the machine quiet).
+
+## Measured in GradeLab (the numbers `tools/task_check/tests/test_colour.py` checks `colour.py` against)
+
+The `grade` play checks the frame against `colour.py` on every run; these are the numbers of one such frame, kept
+here because the checker's own tests hold them. GradeLab's global Volume: white balance (30, -20), contrast 25,
+saturation -30, colour filter (1, .9, .8), lift / gamma / gain (1, 1, .9, .02) / (.95, 1, 1.05, 0) / (1.05, 1, .95, .1),
+tonemapping None; an unlit quad of linear 0.18 grey fills the view. The grade's steps, from the probe's grading value
+(the same at every sample outside the local volume) and a white key light:
+
+| step | rgb (linear) |
+|---|---|
+| start | 0.18, 0.18, 0.18 |
+| white balance | 0.18260, 0.18644, 0.12681 |
+| contrast | 0.17331, 0.17788, 0.10958 |
+| colour filter | 0.17331, 0.14007, 0.06617 |
+| gain, lift | 0.22641, 0.17456, 0.05652 |
+| gamma | 0.20043, 0.17827, 0.07388 |
+| saturation | 0.19293, 0.17742, 0.10435, which is sRGB 121.5, 116.9, 90.9 |
+| **frame** (shot_00's centre) | sRGB **121, 117, 91**, which is linear 0.1912, 0.1779, 0.1046 |
+
+`colour()` gives `grey` = 0.175445 and the frame's `screen` luminance is 0.17543 at every sample up to 13.5 s. Inside
+the local volume (post exposure 1, from 19.5 s) the frame reads 0.38889. Read again on the package as it is now: the
+same centre pixel and the same two luminances.
