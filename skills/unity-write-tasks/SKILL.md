@@ -24,7 +24,9 @@ skill).
 **Task work never goes into the game's history.** Tasks live on a branch `tasks` of the game repo that shares no
 history with main, checked out as a git worktree **outside** the game folder (`<root>/tasks/<slug>`). The branch holds
 `Tasks/<game>-<kind>-<slug>.json`, a short `README.md` (what the branch is), and optionally `tasks-workflow.jsonl`
-(one row per task written, `op:"task.write"`, `target:"Tasks/<name>.json"`; never in main's `workflow.jsonl`).
+(one row per task written, `op:"task.write"`, `target:"Tasks/<name>.json"`; never in main's `workflow.jsonl`). Its
+rows have the form of main's rows (docs/schemas/workflow-row.schema.json), with what is the task's own in `params`;
+no tool reads the file.
 
 Create the worktree once. When the branch does not exist yet (on origin either):
 
@@ -63,7 +65,8 @@ Check every task after committing it on the tasks branch:
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` (it reads the committed `tasks`
 branch, else `origin/tasks`, through git: schema, the format's extra rules, name = file name, seed commits on main or
 the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). It
-prints one line per finding (`x` an error, `!` a warning, `-` a note): its `repo: Tasks` lines are about your tasks;
+prints one line per finding (`x` an error, `!` a warning, `-` a note): its `repo: Tasks` lines are about your tasks
+(a task with nothing wrong has no line of its own: the note `N task(s) on tasks` counts those it read and checked);
 its other `repo:` lines (the README, `.meta` files, LFS, the manifest) and its `dataset:` lines are about the game
 repo, not a task: they never change a task check's verdict, but a game is delivered only when the validator says
 VALID. Commit tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then run the
@@ -167,7 +170,7 @@ depends on, or an unrelated later fix is needed for it to compile), give it a ma
   with a newer `.meta`, or the reverse, breaks GUID references).
 - For a thread, "the change" is the whole thread: S takes every commit of it back out, not only the last one, and the
   thread's commits on main (its count and files) are what qualify it; note them in the task's `tasks-workflow.jsonl`
-  row (`"thread"`: first and last commit of main).
+  row (in its `params`, `"thread"`: first and last commit of main).
 
 - **Read the code at `seed.commit`** and confirm the issue is there (the reference diff's removed lines, or a search).
 - **The thread's real ends are often not the commits that say so**: a descriptive commit may touch only
@@ -206,7 +209,10 @@ wording. The reader is a capable developer who has never seen the game.
 **Every brief is only an observation**: what a player or QA sees, in plain words, for every issue the thread settled.
 It names no cause, no place to look, no file, system, script, component, prefab or asset, and no mechanism ("the
 camera feels jammed against the ship", not "the deoccluder counts the water layer"). It never says how many changes
-are needed or that the issues are related. Leave out the play_scene line, which the harness adds.
+are needed or that the issues are related. Leave out the play_scene line, which the harness adds. An issue that
+shows only once another is fixed (a first fix that didn't hold: the lamp that never lights hides how dim it is lit)
+can't be reported as seen at the start: say what is expected there in the item that hides it (how a lit lamp
+looks), and give it its own probe.
 
 - **bug_fix**: a QA bug report listing each symptom: what happens, how to reproduce it, what is expected. Code
   identifiers only inside a quoted compiler error or exception line from the player log, which is what a log shows.
@@ -226,9 +232,11 @@ command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scene
 there and at `seed.reference`; it needn't be in the game's build settings (the checker adds every scene the plays open
 to its build). Every grader play opens it with `play_args` (boots, idle and drive, the route, the before and reference
 plays). The game's first build scene doesn't run when a play opens another scene: a game that sets itself up in its
-boot scene's `Start` is started through its own `play_args` with `play_scene` null. What a play does to the game, and
-the rules for the arguments (their form, the flags a task can't set), are in docs/task-probes.md, section 1.1. Check
-in the task check's screenshots and `track` that the reference's plays really start where the issue shows.
+boot scene's `Start` is started through its own `play_args` with `play_scene` null. So is a game whose gameplay
+scene is its first build scene: named in `play_scene`, that scene would load a second time. What a play does to the
+game, and the rules for the arguments (their form, the flags a task can't set), are in docs/task-probes.md, section
+1.1. Check in the task check's screenshots and `track` that the reference's plays really start where the issue
+shows.
 
 The plays also need to know which object is the player (for `player` measures, teleports, a `near` around the
 player). The probe takes an active object tagged `Player`, else one with a `PlayerInput`, else one with a
@@ -348,7 +356,8 @@ never the threshold toward what the start happens to measure.
 
 ## 6. Difficulty, limits and what the validator enforces
 
-- `difficulty` is `medium` or `hard` (never `easy`), and `tags` hold `long-thread`.
+- `difficulty` is `medium` or `hard` (never `easy`), and `tags` hold `long-thread`. Which of the two is your own
+  estimate of the thread; our runs of the task decide its difficulty (last item below).
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
 - `tools/validate-game.py` fails a task that is `easy`, has no `seed.reference`, has fewer than 3 required probes
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2

@@ -162,7 +162,10 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   before the first build scene has woken up: that scene's objects still get `Awake` and `OnEnable` (Unity has loaded
   it already), then are destroyed before their `Start` and first `Update`. So a singleton a boot scene makes in
   `Awake` with `DontDestroyOnLoad` exists in the play; anything it sets up in `Start` does not. A game that needs its
-  boot scene to run is started through its own `play_args` (`["-scenario", "2"]`) with `play_scene` null.
+  boot scene to run is started through its own `play_args` (`["-scenario", "2"]`) with `play_scene` null. A
+  `play_scene` that names the first build scene itself is opened the same way, so that scene loads a second time
+  (its first copy's objects get `Awake` and `OnEnable`, then are destroyed): when the gameplay scene is the first
+  build scene, leave `play_scene` null and it plays once.
 - **The clock.** A play runs at a fixed 30 frames a second (`Time.captureFramerate`: play time is frames / 30, and
   every `t`, `window` and `at` is play time), as fast as the machine renders. It starts at 0 when the play's scene has
   loaded, **holds while any scene is still loading** (an async load takes real time, not game time; for one load at
@@ -188,10 +191,14 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
 `op` is one of `>`, `>=`, `<`, `<=`, `==`, `!=`. The threshold is one of:
 
 - **A literal value**, `{"op": ">=", "value": 1}`: for facts that don't depend on the scene (counts, booleans, "not
-  the default material"). `==` and `!=` take literals only (they compare within 1e-9).
+  the default material"). `==` and `!=` take literals only (they compare within 1e-9). `op` says on which side the
+  fix lies: a reading that is 0 at the start and 1 at the fix (a `match`, `lit`, `visible`) takes `">="` with 1; the
+  validator can't tell an `op` on the wrong side, only the task check does (`start already passes ...`).
 - **Calibrated**, `{"op": ">=", "calibrate": 0.5}` with `0 < f < 1`: for continuous quantities. The checker measures
   the start (`s`) and the fix (`r`) in its own environment and sets the threshold `s + f * (r - s)`; `op` says on which
-  side the fix lies (`>`/`>=` when `r > s`). Needs `seed.reference`. A required calibrated check whose start and fix
+  side the fix lies (`>`/`>=` when `r > s`). `f` places the threshold between the two: 0.5 halfway; nearer 0, a
+  solution that moves the value less than the fix did still passes; nearer 1, it must reach nearly as far as the
+  fix. Needs `seed.reference`. A required calibrated check whose start and fix
   measure the same (within 1e-6 relative) makes the task invalid. Calibrated thresholds are kept by the checker, never
   written into the task.
 - **Relative to the start**, for an outcome the fix is only one fair way of reaching (most features and changes), or a
