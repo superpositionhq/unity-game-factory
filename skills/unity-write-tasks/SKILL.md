@@ -62,12 +62,13 @@ when told: `git -C <root>/tasks/<slug> push -u origin tasks` the first time, `gi
 Check every task after committing it on the tasks branch:
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` (it reads the committed `tasks`
 branch, else `origin/tasks`, through git: schema, the format's extra rules, name = file name, seed commits on main or
-the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). Its
-lines that start `repo: Tasks` are about your tasks; its other `repo:` lines (the README, `.meta` files, LFS, the
-manifest) and its `dataset:` lines are about the game repo, not a task: they never change a task check's verdict, but
-a game is delivered only when the validator says VALID. Commit tasks as you go, like any work (unity-commit-always
-skill), but on the tasks branch only. Then run the task check on all of them in one background run (section 5,
-`tools/task-check.py`): only VALID tasks ship, so fix or remove every INVALID one before the game is packaged.
+the task's `starts/<name>` branch and on Unity 6000.3, the branch an orphan, nothing under `Tasks/` on main). It
+prints one line per finding (`x` an error, `!` a warning, `-` a note): its `repo: Tasks` lines are about your tasks;
+its other `repo:` lines (the README, `.meta` files, LFS, the manifest) and its `dataset:` lines are about the game
+repo, not a task: they never change a task check's verdict, but a game is delivered only when the validator says
+VALID. Commit tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then run the
+task check on all of them in one background run (section 5, `tools/task-check.py`): only VALID tasks ship, so fix or
+remove every INVALID one before the game is packaged.
 
 ## 1. The bar: long threads of multiple edits, nothing else
 

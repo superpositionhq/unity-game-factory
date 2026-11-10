@@ -26,9 +26,10 @@ python tools/validate-game.py --dataset <path to Dataset.zip>
 
 The first checks the repo and its tasks branch, then its `Dataset/` and `Dataset.zip`; the second checks a dataset
 alone, the way a consumer receives it. Both run `tools/validate-dataset.ps1` (layout, sizes, sha256, videos) on
-Windows. Verdict **VALID** or **INVALID** (exit 0 / 2); warnings never change it. Options: `--quick` (do not unpack the
-history), `--no-hash`, `--no-layout`, `--no-zip` (skip the repo's `Dataset.zip`), `--json <file>`, `--quiet` (print
-only errors and warnings). Standard library Python 3.10+.
+Windows. Verdict **VALID** or **INVALID** (exit 0 / 2); warnings never change it. After the verdict it prints one line
+per finding: `x` an error, `!` a warning, `-` a note, then what it is about (`repo`, `repo: README`, `repo: Tasks`,
+`dataset`, ...). Options: `--quick` (do not unpack the history), `--no-hash`, `--no-layout`, `--no-zip` (skip the
+repo's `Dataset.zip`), `--json <file>`, `--quiet` (print only errors and warnings). Standard library Python 3.10+.
 
 ## The repo
 
