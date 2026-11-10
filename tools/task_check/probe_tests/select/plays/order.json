@@ -1,0 +1,98 @@
+{
+ "seconds": 2.5,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/select/Made/SelLab.unity",
+ "queries": [
+  {
+   "id": "roots",
+   "kind": "objects",
+   "select": {
+    "name": "Root_?"
+   },
+   "fields": [
+    "prop:SelRootInfo.rootIndex",
+    "prop:SelRootInfo.sibling"
+   ]
+  },
+  {
+   "id": "kids",
+   "kind": "objects",
+   "select": {
+    "name": "Kid_?"
+   },
+   "fields": []
+  },
+  {
+   "id": "scenes",
+   "kind": "objects",
+   "select": {
+    "component": "SelRootInfo"
+   },
+   "fields": [
+    "prop:SelRootInfo.rootIndex",
+    "prop:SelRootInfo.sceneAt",
+    "prop:SelRootInfo.buildIndex",
+    "prop:SelRootInfo.sibling",
+    "prop:SelRootInfo.roots"
+   ]
+  },
+  {
+   "id": "coins",
+   "kind": "objects",
+   "select": {
+    "component": "SelCoin"
+   },
+   "fields": []
+  },
+  {
+   "id": "two_boxes",
+   "kind": "components",
+   "select": {
+    "component": "BoxCollider",
+    "owner": {
+     "name": "TwoBoxes"
+    }
+   },
+   "fields": [
+    "extent_x"
+   ]
+  },
+  {
+   "id": "fill",
+   "kind": "objects",
+   "select": {
+    "name": "Fill_*"
+   },
+   "fields": [
+    "x",
+    "prop:SelProps.f",
+    "active"
+   ]
+  },
+  {
+   "id": "fill_count",
+   "kind": "objects",
+   "select": {
+    "name": "Fill_*"
+   },
+   "fields": []
+  },
+  {
+   "id": "bursts",
+   "kind": "objects",
+   "select": {
+    "name": "Burst_*"
+   },
+   "fields": []
+  }
+ ],
+ "inputs": [
+  {
+   "t": 1.5,
+   "teleport_to": {
+    "name": "Root_?"
+   }
+  }
+ ]
+}

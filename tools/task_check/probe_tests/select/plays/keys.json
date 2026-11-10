@@ -1,0 +1,668 @@
+{
+ "seconds": 2,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/select/Made/SelLab.unity",
+ "queries": [
+  {
+   "id": "drawn",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "object": {
+      "name": "SelHero"
+     }
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn"
+   ]
+  },
+  {
+   "id": "twin",
+   "kind": "objects",
+   "select": {
+    "component": "SelTwin"
+   },
+   "fields": [
+    "prop:SelTwin.which"
+   ]
+  },
+  {
+   "id": "twin_full",
+   "kind": "objects",
+   "select": {
+    "component": "ProbeTests.Select.Other.SelTwin"
+   },
+   "fields": [
+    "prop:SelTwin.which"
+   ]
+  },
+  {
+   "id": "pickup",
+   "kind": "objects",
+   "select": {
+    "component": "ISelPickup"
+   },
+   "fields": []
+  },
+  {
+   "id": "pickup_has",
+   "kind": "objects",
+   "select": {
+    "name": "Coin?",
+    "has": {
+     "component": "ISelPickup"
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "base",
+   "kind": "objects",
+   "select": {
+    "component": "SelBase"
+   },
+   "fields": []
+  },
+  {
+   "id": "nested",
+   "kind": "objects",
+   "select": {
+    "component": "Inner"
+   },
+   "fields": []
+  },
+  {
+   "id": "tag",
+   "kind": "objects",
+   "select": {
+    "tag": "SelTag"
+   },
+   "fields": []
+  },
+  {
+   "id": "tag_undefined",
+   "kind": "objects",
+   "select": {
+    "tag": "NoSuchTag"
+   },
+   "fields": []
+  },
+  {
+   "id": "layer",
+   "kind": "objects",
+   "select": {
+    "layer": "SelLayer"
+   },
+   "fields": [
+    "prop:layer"
+   ]
+  },
+  {
+   "id": "layer_number",
+   "kind": "objects",
+   "select": {
+    "layer": "8"
+   },
+   "fields": []
+  },
+  {
+   "id": "layer_case",
+   "kind": "objects",
+   "select": {
+    "layer": "sellayer"
+   },
+   "fields": []
+  },
+  {
+   "id": "layer_default",
+   "kind": "objects",
+   "select": {
+    "layer": "Default",
+    "name": "Layered"
+   },
+   "fields": []
+  },
+  {
+   "id": "name_lamp",
+   "kind": "objects",
+   "select": {
+    "name": "lamp*"
+   },
+   "fields": []
+  },
+  {
+   "id": "name_one",
+   "kind": "objects",
+   "select": {
+    "name": "Lamp ?1?"
+   },
+   "fields": []
+  },
+  {
+   "id": "name_dot",
+   "kind": "objects",
+   "select": {
+    "name": "Lamp.Post"
+   },
+   "fields": []
+  },
+  {
+   "id": "name_case",
+   "kind": "objects",
+   "select": {
+    "name": "LAMP_LOW"
+   },
+   "fields": []
+  },
+  {
+   "id": "name_unicode",
+   "kind": "objects",
+   "select": {
+    "name": "Sn\u00f6*"
+   },
+   "fields": []
+  },
+  {
+   "id": "clone_exact",
+   "kind": "objects",
+   "select": {
+    "name": "CoinT"
+   },
+   "fields": []
+  },
+  {
+   "id": "clone_any",
+   "kind": "objects",
+   "select": {
+    "name": "CoinT*"
+   },
+   "fields": []
+  },
+  {
+   "id": "clone_only",
+   "kind": "objects",
+   "select": {
+    "name": "CoinT(Clone)"
+   },
+   "fields": []
+  },
+  {
+   "id": "sleeper",
+   "kind": "objects",
+   "select": {
+    "name": "Sleeper*"
+   },
+   "fields": []
+  },
+  {
+   "id": "sleeper_all",
+   "kind": "objects",
+   "select": {
+    "name": "Sleeper*",
+    "inactive": true
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "napper",
+   "kind": "objects",
+   "select": {
+    "name": "Napper"
+   },
+   "fields": []
+  },
+  {
+   "id": "napper_all",
+   "kind": "objects",
+   "select": {
+    "name": "Napper",
+    "inactive": true
+   },
+   "fields": []
+  },
+  {
+   "id": "near_xyz",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "xyz": [
+       10,
+       0,
+       0
+      ]
+     },
+     "radius": 2
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_ymin",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "xyz": [
+       10,
+       0,
+       0
+      ]
+     },
+     "radius": 3,
+     "y_min": 0.5
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_ymax",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "xyz": [
+       10,
+       0,
+       0
+      ]
+     },
+     "radius": 3,
+     "y_max": 0.5
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_relative",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "xyz": [
+       10,
+       1,
+       0
+      ]
+     },
+     "radius": 3,
+     "y_max": -0.5,
+     "y_relative": true
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_player",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "player": true,
+      "offset": [
+       10,
+       -0.5,
+       0
+      ]
+     },
+     "radius": 0.5
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_camera",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "point": {
+      "camera": true,
+      "forward": 10
+     },
+     "radius": 0.01
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_object",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "Near_Anchor"
+      }
+     },
+     "radius": 1
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_offset",
+   "kind": "objects",
+   "select": {
+    "name": "Near_?",
+    "near": {
+     "point": {
+      "object": {
+       "name": "Near_Anchor"
+      },
+      "offset": [
+       -10,
+       0,
+       0
+      ]
+     },
+     "radius": 0.5
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_nothing",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "NoSuchObject"
+      }
+     },
+     "radius": 1000
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "near_no_point",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "radius": 1000
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "nest2",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "Near_Anchor",
+       "near": {
+        "point": {
+         "object": {
+          "name": "NearObj"
+         }
+        },
+        "radius": 1
+       }
+      }
+     },
+     "radius": 1
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "nest3",
+   "kind": "objects",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "Near_Anchor",
+       "near": {
+        "point": {
+         "object": {
+          "name": "NearObj",
+          "near": {
+           "point": {
+            "object": {
+             "name": "Near_Anchor"
+            }
+           },
+           "radius": 1
+          }
+         }
+        },
+        "radius": 1
+       }
+      }
+     },
+     "radius": 1
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_lit",
+   "kind": "objects",
+   "select": {
+    "name": "Light_*",
+    "has": {
+     "lit": true
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_visible",
+   "kind": "objects",
+   "select": {
+    "name": "*shown*",
+    "has": {
+     "visible": true
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_component",
+   "kind": "objects",
+   "select": {
+    "name": "Carrier*",
+    "has": {
+     "component": "Light"
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_near",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "near": {
+      "point": {
+       "xyz": [
+        0,
+        0,
+        40
+       ]
+      },
+      "radius": 1
+     }
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_transform",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "near": {
+      "point": {
+       "xyz": [
+        0,
+        0,
+        50
+       ]
+      },
+      "radius": 0.5
+     }
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_simulating",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "simulating": true
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "has_simulating_inactive",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "simulating": true
+    },
+    "inactive": true
+   },
+   "fields": []
+  },
+  {
+   "id": "has_movable",
+   "kind": "objects",
+   "select": {
+    "name": "Statue",
+    "has": {
+     "movable": true
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "statics",
+   "kind": "objects",
+   "select": {
+    "name": "Statue"
+   },
+   "fields": [
+    "prop:isStatic"
+   ]
+  },
+  {
+   "id": "pawns",
+   "kind": "objects",
+   "select": {
+    "name": "Pawn"
+   },
+   "fields": [
+    "prop:isStatic"
+   ]
+  },
+  {
+   "id": "player",
+   "kind": "objects",
+   "select": {
+    "player": true
+   },
+   "fields": []
+  },
+  {
+   "id": "player_named",
+   "kind": "objects",
+   "select": {
+    "player": true,
+    "name": "Nope"
+   },
+   "fields": []
+  },
+  {
+   "id": "own_tap",
+   "kind": "objects",
+   "select": {
+    "component": "AudioTap"
+   },
+   "fields": []
+  },
+  {
+   "id": "own_has_tap",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "component": "AudioTap"
+    }
+   },
+   "fields": []
+  },
+  {
+   "id": "own_prop",
+   "kind": "objects",
+   "select": {
+    "name": "Main Camera"
+   },
+   "fields": [
+    "prop:AudioTap.enabled",
+    "prop:AudioListener.enabled"
+   ]
+  },
+  {
+   "id": "own_cameras",
+   "kind": "objects",
+   "select": {
+    "component": "Camera"
+   },
+   "fields": []
+  },
+  {
+   "id": "own_names",
+   "kind": "objects",
+   "select": {
+    "name": "TaskProbe*"
+   },
+   "fields": []
+  },
+  {
+   "id": "everything",
+   "kind": "objects",
+   "select": {},
+   "fields": []
+  },
+  {
+   "id": "unknown_ground",
+   "kind": "ground",
+   "xz": [
+    0,
+    0
+   ],
+   "select": {
+    "component": "SelData"
+   }
+  },
+  {
+   "id": "unknown_has",
+   "kind": "ground",
+   "xz": [
+    0,
+    0
+   ],
+   "select": {
+    "has": {
+     "component": "NoSuchType"
+    }
+   }
+  }
+ ]
+}

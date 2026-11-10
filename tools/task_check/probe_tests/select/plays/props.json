@@ -1,0 +1,128 @@
+{
+ "seconds": 2,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/select/Made/SelLab.unity",
+ "queries": [
+  {
+   "id": "props",
+   "kind": "objects",
+   "select": {
+    "name": "Props"
+   },
+   "fields": [
+    "prop:SelProps.f",
+    "prop:SelProps.d",
+    "prop:SelProps.third",
+    "prop:SelProps.hard",
+    "prop:SelProps.i",
+    "prop:SelProps.big",
+    "prop:SelProps.huge",
+    "prop:SelProps.u",
+    "prop:SelProps.s",
+    "prop:SelProps.b",
+    "prop:SelProps.sb",
+    "prop:SelProps.money",
+    "prop:SelProps.c",
+    "prop:SelProps.on",
+    "prop:SelProps.text",
+    "prop:SelProps.empty",
+    "prop:SelProps.nothing",
+    "prop:SelProps.mode",
+    "prop:SelProps.flags",
+    "prop:SelProps.v",
+    "prop:SelProps.v.y",
+    "prop:SelProps.col.b",
+    "prop:SelProps.q.w",
+    "prop:SelProps.pair.a",
+    "prop:SelProps.pair.b",
+    "prop:SelProps.arr",
+    "prop:SelProps.arr[1]",
+    "prop:SelProps.arr[5]",
+    "prop:SelProps.arr.[0]",
+    "prop:SelProps.list",
+    "prop:SelProps.list[1]",
+    "prop:SelProps.points[1].y",
+    "prop:SelProps.counts",
+    "prop:SelProps.counts.coins",
+    "prop:SelProps.counts.missing",
+    "prop:SelProps.set",
+    "prop:SelProps.target",
+    "prop:SelProps.target.transform.position.y",
+    "prop:SelProps.none",
+    "prop:SelProps.none.position.x",
+    "prop:SelProps.gone",
+    "prop:SelProps.data",
+    "prop:SelProps.data.size",
+    "prop:SelProps.noData",
+    "prop:SelProps.nan",
+    "prop:SelProps.inf",
+    "prop:SelProps.ninf",
+    "prop:SelProps.negZero",
+    "prop:SelProps.e21",
+    "prop:SelProps.small",
+    "prop:SelProps.fmax",
+    "prop:SelProps.stat",
+    "prop:SelProps.priv",
+    "prop:SelProps.hidden",
+    "prop:SelProps.guarded",
+    "prop:SelProps.inherited",
+    "prop:SelProps.Getter",
+    "prop:SelProps.Throws",
+    "prop:SelProps.Item",
+    "prop:SelProps.Counted",
+    "prop:SelProps.reads",
+    "prop:SelProps.clock",
+    "prop:SelProps.missing",
+    "prop:SelProps.target.transform.root.root.root.root.root.root.root.root.root.root.root.root.root.root.position.x",
+    "prop:SelProps",
+    "prop:SelBase.level",
+    "prop:NoSuch",
+    "prop:name",
+    "prop:activeSelf",
+    "prop:localScale.y",
+    "prop:position.x",
+    "prop:isStatic"
+   ]
+  },
+  {
+   "id": "paint",
+   "kind": "objects",
+   "select": {
+    "name": "Painted"
+   },
+   "fields": [
+    "prop:MeshRenderer.material.name",
+    "prop:MeshRenderer.materials",
+    "prop:MeshRenderer.materials[0].name",
+    "prop:MeshFilter.mesh.name",
+    "prop:BoxCollider.material",
+    "prop:SelPaint.sharedMaterialName",
+    "prop:SelPaint.instancedMaterials",
+    "prop:SelPaint.sharedMeshName",
+    "prop:SelPaint.colliderMaterial"
+   ]
+  },
+  {
+   "id": "text_like",
+   "kind": "objects",
+   "select": {
+    "name": "TextLike"
+   },
+   "fields": [
+    "prop:SelTextLike.fontMaterial.name",
+    "prop:SelTextLike.copies"
+   ]
+  },
+  {
+   "id": "locale",
+   "kind": "objects",
+   "select": {
+    "name": "Locale"
+   },
+   "fields": [
+    "prop:SelLocale.separator"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,34 @@
+{
+ "seconds": 5,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/ProbeTests/select/Made/SelBig.unity",
+ "queries": [
+  {
+   "id": "marks",
+   "kind": "objects",
+   "select": {
+    "component": "SelMark"
+   },
+   "fields": [
+    "x"
+   ]
+  },
+  {
+   "id": "timer",
+   "kind": "objects",
+   "select": {
+    "component": "SelLateAfter"
+   },
+   "fields": [
+    "prop:SelLateAfter.totalMs",
+    "prop:SelLateAfter.worstMs",
+    "prop:SelLateAfter.frames",
+    "prop:SelLateAfter.allocKb",
+    "prop:SelEarlyAfter.totalMs",
+    "prop:SelEarlyAfter.worstMs",
+    "prop:SelEarlyAfter.frames"
+   ]
+  }
+ ]
+}
