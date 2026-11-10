@@ -93,7 +93,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     that reads the old Input Manager (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued
     before the game's scripts run and processed by the Input System at the next frame's start, so the game reads it
     one frame (1/30 s) after `t`. The Gamepad is added only when an input names `<Gamepad>` (a gamepad switches many
-    games' button prompts).
+    games' button prompts). A project without the Input System package gets none of them: the play runs, and its
+    `query_errors` says "inputs: the project has no Input System package, so keys, axes and the cursor can't be
+    sent".
     - a key: `{"t": 1.0, "key": "<Keyboard>/w", "press": true}` and later `"press": false`. `key` is an Input System
       control path, `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`: any key of `<Keyboard>/` by its Input System
       name (`w`, `space`, `leftShift`, `f2`, `escape`); on `<Mouse>/`, `leftButton`, `rightButton`, `middleButton`,
@@ -193,8 +195,10 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   static batching, so each renderer keeps its own mesh name and triangle count for `mesh` selects and `pieces`, and not
   a development build, so no watermark sits on the frame.
 - **The end.** When the play's time is up the probe writes its files and ends the process at once: the game's own
-  `OnApplicationQuit` and `OnDestroy` don't run at the end of a play, so nothing a game does only on quitting can be
-  measured. A game that quits by itself ends the play there.
+  `OnApplicationQuit`, `OnDisable` and `OnDestroy` don't run at the end of a play, and the player's log ends with the
+  play's last frame. So nothing a game does only on quitting can be measured: a `log_absent` check sees no error
+  thrown while quitting, and a file a game writes in `OnApplicationQuit` isn't written. A game that quits by itself
+  ends the play there, through its own shutdown.
 
 ### 1.2 Thresholds (`expect`)
 

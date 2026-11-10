@@ -399,9 +399,11 @@ limit (never tried again), it is the machine's failure, not the game's, and the 
 the kept log (`<side>\build\build.log`). Run the check again; when it stops the same way every time, read that log
 for what stopped (its first `## Script Compilation Error for:` line names the assembly a post-processor failed on).
 
-**A Python traceback that ends the run.** The checker met a fault of its own that it doesn't turn into an ERROR line.
-The tasks it finished keep their results, `progress.txt` names the one it was checking, and the scratch copies are
-deleted (unless `--keep`). Report it with the traceback, and check the remaining tasks with `--task`.
+**A Python traceback that ends the run.** A fault of the checker's own while it checks a task is that task's ERROR
+(`the checker couldn't check it: <its type>: ...`) and the run goes on, so a traceback means it failed outside any
+task's check (reading the machine config, say). The tasks it finished keep their results, `progress.txt` names the
+one it was checking, and the scratch copies are deleted (unless `--keep`). Report it with the traceback, and check
+the remaining tasks with `--task`.
 
 **`couldn't delete <folder> (...): delete it by hand`** (a progress line). A file of a scratch copy is held by a
 process outside the checker (a player that outlived an interrupt, a viewer); the run goes on. Close what holds it and
