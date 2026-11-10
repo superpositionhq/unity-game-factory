@@ -1,0 +1,669 @@
+{
+ "seconds": 16,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnLab.unity",
+ "queries": [
+  {
+   "id": "red",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "red_motion",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "red_band",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5,
+    "y_min": 1.2,
+    "y_max": 3.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "checker",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      10,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "tint",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      20,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "two_top",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      25,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5,
+    "y_min": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "two_low",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      25,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5,
+    "y_min": -0.3,
+    "y_max": 0.0,
+    "y_relative": true
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "spin",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      30,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "pan",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      40,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "sparks",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      50,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "late",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      60,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "empty",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      5,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "empty_wide",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      5,
+      1,
+      0
+     ]
+    },
+    "radius": 2.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "beam",
+   "kind": "drawn",
+   "line": {
+    "from": {
+     "xyz": [
+      70,
+      1,
+      0
+     ]
+    },
+    "to": {
+     "xyz": [
+      80,
+      1,
+      0
+     ]
+    },
+    "radius": 0.3
+   },
+   "fields": [
+    "drawn",
+    "reach",
+    "length"
+   ]
+  },
+  {
+   "id": "line",
+   "kind": "drawn",
+   "line": {
+    "from": {
+     "xyz": [
+      90,
+      1,
+      0
+     ]
+    },
+    "to": {
+     "xyz": [
+      100,
+      1,
+      0
+     ]
+    },
+    "radius": 0.3
+   },
+   "fields": [
+    "drawn",
+    "reach",
+    "length"
+   ]
+  },
+  {
+   "id": "glow_base",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      20
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "sh_probe",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      80,
+      1,
+      20
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "lit_white",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      85,
+      1,
+      20
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "canvas",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      110,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "canvas_ui",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      115,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "ui_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      120,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "only_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      125,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "never_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      127.5,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "terrain",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      140,
+      0.25,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "terrain_ground",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      137,
+      0,
+      -2
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "behind",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      40,
+      1,
+      -45
+     ]
+    },
+    "radius": 3.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "glow",
+   "kind": "objects",
+   "select": {
+    "name": "G_*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "budget",
+   "kind": "objects",
+   "select": {
+    "name": "B_*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "sparks_glow",
+   "kind": "components",
+   "select": {
+    "component": "ParticleSystem",
+    "name": "G_Sparks"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "leak",
+   "kind": "objects",
+   "select": {
+    "name": "LeakWatch"
+   },
+   "fields": [
+    "prop:DrawnLeakWatch.frames",
+    "prop:DrawnLeakWatch.leaks",
+    "prop:DrawnLeakBefore.drifts"
+   ]
+  },
+  {
+   "id": "watch",
+   "kind": "objects",
+   "select": {
+    "name": "Watch_*"
+   },
+   "fields": [
+    "prop:DrawnWatcher.becameVisible",
+    "prop:DrawnWatcher.becameInvisible",
+    "prop:DrawnWatcher.willRender",
+    "prop:DrawnWatcher.visibleFrames",
+    "prop:DrawnWatcher.allCameras",
+    "prop:DrawnWatcher.foundCameras",
+    "prop:DrawnWatcher.mainIsGame",
+    "prop:DrawnWatcher.otherRenders",
+    "prop:DrawnWatcher.otherCamera"
+   ]
+  },
+  {
+   "id": "arms",
+   "kind": "objects",
+   "select": {
+    "name": "Arm"
+   },
+   "fields": [
+    "x",
+    "z"
+   ]
+  },
+  {
+   "id": "fx",
+   "kind": "objects",
+   "select": {
+    "name": "Fx_*"
+   },
+   "fields": [
+    "prop:ParticleSystem.time",
+    "z"
+   ]
+  },
+  {
+   "id": "cameras",
+   "kind": "objects",
+   "select": {
+    "component": "Camera"
+   },
+   "fields": [
+    "count"
+   ]
+  },
+  {
+   "id": "hidden",
+   "kind": "objects",
+   "select": {
+    "name": "TaskProbe*",
+    "inactive": true
+   },
+   "fields": [
+    "count"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,226 @@
+{
+ "seconds": 6,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnLab.unity",
+ "queries": [
+  {
+   "id": "red",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "checker",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      10,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "tint",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      20,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "two_top",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      25,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5,
+    "y_min": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "spin",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      30,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "sparks",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      50,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "beam",
+   "kind": "drawn",
+   "line": {
+    "from": {
+     "xyz": [
+      70,
+      1,
+      0
+     ]
+    },
+    "to": {
+     "xyz": [
+      80,
+      1,
+      0
+     ]
+    },
+    "radius": 0.3
+   },
+   "fields": [
+    "drawn",
+    "reach",
+    "length"
+   ]
+  },
+  {
+   "id": "only_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      125,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "never_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      127.5,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "glow",
+   "kind": "objects",
+   "select": {
+    "name": "G_*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "leak",
+   "kind": "objects",
+   "select": {
+    "name": "LeakWatch"
+   },
+   "fields": [
+    "prop:DrawnLeakWatch.frames",
+    "prop:DrawnLeakWatch.leaks",
+    "prop:DrawnLeakBefore.drifts"
+   ]
+  }
+ ]
+}

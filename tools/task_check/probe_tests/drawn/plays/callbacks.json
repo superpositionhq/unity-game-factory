@@ -1,0 +1,84 @@
+{
+ "seconds": 14,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnLab.unity",
+ "queries": [
+  {
+   "id": "red",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "victim",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      130,
+      1,
+      0
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "glow_custom",
+   "kind": "objects",
+   "select": {
+    "name": "G_Custom"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "leak",
+   "kind": "objects",
+   "select": {
+    "name": "LeakWatch"
+   },
+   "fields": [
+    "prop:DrawnLeakWatch.frames",
+    "prop:DrawnLeakWatch.leaks",
+    "prop:DrawnLeakBefore.drifts"
+   ]
+  },
+  {
+   "id": "callbacks",
+   "kind": "objects",
+   "select": {
+    "name": "Callbacks"
+   },
+   "fields": [
+    "prop:DrawnCallbacks.thrown",
+    "prop:DrawnCallbacks.changed",
+    "prop:DrawnCallbacks.destroyed",
+    "prop:DrawnCallbacks.rigs"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "seconds": 16,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnLab.unity",
+ "queries": [
+  {
+   "id": "leak",
+   "kind": "objects",
+   "select": {
+    "name": "LeakWatch"
+   },
+   "fields": [
+    "prop:DrawnLeakWatch.frames",
+    "prop:DrawnLeakWatch.leaks",
+    "prop:DrawnLeakBefore.drifts"
+   ]
+  }
+ ]
+}

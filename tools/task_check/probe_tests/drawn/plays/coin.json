@@ -1,0 +1,122 @@
+{
+ "seconds": 10,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnCoin.unity",
+ "queries": [
+  {
+   "id": "coin",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "object": {
+      "component": "DrawnCoinSpin"
+     }
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "motion"
+   ]
+  },
+  {
+   "id": "coin_all",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "object": {
+      "component": "DrawnCoinSpin"
+     }
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "coin_small",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "object": {
+      "component": "DrawnCoinSpin"
+     }
+    },
+    "radius": 0.4
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "coin_fixed",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      3,
+      0.8,
+      4
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "coin_old",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "object": {
+      "name": "Coin*"
+     }
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "named",
+   "kind": "objects",
+   "select": {
+    "name": "Coin*"
+   },
+   "fields": [
+    "x",
+    "y",
+    "z"
+   ]
+  },
+  {
+   "id": "coins",
+   "kind": "objects",
+   "select": {
+    "component": "DrawnCoinSpin"
+   },
+   "fields": [
+    "x",
+    "y",
+    "z",
+    "yaw"
+   ]
+  }
+ ]
+}

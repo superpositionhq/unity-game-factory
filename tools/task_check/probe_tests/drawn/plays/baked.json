@@ -1,0 +1,66 @@
+{
+ "seconds": 6,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnBaked.unity",
+ "queries": [
+  {
+   "id": "baked_cube",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      -2,
+      0.5,
+      0
+     ]
+    },
+    "radius": 1.0,
+    "y_min": 0.05
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "probe_sphere",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      2,
+      0.5,
+      0
+     ]
+    },
+    "radius": 1.0,
+    "y_min": 0.05
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "leak",
+   "kind": "objects",
+   "select": {
+    "name": "LeakWatch"
+   },
+   "fields": [
+    "prop:DrawnLeakWatch.frames",
+    "prop:DrawnLeakWatch.leaks",
+    "prop:DrawnLeakBefore.drifts"
+   ]
+  }
+ ]
+}

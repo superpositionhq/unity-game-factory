@@ -1,6 +1,6 @@
 // A hand-written URP shader whose light comes from its own property, _Glow (no _EmissionColor, no _EMISSION keyword):
-// the drawn tests' "as rendered" glow case. Lit by the ambient (SH) only, so its glow is _Glow alone in the dark.
-Shader "DrawnTest/GlowNoEmission"
+// what a glow render reads as rendered. Lit by the ambient (SH) alone, so in the dark only _Glow is left.
+Shader "ProbeTests/Drawn/Glow"
 {
     Properties
     {

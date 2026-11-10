@@ -1,0 +1,85 @@
+{
+ "seconds": 6,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/drawn/Made/DrawnLab.unity",
+ "queries": [
+  {
+   "id": "red",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      0
+     ]
+    },
+    "radius": 1.5
+   },
+   "fields": [
+    "drawn",
+    "motion",
+    "base_r",
+    "base_g",
+    "base_b",
+    "base_change"
+   ]
+  },
+  {
+   "id": "crowd_cap",
+   "kind": "drawn",
+   "near": {
+    "point": {
+     "xyz": [
+      0,
+      1,
+      -100
+     ]
+    },
+    "radius": 1.0
+   },
+   "fields": [
+    "drawn",
+    "motion"
+   ]
+  },
+  {
+   "id": "beam",
+   "kind": "drawn",
+   "line": {
+    "from": {
+     "xyz": [
+      70,
+      1,
+      0
+     ]
+    },
+    "to": {
+     "xyz": [
+      80,
+      1,
+      0
+     ]
+    },
+    "radius": 0.3
+   },
+   "fields": [
+    "drawn",
+    "reach",
+    "length"
+   ]
+  },
+  {
+   "id": "glow",
+   "kind": "objects",
+   "select": {
+    "name": "G_*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  }
+ ]
+}
