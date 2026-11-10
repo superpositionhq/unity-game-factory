@@ -346,20 +346,20 @@ original's, unchanged (`probes.py`).
 - **grading** (`GradingQuery`, `LightKit.StackAt`, `tools/task_check/colour.py`; the original's post-process settings of
   the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
   mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
-  updates by script (`camera_stack`). While the grade isn't known (`LightKit.GradeKnown`: URP is the pipeline and
-  there is no stack to read yet, because its volume framework isn't set up, as at a play's first sample, or because
-  there is no camera) the sample's value is null: a neutral grade no frame shows would enter every window from 0.
-  A camera that renders no post-processing has a neutral grade; without URP the grade is neutral too, `source` is
-  `none` and one `query_errors` line says so (`grading <id>: the render pipeline isn't URP: ...`). The stack is read
-  as the constants URP's ColorGradingLutPass prepares:
-  `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral),
-  `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`, `gain`
-  (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off gives
-  neutral constants. The value also holds `sun` (`{name, color, intensity, temperature, use_temperature, lit_color}` of
-  the strongest directional light that is on, the first in hierarchy order of equals, or null), `sky` (`{mode, color,
-  intensity}`), `fog` (`{enabled, density, color, mode}`), `source`, `pipeline`, `post_processing`, `grading_mode`
-  (`ldr`, `hdr`); colours are linear. A `post:<Component>.<parameter>` asked for is the parameter's value after blending
-  (one no volume overrides reads the component's default): the component by its type's name or full name, exactly, among
+  updates by script (`camera_stack`). While the grade isn't known (`LightKit.GradeKnown`: URP is the pipeline and there
+  is no stack to read yet, because its volume framework isn't set up, as at a play's first sample, or because there is
+  no camera) the sample's value is null: a neutral grade no frame shows would enter every window from 0. A camera that
+  renders no post-processing has a neutral grade; without URP the grade is neutral too, `source` is `none` and one
+  `query_errors` line says so (`grading <id>: the render pipeline isn't URP: ...`). The stack is read as the constants
+  URP's ColorGradingLutPass prepares: `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and
+  `saturation` (multipliers, 1 neutral), `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees),
+  `lift`, `gamma`, `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with
+  post-processing off gives neutral constants. The value also holds `sun` (`{name, color, intensity, temperature,
+  use_temperature, lit_color}` of the strongest directional light that is on, the first in hierarchy order of equals, or
+  null), `sky` (`{mode, color, intensity}`), `fog` (`{enabled, density, color, mode}`), `source`, `pipeline`,
+  `post_processing`, `grading_mode` (`ldr`, `hdr`); colours are linear. A `post:<Component>.<parameter>` asked for is
+  the parameter's value after blending (one no volume overrides reads the component's default): the component by its
+  type's plain name, exactly (the field is split at its dots, so a full name never resolves), among
   `VolumeManager.baseComponentTypeArray`, the parameter a field of that name, a third part a channel of its value by
   either spelling (`r` or `x` the first, `g` or `y`, `b` or `z`, `a` or `w`; `GradingQuery.Channel`, as the editor
   pass's `AssetValues.Channel`); a name that doesn't resolve, a colour or vector without its part, a part of anything
