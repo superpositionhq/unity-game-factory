@@ -141,16 +141,16 @@
       "ies", "bytes", "bundle", "speedtree"
     ],
     "lfs_required_paths": [
-      "(^|/)[^/]*[lL]ighting[dD]ata[^/]*\\.asset$",
-      "(^|/)NavMesh[^/]*\\.asset$",
-      "(^|/)[tT]errain[dD]ata[^/]*\\.asset$"
+      "^Assets/(.+/)?[^/]*[lL]ighting[dD]ata[^/]*\\.asset$",
+      "^Assets/(.+/)?NavMesh[^/]*\\.asset$",
+      "^Assets/(.+/)?[tT]errain[dD]ata[^/]*\\.asset$"
     ],
     "yaml_extensions": [
       "unity", "prefab", "mat", "meta", "controller", "overrideController", "anim", "mask", "physicMaterial",
       "physicsMaterial2D", "mixer", "playable", "signal", "lighting", "shadergraph", "shadersubgraph", "vfx",
       "terrainlayer", "spriteatlas", "spriteatlasv2", "cs"
     ],
-    "lfs_why": "every binary type of templates/unity-game/.gitattributes goes through Git LFS (Unity data that stays binary under Force Text, lighting, terrain and NavMesh data, by path); Unity's own YAML and C# stay plain git text so they diff and merge (an .asset may go to LFS through a pattern of its own when Unity writes it in binary). Binary content under any other name in plain git is a warning.",
+    "lfs_why": "every binary type of templates/unity-game/.gitattributes goes through Git LFS (Unity data that stays binary under Force Text, lighting, terrain and NavMesh data, by path under Assets/: ProjectSettings/NavMeshAreas.asset is YAML); Unity's own YAML and C# stay plain git text so they diff and merge (an .asset may go to LFS through a pattern of its own when Unity writes it in binary; one that is YAML in LFS is an error). Binary content under any other name in plain git is a warning.",
     "meta": {
       "what": "every tracked file and folder under Assets/ and under an embedded package Packages/<name>/ has its .meta tracked, and every tracked .meta has its file or folder (a folder is tracked when a file under it is); names Unity skips on import (.name, name~, cvs, *.tmp, and everything under them) need none",
       "why": "the .meta holds the GUID every scene, prefab and material refers to the asset by: an asset without it gets a new GUID and its references break; a .meta without its asset (or of an empty folder, which git cannot hold) is an orphan Unity deletes"

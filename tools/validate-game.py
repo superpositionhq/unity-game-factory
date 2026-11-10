@@ -1202,22 +1202,36 @@ def check_repo(rep, repo):
                                           '(store packs included), only Unity\'s generated folders and build output '
                                           'are ignored')
     # Git LFS for binaries; Unity's YAML stays plain git text
-    lfs = set(subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', 'lfs', 'ls-files', '--name-only'],
-                             capture_output=True, text=True, encoding='utf-8', errors='replace').stdout.splitlines())
+    r = subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', 'lfs', 'ls-files', '--name-only'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
+    lfs = set(r.stdout.splitlines())
     ext_rx = re.compile(r'(?i)\.(' + '|'.join(R['lfs_required_extensions']) + r')$')
     path_rx = [re.compile(p) for p in R['lfs_required_paths']]
     yaml_rx = re.compile(r'(?i)\.(' + '|'.join(R['yaml_extensions']) + r')$')
     binary = lambda f: ext_rx.search(f) or any(r.search(f) for r in path_rx)
-    plain = [f for f in files if binary(f) and f not in lfs]
-    for f in plain[:10]:
-        rep.error('repo: LFS', f'binary tracked in plain git: {f}')
-    if len(plain) > 10:
-        rep.error('repo: LFS', f'... {len(plain) - 10} more binaries in plain git')
-    yaml_lfs = [f for f in files if f in lfs and yaml_rx.search(f)]
-    for f in yaml_lfs[:10]:
-        rep.error('repo: LFS', f'Unity YAML in LFS: {f} (it loses its diffs and merges; .gitattributes keeps it text)')
-    if len(yaml_lfs) > 10:
-        rep.error('repo: LFS', f'... {len(yaml_lfs) - 10} more YAML files in LFS')
+
+    def yaml_asset(f):   # an .asset Unity wrote as YAML (a binary one may go to LFS through a pattern of its own)
+        try:
+            with open(os.path.join(repo, f), 'rb') as fh:
+                return fh.read(5) == b'%YAML'
+        except OSError:
+            return False
+    if r.returncode:   # without Git LFS every binary would read as plain git
+        rep.error('repo: LFS', f'git lfs ls-files failed, so LFS is not checked (is Git LFS installed?): '
+                               f'{r.stderr.strip()[:200]}')
+    else:
+        plain = [f for f in files if binary(f) and f not in lfs]
+        for f in plain[:10]:
+            rep.error('repo: LFS', f'binary tracked in plain git: {f}')
+        if len(plain) > 10:
+            rep.error('repo: LFS', f'... {len(plain) - 10} more binaries in plain git')
+        yaml_lfs = [f for f in files if f in lfs and (yaml_rx.search(f) or (f.lower().endswith('.asset') and not binary(f)
+                                                                            and yaml_asset(f)))]
+        for f in yaml_lfs[:10]:
+            rep.error('repo: LFS', f'Unity YAML or C# in LFS: {f} (it loses its diffs and merges; .gitattributes must '
+                                   'keep it plain git text, as the template\'s does)')
+        if len(yaml_lfs) > 10:
+            rep.error('repo: LFS', f'... {len(yaml_lfs) - 10} more YAML files in LFS')
     # README images
     if 'README.md' in tracked:
         md = re.sub(r'(?s)<!--.*?-->', '', read_text(os.path.join(repo, 'README.md')))
