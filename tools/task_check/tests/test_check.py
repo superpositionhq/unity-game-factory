@@ -702,9 +702,10 @@ class Plays(unittest.TestCase):
             machine.job("task-check build x", ["C:/U/Unity.exe", "-batchmode"], ".", 60)
             unity.Machine(Path("C:/U/Unity.exe"), None).job("direct", [Path("C:/U/Unity.exe"), "-quit"], ".", 60)
         play, build, direct = seen
-        self.assertEqual(play[:4], ["powershell", "-NoProfile", "-NonInteractive", "-Command"])
-        self.assertIn("-Label 'task-check play x' -Gpu -- 'C:/c/Game.exe' '-taskProbe' 'C:/c/it''s.json'", play[4])
-        self.assertNotIn("-Gpu", build[4])
+        self.assertEqual(play[:6], ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                                    "-Command"])
+        self.assertIn("-Label 'task-check play x' -Gpu -- 'C:/c/Game.exe' '-taskProbe' 'C:/c/it''s.json'", play[6])
+        self.assertNotIn("-Gpu", build[6])
         self.assertEqual(direct, [str(Path("C:/U/Unity.exe")), "-quit"])
 
     def test_a_unity_that_isnt_installed_is_an_error_not_an_exit(self):
@@ -878,3 +879,14 @@ class ImportCache(unittest.TestCase):
         self.assertEqual(taken, [(Path("X:/scratch/other"), Path("X:/scratch/copy"))])
         with mock.patch.object(seeds, "seed_library", lambda *a: self.fail("no built copy to take from")):
             check.Built(FakeProject(), log=lambda _: None, cache=lambda: None).build(60)
+
+
+class Limiter(unittest.TestCase):
+    def test_a_limiter_that_cant_be_started_is_an_error_not_a_failed_build(self):
+        refused = "& : File C:\\Work\\tools\\unity-heavy.ps1 cannot be loaded because running scripts is disabled"
+        with mock.patch.object(unity, "run", lambda argv, cwd, timeout, wrapper=False: unity.Result(1, refused, 0.1)):
+            machine = unity.Machine(Path("C:/U/Unity.exe"), Path("C:/Work/tools/unity-heavy.ps1"))
+            with self.assertRaises(unity.LimiterRefused) as raised:
+                machine.job("task-check build x", ["C:/U/Unity.exe", "-batchmode"], ".", 60)
+        self.assertIn("--direct", str(raised.exception))
+        self.assertTrue(issubclass(unity.LimiterRefused, RuntimeError), "check_task reports it as ERROR")

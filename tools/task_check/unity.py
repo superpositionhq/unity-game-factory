@@ -155,6 +155,10 @@ def run(argv, cwd, timeout, wrapper=False, clock=time.monotonic):
                   round(waited, 3))
 
 
+class LimiterRefused(RuntimeError):
+    """The machine's job limiter couldn't be started at all."""
+
+
 def _ps_quote(value):
     return "'" + str(value).replace("'", "''") + "'"
 
@@ -179,18 +183,21 @@ class Machine:
         return cls(editor=editor, heavy=None if direct or not heavy.is_file() else heavy)
 
     def job(self, label, argv, cwd, timeout, gpu=False):
-        """`argv` as one Unity job: through unity-heavy.ps1 when the machine has it (in a GPU slot too when `gpu`; a
-        wrapper that never ran the job, e.g. PowerShell refusing to load the script, exits 1, never 0), else
-        directly."""
+        """`argv` as one Unity job: through unity-heavy.ps1 when the machine has it (in a GPU slot too when `gpu`),
+        else directly. The limiter is the machine's own installed script, started the way the skills start the
+        machine's scripts (-ExecutionPolicy Bypass): a plain `powershell` started from another shell runs no script
+        on a default Windows. A limiter PowerShell still refuses to load (a policy the organisation set) raises
+        LimiterRefused: that is the machine's fault, never a game that doesn't build."""
         if self.heavy is None:
             return run([str(a) for a in argv], cwd, timeout)
         command = (f"& {_ps_quote(self.heavy)} -Label {_ps_quote(label)}{' -Gpu' if gpu else ''} -- "
                    + " ".join(_ps_quote(a) for a in argv)
                    + "; if ($null -eq $LASTEXITCODE) { exit 1 }; exit $LASTEXITCODE")
-        found = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", command], cwd, timeout, wrapper=True)
+        found = run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command],
+                    cwd, timeout, wrapper=True)
         if found.exit_code and ("cannot be loaded" in found.output or "not digitally signed" in found.output):
-            found.output = ("PowerShell refused to run unity-heavy.ps1 (its execution policy): run the checker from a "
-                            "PowerShell that may run the machine's scripts, or with --direct\n" + found.output)
+            raise LimiterRefused("PowerShell refused to run unity-heavy.ps1 (an execution policy set for this machine): "
+                                 "pass --direct to run without the machine's job slots. " + found.output.strip()[:300])
         return found
 
 
