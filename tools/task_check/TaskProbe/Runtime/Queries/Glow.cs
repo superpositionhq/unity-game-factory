@@ -253,13 +253,12 @@ namespace TaskProbe
             }
         }
 
-        /// <summary>A quarter of the surface of a mesh's own bounds box (m2): its local bounds scaled with it, a skinned
-        /// mesh's in its root bone's frame (where its local bounds are, as the render frames it).</summary>
+        /// <summary>A quarter of the surface of a mesh's own bounds box (m2), the box a render frames (DrawnRender.LocalBox:
+        /// its local bounds scaled with it, a skinned mesh's in its root bone's frame).</summary>
         static double QuarterSurface(Renderer renderer)
         {
-            var space = renderer is SkinnedMeshRenderer s && s.rootBone != null ? s.rootBone : renderer.transform;
-            var size = Vector3.Scale(renderer.localBounds.size, space.lossyScale);
-            double x = Mathf.Abs(size.x), y = Mathf.Abs(size.y), z = Mathf.Abs(size.z);
+            DrawnRender.LocalBox(renderer, out var size, out _, out _);
+            double x = size.x, y = size.y, z = size.z;
             return 2.0 * (x * y + y * z + z * x) / 4.0;
         }
 
