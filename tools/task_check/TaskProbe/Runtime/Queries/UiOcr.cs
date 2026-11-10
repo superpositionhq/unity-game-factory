@@ -19,10 +19,10 @@ namespace TaskProbe
 {
     public static class UiOcr
     {
-        struct Pt
+        struct Point
         {
             public double X, Y;
-            public Pt(double x, double y) { X = x; Y = y; }
+            public Point(double x, double y) { X = x; Y = y; }
         }
 
         /// <summary>One character's shape: its centre-line segments in the normalised glyph space (Normal), points
@@ -33,12 +33,12 @@ namespace TaskProbe
             public double Aspect;  // max(width, 0.3 height) / height of its centre lines
             public double Step;  // the length (in heights) each sample stands for
             public bool Square;  // it has a square corner (an upright and a level line meeting): a segment font's shape
-            public readonly List<Pt> Samples = new List<Pt>();
+            public readonly List<Point> Samples = new List<Point>();
             public float[] Dist;
         }
 
         /// <summary>One line of text read in an image: its text and its pixel box (x0, y0 inclusive; x1, y1 exclusive).</summary>
-        public struct Line
+        struct Line
         {
             public string Text;
             public int X0, Y0, X1, Y1;
@@ -48,14 +48,14 @@ namespace TaskProbe
         const double Width = 0.6;
         const double GridX0 = -0.5, GridY0 = -0.25, Cell = 0.02;
         const int GridW = 50, GridH = 75;
-        // reading a glyph (Scores, Decide): the loose distance's base (in heights), the tight one's share of it, how much
-        // a shape may miss and still fit (loose) and in detail (tight), how much every other character must miss (loose)
-        // and by how much more (tight)
+        // reading a glyph (GlyphScores, GlyphDecide): the loose distance's base (in heights), the tight one's share of it,
+        // how much a shape may miss and still fit (loose) and in detail (tight), how much every other character must miss
+        // (loose) and by how much more (tight)
         const double Loose = 0.04, Tight = 0.6, Fits = 0.1, Detail = 0.4, Apart = 0.03, Margin = 0.2;
         // how much worse in detail a glyph's square-cornered shapes must be for it to show cut or round corners
         const double Corner = 0.08;
         // the marks' cut, a share of the way from the background to the ink
-        const double CutShare = 0.33;
+        const double Cut = 0.33;
 
         // Character shapes as centre lines on a 4 x 6 box (x right, y down): polylines of "x,y" points split by ';'. A
         // character has every shape it is commonly drawn in, so characters that look alike in some font (0, O, D; 5, S;
@@ -191,17 +191,17 @@ namespace TaskProbe
         static int RoundToInt(double v) => (int)Math.Floor(v + 0.5);  // Unreal's RoundToInt: halves up
         static int Clamp(int v, int lo, int hi) => v < lo ? lo : v > hi ? hi : v;
 
-        static Pt Normal(double x, double y, double centreX, double top, double scaleX, double height) =>
-            new Pt((x - centreX) / scaleX * Width, (y - top) / height);
+        static Point Normal(double x, double y, double centreX, double top, double scaleX, double height) =>
+            new Point((x - centreX) / scaleX * Width, (y - top) / height);
 
-        static int CellAt(Pt p)
+        static int CellAt(Point p)
         {
             var cx = Clamp(FloorToInt((p.X - GridX0) / Cell), 0, GridW - 1);
             var cy = Clamp(FloorToInt((p.Y - GridY0) / Cell), 0, GridH - 1);
             return cy * GridW + cx;
         }
 
-        static double SegDist(Pt p, Pt a, Pt b)
+        static double SegDist(Point p, Point a, Point b)
         {
             double dx = b.X - a.X, dy = b.Y - a.Y;
             var l = dx * dx + dy * dy;
@@ -220,15 +220,15 @@ namespace TaskProbe
             foreach (var def in ShapeDefs)
             {
                 // parse the polylines into segments
-                var a = new List<Pt>();
-                var b = new List<Pt>();
+                var a = new List<Point>();
+                var b = new List<Point>();
                 foreach (var polyline in def.Value.Split(';'))
                 {
-                    var line = new List<Pt>();
+                    var line = new List<Point>();
                     foreach (var point in polyline.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
                     {
                         var xy = point.Split(',');
-                        line.Add(new Pt(double.Parse(xy[0], CultureInfo.InvariantCulture), double.Parse(xy[1], CultureInfo.InvariantCulture)));
+                        line.Add(new Point(double.Parse(xy[0], CultureInfo.InvariantCulture), double.Parse(xy[1], CultureInfo.InvariantCulture)));
                     }
                     for (var i = 0; i + 1 < line.Count; i++)
                     {
@@ -262,7 +262,7 @@ namespace TaskProbe
                     double dx = b[i].X - a[i].X, dy = b[i].Y - a[i].Y;
                     var steps = Math.Max(1, RoundToInt(Math.Sqrt(dx * dx + dy * dy) / 0.02));
                     for (var k = (i > 0 && a[i].X == b[i - 1].X && a[i].Y == b[i - 1].Y) ? 1 : 0; k <= steps; k++)
-                        shape.Samples.Add(new Pt(a[i].X + dx * k / steps, a[i].Y + dy * k / steps));
+                        shape.Samples.Add(new Point(a[i].X + dx * k / steps, a[i].Y + dy * k / steps));
                 }
                 var length = 0.0;
                 for (var i = 0; i < a.Count; i++)
@@ -276,7 +276,7 @@ namespace TaskProbe
                 for (var cy = 0; cy < GridH; cy++)
                     for (var cx = 0; cx < GridW; cx++)
                     {
-                        var p = new Pt(GridX0 + (cx + 0.5) * Cell, GridY0 + (cy + 0.5) * Cell);
+                        var p = new Point(GridX0 + (cx + 0.5) * Cell, GridY0 + (cy + 0.5) * Cell);
                         var d = 1e9;
                         for (var i = 0; i < a.Count; i++) d = Math.Min(d, SegDist(p, a[i], b[i]));
                         shape.Dist[cy * GridW + cx] = (float)d;
@@ -336,7 +336,7 @@ namespace TaskProbe
             public int H => Y1 - Y0 + 1;
         }
 
-        /// <summary>How a glyph scores against one character's shapes (Scores): the best of all its shapes [0], of those
+        /// <summary>How a glyph scores against one character's shapes (GlyphScores): the best of all its shapes [0], of those
         /// without square corners [1] and of those with [2]; Fit loose, Detail tight (lengths in heights; lower is better).</summary>
         sealed class Score
         {
@@ -435,7 +435,7 @@ namespace TaskProbe
             if (ink < 40.0 || ink < 3.0 * paper) return false;  // too faint, or a background that varies
             // marks at a third of the way from the background to the ink (a thin line half on two rows still reads);
             // faint ink from a sixth of the way, to see strokes the marks lost
-            double cut = paper + CutShare * (ink - paper), faint = paper + 0.16 * (ink - paper);
+            double cut = paper + Cut * (ink - paper), faint = paper + 0.16 * (ink - paper);
             mask = new byte[w * h];
             var edgeMarks = 0;
             for (var i = 0; i < w * h; i++) mask[i] = (byte)(d[i] >= cut ? 2 : (d[i] >= faint ? 1 : 0));
@@ -461,10 +461,10 @@ namespace TaskProbe
                     area++;
                 }
             Thin(im, gw, gh);
-            var skel = new List<Pt>();
+            var skel = new List<Point>();
             for (var y = 0; y < gh; y++)
                 for (var x = 0; x < gw; x++)
-                    if (im[y * gw + x] != 0) skel.Add(new Pt(x - 1 + 0.5, y - 1 + 0.5));
+                    if (im[y * gw + x] != 0) skel.Add(new Point(x - 1 + 0.5, y - 1 + 0.5));
             if (skel.Count < 4) return false;
             // stroke width, and the box of the centre lines (the glyph's box less half a stroke on each side)
             g.Stroke = Math.Max(1.0, (double)area / skel.Count);
@@ -552,7 +552,7 @@ namespace TaskProbe
             }
             // ink around the glyph (faint too) away from the lines of every shape of the character: a stroke the marks
             // lost, so it may be another
-            var ink = new List<Pt>();
+            var ink = new List<Point>();
             for (var y = Math.Max(0, g.Y0 - 1); y <= Math.Min(h - 1, g.Y1 + 1); y++)
                 for (var x = Math.Max(0, g.X0 - 1); x <= Math.Min(w - 1, g.X1 + 1); x++)
                     if (mask[y * w + x] != 0) ink.Add(Normal(x - g.X0 + 0.5, y - g.Y0 + 0.5, g.CentreX, g.Top, g.ScaleX, g.Height));
@@ -596,7 +596,7 @@ namespace TaskProbe
 
         /// <summary>Reads the text lines in an image (w x h, `px` row by row from the top): each line of glyphs read
         /// whole, or not at all.</summary>
-        public static void Read(Color32[] px, int w, int h, List<Line> output)
+        static void Read(Color32[] px, int w, int h, List<Line> output)
         {
             if (!Marks(px, w, h, out var mask)) return;
             // connected marks
@@ -792,15 +792,12 @@ namespace TaskProbe
         }
 
         /// <summary>ui text read from the frame as drawn inside a select rect (viewport fractions, y down): the rect cut
-        /// from the frame and read, each line a text element of source "ocr". A line where a text element already reads
-        /// (`found`) is left to that element, so nothing reads twice.</summary>
+        /// from the frame and read (Read), each line a text element, source "ocr". A line where a text element already
+        /// read stands (uGUI, UI Toolkit: `found`) is left to that element, so nothing reads twice.</summary>
         public static void Elements(FrameImage frame, double[] rect, List<UiElement> found, List<UiElement> output)
         {
             int w = frame.Width, h = frame.Height;
-            var x0 = Clamp(FloorToInt(Math.Min(rect[0], rect[2]) * w), 0, w - 1);
-            var y0 = Clamp(FloorToInt(Math.Min(rect[1], rect[3]) * h), 0, h - 1);
-            var x1 = Clamp((int)Math.Ceiling(Math.Max(rect[0], rect[2]) * w), x0 + 1, w);
-            var y1 = Clamp((int)Math.Ceiling(Math.Max(rect[1], rect[3]) * h), y0 + 1, h);
+            frame.Area(rect, out var x0, out var y0, out var x1, out var y1);
             int cw = x1 - x0, ch = y1 - y0;
             var crop = new Color32[cw * ch];
             for (var y = 0; y < ch; y++)

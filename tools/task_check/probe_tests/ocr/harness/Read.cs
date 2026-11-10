@@ -23,6 +23,16 @@ namespace TaskProbe
         public int Width, Height;
         public UnityEngine.Color32[] Pixels;
         public UnityEngine.Color32 At(int x, int yFromTop) => Pixels[(Height - 1 - yFromTop) * Width + x];
+
+        public void Area(double[] rect, out int x0, out int y0, out int x1, out int y1)
+        {
+            x0 = Clamp(Math.Floor(Math.Min(rect[0], rect[2]) * Width), 0, Width - 1);
+            y0 = Clamp(Math.Floor(Math.Min(rect[1], rect[3]) * Height), 0, Height - 1);
+            x1 = Clamp(Math.Ceiling(Math.Max(rect[0], rect[2]) * Width), x0 + 1, Width);
+            y1 = Clamp(Math.Ceiling(Math.Max(rect[1], rect[3]) * Height), y0 + 1, Height);
+        }
+
+        static int Clamp(double v, int lo, int hi) => !(v > lo) ? lo : v > hi ? hi : (int)v;
     }
 
     public sealed class UiElement
