@@ -1517,7 +1517,14 @@ class Jobs(unittest.TestCase):
     def test_a_limiter_that_never_starts_its_job_still_ends(self):
         with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_EXIT": "2"}):
             found = self.limited.job("t", [sys.executable, "-c", "import time; time.sleep(60)"], self.tmp, 60)
-        self.assertEqual((found.exit_code, found.timed_out, found.waited), (2, False, 0.0))
+        self.assertEqual((found.exit_code, found.timed_out), (2, False))
+        self.assertLessEqual(found.waited, found.seconds, "all of it a wait")
+
+    def test_a_job_that_comes_and_goes_between_two_looks_still_shows_its_wait(self):
+        with mock.patch.object(unity, "QUEUE_POLL", 0.5), mock.patch.dict(os.environ, {"STAND_IN_WAIT": "6"}):
+            found = self.limited.job("t", [sys.executable, "-c", "pass"], self.tmp, 60)
+        self.assertEqual(found.exit_code, 0)
+        self.assertGreater(found.waited, 6, "the limiter's wait, though no look found the job: never its own time")
 
     def test_a_timeout_kills_the_job_and_the_player_desk_py_started(self):
         for machine in (self.direct, self.limited):

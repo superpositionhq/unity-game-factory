@@ -133,6 +133,7 @@ def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
     reader = threading.Thread(target=lambda: chunks.append(proc.stdout.read()), daemon=True)
     reader.start()
     job = None if wrapper else started
+    looked = started  # the last look that found no job yet
     timed_out = False
     try:
         while True:
@@ -143,6 +144,8 @@ def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
                 if job is None:
                     if _job_started(proc.pid, wrapper):
                         job = clock()
+                    else:
+                        looked = clock()
                     continue
                 if clock() - job < timeout:
                     continue
@@ -169,7 +172,9 @@ def run(argv, cwd, timeout, wrapper=None, clock=time.monotonic):
     if not reader.is_alive():  # closing the pipe under a read that still waits would block until the read returns
         proc.stdout.close()
     text = (b"".join(chunks)).decode("utf-8", errors="replace").replace("\r\n", "\n")
-    waited = job - started if wrapper and job is not None else 0.0  # a job seen start within its first poll: ~0
+    # a job seen start within its first look: ~0; one that came and went between two looks (a short play): at least
+    # until the last look that didn't find it, else its wait read as its own time
+    waited = (job if job is not None else looked) - started if wrapper else 0.0
     return Result(None if timed_out else proc.returncode, cut(text), round(clock() - started, 3), timed_out,
                   round(waited, 3))
 
