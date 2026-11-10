@@ -219,8 +219,8 @@ threshold, and no solution could pass it), and pass its still-works probes. Ever
 - `<repo>\.task-checks\<task>\<side>\<play>\` (`<side>` is `start` or `reference`): a folder per play, named `look`,
   `drive`, `play_<name>` for a task play, or `boot_<seconds>s` for a boot (on the reference it also serves `look`).
   The result doesn't name a check's play: it is the check's `play` in the task file. Each holds `probe.json`
-  (below), `play_spec.json` (what the play was asked: its inputs, and its queries with their ids, kinds and
-  selects), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
+  (below), `play_spec.json` (what the play was given: its seconds, scene and inputs, and its queries with their ids,
+  kinds and selects or places; a `look` that a boot served has its queries in the boot's), `probe.log` (the probe's own lines: where each teleport put the player, each click, wait and error, each
   line `<play time> [<real time> s] ...`), the screenshots `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI
   included, evenly over the play), `play.log` (the game's own player log) and `output.txt` (what the play's job
   printed, the machine slot's waits among it). `editor\output.txt` is the editor pass's log, and `build\build.log`
@@ -420,6 +420,11 @@ a task check's verdict, but a game is delivered only with the validator's VALID 
 rule): Unity has no active licence, and the check of that task says nothing about it. Sign in to Unity Hub, check the
 licence there, and run again. Every Unity log also holds `[Licensing::...]` lines with `Error` in them when the licence
 works: those mean nothing.
+
+**`... the player couldn't be started on a desktop of its own (desk.py: ...)`** (an ERROR line). `desk.py` itself
+failed before the player ran: it makes a Windows desktop for the play, and a session with no interactive window
+station (a service, some remote shells) can't. The machine's fault, never a verdict on the game: run the check from an
+interactive session.
 
 **`task-check.py: error: the scratch project folder ... is longer than 90 characters (N): ...`** (a usage error, exit
 code 2: nothing ran). Pass a `--scratch` of at most 68 characters on the repo's drive (`--scratch C:\tc`).

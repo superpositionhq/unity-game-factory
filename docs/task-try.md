@@ -50,7 +50,9 @@ check's).
 
 1. Builds and measures the start and the reference once, as the task check does, for the probes' thresholds, and
    deletes both copies before the first agent starts: the reference is the answer, and it would lie two folders above
-   the agent's workspace.
+   the agent's workspace. If a threshold can't be measured at all (the checker's own error while it plays the start
+   or the reference, not a probe that is merely uncalibrated), the try ends in ERROR before any agent starts: run
+   `task-check.py` on the task first.
 2. Per run, copies the game at `seed.commit` into a workspace `<drive>:\.task-try\<id>\run<N>\<game>`: every file of
    that commit without `Tasks/`, `History/`, `Dataset/` or `Dataset.zip`, in a fresh git repository with one commit.
    The workspace is outside the machine root, the game repo and its other worktrees, so the harness reads none of
@@ -73,14 +75,15 @@ Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved
 `score` (the weighted share of checks passed, as the cloud scores it, judges left out), `required_passed` of
 `required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness reports them, the
 `checks` rows, `peeked`, and `why` when the agent's game couldn't be graded at all (it moved the project off Unity
-6000.3 or to a release this machine doesn't have, removed or relinked the workspace, or its build stopped with no
-word about the game, twice with no compiler error and no result saying why or at its time limit: the `why` then
-names the build log kept under `<task>\run<N>\build\`); `status` is `DONE`, or `ERROR` with its `reasons` when the
-try couldn't run (the line then reads `ERROR   <task>: ...`, for example a start or reference that doesn't build:
-run the task check first). A task that doesn't validate gets a result file only when its name has a task name's
-form; otherwise only its printed line. Each run's transcript is `<task>\run<N>\transcript.jsonl`, its plays beside
-it, and the brief the agent read `<task>\brief.md`; the start's and the reference's plays are in `<task>\start\` and
-`<task>\reference\`, as the task check keeps them.
+6000.3 or to a release this machine doesn't have, removed or relinked the workspace or turned one of the game's own
+folders, `Assets`, `Packages` or `ProjectSettings`, into a link (the grade would write through it), or its build
+stopped with no word about the game, twice with no compiler error and no result saying why or at its time limit:
+the `why` then names the build log kept under `<task>\run<N>\build\`); `status` is `DONE`, or `ERROR` with its
+`reasons` when the try couldn't run (the line then reads `ERROR   <task>: ...`, for example a start or reference
+that doesn't build: run the task check first). A task that doesn't validate gets a result file only when its name
+has a task name's form; otherwise only its printed line. Each run's transcript is
+`<task>\run<N>\transcript.jsonl`, its plays beside it, and the brief the agent read `<task>\brief.md`; the start's
+and the reference's plays are in `<task>\start\` and `<task>\reference\`, as the task check keeps them.
 
 ## Reading the result
 
