@@ -841,9 +841,10 @@ package holds no `.meta` files, which Unity makes in the copy.
   `ProbeLate.cs` (its late half `ProbeLate`, at 32000, after them: a file of its own, since Unity keeps a
   MonoBehaviour's execution order with its script), `Json.cs` (the files' JSON: `Dictionary<string, object>`,
   `List<object>`, `double`, `bool`, `string`, null), `Find.cs` (selects, points, hierarchy order, and the readers
-  several kinds share: `Components`, `Drawn`, `LightOn`, `Luminance`, `Linear`, `Centre`, `Simulates`, `Angle`),
-  `Query.cs` (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn after a sample), `Reflect.cs`
-  (types and members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop fallback), `AudioTap.cs`.
+  several kinds share: `Components`, `Owners`, `Drawn`, `LightOn`, `LightColour`, `Luminance`, `Linear`, `Centre`,
+  `Collides`, `Simulates`, `Angle`), `Query.cs` (`Query`, `ProbeQueryAttribute`, `RowSet`, `FrameImage`: the frame drawn
+  after a sample), `Reflect.cs` (types and members by name, `prop:` paths), `Inputs.cs`, `Window.cs` (the user's-desktop
+  fallback), `AudioTap.cs`.
 - `Runtime/Queries/`: one class per query kind, `[ProbeQuery("kind")] public sealed class XQuery : Query`, found by
   reflection when a play starts (a new kind touches no other file): `ObjectsQuery`, `ComponentsQuery`, `WidgetsQuery`,
   `UiQuery`, `CameraQuery`, `LightQuery`, `GradingQuery`, `SpawnsQuery`, `PiecesQuery`, `ScreenQuery`, `AudioQuery`,
