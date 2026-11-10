@@ -1212,6 +1212,16 @@ class Limiter(unittest.TestCase):
         self.assertIn("--direct", str(raised.exception))
         self.assertTrue(issubclass(unity.LimiterRefused, RuntimeError), "check_task reports it as ERROR")
 
+    @unittest.skipUnless(sys.platform == "win32", "PowerShell")
+    def test_every_value_reaches_the_limiter_as_it_is(self):
+        """PowerShell reads the typographic quotes as quotes too: a user folder named O\u2019Brien broke every job."""
+        for value in ("C:\\Users\\O'Brien\\x.json", "C:\\Users\\O\u2019Brien\\x.json", "a\u2018b\u201ac\u201bd ''e $x"):
+            got = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                  "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+                                  "& { param($a) [Console]::Out.Write($a) } " + unity._ps_quote(value)],
+                                 capture_output=True)
+            self.assertEqual(got.stdout.decode("utf-8", errors="replace"), value, got.stderr.decode(errors="replace"))
+
 
 # A stand-in player: writes its pid and its parent's (desk.py's) to argv[1], then sleeps argv[2] seconds.
 PLAYER = ("import json, os, sys, time\n"

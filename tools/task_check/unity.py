@@ -195,7 +195,8 @@ def _licensed(found, log):
 
 
 def _ps_quote(value):
-    return "'" + str(value).replace("'", "''") + "'"
+    # PowerShell reads the typographic quotes as quotes too: each is doubled (a folder named O’Brien broke every job)
+    return "'" + re.sub("(['‘’‚‛])", r"\1\1", str(value)) + "'"
 
 
 @dataclass
