@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import stat
+import string
 import subprocess
 import time
 from pathlib import Path
@@ -182,13 +183,16 @@ def check_length(folder):
 
 
 SAVES = re.compile(r"TaskProbe[._][0-9a-f]{12}")  # the only names forget_saves ever deletes
+ASCII_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
 
 def saves_company(project):
     """The company name the probe's build gives a scratch copy's player (TaskProbe/Editor/Build.cs `Tag`): "TaskProbe."
-    and 12 hex digits of its folder's sha256. A play's saved data (PlayerPrefs in the registry, the persistent data
-    folder) goes under that name, never under the real game's, and the probe clears it when a play starts."""
-    folder = os.path.abspath(str(project)).lower()
+    and 12 hex digits of the sha256 of its folder, the ASCII letters lower-cased (those only: Python and Unity's Mono
+    lower-case some other letters differently, a dotted capital I say, and the two names must be one). A play's saved
+    data (PlayerPrefs in the registry, the persistent data folder) goes under that name, never under the real game's,
+    and the probe clears it when a play starts."""
+    folder = os.path.abspath(str(project)).translate(ASCII_LOWER)
     return "TaskProbe." + hashlib.sha256(folder.encode("utf-8")).hexdigest()[:12]
 
 

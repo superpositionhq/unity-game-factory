@@ -1379,6 +1379,9 @@ class SavedData(unittest.TestCase):
         self.assertRegex(name, r"^TaskProbe\.[0-9a-f]{12}$")
         self.assertEqual(name, seeds.saves_company(r"c:\scratch\abc123" if os.name == "nt" else "C:/Scratch/ABC123"))
         self.assertNotEqual(name, seeds.saves_company("C:/Scratch/ABC124"))
+        if os.name == "nt":  # only ASCII letters are lower-cased, as Build.cs does: Python's lower() gives 5d6c154d5aa1
+            self.assertEqual(seeds.saves_company("C:\\Scratch\\\u0130stanbul \u039f\u0394\u039f\u03a3"),
+                             "TaskProbe.c804e37db5bd", "the sha256 of c:\\scratch\\ and the rest as it is")
 
     def test_removing_a_folder_forgets_the_saves_of_the_projects_in_it(self):
         with tempfile.TemporaryDirectory() as tmp:
