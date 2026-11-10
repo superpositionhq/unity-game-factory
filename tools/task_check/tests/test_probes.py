@@ -1014,6 +1014,8 @@ class OutcomeReadings(unittest.TestCase):
         self.assertTrue(probes.plan(task)["shove"][0]["select"]["has"]["simulating"])
         with self.assertRaises(ValueError):
             task_with(probe(measure={"probe": "objects", "select": {"has": {"simulating": False}}, "field": "count"}))
+        with self.assertRaisesRegex(ValueError, 'unexpected key "movable"', msg="a built player keeps no Static flag"):
+            task_with(probe(measure={"probe": "objects", "select": {"has": {"movable": True}}, "field": "count"}))
 
     def test_near_takes_a_height_band_wherever_it_works(self):
         band = {"point": {"xyz": [0, 0, 0]}, "radius": 5, "y_min": 1, "y_max": 3}
