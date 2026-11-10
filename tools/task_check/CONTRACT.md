@@ -452,12 +452,12 @@ original's, unchanged (`probes.py`).
     with `material`, `materials` and `mesh` read as their `shared...` versions (the plain getters would copy the asset
     into the scene). `import:` reads the importer, falling back to an AudioImporter's `defaultSampleSettings`.
   - `shader:` and `material:` read a material as `AssetValues.MaterialValue` does: a float, range or int as it is; a
-    colour's or vector's channel in either spelling (`.r` or `.x` ... `.a` or `.w`); a texture 1 when set, its name
-    with `.name`; `shader:name` and `material:shader` the shader's name; `keyword:<NAME>` and
-    `material:keyword:<NAME>` 1 when enabled. `material_default` finds a renderer with no slot, an empty or missing
-    slot, the error shader or one that doesn't compile (`ShaderUtil.ShaderHasError`), or Unity's built-in default
-    material or the pipeline's (`AssetValues.IsDefault`). Rows of `material:` are named `<object>/<renderer's object>`,
-    of `mesh_collision` `<object>/<mesh's object>`.
+    colour's or vector's channel in either spelling (`.r` or `.x` ... `.a` or `.w`); a texture 1 when set, its name with
+    `.name`; `shader:name` and `material:shader` the shader's name; `keyword:<NAME>` and `material:keyword:<NAME>` 1
+    when enabled. `material_default` finds a renderer with no slot, an empty or missing slot (a part of its mesh beyond
+    its last slot included), the error shader or one that doesn't compile (`ShaderUtil.ShaderHasError`), or Unity's
+    built-in default material or the pipeline's (`AssetValues.IsDefault`). Rows of `material:` are named
+    `<object>/<renderer's object>`, of `mesh_collision` `<object>/<mesh's object>`.
   - Which reads are errors, and their messages: `docs/task-probes.md` section 2.11. On a scene's or prefab's objects
     the same faults give a row with no value (`SceneRows` keeps the row).
 
@@ -631,12 +631,13 @@ first two track and camera rows (of 18) and the first sample of each query:
 - `query_errors` (only when there was one): each line once, at most 50, then `<n> more in probe.log`. A query's own:
   `<kind> <id>: <message>` (its definition's and its select's too: `components q3c1d2e4f5a: no component type Lantren`;
   `spawns` still writes `spawns: no component type Coin`), and an exception out of it `<kind> <id>: <ExceptionType> in
-  Load|Frame|Sample|FrameDrawn (the exception is in probe.log)` (`Probe.Failed`; the exception and its stack go to
-  probe.log). The loop's own, the original's: `queries format '<f>' is not game-probe-queries/1`, `the queries have no
-  queries array`, `a query is not an object`, `a query has a missing or repeated id '<id>'`, `more than 256 queries:
-  '<id>' and later ones dropped`, `query '<id>': unknown kind '<kind>' (null values)` (such a query, and one whose
-  `Load` threw, is sampled with a null `value`); and `the play's scene <scene> isn't in the build: the game's own first
-  scene is played`, `the play's scene <scene> didn't become the active scene: playing <path>`, `inputs: ...`.
+  Load|Frame|Sample|FrameDrawn (the exception is in probe.log)`, or out of a reader it calls (`ui <id>: <ExceptionType>
+  in the frame reader (...)`, `lit/glow: <ExceptionType> in a render (...)`) (`Probe.Failed`; the exception and its
+  stack go to probe.log). The loop's own, the original's: `queries format '<f>' is not game-probe-queries/1`, `the
+  queries have no queries array`, `a query is not an object`, `a query has a missing or repeated id '<id>'`, `more than
+  256 queries: '<id>' and later ones dropped`, `query '<id>': unknown kind '<kind>' (null values)` (such a query, and
+  one whose `Load` threw, is sampled with a null `value`); and `the play's scene <scene> isn't in the build: the game's
+  own first scene is played`, `the play's scene <scene> didn't become the active scene: playing <path>`, `inputs: ...`.
 - Numbers: whole ones (below 1e15) without a fraction, the rest in the round-trip form (`R`), or with 17 digits (`G17`)
   where Mono's `R` gives 15 that read back as another number; NaN and infinities are written null (`Json.Write`). The
   probe reads JSON nested at most 512 deep (`Json.Parse`): a deeper play spec can't be read (exit 2).
