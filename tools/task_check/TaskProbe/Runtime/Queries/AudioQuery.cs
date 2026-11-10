@@ -71,7 +71,7 @@ namespace TaskProbe
             {
                 // in hierarchy order: the sum and a tie for the loudest come out the same in every play
                 sources.Clear();
-                sources.AddRange(UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID));
+                sources.AddRange(UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
                 Find.SortByHierarchy(sources);
                 foreach (var source in sources)
                 {
