@@ -922,16 +922,17 @@ returns: the game's own frames are the same with and without the measure.
 - **`still_works` probes already pass at the start.** A required probe in the `still_works` milestone (the player
   still moves, the HUD still shows, the scene still loads its scenario) must pass on the start: what still works must
   already work there, or the probe itself is broken and would fail every correct solution. (A still-works probe the
-  start measured nothing for, because its play crashed on the very bug the task fixes, doesn't count against it.)
+  start has no samples for, because its play crashed or ended early on the very bug the task fixes, doesn't count
+  against it; one that finds nothing to measure in a start that ran does.)
 - **Trace probes never gate**: `"required": false`, with a literal threshold.
 - **No samples, no pass.** When a play ends early or a measure has no samples in its window (the game quit, crashed or
-  never reached that time; or, for a `player` measure, the play found no player, and for the camera's `distance`,
-  `height`, `pitch`, `yaw` or `fov`, no camera), the probe fails with
+  never reached that time), the probe fails with
   "no samples in the window (the play ended at X s)" or "no samples in the window (the play wrote no probe file)";
-  when samples exist but nothing selected has a value, it fails with
-  "no value in the window (nothing it selects was measured)", followed by "; the probe said: " and the first line of
-  the play's `query_errors` when it has one (that line may be another measure's: the play's `probe.json` holds them
-  all).
+  when samples exist but nothing selected has a value (nothing matched, the play found no player or no camera, the
+  field had nothing to read), it fails with
+  "no value in the window (nothing it selects was measured)", followed by "; the probe said: " and the probe's first
+  error about that measure's own query, when it logged one (the play's `probe.json` holds them all in
+  `query_errors`).
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`
