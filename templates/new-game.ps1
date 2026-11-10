@@ -169,9 +169,13 @@ $remote = $null
 if (-not $NoGitHub) {
     $full = "$Org/unity-game-$Slug"
     $ErrorActionPreference = 'Continue'
-    & gh repo view $full --json name 2>&1 | Out-Null
-    $exists = ($LASTEXITCODE -eq 0)
-    if ($exists) {
+    # without gh the call below fails to start and leaves an earlier command's exit code: the repo read as existing
+    $gh = [bool](Get-Command gh -ErrorAction SilentlyContinue)
+    if ($gh) { & gh repo view $full --json name 2>&1 | Out-Null }
+    $exists = ($gh -and $LASTEXITCODE -eq 0)
+    if (-not $gh) {
+        Write-Warning "gh (the GitHub CLI) is not installed: no repo made. Install it (machine\setup.ps1), then: gh repo create $full --private; git -C `"$Path`" remote add origin https://github.com/$full.git"
+    } elseif ($exists) {
         # never linked unseen: it may be another game's (same slug) or public, and a push would ship store content there
         Write-Warning "$full already exists: not linked. Check that it is this game's and private, then: git remote add origin https://github.com/$full.git"
     } else {
