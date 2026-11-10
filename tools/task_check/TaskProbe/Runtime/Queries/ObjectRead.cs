@@ -10,13 +10,14 @@ namespace TaskProbe
     public static class ObjectRead
     {
         /// <summary>A row's "class" for an object (for logs): its first script's type, else its first Behaviour or
-        /// Renderer (Light, Camera, MeshRenderer...), else its first other component, else "GameObject".</summary>
+        /// Renderer (Light, Camera, MeshRenderer...), else its first other component, else "GameObject". The probe's own
+        /// components (its AudioTap on the game's listener) are none of the game's.</summary>
         public static string ClassOf(GameObject go)
         {
             string behaviour = null, other = null;
             foreach (var c in go.GetComponents<Component>())
             {
-                if (c == null || c is Transform || c is MeshFilter) continue;
+                if (c == null || c is Transform || c is MeshFilter || Find.IsOwn(c)) continue;
                 if (c is MonoBehaviour) return c.GetType().Name;
                 if (behaviour == null && (c is Behaviour || c is Renderer)) behaviour = c.GetType().Name;
                 other ??= c.GetType().Name;
