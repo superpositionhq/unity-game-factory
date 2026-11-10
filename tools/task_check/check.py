@@ -436,6 +436,12 @@ class Grade:
         return {"checks": rows, "probes": self.measured}
 
 
+def valid_name(name):
+    """Whether `name` is a task name as the schema has it (so it can name a result file and an evidence folder)."""
+    pattern = tasks.validator().SCHEMAS["game-task"]["properties"]["name"]["pattern"]
+    return isinstance(name, str) and re.fullmatch(pattern, name) is not None
+
+
 def start_unbuilt(task, why):
     """The start's grade when it doesn't build and the task says so: that build check failed, nothing else run."""
     group, build = next((g, c) for g, c in tasks.checks(task) if c["kind"] == "build" and c["fails_at_start"])
@@ -500,8 +506,9 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         gaps()
         result.update(verdict=state, reasons=list(reasons), notes=list(notes), seconds=round(clock() - started, 1),
                       at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
-        (Path(out_dir) / f"{name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if valid_name(name):  # a task that doesn't validate may be named a/b, ../x or nothing: no file of its own then
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
+            (Path(out_dir) / f"{name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
 
     found = tasks.problems(task)
@@ -509,11 +516,11 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         return finish("INVALID", [f"the task doesn't validate: {p}" for p in found[:5]])
     seed = task["seed"]
     evidence = Path(out_dir) / name
-    seeds.remove(evidence)
     own = builds is None
     if own:
         builds = Builds(repo, scratch, direct, log)
     try:
+        seeds.remove(evidence)  # (an earlier check's files another program holds: this task's error, not the run's)
         shas = {}
         for side, commit in (("start", seed["commit"]), ("reference", seed.get("reference"))):
             if commit is None:

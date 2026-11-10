@@ -562,6 +562,38 @@ class Whole(unittest.TestCase):
             self.assertEqual(result["verdict"], "INVALID")
             self.assertTrue(result["reasons"][0].startswith("the task doesn't validate"))
 
+    def test_a_task_that_doesnt_validate_names_no_file_outside_its_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "results" / "out"
+            for task in ({"name": "a/b"}, {"name": "../../escaped"}, {"name": "con?"}, {"title": "no name"},
+                         {"name": 7}):
+                result = check.check_task(tmp, task, b"{}", Path(tmp) / "s", out, log=lambda *a: None)
+                self.assertEqual(result["verdict"], "INVALID", task)
+            self.assertEqual([p.name for p in Path(tmp).rglob("*.json")], [], "no file under a name it can't have")
+            check.check_task(tmp, {"name": "fine-name"}, b"{}", Path(tmp) / "s", out, log=lambda *a: None)
+            self.assertTrue((out / "fine-name.json").is_file(), "a name of the schema's form has its result file")
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows file sharing")
+    def test_evidence_held_open_is_the_tasks_error_not_the_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            shot = out / "probe-task" / "start" / "look" / "shot_00.png"
+            shot.parent.mkdir(parents=True)
+            shot.write_bytes(b"png")
+            ready = Path(tmp) / "ready"
+            viewer = subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1], 'rb'); "
+                                       "open(sys.argv[2], 'w').close(); time.sleep(60)", shot, ready])
+            try:
+                while viewer.poll() is None and not ready.exists():
+                    time.sleep(0.05)
+                with mock.patch.object(seeds, "HELD", 0.5):
+                    result = check.check_task(tmp, task_with(probe()), b"{}", Path(tmp) / "s", out, log=lambda *a: None)
+                self.assertEqual(result["verdict"], "ERROR")
+                self.assertIn("shot_00.png", result["reasons"][0])
+            finally:
+                viewer.kill()
+                viewer.wait()
+
 
 def rising(log="Initialize engine version: 6000.3.26f1\n"):
     """A play answer whose player rises 0.1 m a second, for the play's whole length (as the probe samples it: on to
