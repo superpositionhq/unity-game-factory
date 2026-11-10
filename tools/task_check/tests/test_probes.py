@@ -989,12 +989,12 @@ class OutcomeReadings(unittest.TestCase):
         self.assertEqual(self.shown("clock", run, agg="falls"), 1, "reset on the retry")
 
     def test_has_finds_an_object_by_what_it_can_do(self):
-        shovable = {"has": {"simulating": True, "movable": True, "near": {"point": {"player": True}, "radius": 20}}}
+        shovable = {"has": {"simulating": True, "near": {"point": {"player": True}, "radius": 20}}}
         play = {"name": "shove", "seconds": 10, "inputs": [{"t": 1, "teleport_to": shovable, "distance": 1.5}]}
         task = task_with(probe(play=play, measure={"probe": "objects", "select": shovable, "field": "x", "at": "end"}))
         self.assertTrue(probes.plan(task)["shove"][0]["select"]["has"]["simulating"])
         with self.assertRaises(ValueError):
-            task_with(probe(measure={"probe": "objects", "select": {"has": {"movable": False}}, "field": "count"}))
+            task_with(probe(measure={"probe": "objects", "select": {"has": {"simulating": False}}, "field": "count"}))
 
     def test_near_takes_a_height_band_wherever_it_works(self):
         band = {"point": {"xyz": [0, 0, 0]}, "radius": 5, "y_min": 1, "y_max": 3}
