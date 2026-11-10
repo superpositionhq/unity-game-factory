@@ -61,8 +61,9 @@ if (-not [IO.Path]::IsPathRooted($Path) -or [IO.Path]::GetFullPath($Path).TrimEn
 }
 Write-Host "project folder: $Path (this call maps the session to $Slug for recording)"
 $words = $Slug -split '-'
-if (-not $Project) { $Project = ($words | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join '' }
-if (-not $Title) { $Title = ($words | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join ' ' }
+# Invariant: under a Turkish culture 'i'.ToUpper() is a dotted capital I (ice-cave was refused as a project name)
+if (-not $Project) { $Project = ($words | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '' }
+if (-not $Title) { $Title = ($words | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join ' ' }
 if (-not $IdPrefix) { $IdPrefix = if ($words.Count -ge 2) { ($words | ForEach-Object { $_[0] }) -join '' } else { $Slug.Substring(0, 2) } }
 # Case-sensitive (-cnotmatch, Options = 'None' above): PowerShell matches ignore case, and an id like Ba-00001 or
 # 3m-00001 fails the row schema for good (rows are never edited).
