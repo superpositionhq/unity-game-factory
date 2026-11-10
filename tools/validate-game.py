@@ -792,6 +792,54 @@ def task_semantic_errors(t):
     return errs
 
 
+def wild(sel):
+    """A select that takes its objects by a wildcard on their name and nothing else that narrows them."""
+    return isinstance(sel, dict) and isinstance(sel.get('name'), str) and bool(re.search(r'[*?]', sel['name'])) and \
+        all(sel.get(k) is None for k in ('component', 'tag', 'layer', 'near', 'has', 'player'))
+
+
+def object_points(o):
+    """Every object point ({"object": <select>, ...}) inside `o`, wherever it is nested."""
+    if isinstance(o, dict):
+        if isinstance(o.get('object'), dict):
+            yield o
+        for v in o.values():
+            yield from object_points(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from object_points(v)
+
+
+def task_warnings(t):
+    """Selects that take one object by a wildcard name alone (a warning, never an error): a teleport_to goes to the
+    nearest match (Inputs.TeleportTo), an object point stands at the first match in hierarchy order (Find.Point), and
+    "of": "first" reads the first row, in the same order. A spawner, a pool or a parent whose name fits is matched
+    too: the sample game's teleport_to {"name": "Coin*"} took CoinSpawner."""
+    out = []
+    for m in t.get('milestones') or []:
+        for c in (m.get('checks') or []) if isinstance(m, dict) else []:
+            if not isinstance(c, dict) or c.get('kind') != 'probe':
+                continue
+            measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
+            play = c.get('play') if isinstance(c.get('play'), dict) else {}
+            inputs, check, first = play.get('inputs') or [], f'check {c.get("name")}', 'the first (in hierarchy order)'
+            found = [(f'play {play.get("name")}', 'teleport_to', i['teleport_to'], 'goes to the nearest') for i in inputs
+                     if isinstance(i, dict) and wild(i.get('teleport_to'))]
+            found += [(f'play {play.get("name")}', 'the point', {'object': p['object']}, 'stands at ' + first)
+                      for p in object_points(inputs) if wild(p['object'])]
+            found += [(check, 'the point', {'object': p['object']}, 'stands at ' + first)
+                      for p in object_points(measure) if wild(p['object'])]
+            if measure.get('of') == 'first' and wild(measure.get('select')):
+                found.append((check, 'the select', measure['select'], 'reads ' + first))
+            for where, what, sel, how in found:
+                said = (f'{where}: {what} {json.dumps(sel)} {how} object whose name fits, and a spawner, a pool or a '
+                        'parent named like it fits too (Coin* takes CoinSpawner): select it by its component (or tag, '
+                        'layer, near), or by its full name')
+                if said not in out:   # a play's inputs once, whichever checks use the play
+                    out.append(said)
+    return out
+
+
 # The bar every task meets (owner, 2026-11-02): only long threads of multiple edits qualify (unity-write-tasks sections
 # 1, 6)
 MIN_OUTCOME_PROBES = 3     # required probes outside still_works: one per issue the thread settled
@@ -916,6 +964,8 @@ def check_task(rep, a, label, t, game, has_commit):
         return False
     for e in task_semantic_errors(t)[:5]:
         rep.error(a, f'{label}: {e}')
+    for w in task_warnings(t)[:5]:
+        rep.warn(a, f'{label}: {w}')
     gated = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
              if isinstance(c, dict) and c.get('kind') == 'probe' and c.get('required', True)]
     judged = [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []

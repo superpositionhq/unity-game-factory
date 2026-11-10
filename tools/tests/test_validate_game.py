@@ -583,6 +583,28 @@ class Units(unittest.TestCase):
         self.assertIn("'Exception(' isn't a regular expression",
                       ' '.join(vg.task_semantic_errors(task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [absent]}]))))
 
+    def test_wildcard_takes_one(self):
+        """A select that takes one object by a wildcard name alone is a warning, never an error (the sample game's
+        grab_coin teleported to CoinSpawner); one narrowed by its component, tag or full name is not."""
+        def report(teleport, point, first):
+            t = task('a' * 40, 'b' * 40)
+            checks = t['milestones'][2]['checks']
+            checks[0]['measure'] = {'probe': 'player', 'field': 'dist', 'to': {'object': point}, 'agg': 'min'}
+            checks[1]['play']['inputs'].append({'t': 9, 'teleport_to': teleport, 'distance': 0.3, 'hold': 0.5})
+            checks[2]['measure'] = {'probe': 'objects', 'select': first, 'field': 'glow', 'of': 'first'}
+            rep = vg.Report()
+            vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None)
+            self.assertEqual(errors(rep), [])
+            return [m for s, a, m in rep.items if s == 'warning']
+        ws = report({'name': 'Coin*'}, {'name': 'Lamp*'}, {'name': 'Coin?'})
+        self.assertEqual(len(ws), 3, ws)
+        for start in ('x: play collect: teleport_to {"name": "Coin*"} goes to the nearest object whose name fits',
+                      'x: check hero_on_ground: the point {"object": {"name": "Lamp*"}} stands at the first',
+                      'x: check enemies_glow: the select {"name": "Coin?"} reads the first'):
+            self.assertTrue(any(w.startswith(start) for w in ws), (start, ws))
+        self.assertEqual(report({'name': 'Coin*', 'component': 'Coin'}, {'name': 'Lamp_1'},
+                                {'name': 'Coin*', 'tag': 'Coin'}), [])
+
     def test_schema_first(self):
         """A task the schema refuses gets the schema's errors, never a traceback from the rules that read its values."""
         t = task('a' * 40, 'b' * 40)
