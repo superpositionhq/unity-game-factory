@@ -273,27 +273,39 @@ def default_settings(repo):
 
 
 def resolve_cfg(game):
-    """(settings file or None, repo folder or None) for --game: a settings file; a repo folder (its ReplayConfig.json,
-    else defaults); a slug under <root>/games (the same)."""
+    """(settings file or None, repo folder or None) for --game: a settings file (its "repo" names the repo); a repo
+    folder or a slug under <root>/games (that folder is the repo, with its ReplayConfig.json if it has one, else the
+    defaults)."""
     for cand in (game, os.path.join(HERE, game)):
         if os.path.isfile(cand):
             return os.path.abspath(cand), None
     repo = game if os.path.isdir(os.path.join(game, ".git")) else os.path.join(machine_root(), "games", game)
     if os.path.isdir(os.path.join(repo, ".git")):
         p = os.path.join(repo, SETTINGS_FILE)
-        return (os.path.abspath(p), None) if os.path.isfile(p) else (None, os.path.abspath(repo))
+        return (os.path.abspath(p) if os.path.isfile(p) else None), os.path.abspath(repo)
     raise SystemExit("no replay settings for %r: expected a game repo %s, a repo folder or a settings file" % (game, repo))
 
 
 def load_cfg(game):
     path, repo = resolve_cfg(game)
+    root = machine_root()
     if path:
         with open(path, encoding="utf-8-sig") as f:
             raw = json.load(f)
         raw = dict({k: v for k, v in DEFAULTS.items()}, **raw)   # a key the file leaves out takes its default
+        if repo:
+            # the repo given is the repo, whatever its settings file says: a copy of a game elsewhere carries the
+            # game's ReplayConfig.json, whose "repo" names the original
+            raw["repo"] = under_root(repo, root)
     else:
         raw = default_settings(repo)
-    root = machine_root()
+    if repo and os.path.normcase(os.path.abspath(repo).rstrip("\\/")) != os.path.normcase(
+            os.path.join(os.path.abspath(root), "games", os.path.basename(os.path.abspath(repo).rstrip("\\/")))):
+        # a repo that is not this root's game of that name (a copy, a clone elsewhere): a work folder of its own, never
+        # the game's (the settings it carries name the game's)
+        import hashlib
+        tag = hashlib.sha1(os.path.normcase(os.path.abspath(repo)).encode("utf-8")).hexdigest()[:8]
+        raw["work_root"] = "{root}/unity-replay/_other/%s-%s" % (os.path.basename(os.path.abspath(repo).rstrip("\\/")), tag)
     if "repo" not in raw or "game" not in raw:
         here = os.path.dirname(path)
         raw.setdefault("game", os.path.basename(here))
@@ -305,7 +317,7 @@ def load_cfg(game):
     cfg["_editor_per_commit"] = "{editor}" in str(raw.get("editor", ""))
     cfg["root"] = root
     cfg["_path"] = path
-    cfg["_source"] = path or repo
+    cfg["_source"] = repo or path   # what live reloads the settings from each pass
     cfg["_defaults"] = path is None
     w = cfg["work_root"]
     # the replay project and the truth clone carry the game folder's name: Unity names a new project's ProjectSettings
@@ -314,8 +326,15 @@ def load_cfg(game):
     cfg.setdefault("project_dir", os.path.join(w, name))
     cfg.setdefault("truth_dir", os.path.join(w, "truth", name))
     cfg.setdefault("work_dir", os.path.join(w, "work"))
-    os.makedirs(cfg["work_dir"], exist_ok=True)
-    return cfg
+    return cfg   # nothing is created here: each command makes the folders it writes to
+
+
+def machine_game(cfg):
+    """True when the settings' repo is exactly <root>/games/<slug> of this machine's root: the only repos the live
+    replay (started by every commit's hook) works on."""
+    repo = os.path.abspath(cfg["repo"]).rstrip("\\/")
+    want = os.path.join(os.path.abspath(cfg["root"]), "games", os.path.basename(repo))
+    return os.path.normcase(repo) == os.path.normcase(want) and os.path.isdir(os.path.join(repo, ".git"))
 
 
 def write_json(path, obj):

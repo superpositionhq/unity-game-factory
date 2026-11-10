@@ -240,8 +240,11 @@ the last windows. `"live": false` in its `ReplayConfig.json` turns it off.
 a new game and `machine/bootstrap.ps1` in every game under `<root>\games`) runs `tools/unity-replay/live-hook.ps1` of
 the tool checkout. It returns at once: it prints the last job's findings once (`[replay] ...`), then starts
 `unity_replay.py live --game <repo>` detached at below-normal priority unless a job for the game runs (one per game,
-`work/live/lock`; the running job picks up new commits before it exits). A commit on the orphan `tasks` branch is not
-replayed.
+`work/live/lock`; the running job picks up new commits before it exits). It acts only for a game of the machine's
+root: the repo must be exactly `<root>\games\<slug>` for the root the committing shell resolves (`UGF_ROOT`, else the
+machine config). A commit anywhere else that carries the line (a scratch or test copy of a game, a task check's copy,
+a clone in `builds\`, a game of another root) starts nothing and writes nothing, and `unity_replay.py live` refuses such
+a repo too. A commit on the orphan `tasks` branch is not replayed.
 
 **The job** (`live.py`):
 
@@ -286,7 +289,9 @@ A game made from an earlier template has no `ReplayConfig.json`, its own copies 
 
 1. Pull this repo and run `machine\bootstrap.ps1` (as before every new game). Bootstrap runs
    `machine\install-git-hook.ps1` for every game under `<root>\games`, which adds the live replay's line to each
-   post-commit hook (a game repo elsewhere: run `machine\install-git-hook.ps1 -Repo <repo>` once).
+   post-commit hook. A game repo outside `<root>\games` is not replayed after its commits: replay it by hand
+   (`unity_replay.py release --game <repo folder>`; a repo that is not the root's game of its name gets a work folder
+   of its own, `<root>\unity-replay\_other\<name>-<id>`).
 2. The game's next commit starts its first live job, which replays its whole history from the first commit: one
    headless editor run per recorded step, at low priority.
 3. The game replays with the defaults of section 5 (`unity_replay.py` derives the slug, the recording folder and the

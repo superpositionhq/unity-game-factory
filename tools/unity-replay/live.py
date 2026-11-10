@@ -642,6 +642,11 @@ def catch_up(cfg, lst):
 
 
 def cmd_live(cfg, a):
+    if not unity_replay.machine_game(cfg):
+        # only a game of this machine's root (<root>/games/<slug>): a copy of a game elsewhere, or a game of another
+        # root, would put the replay's folders into this root. Nothing is written.
+        print("live: %s is not %s/games/<slug>: not replayed" % (cfg["repo"], cfg["root"]))
+        return 0
     if getattr(a, "log", None):
         os.makedirs(os.path.dirname(a.log), exist_ok=True)
         sys.stdout = sys.stderr = open(a.log, "a", encoding="utf-8", buffering=1)

@@ -6,15 +6,17 @@
   every new commit to <root>\.recording\<repo name>\commits.jsonl; it is silent (a recorder that fails must never print
   into a commit's output). The second runs this checkout's tools\unity-replay\live-hook.ps1, which prints the creation
   replay's last findings once and starts the replay of the new commits in the background (docs/unity-replay.md, "Live
-  replay"); it does nothing for a repo whose ReplayConfig.json has "live": false. Its output (the replay's findings for
-  the game session) is meant to be seen, so it is not silenced.
+  replay"); it does nothing for a repo whose ReplayConfig.json has "live": false, and nothing at all, silently, for a repo
+  that is not exactly <root>\games\<slug> of the root the committing shell resolves (a copy of a game elsewhere, a task
+  check's copy, a clone in builds\). Its output (the replay's findings for the game session) is meant to be seen, so it
+  is not silenced.
   Git LFS's own post-commit lines stay first: when the hook does not exist yet, `git lfs update` creates it before the
   lines are appended. A repo whose hook already runs this hooks dir's record-unity-commit.ps1 and this checkout's
   live-hook.ps1 is left alone; a line that names another hooks dir or another checkout (moved since) is replaced, and
   when another tool's hook ends in `exit` or `exec` the lines go before that (after it, they never ran); an `exit` or
   `exec` higher up, which the lines cannot be put before, gets a warning. -Force rewrites the lines in any case.
   machine\bootstrap.ps1 runs this for every game repo under <root>\games, so after a pull of this repo and a bootstrap
-  every game has the current lines; a game repo elsewhere needs this run once.
+  every game has the current lines; a game repo elsewhere needs this run once for the recorder.
   Both scripts exit at once when the committing checkout is on the orphan `tasks` branch (the game's tasks,
   docs/game-format.md): a commit there, e.g. from a tasks worktree, is neither recorded nor replayed.
 .EXAMPLE

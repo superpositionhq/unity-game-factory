@@ -16,18 +16,23 @@ param([Parameter(Mandatory = $true)][string]$Repo)
 $ErrorActionPreference = 'Stop'
 try {
     if ($env:UGF_NO_RECORDING -or $env:GF_NO_RECORDING) { exit 0 }   # a task try's agent: not a game session
+    # Only a game of this machine's root: the repo must be exactly <root>\games\<slug> for the root this shell resolves
+    # (UGF_ROOT, else the machine config). Any other repo with this hook line (a scratch or test copy of a game, a task
+    # check's copy, a clone in builds\, a game of another root) gets nothing, silently: no folder made, no job started.
+    $checkout = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent      # the tool checkout
+    . (Join-Path $checkout 'machine\lib\ugf-root.ps1')
+    $root = Get-UGFRoot
+    $Repo = [IO.Path]::GetFullPath($Repo).TrimEnd('\')
+    $slug = Split-Path -Leaf $Repo
+    if (-not $slug -or $Repo -ne [IO.Path]::GetFullPath((Join-Path $root "games\$slug")).TrimEnd('\')) { exit 0 }
+    if (-not (Test-Path -LiteralPath (Join-Path $Repo '.git'))) { exit 0 }
     if ((git -C $Repo symbolic-ref --short -q HEAD) -eq 'tasks') { exit 0 }   # the tasks branch is not game history
-    $Repo = (Resolve-Path -LiteralPath $Repo).Path
     $cfgPath = Join-Path $Repo 'ReplayConfig.json'
     $cfg = $null
     if (Test-Path -LiteralPath $cfgPath) {
         $cfg = [IO.File]::ReadAllText($cfgPath) | ConvertFrom-Json
         if ($cfg.PSObject.Properties['live'] -and -not $cfg.live) { exit 0 }
     }
-    $checkout = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent      # the tool checkout
-    . (Join-Path $checkout 'machine\lib\ugf-root.ps1')
-    $root = Get-UGFRoot
-    $slug = Split-Path -Leaf $Repo
     $workRoot = if ($cfg -and $cfg.PSObject.Properties['work_root'] -and $cfg.work_root) { [string]$cfg.work_root } else { "{root}/unity-replay/$slug" }
     $workRoot = $workRoot.Replace('{root}', $root).Replace('/', '\')
     $live = Join-Path $workRoot 'work\live'
