@@ -21,7 +21,7 @@
   (<root> written out, e.g. C:\Users\<you>\UnityWork)
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidatePattern('^[a-z0-9][a-z0-9-]*[a-z0-9]$', Options = 'None')][string]$Slug,
+    [Parameter(Mandatory = $true)][ValidatePattern('^(?!.*--)[a-z0-9][a-z0-9-]*[a-z0-9]$', Options = 'None')][string]$Slug,
     # required: the absolute <root>\games\<slug>, written out
     [string]$Path,
     # default from the slug: island-survival -> IslandSurvival
@@ -68,8 +68,9 @@ if (-not $IdPrefix) { $IdPrefix = if ($words.Count -ge 2) { ($words | ForEach-Ob
 # 3m-00001 fails the row schema for good (rows are never edited).
 if ($Project -cnotmatch '^[A-Z][A-Za-z0-9]{1,30}$') { throw "project name '$Project' must be PascalCase letters/digits (pass -Project)" }
 if ($IdPrefix -cnotmatch '^[a-z]+$') { throw "workflow row id prefix '$IdPrefix' must be lower-case letters (pass -IdPrefix)" }
-# The title and description land in C# string literals and JSON: keep them plain text.
-foreach ($v in @($Title, $Description)) { if ($v -match '["\\`\r\n]') { throw "no quotes, backslashes or line breaks in title or description: '$v'" } }
+# The title lands in C# string literals (ProjectSetup.cs: company and product name) and on the comment line that opens
+# Scripts\unity.ps1: keep it plain text. (The description lands only in README.md.)
+if ($Title -match '["\\\r\n]') { throw "no quotes, backslashes or line breaks in the title: '$Title'" }
 
 # Names that must never appear inside a game (code, config, commits, builds).
 foreach ($v in @($Slug, $Project, $Title, $Description, $Reason)) {

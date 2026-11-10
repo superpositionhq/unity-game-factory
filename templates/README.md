@@ -15,9 +15,8 @@ commit recorder to `post-commit` (`machine/install-git-hook.ps1`); makes the fir
 (`Scripts/unity.ps1 setup`) and commits what it made, when the editor is installed (`-NoSetup` skips it); and creates
 the private GitHub repo `<org>/unity-game-<slug>` (`github_org` in the machine config, or `-Org`) as `origin` without
 pushing (`-NoGitHub` skips that; an existing repo of that name is never linked: it may be another game's, or public).
-It refuses names containing
-Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes or backslashes (they land in C#
-string literals).
+It refuses names containing Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes,
+backslashes or line breaks (they land in C# string literals).
 
 The editor version: `-UnityVersion`, else the config's `unity_version` (default `6000.3`: the newest installed
 `6000.3.*` editor; an exact version such as `6000.3.28f1` pins it); with no such editor installed it stops, unless
