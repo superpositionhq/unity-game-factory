@@ -325,7 +325,8 @@ renderers, else its position.
     name one of them; a nested type goes by its own name (`Inner`). A name no component can have (a typo, a type only
     the fix adds, read on the start; a plain C# class) matches nothing, and the play's `query_errors` says
     `objects <id>: no component type <T>` (for a `has` `component` too).
-  - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's whole name (`*` any
+  - `tag`: the object's tag. `layer`: its layer, by its exact name. A tag or a layer the project doesn't define
+    matches nothing, with no `query_errors` line. `name`: a wildcard on the GameObject's whole name (`*` any
     run of characters, `?` one character, any case). Every object whose name fits matches: `Coin*` takes a
     `CoinSpawner` or a `CoinPool` as well as the coins, and a select that picks one match (`teleport_to`, a point,
     `"of": "first"`) may pick the spawner. To pick the things themselves, select them by their own component
