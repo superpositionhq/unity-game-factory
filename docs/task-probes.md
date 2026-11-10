@@ -381,9 +381,10 @@ renderers, else its position.
     local bounds in m2, scaled (what a glowing surface that size gives every way); a source read as rendered, as
     section 2.5 says. **Its threshold is calibrated or relative to the start, never a literal value**. A row with
     `lit` or `glow` also carries `glow_sources`, the kinds lit (`light`, `emissive`, `unlit`, `effect`), and
-    `glow_read`, how its renderers were read (`props`, `render`, or `unread`: there was no way to read one, and then
-    the row has no value unless another source is lit), for the logs; neither is a field to measure. How a renderer's
-    light is read, and its limits: section 2.5;
+    `glow_read`, how its renderers were read (`props`, `render`, `bound`: a mesh's properties with each texture taken
+    as white, read without a render; or `unread`: there was no way to read one, and then the row has no value unless
+    another source is lit), for the logs; neither is a field to measure. How a renderer's light is read, and its
+    limits: section 2.5;
   - `prop:<Component>.<member>[.<sub>]` or `prop:<member>`: read by reflection, instance fields and properties,
     public or not (static members and indexers are not read). The component by type name on the object, else the
     first in its descendants (`prop:Health.current`, `prop:Rigidbody.mass`, `prop:Light.intensity`); `prop:<member>`
@@ -489,6 +490,10 @@ read either way.
   that is one region of a larger mesh's material, say). `glow_read` is `render`. A mesh whose shaders are all of the
   two kinds and whose colours are at or under 0.01 is dark whatever its textures, and isn't rendered (`glow_read`
   `bound`). What such a render can't switch off, and its other limits: section 2.19.
+- **Without a render** (past the 64 renders a sample, below; a renderer on the UI layer; a player that can't render
+  alone: section 2.19), a mesh reads the bound its materials of the two kinds give instead, each texture taken as
+  white (`glow_read` `bound`); a mesh with no such material, and any other source read as rendered, has no value that
+  sample (`glow_read` `unread`).
 
 Limits:
 - a renderer read from its properties counts its brightest material over its whole bounds, so a lamp post with a small
@@ -497,7 +502,7 @@ Limits:
 - a mesh drawn only on its inside (a sky dome, a room seen from within) is rendered from outside, usually as nothing,
   so it reads dark that way; one on a layer only a filtered URP renderer draws (section 2.19) reads dark that way too;
 - rendering is done at the sample, each renderer once a sample, at most 64 renders a sample over every query (past
-  that, a source isn't read that sample: no value, `glow_read` `unread`);
+  that, as without a render, above: a mesh's bound, anything else no value);
 - a Light's cookie is not read; decals, sprite masks and UI are not sources (3D text is a mesh source: it draws with a
   MeshRenderer); select the lamp (by owner, tag, `mesh` or `near`), not every renderer in the scene.
 
