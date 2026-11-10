@@ -264,7 +264,8 @@ prefab for (`no asset`, `no scene`, `no prefab`), a colour without a channel, an
 or a select using `player`, `has` or a `near` around the player or the camera (task-probes.md, section 2.11). `the
 property has no number`: the value isn't a number, a boolean or an enum (a string needs `match`); `no selected object
 has a value`: none of the selected objects has it. `the editor pass gave no result (exit N)`: the pass itself failed
-(its log is `editor\output.txt`); `the project didn't build, so the editor couldn't open it`: see `start doesn't
+(its log is `editor\output.txt`); `the editor pass gave nothing for it`: the pass ran but its result has nothing for
+this measure (see the same log); `the project didn't build, so the editor couldn't open it`: see `start doesn't
 build`.
 
 **`of` defaults to `count`.** For `objects`, `components`, `widgets`, `ui` and scene `asset` measures, `of` combines
