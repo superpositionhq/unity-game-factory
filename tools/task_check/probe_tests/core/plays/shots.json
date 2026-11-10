@@ -1,0 +1,7 @@
+{
+ "seconds": 3,
+ "shots": 3,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Stage.unity",
+ "queries": []
+}

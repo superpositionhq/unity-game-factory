@@ -1,0 +1,20 @@
+{
+ "seconds": 3,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Clock.unity",
+ "queries": [
+  {
+   "id": "clocks",
+   "kind": "objects",
+   "select": {
+    "name": "Hero"
+   },
+   "fields": [
+    "prop:CoreMover.unscaled",
+    "prop:CoreMover.real",
+    "prop:CoreMover.game"
+   ]
+  }
+ ]
+}

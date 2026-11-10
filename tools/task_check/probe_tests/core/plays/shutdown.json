@@ -1,0 +1,7 @@
+{
+ "seconds": 3,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Clock.unity",
+ "queries": []
+}

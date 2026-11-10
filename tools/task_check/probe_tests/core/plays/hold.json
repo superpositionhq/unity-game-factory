@@ -1,0 +1,18 @@
+{
+ "seconds": 4,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Stage.unity",
+ "queries": [],
+ "inputs": [
+  {
+   "t": 1.0,
+   "teleport": [
+    0,
+    0,
+    0
+   ],
+   "hold": 2.0
+  }
+ ]
+}

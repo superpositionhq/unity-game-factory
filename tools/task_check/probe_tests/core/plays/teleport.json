@@ -1,0 +1,73 @@
+{
+ "seconds": 4,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Stage.unity",
+ "queries": [
+  {
+   "id": "hero",
+   "kind": "objects",
+   "select": {
+    "name": "Hero"
+   },
+   "fields": [
+    "yaw",
+    "prop:CoreWalker.strayed",
+    "prop:CoreWalker.unfocused",
+    "prop:CoreWalker.focusLost",
+    "prop:CoreWalker.both",
+    "prop:CoreWalker.mouseX",
+    "prop:CoreWalker.scrollY",
+    "prop:CoreWalker.left",
+    "prop:CoreWalker.cursorX",
+    "prop:CoreWalker.cursorY",
+    "prop:CoreWalker.pad",
+    "prop:CoreWalker.stickX",
+    "prop:CoreWalker.south"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 1.0,
+   "teleport": [
+    5,
+    0,
+    5
+   ],
+   "yaw": 90
+  },
+  {
+   "t": 2.0,
+   "teleport_to": {
+    "name": "Post"
+   },
+   "distance": 2.0
+  },
+  {
+   "t": 3.0,
+   "teleport_to": {
+    "name": "Post"
+   },
+   "distance": 3.0,
+   "offset": [
+    0,
+    1,
+    0
+   ],
+   "face": {
+    "xyz": [
+     8,
+     0,
+     100
+    ]
+   }
+  },
+  {
+   "t": 3.6,
+   "teleport_to": {
+    "name": "NoSuchThing"
+   }
+  }
+ ]
+}

@@ -1,6 +1,18 @@
 {
-  "seconds": 3, "shots": 2, "every": 0.5, "scene": "Assets/ProbeTests/core/Made/Clock.unity",
-  "queries": [
-    {"id": "frame", "kind": "screen", "rect": [0, 0, 1, 1]}
-  ]
+ "seconds": 3,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Clock.unity",
+ "queries": [
+  {
+   "id": "frame",
+   "kind": "screen",
+   "rect": [
+    0,
+    0,
+    1,
+    1
+   ]
+  }
+ ]
 }

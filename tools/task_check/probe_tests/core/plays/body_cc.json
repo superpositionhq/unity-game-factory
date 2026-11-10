@@ -1,0 +1,33 @@
+{
+ "seconds": 3,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Bodies.unity",
+ "player": {
+  "name": "BodyCc"
+ },
+ "queries": [
+  {
+   "id": "body",
+   "kind": "objects",
+   "select": {
+    "name": "BodyCc"
+   },
+   "fields": [
+    "yaw"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 1.0,
+   "teleport": [
+    0,
+    4,
+    0
+   ],
+   "hold": 1.5,
+   "yaw": 90
+  }
+ ]
+}

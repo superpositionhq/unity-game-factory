@@ -56,8 +56,7 @@ namespace TaskProbe
 
         bool started, done, sceneAsked;
         bool counted;  // this frame is one of the play's clock (not one of a wait or of a scene loading)
-        bool quitAsked;  // the play is over and the probe asked the game to quit
-        int frames, framesWaited, shotsTaken, startFrames, loadFrames, framesAfterQuit, errorsLeftOut;
+        int frames, framesWaited, shotsTaken, startFrames, loadFrames, errorsLeftOut;
         double nextSample;
         GameObject player;
         int playerStamp = -1;
@@ -351,12 +350,7 @@ namespace TaskProbe
         {
             Stamp++;
             counted = false;
-            if (done)
-            {
-                // frames go on after the probe asked to quit: the game said no (Application.wantsToQuit)
-                if (quitAsked && ++framesAfterQuit > 3) Terminate();
-                return;
-            }
+            if (done) return;
 #if TASKPROBE_AUDIO
             AudioTap.Follow();  // every frame, before the clock starts too: a listener without its tap is heard
 #endif
@@ -591,31 +585,26 @@ namespace TaskProbe
             try { logFile?.Dispose(); } catch { }
             logFile = null;
             if (!quit) return;
-            // The play is over and probe.json is written: the process ends, whatever the game does. A game may
-            // refuse to quit (Update sees the frames go on) or hang in its shutdown (this thread, after 5 s).
-            quitAsked = true;
+            // The play is over and its files are written and closed: the process ends here, with exit code 0. The
+            // engine's own shutdown is no part of the play, a game may refuse it (Application.wantsToQuit) or hang
+            // in it, and on a busy machine it has taken minutes (a player was killed at the checker's timeout four
+            // minutes after its play had ended), which nothing in the process can cut short once the scripting
+            // runtime is gone. Only ever reached at the end of a -taskProbe play.
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            TerminateProcess(GetCurrentProcess(), 0);
+#else
             new Thread(() =>
             {
                 Thread.Sleep(5000);
-                Terminate();
+                try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
             }) { IsBackground = true }.Start();
             Application.Quit(0);
+#endif
         }
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
         [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr process, uint exitCode);
 #endif
-
-        /// <summary>Ends the player's process with exit code 0, as the quit it didn't do would have. Only ever called
-        /// after a -taskProbe play has ended and written its files.</summary>
-        static void Terminate()
-        {
-#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            TerminateProcess(GetCurrentProcess(), 0);
-#else
-            try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
-#endif
-        }
     }
 }
