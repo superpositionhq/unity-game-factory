@@ -457,12 +457,12 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   no value unless it is a SkinnedMeshRenderer);
 - `lit` and `glow`: as an object's (section 2.4), for one source: a Light; a renderer with its materials (a
   MeshRenderer or SkinnedMeshRenderer as below; any other that draws a shape, a SpriteRenderer, a LineRenderer, a
-  TilemapRenderer, always as rendered: what it draws is its own, not its material's); or an effect (a ParticleSystem,
-  a TrailRenderer, a VisualEffect, or its renderer); no value for any other component. An effect is read as rendered,
-  as a mesh is below (its world bounds for the box), lit when it is live (a particle system playing or holding
-  particles, a trail drawing points, a visual effect holding particles), its renderer drawn and its brightest pixel
-  above 0.01. A row it lights names `effect` in `glow_sources`. **Check for light with these**, whatever the build
-  made it with;
+  TilemapRenderer, always as rendered, as a mesh is below with its world bounds for the box: what it draws is its own,
+  not its material's); or an effect (a ParticleSystem, a TrailRenderer, a VisualEffect, or its renderer); no value
+  for any other component. An effect is read as rendered, as a mesh is below (its world bounds for the box), lit when
+  it is live (a particle system playing or holding particles, a trail drawing points, a visual effect holding
+  particles), its renderer drawn and its brightest pixel above 0.01. A row it lights names `effect` in
+  `glow_sources`. **Check for light with these**, whatever the build made it with;
 - `intensity` (a Light's own intensity, in its units) and `on` (1 when the Light lights the scene: enabled, active in
   the hierarchy, of an intensity above 0: the `light` probe's test of a Light that is on, section 2.7, which then
   also leaves out a baked one). A lamp switched off by intensity 0 or by disabling the Light reads 0. One switched
