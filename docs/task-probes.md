@@ -520,8 +520,8 @@ Limits:
   `ambientIntensity`; gradient ambient is a mix of the sky, equator and ground colours, not the sky colour), times the
   open share of 9 upward rays (straight up and 8 around it at 45 degrees, 2000 m each, stopped as the wall check is).
   It is in Unity's own light units, not lux;
-- `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without one, or when the
-  camera's post-processing is off. URP has no auto-exposure;
+- `exposure`: `2^postExposure` of the URP volume stack at the camera (section 2.8); 1 without one (so at a play's
+  first sample: section 2.8), or when the camera's post-processing is off. URP has no auto-exposure;
 - `brightness`: `illuminance * exposure`, what the player sees at that point.
 
 The sample's value also holds the parts of `illuminance` (`local`: point and spot lights, `directional`, `sky`: the
@@ -552,6 +552,10 @@ parameter's effective value at the camera after blending.
   (`source: "camera"`), or takes the camera's own stack when the camera updates it by script (`camera_stack`). A camera
   with post-processing off draws ungraded: neutral constants and exposure 1 (its `post:` values still read the stack).
   Without URP the constants are neutral and a `post:` field has no value.
+- A play's first sample comes before URP has set up its volumes: it reads no stack (its `source` is "none"), so
+  neutral constants, exposure 1 and no `post:` value, whatever the scene's volumes hold (the next sample reads them).
+  Start a window that reads the grade, `exposure` or `brightness` after it (`"window": [0.5, 20]`), and never read
+  them `"at": [0]`.
 - Post exposure moves `grey`: URP multiplies the frame by 2^postExposure before the grading lookup. Contrast pivots on
   ACEScc mid-grey (about 0.2248 linear), so a contrast above 1 darkens a 0.18 grey: that is URP's own behaviour. An
   untouched volume stack gives exactly `grey` 0.18, whatever the key light (only its hue counts), and `cast` 0 under a
