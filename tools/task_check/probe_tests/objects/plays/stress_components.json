@@ -1,0 +1,30 @@
+{
+ "seconds": 10,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/Scenes/ObjStress.unity",
+ "sound": false,
+ "player": null,
+ "inputs": [],
+ "queries": {
+  "format": "game-probe-queries/1",
+  "every": 0.1,
+  "queries": [
+   {
+    "id": "s",
+    "kind": "components",
+    "select": {
+     "component": "MeshRenderer"
+    },
+    "fields": [
+     "x",
+     "spin",
+     "lit",
+     "glow",
+     "changed",
+     "visible"
+    ]
+   }
+  ]
+ }
+}
