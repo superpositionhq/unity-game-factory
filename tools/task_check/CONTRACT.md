@@ -454,72 +454,226 @@ the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has n
 
 ## 5. Files the probe and the checker exchange
 
-**The play spec** (`-taskProbe <file>`; the checker writes it, one per play):
+The original passes its plugin a flag for each setting (`-TaskProbeOut`, `-TaskProbeSeconds`, `-TaskProbeInputs`
+...) and runs its editor pass as a Python script in its headless editor. The port hands the player one play spec and
+runs an editor method, so those requests are its own formats; `probe.json` is the original's `game-probe/1` with
+`scene` in place of `map` and `player` added, and the editor pass's result is the original's. The checker's files of a
+copy are under `<copy>/Logs/TaskProbe/` (`unity.LOGS`; a game never keeps anything in Unity's `Logs/`), each made
+fresh before its job. The examples below are of the sample game's task `lamp-keeper-fix-lamps-hud-camera`, its
+reference commit's copy written as a run with `--scratch C:\tc` places it (`C:\tc\38e8bcd7\ff49e5194fe4`): the
+requests are what the checker's own functions write for it, the results the real ones, unless one says otherwise.
+
+**The play spec** (`<copy>/Logs/TaskProbe/play_spec.json`, written by `unity.Project.play`, read by `Probe.Begin`). The
+task play `scenario_two`, with its queries as `probes.plan` makes them (the ids are those of the play's real
+`probe.json`):
 
 ```json
-{"format": "unity-probe-play/1", "out": "<dir>", "seconds": 20, "shots": 6, "every": 0.5,
- "scene": "Assets/Scenes/X.unity or null", "sound": false, "player": null,
- "inputs": [ ... section 4 rows, defaults filled in ... ],
- "queries": {"format": "game-probe-queries/1", "every": 0.5, "queries": [{"id": "q...", "kind": "objects", "select": {...}, "fields": [...]}, ...]}}
+{"format": "unity-probe-play/1", "out": "C:/tc/38e8bcd7/ff49e5194fe4/Logs/TaskProbe/play", "seconds": 8,
+ "shots": 2, "every": 0.5, "scene": "Assets/Scenes/Yard.unity", "sound": false, "player": null,
+ "inputs": [{"t": 2.0, "wait": 2.0}, {"t": 4.0, "key": "<Keyboard>/space", "press": true},
+            {"t": 4.3, "key": "<Keyboard>/space", "press": false}],
+ "queries": {"format": "game-probe-queries/1", "every": 0.5, "queries": [
+   {"id": "q0515f1b44e", "kind": "ui", "select": {"kind": "text", "rect": [0.0, 0.0, 0.4, 0.09]},
+    "fields": ["h", "text", "w", "x", "y"]},
+   {"id": "q2af780091d", "kind": "objects", "select": {"name": "Lamp_3"}, "fields": ["lit"]},
+   {"id": "qe2fd69dd75", "kind": "widgets", "select": {"component": "Slider", "name": "FuelBar"},
+    "fields": ["percent"]}]}}
 ```
 
-Query kinds and their keys: `objects` (`select`, `fields`), `components` (`select`, `fields`), `widgets` (`select`,
-`fields`), `ui` (`select`, `fields`), `camera` (`fields`), `light` (`point`), `grading` (`fields`: the `post:` names),
-`spawns` (`component`), `pieces` (`select`), `screen` (`rect`), `audio` (`select`), `ground` (`xz` | `box` + `grid`,
-`select`), `drawn` (`near` | `line`, `fields`). A query's id is `"q" + sha256(json of the query without fields)[:10]`.
+- What varies: `out` (the copy's), the play's `seconds`, `shots`, `every`, `scene` (null: the game's first build
+  scene), the task's `player` select (null: the probe finds the player, section 1), its `inputs` with the checker's
+  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries.
+- The probe reads `out` (default: `persistentDataPath/TaskProbe`), `seconds` (clamped to 1-600; default 20), `every`
+  (0.1-1.0; 0.5), `shots` (0-64; 0), `scene`, `sound`, `player` (its own `player` key ignored), `inputs` and
+  `queries.queries`; the queries' `format` and `every` ride along unread. A play without queries has an empty list.
+- A query holds `id`, `kind`, its kind's keys and `fields`: `objects`, `components`, `widgets`, `ui` take `select` and
+  `fields`; `camera` `fields`; `light` `point`; `grading` `fields` (the `post:` names asked for); `spawns`
+  `component`; `pieces` `select`; `screen` `rect`; `audio` `select`; `ground` `xz` or `box` and `grid`, and `select`
+  when set; `drawn` `near` or `line`, and `fields` (`probes.needs`). `fields` is the sorted union of what the play's
+  probes read of it (`[]` for a count). Its id is `"q"` and the first 10 hex digits of the sha256 of
+  `json.dumps(<the query without its id and fields>, sort_keys=True)` (`probes.query_id`), so probes reading other
+  fields of one selection share it; the queries are merged per play and sorted by id (`probes.plan`). The probe takes
+  any id (the probe tests name theirs) and at most 256 queries.
 
-**probe.json** (the probe writes it into `out`, UTF-8, then exits):
+**probe.json** (written by the probe into `out` when the play ends, UTF-8 without a BOM, compact; read by
+`unity.Project.play`, then `probes.py`). The start of that play's real file on the reference, spaced out here: its
+first two track and camera rows (of 18) and the first sample of each query:
 
 ```json
-{"format": "unity-probe/1", "ended": "time", "seconds": 20.5, "scene": "Assets/Scenes/X.unity", "player": "Hero",
- "inputs_sent": 3, "screenshots": ["shot_00.png"],
- "track": [[t, x, y, z], [t]],
- "camera": [[t, x, y, z, pitch, yaw, fov]],
- "measures": {"q1a2b3c4d5e": [{"t": 0.5, "rows": [{"name": "...", "class": "...", "x": 1.0}], "total": 389, "full": {"x": {"n": 389, "nonzero": 380, "sum": 1.0, "min": 0.0, "max": 9.0}}},
-                              {"t": 0.5, "value": {"illuminance": 1.2}}]},
- "query_errors": ["..."]}
+{"format": "unity-probe/1", "ended": "time", "seconds": 8.5333333333333332, "scene": "Assets/Scenes/Yard.unity",
+ "player": "Keeper", "inputs_sent": 3, "screenshots": ["shot_00.png", "shot_01.png"],
+ "track": [[0.033333333333333333, 3.7999999523162842, 0.079999983310699463, -14],
+           [0.5, 3.7999999523162842, 0.079999983310699463, -14]],
+ "camera": [[0.033333333333333333, 10.30000114440918, 3.2799999713897705, -13.999999046325684, 10.459908485412598,
+             -90, 55],
+            [0.5, 10.30000114440918, 3.2799999713897705, -13.999999046325684, 10.459908485412598, -90, 55]],
+ "measures": {
+  "q0515f1b44e": [{"t": 0.033333333333333333, "rows": [{"name": "ScoreText", "class": "TextMeshProUGUI",
+                   "source": "ugui", "kind": "text", "h": 0.064814814814814811, "text": "SCORE 100",
+                   "w": 0.27083333333333331, "x": 0.020833333333333332, "y": 0.027777777777777776}]}],
+  "q2af780091d": [{"t": 0.033333333333333333, "rows": [{"name": "Lamp_3", "class": "Lamp",
+                   "glow_read": "props,render", "lit": 1, "glow_sources": "light,emissive,effect"}]}],
+  "qe2fd69dd75": [{"t": 0.033333333333333333, "rows": [{"name": "FuelBar", "class": "Slider",
+                   "percent": 0.1496296226978302}]}]}}
 ```
 
-`ended`: `time` (ran its seconds), `shutdown` (the game quit first). Selection samples have `rows` (at most 200),
-and `total` and `full` when more matched; value samples have `value` (an object, or null). A `ui` sample with no
-frame drawn has no `rows` key. Screenshots are 960x540 PNGs with the UI, evenly over the play.
+- `ended`: `time` (the clock passed its seconds + 0.5) or `shutdown` (the game quit first: `Application.quitting`).
+  `seconds`: the play time at the end, its seconds + 0.5 plus the frames (at most 5) a last sample that reads the
+  drawn frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
+  `screenshots`: 960x540 PNGs of the frame as displayed, UI included, taken at the middle of each of `shots` equal
+  parts of the play.
+- Samples fall on frames: the first at 1/30 s (the clock's first frame), then every `every` s, on the frame that
+  reaches it. Every sample adds a `track` row, `[t, x, y, z]` (the player's transform position) or `[t]` while there
+  is no player (no value there for the checker), and a `camera` row `[t, x, y, z, pitch, yaw, fov]` when there is a
+  player camera (a sample without one has no value for the camera's fields).
+- `measures` (only when the spec has queries): each query's id and its samples, one per sample time, each with its
+  `t`: `rows` for `objects`, `components`, `widgets` and `ui` (`RowSet`: at most 200; when more matched, also `total`,
+  how many, and `full`, for each field its `n`, `nonzero`, `sum`, `min` and `max` over every match's numeric value), or
+  `value`, an object or null, for the others. A `ui` sample whose frame never came has no `rows`; a `screen` sample's
+  value is then null.
+- `query_errors` (only when there was one): each line once, at most 50: `<kind> <id>: <message>` (or `<kind> <id>
+  (frame): ...`) for a query's own error, `<kind>: <message>` for a select's (`spawns: no component type Coin`),
+  and the loop's own (`a query has no id or kind`, `no query kind <kind>`, `the play's scene <scene> isn't in the build:
+  the game's own first scene is played`, `inputs: ...`).
+- Numbers: whole ones without a fraction, the rest in their round-trip form; NaN and infinities are written null
+  (`Json.Write`).
 
-The probe also writes `probe.log` into `out`: its own lines (teleports, clicks, waits, errors) with play time and real
-time; the game's own log is `play.log`.
+**probe.log** (beside it in `out`): the probe's own lines, each with the play time and the real time since the player
+started (`Probe.Log`): the start, the clock's start, waits, teleports, holds, clicks, cursor moves, errors (`error:
+...`), `drawn`'s cost every 10 samples, and the end. The game's own log is `play.log`. The real one of the task play
+`reach_lamp` (it measures audio, so it ran paced to real time):
 
-**Player command line**: `python tools\task_check\desk.py <copy>\Build\TaskProbe\Game.exe -screen-fullscreen 0
--screen-width 960 -screen-height 540 -logFile <copy>\Logs\TaskProbe\play.log -taskProbe <spec file> <play args...>`,
-working directory the build folder, through `unity-heavy.ps1 -Gpu` when the machine has it. `desk.py` starts the
-player on a Windows desktop of its own (`WinSta0\TaskProbe`) and returns its exit code.
+```
+0.00 [0.2 s] play: 10.0 s, every 0.25 s, 2 shot(s), 7 query(ies), scene Assets/Scenes/Yard.unity, on its own desktop
+0.00 [0.2 s] the play's clock starts in Assets/Scenes/Yard.unity
+1.00 [3.3 s] teleported next to Lamp_1: asked (-6.94, 0.00, 4.94) yaw -45.0, now at (-6.94, 0.00, 4.94)
+1.00 [3.3 s] holding the player at (-6.94, 0.00, 4.94) for 1.0 s
+10.53 [12.9 s] the play ended: time
+```
 
-**Build**: `Unity.exe -batchmode -nographics -quit -projectPath <copy> -logFile <copy>\Logs\TaskProbe\build.log
--executeMethod TaskProbe.EditorTools.Build.Player -taskProbeBuild <request file>`; the request is `{"out":
-"<copy>/Build/TaskProbe", "scenes": ["Assets/Scenes/X.unity", ...], "result": "<copy>/Logs/TaskProbe/build.json"}`
-(`scenes`: every scene the task's plays open, added to the build after the project's own enabled build scenes). The
-result: `{"ok": true, "exe": "...", "scenes": [...], "errors": 0, "seconds": 41, "error": null, "missing":
-{"Assets/Scenes/X.unity": {"missing": ["<guid>", ...], "names": 57}}}` (`missing`: asset GUIDs a played scene names
-that the project has no asset for). The build passed when the exit code is 0 and the result says `ok`. The build sets,
-for the copy only: company name `TaskProbe.<12 hex of sha256 of the copy's folder>`, no splash screen, no static
-batching (a batched renderer's mesh would hide its own mesh name and triangle count), windowed 960x540, not resizable,
-run and visible in background, several instances allowed, the Mono backend, not a development build. Within one run, a
-copy's first build starts from the `Library/` of a copy already built (its compiled scripts and build caches left
-out), so it imports only what differs.
+**The player command line** (`unity.Project.play`; one command, in the build folder):
 
-**Editor pass**: `Unity.exe -batchmode -nographics -quit -projectPath <copy> -logFile ... -executeMethod
-TaskProbe.EditorTools.AssetPass.Run -taskProbeAssets <request file>`; request
-`{"nonce": "...", "measures": {"a<id>": {<asset measure>}}, "result": "<copy>/Logs/TaskProbe/probes_editor.json"}`;
-result `{"nonce": "...", "measures": {"a<id>": {"value": v} | {"rows": [{"name", "value"}]} | {"error": "..."}}}`.
+```
+python tools\task_check\desk.py <copy>\Build\TaskProbe\Game.exe -screen-fullscreen 0 -screen-width 960
+    -screen-height 540 -logFile <copy>\Logs\TaskProbe\play.log -taskProbe <copy>\Logs\TaskProbe\play_spec.json
+    <play args...>
+```
 
-**Scratch copy**: the commit as committed (LFS objects hardlinked), without `Tasks/`, `History/`, `Dataset/`,
-`Dataset.zip`; the probe added as `Packages/com.taskprobe/` (an embedded package: `Packages/manifest.json` untouched).
-Refused when `ProjectVersion.txt` isn't `6000.3.*`. Unity fails past 260-character paths: the checker refuses a
-scratch project folder longer than 90 characters and says to pass `--scratch`.
+It runs with the checker's own Python, the player being the one the build's result names (else that path), through
+`unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
+timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player
+on a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
+everything it started when `desk.py` goes, and exits with the player's exit code. What the play wrote into `out` is
+read back, then the folder deleted.
 
-**Results**: `task-check/1`, `task-check-progress/1`, `task-try/1`: the original's, with `missing_assets` in place of
-`missing_packages`.
+**The build** (`unity.Project.build`, `TaskProbe.EditorTools.Build.Player`; one command, in the copy):
 
-A crash in a play: the player log matches `Crash!!!|OUTPUTTING STACK TRACE|Fatal error|Out of memory` (a managed
-exception that the game survives is not a crash; `log_absent` checks for those).
+```
+<Unity.exe> -batchmode -nographics -quit -projectPath <copy> -logFile <copy>\Logs\TaskProbe\build.log
+    -executeMethod TaskProbe.EditorTools.Build.Player -taskProbeBuild <copy>\Logs\TaskProbe\build_request.json
+```
+
+`<Unity.exe>` is the one the copy's `ProjectVersion.txt` names (`ugfroot.unity_editor`), through
+`unity-heavy.ps1 -Label "task-check build <commit[:12]>"` when the machine has it, with a timeout of `--build-timeout`
+(3600 s). The request (the reference's; a copy built for several tasks of a run lists every scene asked of it so far,
+`check.Built`):
+
+```json
+{"out": "C:/tc/38e8bcd7/ff49e5194fe4/Build/TaskProbe", "scenes": ["Assets/Scenes/Yard.unity"],
+ "result": "C:/tc/38e8bcd7/ff49e5194fe4/Logs/TaskProbe/build.json"}
+```
+
+A real result (of a small two-scene project, its folder written as a copy's):
+
+```json
+{"ok": true, "scenes": ["Assets/Scenes/Menu.unity", "Assets/Scenes/Smoke.unity"], "missing": {},
+ "exe": "C:/tc/9d1f2a3b/5c1e0a7f2b44/Build/TaskProbe/Game.exe", "errors": 0, "warnings": 0, "seconds": 20}
+```
+
+- The request: `out` (default `<project>/Build/TaskProbe`, deleted first), `scenes` (the scenes the task's plays open:
+  `check.task_scenes`), `result` (default `<project>/Logs/TaskProbe/build.json`). An unreadable request: exit 2, no
+  result.
+- The result, written by `Build.Player` (compact): `ok` always; before the build `scenes` (the project's enabled build
+  scenes that exist, then the requested ones they lack that exist; a missing one only warns in the log) and `missing`
+  (each requested scene that names assets the project lacks, with its own `missing`, the GUIDs its file names, built-in
+  ones aside, with no file behind them in the AssetDatabase, and `names`, how many it names); after it `exe`,
+  `errors`, `warnings`, `seconds`; `error` only on a failure (`no scene to build: ...`, an exception, or `the player
+  build failed: <its first error>`). Unity exits 0 when `ok`, else 1; scripts that don't compile stop it before the
+  method runs (exit 1, no result).
+- The checker counts a build passed when Unity exited 0 and the result says `ok`; a result that says it failed fails
+  the build whatever the exit code, its `error` at the head of the kept `build.log`. A Unity without a licence (exit
+  198, or `No valid Unity Editor license` in its log) is the machine's error, never the game's: the task reads ERROR
+  (`unity.Unlicensed`).
+- The build sets, for the copy only: the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's
+  folder, lower-cased>` (`seeds.saves_company` computes the same); no splash screen; no static batching (a batched
+  renderer's mesh would hide its own mesh name and triangle count; set through PlayerSettings' internal
+  `SetBatchingForPlatform`, a warning in the log when it can't); windowed 960x540, not resizable; run and visible in
+  the background; several instances allowed; the player log on; the Mono backend; Windows x64; `BuildOptions.None`,
+  not a development build (no watermark on the frame). The game's assets and code are untouched.
+
+**The editor pass** (`unity.Project.editor_assets`, `TaskProbe.EditorTools.AssetPass.Run`; one command, in the copy):
+
+```
+<Unity.exe> -batchmode -nographics -quit -projectPath <copy> -logFile <copy>\Logs\TaskProbe\editor.log
+    -executeMethod TaskProbe.EditorTools.AssetPass.Run
+    -taskProbeAssets <copy>\Logs\TaskProbe\probes_editor_request.json
+```
+
+The request (the reference's, as `probes.editor_request` makes it, with the nonce of its real result):
+
+```json
+{"nonce": "497e337e009dd028c5fc3d519d88e08a",
+ "measures": {"a1d1b52ff50": {"probe": "asset", "prefab": "Assets/Prefabs/LampPost.prefab",
+                              "select": {"component": "Light"}, "field": "prop:Light.range", "of": "max"},
+              "a69f3386782": {"probe": "asset", "asset": "Assets/Materials/M_Bulb.mat", "field": "keyword:_EMISSION",
+                              "of": "count"}},
+ "result": "C:/tc/38e8bcd7/ff49e5194fe4/Logs/TaskProbe/probes_editor.json"}
+```
+
+Its result, written to `result` (compact) and printed as one line of the log after `TASK_PROBES `:
+
+```json
+{"measures": {"a1d1b52ff50": {"rows": [{"name": "LampLight", "value": 9}]}, "a69f3386782": {"value": 1}},
+ "nonce": "497e337e009dd028c5fc3d519d88e08a"}
+```
+
+- A measure's id is `"a"` and the first 10 hex digits of the sha256 of `json.dumps(<its set fields>, sort_keys=True)`
+  (`probes.editor_id`); each measure is the task's, every set field written, the checker's defaults included (`of`).
+  The nonce is new for every pass (`secrets.token_hex(16)`), so a result another pass left in the copy is never read.
+- A result per id: `value` (an `asset`), `rows`, each with `name` and `value` (a scene's or prefab's objects), or
+  `error`; the keys sorted. The checker takes the file, else the last `TASK_PROBES` line of the output,
+  whichever carries its nonce (`probes.editor_results`); with neither, the side's asset probes fail "the editor pass
+  gave no result (exit <code>)". Unity exits 0 when the pass ran, 2 for an unreadable request, 1 when scripts don't
+  compile (no result); a missing licence is the machine's error, as for a build. The pass never saves.
+
+**The scratch copy** (`seeds.py`): `<scratch>/<run tag>/<commit[:12]>`, where `--scratch` defaults to the machine
+root's `.task-check` when it is on the repo's drive, else a `.task-check` beside the repo's parent folder
+(`cli.default_scratch`; never inside the repo).
+
+- The commit as committed, read from the repo's git objects and its local Git LFS store (`seeds.materialize`): each LFS
+  file a hardlink of its object on the repo's volume, else a copy; an object missing from the store stops the copy
+  (`git lfs fetch` it). Never written: `Tasks/`, `History/`, `Dataset/`, `Dataset.zip` at the root, in any case.
+- The probe added as `Packages/com.taskprobe/` (`seeds.add_probe`): an embedded package (Unity loads every folder under
+  `Packages/` that holds a `package.json`), so `Packages/manifest.json` and every other file of the game stay as
+  committed. An IDE's `obj`, `bin`, `.vs` and `__pycache__` in the package folder are left out.
+- Refused (`seeds.WrongEngine`, the task INVALID) when `ProjectVersion.txt` isn't `6000.3.*`: `<side>:
+  ProjectSettings/ProjectVersion.txt names Unity <version>: a task's commits must be Unity 6000.3 projects as
+  committed`. Unity fails on paths past 260 characters and a project's own deepest paths take most of them, so the
+  checker refuses a run whose copies' folders would be longer than 90 characters and says to pass `--scratch`
+  (`seeds.MAX_FOLDER`).
+- Deleted with what its plays left outside it (`seeds.forget_saves`, names of the form `TaskProbe.<12 hex>` alone):
+  the registry key `HKCU\Software\TaskProbe.<hash>` (PlayerPrefs), `TaskProbe_<hash>` in LocalLow and in the temp
+  folder (persistent data, the cache) and the crash handler's `TaskProbe.<hash>` in the temp folder.
+
+**Results**: `task-check/1` (`<out>/<task>.json`), `task-check-progress/1` (`progress.json`) and `task-try/1` are the
+original's formats (`check.check_task`, `cli.write_progress`, `trial.try_task`), with Unity's values in a side's
+entry: `engine` the Unity.exe, `slots` `unity-heavy` or `direct` (the original's UE root and `ue-heavy`), and
+`missing_assets` in place of `missing_packages`: the build result's `missing` for the scenes the task plays (the
+original reads a map's packages when it materializes the copy).
+
+A crash in a play: the player log matches `Crash!!!|OUTPUTTING STACK TRACE|Fatal error|Out of memory` (`unity.FATAL`;
+the original's `Fatal error|Assertion failed|Unhandled Exception`). A managed exception the game survives is not a
+crash: `log_absent` checks for those.
 
 ## 6. The probe package (`tools/task_check/TaskProbe/` -> `Packages/com.taskprobe/`)
 
