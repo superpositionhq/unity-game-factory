@@ -81,12 +81,17 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
   for ambience and music; `preloadAudioData` on for short clips (Unity 6.3 imports with it off, so a clip's data loads
   only when it first plays); Vorbis, the default compression. Then `SaveAndReimport()`, one workflow row per run
   (unity-game-session skill, "Replay-friendly work"). Commit the WAVs, their `.meta` files and the step together.
-- A cue that repeats (footsteps, hits, gunfire) gets 3 to 5 clips played at random with slight pitch variation
-  (a small `ScriptableObject` cue bank: clips, volume range, pitch range), so it never sounds like a loop. World sounds
-  get a 3D `AudioSource` with a rolloff curve and max distance that fit the scene's scale.
-- Every sound goes through an **AudioMixer** (`Assets/Audio/Main.mixer`) with at least the groups UI, SFX, Ambience
-  and Music, each `AudioSource.outputAudioMixerGroup` set, and their volumes exposed as parameters so the settings
-  menu's sliders control them (`AudioMixer.SetFloat` in decibels: `Mathf.Log10(Mathf.Max(slider, 0.0001f)) * 20`).
+- A cue that repeats (footsteps, hits, gunfire) gets 3 to 5 clips played at random with slight pitch variation, from a
+  small `ScriptableObject` cue bank (clips, volume range, pitch range; Unity's Audio Random Container has no scripting
+  API, so no editor step can fill one), so it never sounds like a loop. World sounds get a 3D `AudioSource` with a
+  rolloff curve and max distance that fit the scene's scale.
+- Every sound goes through an AudioMixer group (at least UI, SFX, Ambience), so the settings menu's volume controls it:
+  each `AudioSource.outputAudioMixerGroup` set, each group's volume an exposed parameter the menu sets with
+  `AudioMixer.SetFloat` in decibels (`Mathf.Log10(Mathf.Max(slider, 0.0001f)) * 20`). Unity has no public API for
+  making a mixer: the step reaches the internal `UnityEditor.Audio.AudioMixerController` by reflection
+  (`CreateMixerControllerAtPath`; `CreateNewGroup` and `AddChildToParent` under `masterGroup`; `AddExposedParameter`
+  with an `AudioGroupParameterPath` of the group's `GetGUIDForVolume()`) and names each exposed parameter by that
+  GUID, never by its index in `exposedParameters` (not creation order: by index, UI's slider got the Ambience volume).
 
 ## 6. Record and ask
 
