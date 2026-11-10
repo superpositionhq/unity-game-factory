@@ -1,0 +1,32 @@
+{
+ "seconds": 5,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/world/Made/WorldLab.unity",
+ "queries": [
+  {
+   "id": "shots",
+   "kind": "spawns",
+   "component": "WldShot"
+  },
+  {
+   "id": "bases",
+   "kind": "spawns",
+   "component": "WldShotBase"
+  },
+  {
+   "id": "iface",
+   "kind": "spawns",
+   "component": "IWldShot"
+  },
+  {
+   "id": "unknown",
+   "kind": "spawns",
+   "component": "NoSuchType"
+  },
+  {
+   "id": "nameless",
+   "kind": "spawns"
+  }
+ ]
+}

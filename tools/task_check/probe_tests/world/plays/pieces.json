@@ -1,0 +1,154 @@
+{
+ "seconds": 1,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/world/Made/WorldLab.unity",
+ "queries": [
+  {
+   "id": "area",
+   "kind": "pieces",
+   "select": {
+    "owner": {
+     "name": "PieceArea"
+    }
+   }
+  },
+  {
+   "id": "skinned",
+   "kind": "pieces",
+   "select": {
+    "component": "SkinnedMeshRenderer"
+   }
+  },
+  {
+   "id": "trees",
+   "kind": "pieces",
+   "select": {
+    "component": "Terrain"
+   }
+  },
+  {
+   "id": "mesh_renderers",
+   "kind": "pieces",
+   "select": {
+    "component": "MeshRenderer",
+    "owner": {
+     "name": "PieceArea"
+    }
+   }
+  },
+  {
+   "id": "renderers",
+   "kind": "pieces",
+   "select": {
+    "component": "Renderer",
+    "owner": {
+     "name": "PieceArea"
+    }
+   }
+  },
+  {
+   "id": "rocks",
+   "kind": "pieces",
+   "select": {
+    "name": "Rock_*"
+   }
+  },
+  {
+   "id": "cubes",
+   "kind": "pieces",
+   "select": {
+    "mesh": "Cube",
+    "owner": {
+     "name": "PieceArea"
+    }
+   }
+  },
+  {
+   "id": "multi",
+   "kind": "pieces",
+   "select": {
+    "mesh": "WldMulti"
+   }
+  },
+  {
+   "id": "near_rocks",
+   "kind": "pieces",
+   "select": {
+    "near": {
+     "point": {
+      "xyz": [
+       50,
+       0,
+       0
+      ]
+     },
+     "radius": 2.5
+    }
+   }
+  },
+  {
+   "id": "near_tree",
+   "kind": "pieces",
+   "select": {
+    "component": "Terrain",
+    "near": {
+     "point": {
+      "xyz": [
+       54,
+       0,
+       30
+      ]
+     },
+     "radius": 1
+    }
+   }
+  },
+  {
+   "id": "owner_none",
+   "kind": "pieces",
+   "select": {
+    "owner": {
+     "name": "NoSuchArea"
+    }
+   }
+  },
+  {
+   "id": "owner_unresolved",
+   "kind": "pieces",
+   "select": {
+    "owner": {
+     "near": {
+      "point": {
+       "object": {
+        "name": "NoSuchObject"
+       }
+      },
+      "radius": 1
+     }
+    }
+   }
+  },
+  {
+   "id": "unknown",
+   "kind": "pieces",
+   "select": {
+    "component": "NoSuchType"
+   }
+  },
+  {
+   "id": "near_unresolved",
+   "kind": "pieces",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "NoSuchObject"
+      }
+     },
+     "radius": 1
+    }
+   }
+  }
+ ]
+}

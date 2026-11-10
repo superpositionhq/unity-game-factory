@@ -1,0 +1,24 @@
+{
+ "seconds": 1,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/world/Made/WorldLab.unity",
+ "queries": [
+  {
+   "id": "camera",
+   "kind": "camera",
+   "fields": [
+    "occluded",
+    "player_on_screen"
+   ]
+  },
+  {
+   "id": "camera_field",
+   "kind": "camera",
+   "fields": [
+    "occluded",
+    "zoom"
+   ]
+  }
+ ]
+}

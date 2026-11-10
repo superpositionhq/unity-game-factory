@@ -1,0 +1,194 @@
+{
+ "seconds": 1,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/world/Made/WorldLab.unity",
+ "queries": [
+  {
+   "id": "floor",
+   "kind": "ground",
+   "xz": [
+    105,
+    20
+   ]
+  },
+  {
+   "id": "hole",
+   "kind": "ground",
+   "xz": [
+    120,
+    20
+   ]
+  },
+  {
+   "id": "hill",
+   "kind": "ground",
+   "xz": [
+    135,
+    35
+   ]
+  },
+  {
+   "id": "roof",
+   "kind": "ground",
+   "xz": [
+    105,
+    5
+   ]
+  },
+  {
+   "id": "roof_through",
+   "kind": "ground",
+   "xz": [
+    105,
+    5
+   ],
+   "select": {
+    "name": "Floor_*"
+   }
+  },
+  {
+   "id": "fog",
+   "kind": "ground",
+   "xz": [
+    112,
+    20
+   ]
+  },
+  {
+   "id": "pane",
+   "kind": "ground",
+   "xz": [
+    116,
+    20
+   ]
+  },
+  {
+   "id": "hero",
+   "kind": "ground",
+   "xz": [
+    0,
+    0
+   ]
+  },
+  {
+   "id": "plate",
+   "kind": "ground",
+   "xz": [
+    125,
+    20
+   ]
+  },
+  {
+   "id": "box",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ]
+  },
+  {
+   "id": "box_reversed",
+   "kind": "ground",
+   "box": [
+    140,
+    40,
+    100,
+    0
+   ]
+  },
+  {
+   "id": "grid2",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ],
+   "grid": 2
+  },
+  {
+   "id": "grid1",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ],
+   "grid": 1
+  },
+  {
+   "id": "grid40",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ],
+   "grid": 40
+  },
+  {
+   "id": "grid_fraction",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ],
+   "grid": 7.6
+  },
+  {
+   "id": "box_select",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140,
+    40
+   ],
+   "select": {
+    "name": "Floor_*"
+   }
+  },
+  {
+   "id": "unknown",
+   "kind": "ground",
+   "xz": [
+    105,
+    20
+   ],
+   "select": {
+    "component": "NoSuchType"
+   }
+  },
+  {
+   "id": "no_place",
+   "kind": "ground",
+   "grid": 8
+  },
+  {
+   "id": "short_box",
+   "kind": "ground",
+   "box": [
+    100,
+    0,
+    140
+   ]
+  },
+  {
+   "id": "long_xz",
+   "kind": "ground",
+   "xz": [
+    105,
+    20,
+    3
+   ]
+  }
+ ]
+}
