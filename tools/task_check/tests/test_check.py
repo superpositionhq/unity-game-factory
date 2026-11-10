@@ -307,6 +307,29 @@ class Seeds(unittest.TestCase):
             seeds.remove(copy)
             self.assertTrue((repo / ".git" / "lfs" / "objects").is_dir())
 
+    def test_what_a_tasks_agent_never_sees_never_reaches_a_copy(self):
+        for path in ("Tasks/a.json", "tasks/a.json", "History/2026/x.md", "DATASET/a.bin", "Dataset.zip", "dataset.ZIP"):
+            self.assertTrue(seeds.answer(path), path)
+        for path in ("Assets/Tasks/a.json", "Assets/History.cs", "Datasets/a", "Dataset.zip.meta", "TasksX/a"):
+            self.assertFalse(seeds.answer(path), path)
+
+    def test_an_lfs_object_is_linked_on_its_drive_and_copied_where_it_cant_be(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, start, _, data = make_game(tmp)
+            made = seeds.materialize(repo, start, Path(tmp) / "linked")
+            wall = Path("Assets") / "Textures" / "Wall.png"
+            self.assertEqual((made["linked"], made["copied"]), (1, 0), "the store's own file: it costs no disk")
+            self.assertEqual(os.stat(Path(tmp) / "linked" / wall).st_nlink, 2)
+
+            def other_drive(source, target):
+                raise OSError(18, "Invalid cross-device link")
+
+            with mock.patch.object(seeds.os, "link", other_drive):
+                made = seeds.materialize(repo, start, Path(tmp) / "copied")
+            self.assertEqual((made["linked"], made["copied"]), (0, 1))
+            self.assertEqual(((Path(tmp) / "copied" / wall).read_bytes(), os.stat(Path(tmp) / "copied" / wall).st_nlink),
+                             (data, 1), "a copy of its own, never left out")
+
     def test_a_missing_lfs_object_and_another_unity_are_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo, start, _, _ = make_game(tmp)
