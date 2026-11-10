@@ -151,7 +151,7 @@ namespace TaskProbe.EditorTools
             {
                 // from the project's folder, not the working one: a game's own editor script may change that
                 settings = Path.Combine(project, "ProjectSettings", "ProjectSettings.asset");
-                saved = File.ReadAllBytes(settings);
+                saved = File.Exists(settings) ? File.ReadAllBytes(settings) : null;  // none yet: nothing to put back
             }
 
             public void Restore()
@@ -166,7 +166,9 @@ namespace TaskProbe.EditorTools
                 // nothing more when it exits (it would write the values put back with an entry for each default a new
                 // project leaves out: measured)
                 EditorUtility.ClearDirty(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
-                if (!File.ReadAllBytes(settings).SequenceEqual(saved)) File.WriteAllBytes(settings, saved);
+                // a file that can't be written back must not turn a built player into a failed build
+                try { if (saved != null && !File.ReadAllBytes(settings).SequenceEqual(saved)) File.WriteAllBytes(settings, saved); }
+                catch (Exception e) { Debug.LogWarning("TaskProbe: " + settings + " keeps the build's settings: " + e.Message); }
             }
         }
 

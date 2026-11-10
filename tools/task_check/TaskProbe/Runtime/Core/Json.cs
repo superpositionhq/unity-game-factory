@@ -175,11 +175,10 @@ namespace TaskProbe
         {
             if (double.IsNaN(d) || double.IsInfinity(d)) { sb.Append("null"); return; }
             if (d == Math.Floor(d) && Math.Abs(d) < 1e15) { sb.Append(((long)d).ToString(CultureInfo.InvariantCulture)); return; }
-            // the shortest text that reads back as the same double: Mono's "R" writes 15 digits for a few that read back
-            // as another (0.84551240822557006 as 0.84551240822557); 17 always read back
-            var text = d.ToString("R", CultureInfo.InvariantCulture);
-            if (double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) != d) text = d.ToString("G17", CultureInfo.InvariantCulture);
-            sb.Append(text);
+            // 17 significant digits, as the original writes its numbers: they always read back as the same double. Mono's
+            // "R" writes 15 digits for a few that read back as another (0.08993034534618741 as 0.0899303453461874), and
+            // its own double.Parse rounds those the same wrong way, so a shorter form can't be checked here
+            sb.Append(d.ToString("G17", CultureInfo.InvariantCulture));
         }
 
         static void WriteString(StringBuilder sb, string s)

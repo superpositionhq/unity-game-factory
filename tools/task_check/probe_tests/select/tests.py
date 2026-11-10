@@ -4,6 +4,7 @@ probe's own objects), the order matches come in, `prop:` paths, rows past 200 wi
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -315,7 +316,9 @@ def _deep(t):
         code = ran.returncode - (1 << 32) if ran.returncode >= 1 << 31 else ran.returncode
     except subprocess.TimeoutExpired:
         code = "still running after 60 s"
+    t.ok("a spec nested 100,000 deep: the player ran (it wrote its log)", log.is_file())
     text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
+    shutil.rmtree(folder, ignore_errors=True)
     t.eq("a spec nested 100,000 deep: exit code", code, 2)
     t.ok("and the player says why it can't read it",
          "couldn't be read: JSON: nested deeper than 512" in text, text[-400:])
@@ -417,7 +420,7 @@ PLAYS = {
     "keys": {"check": keys, "errors": [r"^ground unknown_ground: no component type SelData$",
                                        r"^ground unknown_has: no component type NoSuchType$"]},
     "order": {"check": order},
-    "props": {"check": props},
+    "props": {"check": props, "args": ["-selLocale", "en-US"]},  # its separator check: whatever the machine's language
     "locale": {"check": locale, "args": ["-selLocale", "de-DE"]},
     "cost_idle": {"check": cost_idle, "args": ["-selCrowd", "3000"], "varies": TIMED},
     "cost3k_all": {"check": cost3k_all, "args": ["-selCrowd", "3000"], "varies": TIMED},

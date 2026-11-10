@@ -362,8 +362,8 @@ namespace TaskProbe
             return false;
         }
 
-        /// <summary>An enabled collider that isn't a trigger (3D or 2D) on `go`, or with `descendants` on it or one of
-        /// its descendants active in the hierarchy (collision, mesh_collision).</summary>
+        /// <summary>An enabled collider that isn't a trigger (3D or 2D) on `go` itself, active or not, or with
+        /// `descendants` also on one of its descendants active in the hierarchy (collision, mesh_collision).</summary>
         public static bool Collides(GameObject go, bool descendants)
         {
 #if TASKPROBE_PHYSICS
@@ -411,8 +411,8 @@ namespace TaskProbe
         public static bool LightOn(Light light) => light != null && light.enabled && light.gameObject.activeInHierarchy && light.intensity > 0f;
 
         /// <summary>The colour a Light lights with, its intensity left out: its colour in the space lighting is done in,
-        /// times its colour temperature's when the light and the project use temperatures (alpha 1). Glow and the light
-        /// measure take it, so a lamp's glow and its share of light agree on its colour.</summary>
+        /// times its colour temperature's when the light and the project use temperatures (alpha 1). Glow and grading's
+        /// lit_color take it.</summary>
         public static Color LightColour(Light light)
         {
             var c = Linear(light.color);
@@ -492,7 +492,9 @@ namespace TaskProbe
         static int RootIndex(Transform root)
         {
             var scene = root.gameObject.scene;
-            if (!RootOrder.TryGetValue(scene.handle, out var order))
+            // read again when the root isn't in the list read earlier in this pass (made since: a click's handler, a
+            // getter): two such roots would else tie, and a tie's order is not the same in every play
+            if (!RootOrder.TryGetValue(scene.handle, out var order) || !order.ContainsKey(root))
             {
                 order = new Dictionary<Transform, int>();
                 if (scene.IsValid() && scene.isLoaded)

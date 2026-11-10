@@ -31,11 +31,10 @@ namespace TaskProbe.EditorTools
         {
             var found = new List<GameObject>();
             why = null;
-            if (depth > Find.MaxDepth) { why = "the select nests too deep"; return found; }
             if (sel.Player) { why = "`player` selects need a running game: the editor pass can't match them"; return found; }
             if (sel.Has != null) { why = "`has` needs a running game: the editor pass can't match it"; return found; }
             var centre = Vector3.zero;
-            if (sel.Near != null && !Point(sel.Near.Point, objects, depth, out centre, out why))
+            if (sel.Near != null && !Point(sel.Near.Point, objects, depth + 1, out centre, out why))
                 return found;  // why is set, or the point's object isn't there (nothing is near it)
             foreach (var go in objects)
                 if (Find.Matches(go, sel, centre, Vector3.zero)) found.Add(go);
@@ -47,6 +46,8 @@ namespace TaskProbe.EditorTools
         {
             at = Vector3.zero;
             why = null;
+            // counted as a play counts it (Find.Point): one for the point, one for its object's select
+            if (depth > Find.MaxDepth) { why = "the select nests too deep"; return false; }
             if (point == null) { why = "a `near` without a point"; return false; }
             if (point.TryGetValue("xyz", out var xyz))
             {

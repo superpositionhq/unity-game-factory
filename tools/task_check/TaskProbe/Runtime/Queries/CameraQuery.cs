@@ -14,7 +14,13 @@ namespace TaskProbe
     {
         static readonly string[] Plain = { "distance", "height", "pitch", "yaw", "fov", "occluded", "player_on_screen" };
 
-        public override void Load() => KnownFields(Plain);
+        public override void Load()
+        {
+            KnownFields(Plain);
+#if !TASKPROBE_PHYSICS
+            if (Fields.Count == 0 || Reads("occluded")) Probe.Error(Kind + " " + Id + ": the project has no Physics module: occluded reads 0");
+#endif
+        }
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
