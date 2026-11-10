@@ -7,8 +7,8 @@
 // no other comes near; anything else (a glyph that fits two characters, an unknown mark, a line cut by the rect, a busy
 // background) reads nothing for that line rather than a guess.
 //
-// A port of the Unreal probe's reader (OcrRead and its helpers): the constants and decisions are the same; only the
-// pixel source differs (a FrameImage, rows read from the top).
+// A port of the Unreal probe's reader (OcrRead and its helpers): the same constants and decisions in the same order, the
+// sort of a line's marks included; only the pixel source differs (a FrameImage, its rows read from the top).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -696,7 +696,7 @@ namespace TaskProbe
                 var line = new List<int>();
                 for (var k = 0; k < kept.Count; k++)
                     if (Root(k) == r) line.Add(kept[k]);
-                line.Sort((l, rr) => all[l].X0.CompareTo(all[rr].X0));
+                IntroSort(line, (l, rr) => all[l].X0 < all[rr].X0);
                 // glyphs: marks that overlap side to side by at least 0.4 of the narrower
                 var glyphs = new List<Glyph>();
                 foreach (var i in line)
@@ -820,6 +820,107 @@ namespace TaskProbe
                     read = read || (t.Kind == "text" && t.HasRect && t.X < e.X + e.W && e.X < t.X + t.W && t.Y < e.Y + e.H && e.Y < t.Y + t.H);
                 if (!read) output.Add(e);
             }
+        }
+
+        /// <summary>Unreal's TArray::Sort (Algo::IntroSort and its heap sort, Unreal Engine 5.7), which the original
+        /// sorts a line's marks with. It isn't stable, and the order it leaves marks of one left edge in decides which
+        /// glyph a narrow one joins (two marks that start at one column, the narrow one over the glyph before), so the
+        /// marks are sorted as there.</summary>
+        static void IntroSort(List<int> v, Func<int, int, bool> less)
+        {
+            if (v.Count < 2) return;
+            // quick sort on the middle item; 8 items or fewer: the largest (the first of equals) to the end, again and
+            // again; deeper than 2 ln(n): heap sort
+            var stack = new (int Min, int Max, uint Depth)[32];
+            stack[0] = (0, v.Count - 1, (uint)((float)Math.Log(v.Count) * 2f));
+            for (var top = 0; top >= 0; top--)
+            {
+                var (min, max, depth) = stack[top];
+                while (true)
+                {
+                    var count = max - min + 1;
+                    if (depth == 0)
+                    {
+                        HeapSort(v, min, count, less);
+                        break;
+                    }
+                    if (count <= 8)
+                    {
+                        while (max > min)
+                        {
+                            var most = min;
+                            for (var item = min + 1; item <= max; item++)
+                                if (less(v[most], v[item])) most = item;
+                            Swap(v, most, max--);
+                        }
+                        break;
+                    }
+                    Swap(v, min + count / 2, min);
+                    int lo = min, hi = max + 1;
+                    while (true)
+                    {
+                        while (++lo <= max && !less(v[min], v[lo])) { }
+                        while (--hi > min && !less(v[hi], v[min])) { }
+                        if (lo > hi) break;
+                        Swap(v, lo, hi);
+                    }
+                    Swap(v, min, hi);
+                    depth--;
+                    // the larger part waits on the stack, the smaller is sorted now
+                    if (hi - 1 - min >= max - lo)
+                    {
+                        if (min + 1 < hi) stack[top++] = (min, hi - 1, depth);
+                        if (max > lo)
+                        {
+                            min = lo;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (max > lo) stack[top++] = (lo, max, depth);
+                        if (min + 1 < hi)
+                        {
+                            max = hi - 1;
+                            continue;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        static void HeapSort(List<int> v, int first, int count, Func<int, int, bool> less)
+        {
+            // a max-heap: the predicate reversed
+            void SiftDown(int index, int n)
+            {
+                while (index * 2 + 1 < n)
+                {
+                    int left = index * 2 + 1, right = left + 1;
+                    var child = right < n && !less(v[first + right], v[first + left]) ? right : left;
+                    if (!less(v[first + index], v[first + child])) break;
+                    Swap(v, first + index, first + child);
+                    index = child;
+                }
+            }
+            for (var index = (count - 2) / 2; ; index--)
+            {
+                SiftDown(index, count);
+                if (index == 0) break;
+            }
+            for (var index = count - 1; index > 0; index--)
+            {
+                Swap(v, first, first + index);
+                SiftDown(0, index);
+            }
+        }
+
+        static void Swap(List<int> v, int a, int b)
+        {
+            var t = v[a];
+            v[a] = v[b];
+            v[b] = t;
         }
     }
 }
