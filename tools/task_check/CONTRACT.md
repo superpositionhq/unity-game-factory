@@ -665,13 +665,17 @@ A real result (of a small two-scene project, its folder written as a copy's):
   `errors`, `warnings`, `seconds`; `error` only on a failure (`no scene to build: ...`, an exception, or `the player
   build failed: <its first error>`). Unity exits 0 when `ok`, else 1; scripts that don't compile stop it before the
   method runs (exit 1, no result).
-- The checker counts a build passed when Unity exited 0 and the result says `ok`; a result that says it failed fails
-  the build whatever the exit code, its `error` at the head of the kept `build.log`. A failed build's reason names its
-  first cause in one line (`unity._cause`): the result's `error`, else the log's first compiler error
-  (`<file>(<line>,<column>): error CS<n>: ...`), else its first `## Script Compilation Error for:` line. The result's
-  `exe` is never started, and a `missing` of any other shape is left out. A Unity without a licence (exit 198, or `No
-  valid Unity Editor license` in its log) is the machine's error, never the game's: the task reads ERROR
-  (`unity.Unlicensed`).
+- The checker counts a build passed when Unity exited 0 and the result says `ok`; a result that says it failed fails the
+  build whatever the exit code, its `error` at the head of the kept `build.log`. A failed build's reason names its first
+  cause in one line (`unity._cause`): the result's `error`, else the log's first compiler error
+  (`<file>(<line>,<column>): error CS<n>: ...`), else its first `## Script Compilation Error for:` line. A failure with
+  neither a C# compiler error in its log (`unity.COMPILER_ERROR`, `error CS<n>`; the log read whole) nor a result saying
+  it failed is no evidence about the game (an IL post-processor of a URP package's assembly stopped so once, and the
+  same commit built on a rerun): the build is tried once more, and stopped again, or stopped at its time limit (never
+  tried again), it is the machine's error, `unity.BuildStopped`: the task reads ERROR, its reason naming the build log
+  kept under `<out>/<task>/<side>/build/` (`check.Side.build`). The result's `exe` is never started, and a `missing` of
+  any other shape is left out. A Unity without a licence (exit 198, or `No valid Unity Editor license` in its log) is
+  the machine's error, never the game's: the task reads ERROR (`unity.Unlicensed`).
 - The build sets, for the copy only: the company name `TaskProbe.<the first 12 hex digits of the sha256 of the copy's
   folder, lower-cased>` (`seeds.saves_company` computes the same); no splash screen; no static batching (a batched
   renderer's mesh would hide its own mesh name and triangle count; set through PlayerSettings' internal
