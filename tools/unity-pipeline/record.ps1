@@ -577,7 +577,8 @@ for ($i = 0; $i -lt $Runs; $i++) {
         $endSample = @(@(Get-Prop $gameClock 'samples') | Where-Object { $_ -and $_.label -eq 'end' }) | Select-Object -First 1
         $cutNs = if ($privacyStop) { [long]$privacyStop.t_ns - 500000000 } elseif ($endSample) { [long]$endSample.t_ns } else { $null }
         if ($null -ne $cutNs -and $videoStart) {
-            $keep = [math]::Max(0, ($cutNs - $videoStart.t_ns) / 1e9)
+            # 0.0, not 0: [math]::Max(0, <double>) takes the integer overload and rounds the cut to a whole second
+            $keep = [math]::Max(0.0, [double]($cutNs - $videoStart.t_ns) / 1e9)
             $cut = Join-Path $runDir 'video.cut.mkv'
             $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
             & $ffmpeg -hide_banner -loglevel error -y -i $videoPath -t $keep.ToString('0.000', $Inv) -c copy $cut 2>&1 | Out-Null
@@ -724,7 +725,8 @@ for ($i = 0; $i -lt $Runs; $i++) {
             if ($gameFps -lt 55) { [void]$warnings.Add("game averaged $gameFps fps (cap 60)") }
         }
     }
-    $checks.process = [ordered]@{ ok = (-not $killed -and $gameExit -eq 0 -and -not $windowMoved); exit_code = $gameExit; killed = $killed; window_moved = $windowMoved; capture = $captureMode }
+    # (a move fails a screen-region capture only: window capture follows the window)
+    $checks.process = [ordered]@{ ok = (-not $killed -and $gameExit -eq 0 -and -not ($windowMoved -and $captureMode -ne 'gfxcapture')); exit_code = $gameExit; killed = $killed; window_moved = $windowMoved; capture = $captureMode }
     $checks.watchdog = [ordered]@{ ok = (-not $watchdog -or ((Get-Prop $watchdog 'reason') -eq 'shutdown' -and $outcome)); reason = (Get-Prop $watchdog 'reason') }
 
     $status = if ($problems.Count -gt 0) { 'failed' } elseif ($warnings.Count -gt 0) { 'warn' } else { 'ok' }
