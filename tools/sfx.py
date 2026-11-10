@@ -60,7 +60,7 @@ def search(a):
             continue
         rating = re.search(r'aria-label="Average rating of ([\d.]+)"', block)
         votes = re.search(r'bw-rating__count[^>]*>\((\d+)\)', block)
-        desc = re.search(r'<div class="max-h-60px[^"]*"\s*>\s*(.*?)\s*</div>', block, re.S)
+        desc = re.search(r'<div class="max-h-60px[^"]*"[^>]*>\s*(.*?)\s*</div>', block, re.S)  # a long one has a title=
         rows.append({'key': 'fs:' + attr('sound-id', block), 'title': attr('title', block),
                      'dur': float(attr('duration', block) or 0), 'downloads': int(attr('num-downloads', block) or 0),
                      'rating': f'{rating[1]}({votes[1]})' if rating and votes else '-', 'licence': SHORT[lic],
