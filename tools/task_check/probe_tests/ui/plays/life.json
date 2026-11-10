@@ -1,0 +1,67 @@
+{
+ "seconds": 3,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/Hud.unity",
+ "queries": [
+  {
+   "id": "doomed_w",
+   "kind": "widgets",
+   "select": {
+    "name": "DoomedText"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "doomed_u",
+   "kind": "ui",
+   "select": {
+    "text": "^DOOMED$"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "born_w",
+   "kind": "widgets",
+   "select": {
+    "name": "*Born*"
+   },
+   "fields": [
+    "text",
+    "visible"
+   ]
+  },
+  {
+   "id": "born_u",
+   "kind": "ui",
+   "select": {
+    "text": "^BORN$"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "grey_w",
+   "kind": "widgets",
+   "select": {
+    "name": "GreyRight"
+   },
+   "fields": [
+    "visible"
+   ]
+  },
+  {
+   "id": "grey_u",
+   "kind": "ui",
+   "select": {
+    "kind": "box"
+   },
+   "fields": []
+  }
+ ]
+}

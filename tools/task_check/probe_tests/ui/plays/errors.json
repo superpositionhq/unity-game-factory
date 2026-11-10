@@ -1,0 +1,66 @@
+{
+ "seconds": 1,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/Hud.unity",
+ "queries": [
+  {
+   "id": "w_badrx",
+   "kind": "widgets",
+   "select": {
+    "text": "(["
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "u_badrx",
+   "kind": "ui",
+   "select": {
+    "text": "(["
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "u_badkind",
+   "kind": "ui",
+   "select": {
+    "kind": "line"
+   },
+   "fields": []
+  },
+  {
+   "id": "w_field",
+   "kind": "widgets",
+   "select": {
+    "name": "ScoreText"
+   },
+   "fields": [
+    "text",
+    "percnt"
+   ]
+  },
+  {
+   "id": "u_field",
+   "kind": "ui",
+   "select": {
+    "kind": "text"
+   },
+   "fields": [
+    "text",
+    "bogus"
+   ]
+  },
+  {
+   "id": "w_type",
+   "kind": "widgets",
+   "select": {
+    "component": "NoSuchWidgetType"
+   },
+   "fields": []
+  }
+ ]
+}

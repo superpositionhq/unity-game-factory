@@ -1,0 +1,7 @@
+{
+ "seconds": 20,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/ProbeTests/ui/Made/Crowd.unity",
+ "queries": []
+}

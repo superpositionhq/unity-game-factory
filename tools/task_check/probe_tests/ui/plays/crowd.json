@@ -1,0 +1,38 @@
+{
+ "seconds": 20,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/ProbeTests/ui/Made/Crowd.unity",
+ "queries": [
+  {
+   "id": "texts",
+   "kind": "ui",
+   "select": {
+    "kind": "text"
+   },
+   "fields": [
+    "x"
+   ]
+  },
+  {
+   "id": "uguitexts",
+   "kind": "widgets",
+   "select": {
+    "component": "Text"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "labels",
+   "kind": "widgets",
+   "select": {
+    "component": "Label"
+   },
+   "fields": [
+    "text"
+   ]
+  }
+ ]
+}

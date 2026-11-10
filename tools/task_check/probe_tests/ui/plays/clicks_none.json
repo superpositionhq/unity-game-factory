@@ -1,0 +1,254 @@
+{
+ "seconds": 5,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/ClicksNone.unity",
+ "queries": [
+  {
+   "id": "counts",
+   "kind": "objects",
+   "select": {
+    "component": "UiClickCount"
+   },
+   "fields": [
+    "prop:UiClickCount.enters",
+    "prop:UiClickCount.downs",
+    "prop:UiClickCount.ups",
+    "prop:UiClickCount.clicks",
+    "prop:UiClickCount.fired"
+   ]
+  },
+  {
+   "id": "trigger",
+   "kind": "objects",
+   "select": {
+    "name": "TriggerButton"
+   },
+   "fields": [
+    "prop:UiTriggerCount.downs",
+    "prop:UiTriggerCount.ups",
+    "prop:UiTriggerCount.clicks"
+   ]
+  },
+  {
+   "id": "uitk",
+   "kind": "objects",
+   "select": {
+    "name": "UitkClicks"
+   },
+   "fields": [
+    "prop:UiToolkitClicks.go",
+    "prop:UiToolkitClicks.evt",
+    "prop:UiToolkitClicks.no",
+    "prop:UiToolkitClicks.off",
+    "prop:UiToolkitClicks.cursor"
+   ]
+  },
+  {
+   "id": "watch",
+   "kind": "objects",
+   "select": {
+    "name": "Watch"
+   },
+   "fields": [
+    "prop:UiClickWatch.system",
+    "prop:UiClickWatch.selected"
+   ]
+  },
+  {
+   "id": "slider",
+   "kind": "widgets",
+   "select": {
+    "name": "GoSlider"
+   },
+   "fields": [
+    "value"
+   ]
+  },
+  {
+   "id": "toggle",
+   "kind": "widgets",
+   "select": {
+    "name": "GoToggle"
+   },
+   "fields": [
+    "value"
+   ]
+  },
+  {
+   "id": "field",
+   "kind": "objects",
+   "select": {
+    "name": "GoField"
+   },
+   "fields": [
+    "prop:InputField.isFocused"
+   ]
+  },
+  {
+   "id": "dropdown",
+   "kind": "objects",
+   "select": {
+    "name": "GoDropdown"
+   },
+   "fields": [
+    "prop:Dropdown.m_Dropdown"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.5,
+   "widget": "GoButton",
+   "click": true
+  },
+  {
+   "t": 0.6,
+   "widget": "Toggle",
+   "click": true
+  },
+  {
+   "t": 0.7,
+   "widget": "GoSlider",
+   "click": true
+  },
+  {
+   "t": 0.8,
+   "widget": "GoField",
+   "click": true
+  },
+  {
+   "t": 1.1,
+   "widget": "TriggerButton",
+   "click": true
+  },
+  {
+   "t": 1.2,
+   "widget": "LockedButton*",
+   "click": true
+  },
+  {
+   "t": 1.3,
+   "widget": "MutedButton",
+   "click": true
+  },
+  {
+   "t": 1.4,
+   "widget": "NavNoneButton",
+   "click": true
+  },
+  {
+   "t": 1.6,
+   "widget": "Twin",
+   "click": true
+  },
+  {
+   "t": 1.7,
+   "widget": "OffButton",
+   "click": true
+  },
+  {
+   "t": 1.8,
+   "widget": "BlockedButton",
+   "click": true
+  },
+  {
+   "t": 2.0,
+   "widget": "UGoButton",
+   "click": true
+  },
+  {
+   "t": 2.1,
+   "widget": "UEvtButton",
+   "click": true
+  },
+  {
+   "t": 2.2,
+   "widget": "UNoButton",
+   "click": true
+  },
+  {
+   "t": 2.3,
+   "widget": "UOffButton",
+   "click": true
+  },
+  {
+   "t": 2.4,
+   "widget": "NoSuchButton",
+   "click": true
+  },
+  {
+   "t": 2.5,
+   "cursor": [
+    0.104167,
+    0.592593
+   ]
+  },
+  {
+   "t": 2.6,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 2.7,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 3.0,
+   "cursor": [
+    0.729167,
+    0.592593
+   ]
+  },
+  {
+   "t": 3.1,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 3.2,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 3.5,
+   "cursor": [
+    0.708333,
+    0.138889
+   ]
+  },
+  {
+   "t": 3.6,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 3.7,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 4.0,
+   "cursor": [
+    0.083333,
+    0.435185
+   ]
+  },
+  {
+   "t": 4.1,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 4.2,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 4.4,
+   "widget": "GoDropdown",
+   "click": true
+  }
+ ]
+}

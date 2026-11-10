@@ -1,0 +1,120 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/Grey.unity",
+ "queries": [
+  {
+   "id": "white",
+   "kind": "screen",
+   "rect": [
+    0,
+    0,
+    0.1,
+    0.1
+   ]
+  },
+  {
+   "id": "black",
+   "kind": "screen",
+   "rect": [
+    0.1,
+    0,
+    0.2,
+    0.1
+   ]
+  },
+  {
+   "id": "right",
+   "kind": "screen",
+   "rect": [
+    0.5,
+    0,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "camera",
+   "kind": "screen",
+   "rect": [
+    0,
+    0.5,
+    0.5,
+    1
+   ]
+  },
+  {
+   "id": "inverted",
+   "kind": "screen",
+   "rect": [
+    1,
+    1,
+    0.5,
+    0
+   ]
+  },
+  {
+   "id": "empty",
+   "kind": "screen",
+   "rect": [
+    0.75,
+    0.5,
+    0.75,
+    0.5
+   ]
+  },
+  {
+   "id": "edge",
+   "kind": "screen",
+   "rect": [
+    1,
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "outside",
+   "kind": "screen",
+   "rect": [
+    -0.5,
+    -0.5,
+    0.1,
+    0.1
+   ]
+  },
+  {
+   "id": "beyond",
+   "kind": "screen",
+   "rect": [
+    1.5,
+    0,
+    2,
+    1
+   ]
+  },
+  {
+   "id": "fraction",
+   "kind": "screen",
+   "rect": [
+    0.1001,
+    0.1001,
+    0.2001,
+    0.2001
+   ]
+  },
+  {
+   "id": "whole",
+   "kind": "screen"
+  },
+  {
+   "id": "boxes",
+   "kind": "ui",
+   "select": {
+    "kind": "box"
+   },
+   "fields": []
+  }
+ ]
+}

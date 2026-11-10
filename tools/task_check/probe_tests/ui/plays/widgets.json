@@ -1,0 +1,387 @@
+{
+ "seconds": 2,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/Hud.unity",
+ "queries": [
+  {
+   "id": "driver",
+   "kind": "objects",
+   "select": {
+    "name": "HudDriver"
+   },
+   "fields": [
+    "prop:UiHudDriver.frames",
+    "prop:UiHudDriver.score",
+    "prop:UiHudDriver.health",
+    "prop:UiHudDriver.fill"
+   ]
+  },
+  {
+   "id": "uitkdriver",
+   "kind": "objects",
+   "select": {
+    "name": "UitkDoc"
+   },
+   "fields": [
+    "prop:UiToolkitHud.frames",
+    "prop:UiToolkitHud.progress"
+   ]
+  },
+  {
+   "id": "score",
+   "kind": "widgets",
+   "select": {
+    "name": "ScoreText"
+   },
+   "fields": [
+    "count",
+    "visible",
+    "text",
+    "percent",
+    "value",
+    "interactable",
+    "has_brush",
+    "brush",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "type",
+   "kind": "widgets",
+   "select": {
+    "name": "TypeText"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "legacy",
+   "kind": "widgets",
+   "select": {
+    "name": "LegacyLabel"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "rawtag",
+   "kind": "widgets",
+   "select": {
+    "name": "RawTagText"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "stale",
+   "kind": "widgets",
+   "select": {
+    "name": "StaleText"
+   },
+   "fields": [
+    "text",
+    "visible"
+   ]
+  },
+  {
+   "id": "sliders",
+   "kind": "widgets",
+   "select": {
+    "component": "Slider"
+   },
+   "fields": [
+    "percent",
+    "value",
+    "interactable",
+    "visible",
+    "text"
+   ]
+  },
+  {
+   "id": "fills",
+   "kind": "widgets",
+   "select": {
+    "name": "*Fill*"
+   },
+   "fields": [
+    "percent",
+    "has_brush",
+    "brush",
+    "visible"
+   ]
+  },
+  {
+   "id": "toggles",
+   "kind": "widgets",
+   "select": {
+    "component": "Toggle"
+   },
+   "fields": [
+    "value",
+    "text",
+    "interactable"
+   ]
+  },
+  {
+   "id": "fields",
+   "kind": "widgets",
+   "select": {
+    "component": "InputField"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "tmpfields",
+   "kind": "widgets",
+   "select": {
+    "component": "TMP_InputField"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "uitkfields",
+   "kind": "widgets",
+   "select": {
+    "component": "TextField"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "dropdowns",
+   "kind": "widgets",
+   "select": {
+    "name": "*Dropdown"
+   },
+   "fields": [
+    "text",
+    "value"
+   ]
+  },
+  {
+   "id": "bars",
+   "kind": "widgets",
+   "select": {
+    "name": "PageBar"
+   },
+   "fields": [
+    "percent",
+    "value"
+   ]
+  },
+  {
+   "id": "scrollers",
+   "kind": "widgets",
+   "select": {
+    "component": "Scroller"
+   },
+   "fields": [
+    "percent",
+    "value"
+   ]
+  },
+  {
+   "id": "progress",
+   "kind": "widgets",
+   "select": {
+    "component": "ProgressBar"
+   },
+   "fields": [
+    "percent",
+    "value",
+    "text"
+   ]
+  },
+  {
+   "id": "sliderints",
+   "kind": "widgets",
+   "select": {
+    "component": "SliderInt"
+   },
+   "fields": [
+    "percent",
+    "value"
+   ]
+  },
+  {
+   "id": "pictures",
+   "kind": "widgets",
+   "select": {
+    "component": "RawImage"
+   },
+   "fields": [
+    "has_brush",
+    "brush"
+   ]
+  },
+  {
+   "id": "images",
+   "kind": "widgets",
+   "select": {
+    "name": "*Image"
+   },
+   "fields": [
+    "has_brush",
+    "brush"
+   ]
+  },
+  {
+   "id": "uitk",
+   "kind": "widgets",
+   "select": {
+    "name": "Uitk*"
+   },
+   "fields": [
+    "has_brush",
+    "brush",
+    "interactable",
+    "visible",
+    "text"
+   ]
+  },
+  {
+   "id": "own",
+   "kind": "widgets",
+   "select": {
+    "component": "UiScoreKeeper"
+   },
+   "fields": [
+    "text",
+    "visible",
+    "has_brush"
+   ]
+  },
+  {
+   "id": "marker",
+   "kind": "widgets",
+   "select": {
+    "component": "UiHudMarker"
+   },
+   "fields": [
+    "visible",
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "vis",
+   "kind": "widgets",
+   "select": {
+    "name": "Vis*"
+   },
+   "fields": [
+    "visible",
+    "interactable",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "visonly",
+   "kind": "widgets",
+   "select": {
+    "name": "Vis*",
+    "visible": true
+   },
+   "fields": []
+  },
+  {
+   "id": "rects",
+   "kind": "widgets",
+   "select": {
+    "name": "Rect*"
+   },
+   "fields": [
+    "visible",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "regex",
+   "kind": "widgets",
+   "select": {
+    "text": "^SCORE \\d+$"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "uitkregex",
+   "kind": "widgets",
+   "select": {
+    "text": "^UITK \\d+$"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "buttons",
+   "kind": "widgets",
+   "select": {
+    "component": "Button"
+   },
+   "fields": [
+    "interactable",
+    "text"
+   ]
+  },
+  {
+   "id": "anon",
+   "kind": "widgets",
+   "select": {
+    "name": "Label"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "order",
+   "kind": "widgets",
+   "select": {},
+   "fields": []
+  },
+  {
+   "id": "shown",
+   "kind": "screen",
+   "rect": [
+    0.88,
+    0.47,
+    0.97,
+    0.53
+   ]
+  },
+  {
+   "id": "bg",
+   "kind": "screen",
+   "rect": [
+    0.65,
+    0.93,
+    0.69,
+    0.98
+   ]
+  }
+ ]
+}
