@@ -130,6 +130,9 @@ The validator's rules beyond the original's (`probe_errors`, `task_semantic_erro
 - every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`; the original compiles
   a ui measure's only), so none can stop the task check;
 - the task's `player` select names no `player` and no point on the player (it says which object the player is);
+- a project path (an asset measure's `asset`, `scene` or `prefab`, the task's `play_scene`, a task play's `scene`) has
+  no `.` or `..` part (`dotted`: `<path> has a "." or ".." part: name the file by its own path under Assets/ or
+  Packages/`), so a task names no file outside `Assets/` and `Packages/` (the editor pass and the build refuse one too);
 - a warning, never an error, when a `teleport_to`, an object point or an `"of": "first"` measure takes its one object
   by a wildcard name and nothing else: a spawner, a pool or a parent named like the things fits too (the sample game's
   `teleport_to` `Coin*` went to `CoinSpawner`).
