@@ -278,10 +278,10 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   or a timer moved, with agg rises/falls), `drawn` (what is drawn near a point or along a line, rendered: drawn,
   motion, base colour, a beam's reach), `pieces` (placed mesh pieces and their triangles), `light` (illuminance,
   exposure, brightness at a point), `grading` (the URP volume result: cast, warmth, tint, saturation, contrast, grey,
-  `post:<Component>.<parameter>`), `screen` (the frame's luminance, calibrated only), `audio` (what plays and how loud
-  the listener hears it), `ground` (height and relief), `spawns`, `log`, `asset` (editor: a material's `shader:` and
-  `keyword:` values, `import:` settings, a ScriptableObject's `prop:`, and in a scene `material_default`,
-  `material:<property>`, `mesh_collision`).
+  `post:<Component>.<parameter>`), `screen` (the frame's luminance, never a literal threshold), `audio` (what plays
+  and how loud the listener hears it), `ground` (height and relief), `spawns`, `log`, `asset` (editor: a material's
+  `shader:` and `keyword:` values, `import:` settings, a ScriptableObject's `prop:`, and in a scene or prefab
+  `material_default`, `material:<property>`, `mesh_collision`).
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or
   `{"op": ">=", "calibrate": 0.5}` for continuous quantities: the grader measures the start and the reference in the
   grading environment and puts the threshold that fraction of the way from start to fix; `op` points to the fix's side.
@@ -399,9 +399,9 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a boot scene's `Start` set up what the play needed, and the play opened `play_scene` before it ran | a boot scene only gets `Awake` and `OnEnable` before `play_scene` replaces it: start such a game through its own `play_args` with `play_scene` null |
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script) |
-| `teleport_to` a hovering target left the player in the air | the spot is at the target's own y plus `offset` (no ground snap): a negative y `offset`, or `hold` |
+| `teleport_to` a hovering target left the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
 | a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `level` in an audio play, or select the source by `owner` |
-| a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input then `<Mouse>/leftButton` |
+| a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |
 | an editor `shader:` value compared with `==` 0.2 read 0.19999995827674866 | floats come back as stored: `>=`/`<=` a little either side |
 | a readout read through the frame touched its rect's edge and read nothing | give the `ui` rect a margin of background around the text |
 | a probe that isn't required but passes at the start carried weight | every check the start passes takes `"weight": 0`, a `"required": false` probe too |
