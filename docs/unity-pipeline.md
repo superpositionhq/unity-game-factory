@@ -96,6 +96,9 @@ above-normal priority during a recording.
 
 Every heavy job of every session goes through one limiter, `<root>\tools\unity-heavy.ps1` (rows in
 `.recording\_heavy-jobs.jsonl`): `& <root>\tools\unity-heavy.ps1 -Label "<slug> <what>" [-Gpu] [-Low] -- <exe> <args>`.
+It returns the job's exit code, or 125 when it could not run the job itself (called wrongly, `ugf-root.ps1` missing
+beside it, a machine config that is not JSON, an exe that would not start): Unity itself exits 2 for failed tests, so
+the limiter's own failures have a code no job uses.
 From Git Bash, wrap it in `powershell -ExecutionPolicy Bypass -Command "& '<path>' ... ; exit \$LASTEXITCODE"`
 (`powershell -File ... --` misparses `--`; without `-ExecutionPolicy Bypass` Windows' default policy refuses the
 script, and with the dollar sign unescaped bash expands `$LASTEXITCODE` to nothing: either way the call returns 0

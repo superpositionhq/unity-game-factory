@@ -1,7 +1,9 @@
 # Run one heavy Unity job (a batchmode editor run, a player build, the test runner, a packaged player, the editor GUI)
 # under a machine-wide limit so the parallel game sessions don't exhaust CPU/RAM. Waits for a free slot.
 #   & <root>\tools\unity-heavy.ps1 -Label "island-survival build" -- "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath C:\...\games\island-survival -executeMethod IslandSurvival.EditorTools.BuildPlayer.BuildWindows -logFile -
-# Exit code is the job's. Waits/acquire/release are appended to <root>\.recording\_heavy-jobs.jsonl.
+# Exit code is the job's; 125 when the limiter itself could not run the job (called wrongly, its ugf-root.ps1 missing,
+# a job that would not start), so a caller can tell "the job exited N" from "there was no job": Unity itself exits 2
+# for failed tests. Waits/acquire/release are appended to <root>\.recording\_heavy-jobs.jsonl.
 # <root> is the machine root (machine/lib/ugf-root.ps1); machine/bootstrap.ps1 installs this file as
 # <root>\tools\unity-heavy.ps1 with a copy of ugf-root.ps1 next to it.
 #
@@ -36,6 +38,7 @@ param(
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Command
 )
 $ErrorActionPreference = 'Continue'
+trap { Write-Error $_; exit 125 }   # an error of the limiter's own (a config that is not JSON) is not a job's exit code
 if ($Command.Count -and $Command[0] -eq '--') { $Command = $Command[1..($Command.Count - 1)] }
 # PowerShell splits an unquoted `-Key=C:/x` passed to a script into `-Key=C:` and `/x` (it reads `-Name:` as parameter
 # syntax); glue such pairs back together.
@@ -46,10 +49,10 @@ for ($i = 0; $i -lt $Command.Count; $i++) {
   } else { $joined.Add($Command[$i]) }
 }
 $Command = $joined.ToArray()
-if (-not $Command) { Write-Error 'usage: unity-heavy.ps1 -Label <text> -- <exe> <args...>'; exit 2 }
+if (-not $Command) { Write-Error 'usage: unity-heavy.ps1 -Label <text> -- <exe> <args...>'; exit 125 }
 # ugf-root.ps1 sits next to the installed copy, or in ..\lib in the repo.
 $ugfLib = @((Join-Path $PSScriptRoot 'ugf-root.ps1'), (Join-Path $PSScriptRoot '..\lib\ugf-root.ps1')) | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $ugfLib) { Write-Error "unity-heavy: ugf-root.ps1 not found next to this script: install it with machine\bootstrap.ps1"; exit 2 }
+if (-not $ugfLib) { Write-Error "unity-heavy: ugf-root.ps1 not found next to this script: install it with machine\bootstrap.ps1"; exit 125 }
 . $ugfLib
 $ugfRoot = Get-UGFRoot
 $plan = Get-UGFSlotPlan
@@ -227,4 +230,4 @@ try {
   if ($lowHeld) { try { $lowM.ReleaseMutex() } catch { } }
   Log 'end' @{ exit_code = $code; duration_s = [int]((Get-Date) - $t1).TotalSeconds; slots = 'mutex' }
 }
-exit $(if ($null -ne $code) { $code } else { 1 })   # no exit code: the job never started (e.g. no such exe), not a 0
+exit $(if ($null -ne $code) { $code } else { 125 })   # no exit code: the job never started (e.g. no such exe), not a 0
