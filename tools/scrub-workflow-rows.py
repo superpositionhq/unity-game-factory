@@ -58,12 +58,13 @@ def rules():
         ('agent', re.compile(r'(?i)\bgpt-\d+(?:\.\d+)?[a-z]*(?:-[a-z0-9]+)*\b'), 'agent-model'),   # gpt-4o too
         ('provider', re.compile(r'(?i)\bopenai\b'), 'provider'),
         # file names are not addresses: Unity names a model's animation files <model>@<clip>.fbx (with their .meta), the
-        # clips and controllers made from them keep the @, and so do packs' other files; a name with another .ext after
-        # the "domain" (Hero@Run.Fast.fbx) is a file too
+        # clips, controllers and masks made from them keep the @, and so do packs' other files, in either case (store
+        # packs ship Hero@Run.FBX); a name with another .ext after the "domain" (Hero@Run.Fast.fbx) is a file too
         ('email', re.compile(r'(?<![A-Za-z0-9._%+-])(?!git@|noreply@github\.com)[A-Za-z0-9._%+-]+@'
                              r'(?!(?:[A-Za-z0-9-]+\.)*(?:example\.(?:com|org|net)|invalid|test|localhost)\b)'
-                             r'(?:[A-Za-z0-9-]+\.)+(?!(?:png|jpe?g|tga|psd|fbx|obj|blend|meta|unity|prefab|asset|mat|anim'
-                             r'|controller|wav|ogg|json|py|ps1|md|txt)\b)[A-Za-z]{2,}\b(?!\.[A-Za-z0-9])'), '<email>'),
+                             r'(?:[A-Za-z0-9-]+\.)+(?!(?i:png|jpe?g|tga|psd|tiff?|exr|fbx|obj|blend|dae|gltf|glb|meta|unity'
+                             r'|prefab|asset|mat|anim|controller|overrideController|mask|playable|signal|wav|ogg|aiff?|flac'
+                             r'|json|py|ps1|md|txt)\b)[A-Za-z]{2,}\b(?!\.[A-Za-z0-9])'), '<email>'),
     ]
     if user and len(user) >= 3:
         out.append(('user', re.compile(r'(?i)' + word % re.escape(user)), '<user>'))
