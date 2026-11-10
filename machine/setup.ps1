@@ -41,8 +41,8 @@ param(
     [string]$Org,                      # GitHub org/user that owns unity-game-factory and the game repos (config github_org)
     [switch]$CloneGames,               # also clone every <org>/unity-game-* repo (asked when not given)
     [switch]$Yes,                      # answer yes to every question (installs, settings, hooks)
-    [switch]$DryRun,                   # no installs, Windows settings, sign-ins or game clones (bootstrap still writes the
-                                       # config, root and Claude dir it is given: use it with a scratch -Root/-ClaudeDir/-ConfigPath)
+    [switch]$DryRun,                   # no installs, Windows settings, sign-ins or game clones; bootstrap runs only
+                                       # given -ConfigPath, -ClaudeDir, -CodexDir, -AgentsSkillsDir and -HooksDir
     [string]$RepoUrl,                  # where to clone unity-game-factory from (default https://github.com/<org>/unity-game-factory)
     [ValidateSet('', 'claude', 'codex', 'both')][string]$Agent = '',   # the coding agent(s); asked when not given
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
@@ -101,7 +101,7 @@ function Save-State([string]$Key, $Value) {
 }
 function Get-State([string]$Key) { if ($state.PSObject.Properties[$Key]) { return $state.$Key } return $null }
 try { Start-Transcript -Path (Join-Path $setupDir 'setup.log') -Append | Out-Null } catch { }
-Write-Host "unity-game-factory setup: root $Root$(if ($DryRun) { ' (dry run: nothing is installed or changed outside the root)' })"
+Write-Host "unity-game-factory setup: root $Root$(if ($DryRun) { ' (dry run: nothing is installed or changed outside the root and the scratch folders given)' })"
 
 if (-not $Org -and $cfgNow -and $cfgNow.PSObject.Properties['github_org']) { $Org = [string]$cfgNow.github_org }
 if (-not $Org) { $Org = Get-State 'org' }
@@ -270,7 +270,11 @@ if (-not (Test-Path (Join-Path $repo 'machine\bootstrap.ps1'))) {
     }
 } else { Item PASS 'unity-game-factory clone' $repo }
 $bootstrapOk = $false
-if (Test-Path (Join-Path $repo 'machine\bootstrap.ps1')) {
+# A dry run changes nothing outside the root, and bootstrap.ps1 writes the config, the hooks dir, the skills and (after
+# its question) the agents' settings: in a dry run it runs only when every one of those is given (a scratch home).
+$notGiven = @('ConfigPath', 'ClaudeDir', 'CodexDir', 'AgentsSkillsDir', 'HooksDir' | Where-Object { -not $PSBoundParameters.ContainsKey($_) })
+if ($DryRun -and $notGiven) { Item INFO 'bootstrap.ps1' "not run: a dry run runs it only with every scratch folder given (missing -$($notGiven -join ', -'))" }
+elseif (Test-Path (Join-Path $repo 'machine\bootstrap.ps1')) {
     $clone = $CloneGames.IsPresent
     if (-not $clone) {
         $prev = Get-State 'clone_games'

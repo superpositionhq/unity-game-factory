@@ -151,8 +151,9 @@ checks the install, the sign-in (Codex) and that the hooks are wired (and, for C
 
 ## Scratch test (without touching a live setup)
 
-`-DryRun` reports installs, Windows settings, sign-ins and game clones without doing them; with a scratch root and
-agent folders, the bootstrap and check parts run against those only:
+`-DryRun` reports installs, Windows settings, sign-ins and game clones without doing them. It runs bootstrap only when
+it is given a scratch config, hooks dir and agent folders (bootstrap writes to all of them), and then against those
+only:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File machine/setup.ps1 -Org <org> -DryRun -Agent both -Root C:/ugf-test/UnityWork -ClaudeDir C:/ugf-test/home/.claude -CodexDir C:/ugf-test/home/.codex -AgentsSkillsDir C:/ugf-test/home/.agents/skills -HooksDir C:/ugf-test/home/.unity-game-factory/hooks -ConfigPath C:/ugf-test/home/.unity-game-factory/config.json
