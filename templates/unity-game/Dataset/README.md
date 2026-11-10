@@ -10,18 +10,16 @@ Until the packager's first run, leave this folder as the template made it (nobod
 | `git.log` | every commit: message, author, date, full diff (binary files as path + sha256) |
 | `workflow.jsonl` | every editor/code operation, recorded as it happened |
 | `Brief/` | the original brief (`brief.md`) and the design doc with story bible and status (`design.md`) |
+| `ReplayScripts/` | scripts that rebuild the project step by step, plus their verification report (PASS or FAIL) |
+| `Gameplay/__SLUG___S<n>.mp4` | the gameplay video of each recorded scenario, release version (one is enough) |
 | `Screenshots/` | the README images |
 | `manifest.json` | path, bytes and sha256 of every file |
 
-Not packed yet (the recorder and the creation replay make them, but the packager does not take them yet), and listed
-as pending in `manifest.json` until it does:
+`Gameplay/` comes from the recordings of the release commit and `ReplayScripts/` from its creation replay; a release
+packed before either was made lists it as pending in `manifest.json`.
 
-| Path | What |
-|---|---|
-| `ReplayScripts/` | scripts that rebuild the project step by step, plus their verification report |
-| `Gameplay/__SLUG___S<n>.mp4` | one gameplay video per scenario, release version |
-
-The full delivery (a zip next to this folder, `Dataset.pending.zip` while those two are missing, never committed) also
+The full delivery (a zip next to this folder: `Dataset.zip`, or `Dataset.pending.zip` while an entry is pending; never
+committed) also
 has `UnityProject/` (the project at the release commit), `Build/` (the Windows release player), `History/` (the full
 git history, and the creation sessions as recorded: every prompt, every reply and every tool call) and `Tasks/` (the
 game's tasks, split into the agent's and the grader's halves); they are not duplicated here because the repo is the

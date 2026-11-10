@@ -37,4 +37,4 @@ __DESCRIPTION__
 | `workflow.jsonl` | one row per editor/code operation, written as it happened |
 | `ReplayConfig.json` | the settings of the creation replay, which rebuilds the project from its history |
 | `assets.manifest.json`, `Docs/ThirdPartyNotices.md` | third-party assets: source, licence, files used, changes |
-| `Dataset/` | the built dataset (git log, creation record, brief, screenshots; gameplay videos and replay scripts once the packager takes them), written by the dataset packager |
+| `Dataset/` | the built dataset (git log, creation record, brief, gameplay videos, replay scripts, screenshots), written by the dataset packager |
