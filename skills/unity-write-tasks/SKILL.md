@@ -231,10 +231,12 @@ worked). The probe language, every play, measure and threshold with the rules th
 contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 [docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.
 
-Each milestone is a reward group; a run that gets part of the way earns part of the reward. **A no-op scores zero
-(permanent):** the score is the weighted share of checks passed, so every check the start already passes takes
-`"weight": 0`: `builds`, `boots`, all of `still_works`, any `log_absent` or `file_exists` true of the start, and any
-probe the start already passes, required or not. They still gate: a run must pass the required ones to be solved.
+Each milestone is a reward group; a run that gets part of the way earns part of the reward. A task holds 1 to 8
+milestones and a milestone 1 to 32 checks; their names are lower-case letters, digits and `_` (a milestone's at most
+32 characters, a check's 48). **A no-op scores zero (permanent):** the score is the weighted share of checks passed,
+so every check the start already passes takes `"weight": 0`: `builds`, `boots`, all of `still_works`, any
+`log_absent` or `file_exists` true of the start, and any probe the start already passes, required or not. They still
+gate: a run must pass the required ones to be solved.
 `validate-game.py` refuses a weighted `build`, `boot` or `still_works` check, and the task check a weighted probe the
 start passes; nothing checks a `log_absent` or `file_exists` outside `still_works`, so their `"weight": 0` is yours to
 set. The usual order:
