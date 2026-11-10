@@ -31,7 +31,10 @@ project as saved (`TaskProbe.EditorTools.AssetPass`), and the player build the c
 
 It also sets the project's own player settings to a new project's least helpful ones: another company, a splash
 screen, full screen 1920x1080 and resizable, not running in the background, one instance only, no player log,
-IL2CPP, static batching on, code stripping High, a development build.
+IL2CPP, static batching on, code stripping High, a development build. They stay in the test project after the run:
+the checker's build gives its player what it needs whatever they are and puts them back (the play `facts` checks
+both), but any other build of that project (another family's own, one by hand) starts from them unless it sets its
+own: an IL2CPP player needs the IL2CPP module and takes far longer to build.
 
 ## The editor pass (`measures.json`, checked by `saved`)
 
