@@ -583,7 +583,9 @@ parameter's effective value at the camera after blending.
 - The stack: the probe blends the volumes for the camera's volume trigger and volume layer mask at each sample
   (`source: "camera"`), or takes the camera's own stack when the camera updates it by script (`camera_stack`). A camera
   with post-processing off draws ungraded: neutral constants and exposure 1 (its `post:` values still read the stack).
-  Without URP the constants are neutral and a `post:` field has no value.
+  Without URP the constants are neutral and a `post:` field has no value, and the play's `query_errors` says so
+  (`grading <id>: the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no value)`).
+  Of two directional Lights of one intensity, the sun is the first in hierarchy order.
 - A play's first sample comes before URP has set up its volumes: it reads no stack (its `source` is "none"), so
   neutral constants, exposure 1 and no `post:` value, whatever the scene's volumes hold (the next sample reads them).
   Start a window that reads the grade, `exposure` or `brightness` after it (`"window": [0.5, 20]`), and never read
