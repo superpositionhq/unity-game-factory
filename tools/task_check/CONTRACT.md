@@ -359,21 +359,23 @@ original's, unchanged (`probes.py`).
   y = 2000 m (4000 m long) at `xz`, or at each point of `box`'s lattice, takes the first collider it meets
   (`RaycastNonAlloc` into a buffer that grows until every hit fits, the nearest kept); which colliders count, the
   lattice and the value's keys: task-probes.md 2.17.
-- **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game whose world
-  bounds reach the place, at most 1024, but one that encloses the whole place and is at least 20 times its size,
-  rendered alone from fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two
-  square to a line (128 x 128), the cameras 0.5 m outside the place, the far plane at its far side.
-  - How: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through
-    URP's `SingleCameraRequest` (else the pipeline's `StandardRequest`, else `Camera.Render`) into float textures
-    (ARGBFloat); the depth from a second render, copied into a float texture by the package's own shader
-    (`Runtime/Resources/TaskProbeDepthCopy.shader`). Its culling mask is the chosen renderers' layers. For the render,
-    every other drawn renderer on those layers inside the views is forced off (`forceRenderingOff`: a layer change
-    would refilter a collider's physics contacts), terrains on those layers stop drawing, every Light and reflection
-    probe is off, fog off, the default reflection a black cubemap, the chosen renderers' lightmaps and light probes off,
-    the ambient flat (white for motion and base colour, 1 / 0.96 so a URP Lit surface reads its own albedo; black for
-    glow), and post-processing, shadows, anti-aliasing, volumes, render scale and renderer features (but RenderObjects)
-    off, HDR on. All of it is put back before the sample returns: the game's frames are identical with and without the
-    query.
+- **drawn** (`DrawnQuery`, `DrawnRender`; the original's scene capture): every renderer drawn in game (not drawing
+  shadows only) and every terrain whose world bounds reach the place, at most 1024 (the first in hierarchy order), but
+  one that encloses the whole place and is at least 20 times its size, and none on the UI layer, rendered alone from
+  fixed orthographic views: four from the corners of a tetrahedron around a point (64 x 64), two square to a line
+  (128 x 128), the cameras 0.5 m outside the place, the far plane at its far side.
+  - How: a disabled camera of the probe's own (`HideAndDontSave`, so no select finds it), rendered by hand through URP's
+    `SingleCameraRequest` with the Universal Renderer the player's camera draws with (without URP, under another URP
+    renderer or with no graphics device: no value and one `rendering: ...` line) into float textures (ARGBFloat); the
+    depth from a second render, copied into a float texture by the package's own shader
+    (`Runtime/Resources/TaskProbeDepthCopy.shader`). Its culling mask is the chosen renderers' layers, never the UI
+    layer (world-space canvases draw on it and can't be forced off). For the render, every other drawn renderer on those
+    layers inside the views is forced off (`forceRenderingOff`: a layer change would refilter a collider's physics
+    contacts), terrains on those layers stop drawing, every Light and reflection probe is off, fog off, the default
+    reflection a black cubemap, the chosen renderers' lightmaps and light probes off, the ambient flat (white for motion
+    and base colour, 1 / 0.96 so a URP Lit surface reads its own albedo; black for glow), and post-processing, shadows,
+    anti-aliasing, volumes, render scale and renderer features (but RenderObjects) off, HDR on. All of it is put back
+    before the sample returns: the game's frames are identical with and without the query.
   - Where the original lights the place with direct lights and the sky light and reads the base colour from the
     GBuffer, the port takes the base colour as the render under the white ambient less the render under black, so
     emission cancels. A pixel is in the place when its depth puts it there, or when it shows colour with nothing
