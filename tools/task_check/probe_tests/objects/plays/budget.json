@@ -1,0 +1,34 @@
+{
+ "seconds": 1.5,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/objects/Made/ObjBudget.unity",
+ "inputs": [],
+ "queries": [
+  {
+   "id": "b_rows",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "owner": {
+     "name": "Lamps"
+    }
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "b_obj",
+   "kind": "objects",
+   "select": {
+    "name": "Lamps"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  }
+ ]
+}

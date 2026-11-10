@@ -2,24 +2,18 @@
  "seconds": 10,
  "shots": 0,
  "every": 0.1,
- "scene": "Assets/Scenes/ObjStress.unity",
- "sound": false,
- "player": null,
+ "scene": "Assets/ProbeTests/objects/Made/ObjStress.unity",
  "inputs": [],
- "queries": {
-  "format": "game-probe-queries/1",
-  "every": 0.1,
-  "queries": [
-   {
-    "id": "s",
-    "kind": "objects",
-    "select": {
-     "has": {
-      "lit": true
-     }
-    },
-    "fields": []
-   }
-  ]
- }
+ "queries": [
+  {
+   "id": "s",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "lit": true
+    }
+   },
+   "fields": []
+  }
+ ]
 }

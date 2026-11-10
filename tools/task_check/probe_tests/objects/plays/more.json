@@ -1,0 +1,249 @@
+{
+ "seconds": 6,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/objects/Made/ObjMore.unity",
+ "inputs": [],
+ "queries": [
+  {
+   "id": "m_lamps",
+   "kind": "objects",
+   "select": {
+    "name": "Lamp*"
+   },
+   "fields": [
+    "lit",
+    "glow",
+    "prop:ObjKelvin.rgb.r",
+    "prop:ObjKelvin.rgb.g",
+    "prop:ObjKelvin.rgb.b",
+    "prop:ObjKelvin.uses"
+   ]
+  },
+  {
+   "id": "m_atlas",
+   "kind": "objects",
+   "select": {
+    "name": "Atlas*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_sprites",
+   "kind": "objects",
+   "select": {
+    "name": "Sprite*"
+   },
+   "fields": [
+    "lit",
+    "glow",
+    "extent_x",
+    "changed",
+    "spin"
+   ]
+  },
+  {
+   "id": "m_line",
+   "kind": "objects",
+   "select": {
+    "name": "LineLamp"
+   },
+   "fields": [
+    "lit",
+    "glow",
+    "extent_x"
+   ]
+  },
+  {
+   "id": "m_tubes",
+   "kind": "objects",
+   "select": {
+    "name": "Tube*"
+   },
+   "fields": [
+    "lit",
+    "glow",
+    "extent_x",
+    "prop:SkinnedMeshRenderer.localBounds.extents.x"
+   ]
+  },
+  {
+   "id": "m_vfx",
+   "kind": "objects",
+   "select": {
+    "name": "Vfx"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_c_sprite",
+   "kind": "components",
+   "select": {
+    "component": "SpriteRenderer",
+    "name": "Sprite*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_c_line",
+   "kind": "components",
+   "select": {
+    "component": "LineRenderer"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_c_vfx",
+   "kind": "components",
+   "select": {
+    "component": "VisualEffect"
+   },
+   "fields": [
+    "active",
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_effects",
+   "kind": "components",
+   "select": {
+    "effect": true
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "m_2d",
+   "kind": "objects",
+   "select": {
+    "name": "*2D"
+   },
+   "fields": [
+    "y",
+    "speed",
+    "simulating",
+    "spin",
+    "collision",
+    "extent_x",
+    "hidden"
+   ]
+  },
+  {
+   "id": "m_c2d",
+   "kind": "components",
+   "select": {
+    "component": "Rigidbody2D"
+   },
+   "fields": [
+    "simulating",
+    "speed",
+    "spin"
+   ]
+  },
+  {
+   "id": "m_walker",
+   "kind": "objects",
+   "select": {
+    "name": "Walker"
+   },
+   "fields": [
+    "x",
+    "speed"
+   ]
+  },
+  {
+   "id": "m_c_walker",
+   "kind": "components",
+   "select": {
+    "component": "NavMeshAgent"
+   },
+   "fields": [
+    "speed",
+    "active"
+   ]
+  },
+  {
+   "id": "m_human",
+   "kind": "objects",
+   "select": {
+    "name": "Human"
+   },
+   "fields": [
+    "bone:Animator.Head.y",
+    "bone:Animator.Skull.y",
+    "bone:Animator.head.y",
+    "bone:Animator.LeftFoot.y",
+    "bone:Animator.5.y",
+    "prop:Animator.isHuman"
+   ]
+  },
+  {
+   "id": "m_human_far",
+   "kind": "objects",
+   "select": {
+    "name": "Human"
+   },
+   "fields": [
+    "bone:Animator.100.y",
+    "count"
+   ]
+  },
+  {
+   "id": "m_doll",
+   "kind": "objects",
+   "select": {
+    "name": "Ragdoll"
+   },
+   "fields": [
+    "spread",
+    "changed",
+    "pose_change"
+   ]
+  },
+  {
+   "id": "m_class",
+   "kind": "objects",
+   "select": {
+    "name": "*"
+   },
+   "fields": []
+  },
+  {
+   "id": "m_watch",
+   "kind": "objects",
+   "select": {
+    "name": "Watch"
+   },
+   "fields": [
+    "prop:ObjWatch.activeChanged",
+    "prop:ObjWatch.materialsChanged",
+    "prop:ObjWatch.blocksChanged"
+   ]
+  },
+  {
+   "id": "m_slider",
+   "kind": "objects",
+   "select": {
+    "name": "Slider"
+   },
+   "fields": [
+    "x",
+    "speed"
+   ]
+  }
+ ]
+}

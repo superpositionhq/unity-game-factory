@@ -1,6 +1,6 @@
-// A glowing shader with no standard interface (no _EmissionColor, no _BaseColor, not named unlit): lit/glow must read
-// it as rendered.
-Shader "Custom/ProbeTestGlow"
+// A glowing shader without the standard interface (no _EmissionColor, no _BaseColor, not named unlit): lit and glow
+// read it as rendered. It draws its colour _Glow and nothing else.
+Shader "ProbeTests/ObjGlow"
 {
     Properties { _Glow ("Glow", Color) = (3, 2, 1, 1) }
     SubShader

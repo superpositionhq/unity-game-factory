@@ -1,0 +1,632 @@
+{
+ "seconds": 16,
+ "shots": 2,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/objects/Made/ObjLab.unity",
+ "inputs": [
+  {
+   "t": 1.0,
+   "key": "<Keyboard>/w",
+   "press": true
+  },
+  {
+   "t": 4.0,
+   "teleport_to": {
+    "name": "LampLate",
+    "has": {
+     "lit": true
+    }
+   },
+   "distance": 2.0
+  },
+  {
+   "t": 6.0,
+   "key": "<Keyboard>/w",
+   "press": false
+  },
+  {
+   "t": 6.0,
+   "key": "<Keyboard>/d",
+   "press": true
+  },
+  {
+   "t": 8.0,
+   "key": "<Keyboard>/d",
+   "press": false
+  },
+  {
+   "t": 8.0,
+   "key": "<Keyboard>/w",
+   "press": true
+  },
+  {
+   "t": 9.0,
+   "key": "<Keyboard>/space",
+   "press": true
+  },
+  {
+   "t": 9.3,
+   "key": "<Keyboard>/space",
+   "press": false
+  },
+  {
+   "t": 13.0,
+   "key": "<Keyboard>/w",
+   "press": false
+  },
+  {
+   "t": 13.0,
+   "key": "<Keyboard>/a",
+   "press": true
+  },
+  {
+   "t": 15.0,
+   "key": "<Keyboard>/a",
+   "press": false
+  }
+ ],
+ "queries": [
+  {
+   "id": "o_hero",
+   "kind": "objects",
+   "select": {
+    "player": true
+   },
+   "fields": [
+    "count",
+    "x",
+    "y",
+    "z",
+    "yaw",
+    "pitch",
+    "roll",
+    "scale",
+    "extent_x",
+    "extent_y",
+    "extent_z",
+    "active",
+    "hidden",
+    "collision",
+    "speed",
+    "facing_vs_velocity",
+    "simulating",
+    "rel_yaw:Visor",
+    "world_yaw:Visor",
+    "world_pitch:Visor",
+    "world_roll:Visor",
+    "forward:Visor.x",
+    "forward:Visor.z",
+    "spin"
+   ]
+  },
+  {
+   "id": "o_phys",
+   "kind": "objects",
+   "select": {
+    "component": "Rigidbody"
+   },
+   "fields": [
+    "y",
+    "speed",
+    "simulating",
+    "spin",
+    "changed",
+    "bounds_change",
+    "collision"
+   ]
+  },
+  {
+   "id": "o_fan",
+   "kind": "objects",
+   "select": {
+    "name": "Fan"
+   },
+   "fields": [
+    "spin",
+    "changed",
+    "bounds_change",
+    "spread",
+    "extent_x",
+    "extent_z",
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "o_gone",
+   "kind": "objects",
+   "select": {
+    "name": "Vanisher",
+    "inactive": true
+   },
+   "fields": [
+    "active",
+    "hidden",
+    "changed",
+    "bounds_change",
+    "extent_x",
+    "collision",
+    "prop:MeshRenderer.bounds.center.x",
+    "prop:MeshRenderer.bounds.size.x"
+   ]
+  },
+  {
+   "id": "o_ghost",
+   "kind": "objects",
+   "select": {
+    "name": "Ghost"
+   },
+   "fields": [
+    "active",
+    "hidden",
+    "changed",
+    "bounds_change",
+    "extent_x",
+    "collision",
+    "prop:MeshRenderer.bounds.center.x",
+    "prop:MeshRenderer.bounds.size.x"
+   ]
+  },
+  {
+   "id": "o_lamps",
+   "kind": "objects",
+   "select": {
+    "tag": "ObjLamp"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "o_late",
+   "kind": "objects",
+   "select": {
+    "name": "LampLate"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "o_props",
+   "kind": "objects",
+   "select": {
+    "layer": "ObjProps"
+   },
+   "fields": []
+  },
+  {
+   "id": "o_haslit",
+   "kind": "objects",
+   "select": {
+    "has": {
+     "lit": true
+    }
+   },
+   "fields": [
+    "lit"
+   ]
+  },
+  {
+   "id": "o_bulb_hi",
+   "kind": "objects",
+   "select": {
+    "name": "Bulb",
+    "near": {
+     "point": {
+      "xyz": [
+       8,
+       0,
+       8
+      ]
+     },
+     "radius": 5,
+     "y_min": 2
+    }
+   },
+   "fields": [
+    "y",
+    "scale",
+    "glow"
+   ]
+  },
+  {
+   "id": "o_bulb_lo",
+   "kind": "objects",
+   "select": {
+    "name": "Bulb",
+    "near": {
+     "point": {
+      "xyz": [
+       8,
+       3,
+       8
+      ]
+     },
+     "radius": 5,
+     "y_max": -1,
+     "y_relative": true
+    }
+   },
+   "fields": [
+    "y"
+   ]
+  },
+  {
+   "id": "o_enemy",
+   "kind": "objects",
+   "select": {
+    "tag": "ObjEnemy"
+   },
+   "fields": [
+    "prop:ObjHealth.current",
+    "prop:ObjHealth.armour",
+    "prop:ObjHealth.state",
+    "prop:ObjHealth.label",
+    "prop:ObjHealth.items",
+    "prop:ObjHealth.items[1]",
+    "prop:ObjHealth.tint.g",
+    "prop:ObjHealth.target",
+    "prop:activeSelf",
+    "prop:localScale.y",
+    "prop:ObjHealth.nothing",
+    "prop:ObjHealth.sibling",
+    "prop:ObjHealth.rootIndex"
+   ]
+  },
+  {
+   "id": "o_hurt",
+   "kind": "objects",
+   "select": {
+    "component": "IObjHurt"
+   },
+   "fields": [
+    "prop:ObjHealth.Hurt"
+   ]
+  },
+  {
+   "id": "o_arm",
+   "kind": "objects",
+   "select": {
+    "name": "Arm"
+   },
+   "fields": [
+    "anim:Speed",
+    "anim:Open",
+    "anim:Count",
+    "anim:Missing",
+    "clip",
+    "bone:SkinnedMeshRenderer.Upper.x",
+    "bone:Animator.Upper.y",
+    "pose_change",
+    "changed",
+    "bounds_change",
+    "extent_x"
+   ]
+  },
+  {
+   "id": "o_sun",
+   "kind": "objects",
+   "select": {
+    "name": "Sun"
+   },
+   "fields": [
+    "world_pitch:Light",
+    "world_yaw:Sun",
+    "forward:Light.y",
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "o_rock",
+   "kind": "objects",
+   "select": {
+    "name": "Rock"
+   },
+   "fields": [
+    "extent_x",
+    "spread",
+    "hidden"
+   ]
+  },
+  {
+   "id": "o_bad",
+   "kind": "objects",
+   "select": {
+    "name": "Rock"
+   },
+   "fields": [
+    "nonsense"
+   ]
+  },
+  {
+   "id": "o_all",
+   "kind": "objects",
+   "select": {},
+   "fields": []
+  },
+  {
+   "id": "o_watch",
+   "kind": "objects",
+   "select": {
+    "name": "Watch"
+   },
+   "fields": [
+    "prop:ObjWatch.activeChanged",
+    "prop:ObjWatch.materialsChanged",
+    "prop:ObjWatch.blocksChanged"
+   ]
+  },
+  {
+   "id": "c_lights",
+   "kind": "components",
+   "select": {
+    "component": "Light"
+   },
+   "fields": [
+    "intensity",
+    "on",
+    "lit",
+    "glow",
+    "active",
+    "visible",
+    "x"
+   ]
+  },
+  {
+   "id": "c_lamp_r",
+   "kind": "components",
+   "select": {
+    "component": "Renderer",
+    "owner": {
+     "tag": "ObjLamp"
+    }
+   },
+   "fields": [
+    "lit",
+    "glow",
+    "visible",
+    "active"
+   ]
+  },
+  {
+   "id": "c_effects",
+   "kind": "components",
+   "select": {
+    "effect": true
+   },
+   "fields": [
+    "active",
+    "count",
+    "lit"
+   ]
+  },
+  {
+   "id": "c_decal",
+   "kind": "components",
+   "select": {
+    "component": "DecalProjector"
+   },
+   "fields": [
+    "active",
+    "visible"
+   ]
+  },
+  {
+   "id": "c_decal_live",
+   "kind": "components",
+   "select": {
+    "component": "DecalProjector",
+    "effect": true
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "c_ps_live",
+   "kind": "components",
+   "select": {
+    "component": "ParticleSystem",
+    "effect": true
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "c_ps",
+   "kind": "components",
+   "select": {
+    "component": "ParticleSystem"
+   },
+   "fields": [
+    "active",
+    "lit",
+    "glow",
+    "visible",
+    "prop:particleCount"
+   ]
+  },
+  {
+   "id": "c_blade",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "name": "Blade"
+   },
+   "fields": [
+    "spin",
+    "x",
+    "z",
+    "speed",
+    "changed",
+    "bounds_change",
+    "extent_x",
+    "visible"
+   ]
+  },
+  {
+   "id": "c_spheres",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "mesh": "Sphere"
+   },
+   "fields": []
+  },
+  {
+   "id": "c_visible",
+   "kind": "components",
+   "select": {
+    "component": "Renderer",
+    "visible": true,
+    "near": {
+     "point": {
+      "xyz": [
+       -6,
+       0.5,
+       1
+      ]
+     },
+     "radius": 1.5
+    }
+   },
+   "fields": [
+    "visible"
+   ]
+  },
+  {
+   "id": "c_health",
+   "kind": "components",
+   "select": {
+    "component": "ObjHealth"
+   },
+   "fields": [
+    "prop:current",
+    "active",
+    "speed"
+   ]
+  },
+  {
+   "id": "c_hurt",
+   "kind": "components",
+   "select": {
+    "component": "IObjHurt"
+   },
+   "fields": [
+    "prop:current"
+   ]
+  },
+  {
+   "id": "c_smr",
+   "kind": "components",
+   "select": {
+    "component": "SkinnedMeshRenderer"
+   },
+   "fields": [
+    "pose_change",
+    "changed",
+    "bounds_change",
+    "lit"
+   ]
+  },
+  {
+   "id": "c_rb",
+   "kind": "components",
+   "select": {
+    "component": "Rigidbody"
+   },
+   "fields": [
+    "simulating",
+    "speed",
+    "spin",
+    "extent_y"
+   ]
+  },
+  {
+   "id": "c_col",
+   "kind": "components",
+   "select": {
+    "component": "BoxCollider",
+    "name": "Crate"
+   },
+   "fields": [
+    "extent_y",
+    "y"
+   ]
+  },
+  {
+   "id": "c_trail",
+   "kind": "components",
+   "select": {
+    "component": "TrailRenderer"
+   },
+   "fields": [
+    "active",
+    "visible",
+    "x",
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "c_ghost",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "name": "Ghost"
+   },
+   "fields": [
+    "visible",
+    "changed",
+    "bounds_change",
+    "extent_x"
+   ]
+  },
+  {
+   "id": "c_vanisher",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "name": "Vanisher"
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "c_vanisher_all",
+   "kind": "components",
+   "select": {
+    "component": "MeshRenderer",
+    "name": "Vanisher",
+    "inactive": true
+   },
+   "fields": [
+    "active"
+   ]
+  },
+  {
+   "id": "c_bad",
+   "kind": "components",
+   "select": {
+    "component": "NoSuchType"
+   },
+   "fields": [
+    "count"
+   ]
+  },
+  {
+   "id": "c_none",
+   "kind": "components",
+   "select": {},
+   "fields": [
+    "count"
+   ]
+  }
+ ]
+}

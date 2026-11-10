@@ -1,0 +1,35 @@
+{
+ "seconds": 3,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/objects/Made/ObjMore.unity",
+ "inputs": [
+  {
+   "t": 1.0,
+   "wait": 2.0
+  }
+ ],
+ "queries": [
+  {
+   "id": "w_slider",
+   "kind": "objects",
+   "select": {
+    "name": "Slider"
+   },
+   "fields": [
+    "x",
+    "speed"
+   ]
+  },
+  {
+   "id": "w_turner",
+   "kind": "objects",
+   "select": {
+    "name": "Turner"
+   },
+   "fields": [
+    "spin"
+   ]
+  }
+ ]
+}

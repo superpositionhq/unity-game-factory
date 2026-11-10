@@ -1,0 +1,198 @@
+{
+ "seconds": 16,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/objects/Made/ObjLab.unity",
+ "inputs": [
+  {
+   "t": 1.0,
+   "key": "<Keyboard>/w",
+   "press": true
+  },
+  {
+   "t": 6.0,
+   "key": "<Keyboard>/w",
+   "press": false
+  },
+  {
+   "t": 6.0,
+   "key": "<Keyboard>/d",
+   "press": true
+  },
+  {
+   "t": 8.0,
+   "key": "<Keyboard>/d",
+   "press": false
+  },
+  {
+   "t": 8.0,
+   "key": "<Keyboard>/w",
+   "press": true
+  },
+  {
+   "t": 9.0,
+   "key": "<Keyboard>/space",
+   "press": true
+  },
+  {
+   "t": 9.3,
+   "key": "<Keyboard>/space",
+   "press": false
+  },
+  {
+   "t": 13.0,
+   "key": "<Keyboard>/w",
+   "press": false
+  },
+  {
+   "t": 13.0,
+   "key": "<Keyboard>/a",
+   "press": true
+  },
+  {
+   "t": 15.0,
+   "key": "<Keyboard>/a",
+   "press": false
+  }
+ ],
+ "queries": [
+  {
+   "id": "cam",
+   "kind": "camera"
+  },
+  {
+   "id": "sp",
+   "kind": "spawns",
+   "component": "ObjProjectile"
+  },
+  {
+   "id": "sp_bad",
+   "kind": "spawns",
+   "component": "Nope"
+  },
+  {
+   "id": "p_all",
+   "kind": "pieces"
+  },
+  {
+   "id": "p_terrain",
+   "kind": "pieces",
+   "select": {
+    "component": "Terrain"
+   }
+  },
+  {
+   "id": "p_sphere",
+   "kind": "pieces",
+   "select": {
+    "mesh": "Sphere"
+   }
+  },
+  {
+   "id": "p_rock",
+   "kind": "pieces",
+   "select": {
+    "owner": {
+     "name": "Rock"
+    }
+   }
+  },
+  {
+   "id": "p_near",
+   "kind": "pieces",
+   "select": {
+    "near": {
+     "point": {
+      "player": true
+     },
+     "radius": 6
+    }
+   }
+  },
+  {
+   "id": "p_trees_near",
+   "kind": "pieces",
+   "select": {
+    "component": "Terrain",
+    "near": {
+     "point": {
+      "xyz": [
+       70,
+       0,
+       -10
+      ]
+     },
+     "radius": 8
+    }
+   }
+  },
+  {
+   "id": "g_origin",
+   "kind": "ground",
+   "xz": [
+    0,
+    0
+   ]
+  },
+  {
+   "id": "g_roof",
+   "kind": "ground",
+   "xz": [
+    -20,
+    -20
+   ]
+  },
+  {
+   "id": "g_roof_floor",
+   "kind": "ground",
+   "xz": [
+    -20,
+    -20
+   ],
+   "select": {
+    "name": "Floor"
+   }
+  },
+  {
+   "id": "g_ramp",
+   "kind": "ground",
+   "xz": [
+    30,
+    30
+   ]
+  },
+  {
+   "id": "g_none",
+   "kind": "ground",
+   "xz": [
+    500,
+    500
+   ]
+  },
+  {
+   "id": "g_hills",
+   "kind": "ground",
+   "box": [
+    62,
+    -18,
+    98,
+    18
+   ],
+   "grid": 8
+  },
+  {
+   "id": "g_hills_sel",
+   "kind": "ground",
+   "box": [
+    62,
+    -18,
+    98,
+    18
+   ],
+   "grid": 8,
+   "select": {
+    "component": "TerrainCollider"
+   }
+  }
+ ]
+}

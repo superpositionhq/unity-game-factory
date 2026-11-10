@@ -1,2 +1,0 @@
-{"seconds": 1, "shots": 0, "every": 0.5, "scene": "Assets/Scenes/ObjTest.unity", "sound": false, "player": null, "inputs": [],
- "queries": {"format": "game-probe-queries/1", "every": 0.5, "queries": [{"id": "s", "kind": "objects", "select": {"component": "Health"}, "fields": ["prop:Health.sibling", "prop:Health.rootIndex"]}]}}
