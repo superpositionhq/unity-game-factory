@@ -828,6 +828,26 @@ class CleanUp(unittest.TestCase):
             self.assertTrue((elsewhere / "Temp" / "keep.txt").is_file(), "the other folder's files stay")
             self.assertFalse((elsewhere / "Packages").exists(), "nothing is added to it either")
 
+    @unittest.skipUnless(os.name == "nt", "taskkill, Win32_Process")
+    def test_what_the_try_stops_names_its_folder_whole_in_either_spelling(self):
+        """A process names the folder when its command line has the folder's whole name, as Windows or Git Bash (Claude
+        Code's shell) writes it; one in a folder whose name merely starts the same is someone else's."""
+        with tempfile.TemporaryDirectory() as tmp:
+            mine = Path(tmp) / "s"
+            git_bash = "/" + str(mine)[0].lower() + str(mine)[2:].replace("\\", "/") + "/Logs/x"
+            names = {"inside": str(mine / "Logs" / "x"), "git bash": git_bash, "bystander": str(mine) + "2\\x"}
+            procs = {k: subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", v],
+                                         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                     for k, v in names.items()}
+            try:
+                stopped = trial.kill_left_behind(mine)
+                self.assertEqual(sorted(stopped), sorted([procs["inside"].pid, procs["git bash"].pid]))
+                self.assertTrue(alive(procs["bystander"].pid), "someone else's folder s2")
+            finally:
+                for p in procs.values():
+                    p.kill()
+                    p.wait(timeout=30)
+
     def test_a_name_that_would_climb_out_of_the_try_removes_nothing(self):
         """The task's name and its game's name make the paths the try deletes (<out>\\<name>, <scratch>\\run1\\<game>):
         the task's schema refuses them before anything is removed."""

@@ -183,8 +183,11 @@ def kill_left_behind(folder):
     if os.name != "nt":
         return []
     # The path as the try made it (and gave it to the agent), never through a link the agent made there: that would
-    # stop processes of the folder the link points at.
-    needle = os.path.abspath(folder).lower()
+    # stop processes of the folder the link points at. Also as Git Bash writes it (/c/..., Claude Code's shell), and
+    # only as a whole name: C:\t\s is no mention of C:\t\s2, someone else's.
+    path = os.path.abspath(folder).lower()
+    needles = [re.compile(re.escape(p) + r"(?![\w-]|\.\w)")
+               for p in [path] + (["\\" + path[0] + path[2:]] if path[1:2] == ":" else [])]
     script = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | ForEach-Object "
               "{ \"$($_.ProcessId)`t$($_.CommandLine)\" }")
     out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
@@ -193,7 +196,8 @@ def kill_left_behind(folder):
     for line in out.splitlines():
         pid, _, command = line.partition("	")
         command = command.lower().replace("/", "\\")
-        if pid.isdigit() and needle in command and int(pid) != os.getpid() and "get-ciminstance" not in command:
+        if pid.isdigit() and any(n.search(command) for n in needles) and int(pid) != os.getpid() \
+                and "get-ciminstance" not in command:
             pids.append(int(pid))
     for pid in pids:
         unity._kill_tree(pid)
