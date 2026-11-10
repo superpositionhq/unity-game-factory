@@ -93,6 +93,25 @@ def answered(argv, cwd, prompt, transcript, minutes, env_extra=None):
     return {"exit_code": 0, "seconds": 60.0, "timed_out": False}
 
 
+def write(folder, *names, text="x"):
+    for name in names:
+        (Path(folder) / name).parent.mkdir(parents=True, exist_ok=True)
+        (Path(folder) / name).write_text(text)
+
+
+def leaving_files(side):
+    """trial.side, the start's and the reference's copies holding what a real build and play leave in them: an import
+    cache, compiled scripts, the grader's requests, a player."""
+
+    def made(name, folder, *rest):
+        if name in ("start", "reference"):
+            write(folder, "Library/Artifacts/a1", "Library/ScriptAssemblies/Game.dll", "Logs/TaskProbe/play_spec.json",
+                  "Build/TaskProbe/Game.exe", text=name)
+        return side(name, folder, *rest)
+
+    return made
+
+
 class Brief(unittest.TestCase):
     EDITOR = "C:/Program Files/Unity/Hub/Editor/6000.3.26f1/Editor/Unity.exe"
 
@@ -277,10 +296,6 @@ class Workspace(unittest.TestCase):
             self.assertEqual(git(dest, "rev-list", "--count", "HEAD"), "1", "one commit, no history")
             self.assertEqual(git(dest, "status", "--porcelain"), "")
 
-    def test_the_build_outputs_go_before_a_grade_and_the_import_cache_stays(self):
-        self.assertEqual(set(trial.BUILT), {"Temp", "Obj", "Logs", "Build", "Builds"})
-        self.assertNotIn("Library", trial.BUILT)
-
 
 class Whole(unittest.TestCase):
     def test_runs_graded_against_the_start_and_the_reference(self):
@@ -293,7 +308,6 @@ class Whole(unittest.TestCase):
             task["seed"] = {**task["seed"], "commit": start, "reference": fix}
             projects = {"start": FakeProject(measuring(-500)), "reference": FakeProject(measuring(100)),
                         "run1": FakeProject(measuring(-500)), "run2": FakeProject(measuring(90))}
-            left = {}
 
             def project(folder, machine, label):
                 folder = Path(folder)
@@ -301,20 +315,9 @@ class Whole(unittest.TestCase):
 
             def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
                 Path(transcript).write_text(json.dumps({"type": "result", "num_turns": 12, "total_cost_usd": 1.5}))
-                for d in ("Library", "Temp", "Build"):  # what an agent that opened Unity and built leaves behind
-                    (Path(cwd) / d).mkdir()
-                    (Path(cwd) / d / "x").write_text("x")
-                left[Path(cwd).parent.name] = Path(cwd)
                 return {"exit_code": 0, "seconds": 60.0, "timed_out": False}
 
-            def graded(name, folder, *rest):
-                if name.startswith("run"):
-                    left[name] = sorted(p.name for p in Path(folder).iterdir() if p.name in ("Library", "Temp", "Build"))
-                return original(name, folder, *rest)
-
-            original = trial.side
             with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
-                    mock.patch.object(trial, "side", graded), \
                     mock.patch.object(unity.Machine, "for_project",
                                       classmethod(lambda cls, p, d=False: cls(Path("C:/U/Unity.exe"), None))):
                 result = trial.try_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
@@ -324,8 +327,7 @@ class Whole(unittest.TestCase):
             self.assertEqual([r["solved"] for r in result["runs"]], [False, True])
             self.assertEqual(result["runs"][1]["turns"], 12)
             self.assertEqual(result["runs"][0]["milestones"], {"graded": False})
-            self.assertEqual(left["run1"], ["Library"], "the build outputs are removed, the import cache kept")
-            self.assertEqual(projects["run2"].scenes, [["Assets/Scenes/Town.unity"]])
+            self.assertEqual(projects["run2"].scenes, [["Assets/Scenes/Town.unity"]], "the play scene reaches the build")
             brief = (Path(tmp) / "out" / "probe-task" / "brief.md").read_text(encoding="utf-8")
             self.assertIn("`Assets/Scenes/Town.unity`", brief)
             self.assertIn(str(Path("C:/U/Unity.exe")), brief)
@@ -351,6 +353,50 @@ class Whole(unittest.TestCase):
             self.assertEqual(result["status"], "ERROR")
             self.assertIn("PathTooLong", result["reasons"][0])
             self.assertIn("--scratch", result["reasons"][0])
+
+    def test_the_answer_is_gone_before_an_agent_starts(self):
+        """The reference copy (the fix) and the copies' logs (the grader's queries) would lie two folders above the
+        agent's own: every threshold is measured first, then they go. The start's import cache stays for the grades."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            scratch, seen = Path(tmp) / "scratch", {}
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                seen.update(reference=(scratch / "reference").exists(), logs=(scratch / "start" / "Logs").exists(),
+                            cache=(scratch / "start" / "Library" / "Artifacts").is_dir(),
+                            measured=len(projects["start"].plays) + len(projects["reference"].plays))
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            with faked(agent) as projects, mock.patch.object(trial, "side", leaving_files(trial.side)):
+                result = trial.try_task(repo, task, b"{}", scratch, Path(tmp) / "out", "claude", "claude",
+                                        log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual(seen, {"reference": False, "logs": False, "cache": True, "measured": 2})
+
+    def test_a_run_is_graded_from_the_starts_import_cache_never_the_agents_library(self):
+        """Library holds the agent's editor state besides the import cache (build profiles with their own defines and
+        scenes, compiled scripts), which a game's files never carry: the grade starts from the start's cache."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            at_grade = {}
+
+            def agent(argv, cwd, prompt, transcript, minutes, env_extra=None):
+                write(cwd, "Library/BuildProfiles/PlatformProfile.asset", "Library/Artifacts/a2", "Temp/t",
+                      "Build/Game.exe", text="the agent's")
+                return answered(argv, cwd, prompt, transcript, minutes)
+
+            def graded(name, folder, *rest):
+                if name.startswith("run"):
+                    at_grade[name] = sorted(p.relative_to(folder).as_posix() for d in ("Library", "Temp", "Build")
+                                            for p in (Path(folder) / d).rglob("*") if p.is_file())
+                return made(name, folder, *rest)
+
+            made = leaving_files(trial.side)
+            with faked(agent), mock.patch.object(trial, "side", graded):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual(at_grade, {"run1": ["Library/Artifacts/a1"]}, "the start's cache, without its compiled code")
 
 
 class LongEnough(unittest.TestCase):
