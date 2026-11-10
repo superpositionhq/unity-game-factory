@@ -78,15 +78,18 @@ with the tag `long-thread`.
 A thread qualifies only when all of these hold (the validator enforces the numbers, section 6):
 
 1. **Many edits.** From `seed.commit` to `seed.reference`, at least 4 commits change the game itself (`Assets/`,
-   `Packages/`, `ProjectSettings/`), and the reference changes at least 5 game files against the start (a `.meta`
-   file never counts on its own), with at least 100 code lines added plus removed (`.cs`, shaders, `.uss`/`.uxml`,
-   `.asmdef`; store packs' own code under `ThirdParty/` doesn't count). Status, docs and `workflow.jsonl` commits don't
-   count. Scenes, prefabs, materials and other assets don't count as code lines, even though they are YAML text.
-2. **Several systems.** The change spans at least two of: gameplay code, editor code, shaders, config
-   (`ProjectSettings/`, `Packages/`), scenes (`.unity`), prefabs, materials and textures, animation (`.anim`,
-   `.controller`), UI (`.uxml`, `.uss`, UI folders), audio (`.mixer`, clips), data (`.asset` ScriptableObjects and
-   other data files), other assets. The tools count them by extension and folder. A long thread confined to one
-   method is a short task in disguise.
+   `Packages/`, `ProjectSettings/`; not the editor steps in `Assets/Editor/Steps/`, which are the record of how the
+   game was made, and never a `.meta` file on its own), and the reference changes at least 5 game files against the
+   start, with at least 100 code lines added plus removed (C#, shaders, `.uss`/`.uxml`, assembly definitions, scripts;
+   a store pack's own code under a `ThirdParty/` folder doesn't count). Status, docs and `workflow.jsonl` commits
+   don't count. Scenes, prefabs, materials and other assets don't count as code lines, even though they are YAML text.
+2. **Several systems.** The change spans at least two of: C# code (`.cs`, assembly definitions), config
+   (`ProjectSettings/`, the package manifest and its lock file), embedded packages (anything else under `Packages/`),
+   scenes (`.unity`), materials, shaders and textures (`.mat`, `.shader`, shader graphs, image files), prefabs,
+   animator controllers and UI documents (`.prefab`, `.controller`, `.uxml`, `.uss`), data (`.asset`
+   ScriptableObjects, `.json`, `.csv`, `.txt`), other assets (models, animation clips, audio). The validator counts
+   them by path and extension: gameplay code and editor code are one system, and so are a shader and the material
+   that uses it. A long thread confined to one method is a short task in disguise.
 3. **Several outcomes.** At least 3 required outcome probes, one per issue the thread settled, so partial work earns
    partial credit (a compound ticket). A thread that settled only one observable thing is rarely long enough.
 4. **The first attempt didn't hold, or the cause is far from the symptom.** The thread had a fix that was undone,
