@@ -61,7 +61,9 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- line of sight
 
+#if TASKPROBE_PHYSICS
         static readonly RaycastHit[] Hits = new RaycastHit[64];
+#endif
 
         /// <summary>Whether a collider other than the player's (and `own`'s, a lamp's own housing) lies between `from` and
         /// `to`. Triggers and the Ignore Raycast layer never block.</summary>
