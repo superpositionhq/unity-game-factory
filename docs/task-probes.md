@@ -320,9 +320,11 @@ renderers, else its position.
 - `select`: every key given must match. By default only objects active in the hierarchy match.
   - `component`: a component on the object itself (one on a descendant is found with `has`, below), by its C# type
     name (`CastlePiece`, `MeshRenderer`, `Rigidbody`) or full name (`MyGame.CastlePiece`); the type, any of its base
-    types and its interfaces match (`Collider` takes in `BoxCollider`; `MonoBehaviour` every script). A name no
-    component can have (a typo, a type only the fix adds, read on the start; a plain C# class) matches nothing, and
-    the play's `query_errors` says `objects <id>: no component type <T>` (for a `has` `component` too).
+    types and its interfaces match (`Collider` takes in `BoxCollider`; `MonoBehaviour` every script; an interface,
+    the game's scripts that implement it). A short name two types share (in two namespaces) matches both, the full
+    name one of them; a nested type goes by its own name (`Inner`). A name no component can have (a typo, a type only
+    the fix adds, read on the start; a plain C# class) matches nothing, and the play's `query_errors` says
+    `objects <id>: no component type <T>` (for a `has` `component` too).
   - `tag`: the object's tag. `layer`: its layer, by name. `name`: a wildcard on the GameObject's whole name (`*` any
     run of characters, `?` one character, any case). Every object whose name fits matches: `Coin*` takes a
     `CoinSpawner` or a `CoinPool` as well as the coins, and a select that picks one match (`teleport_to`, a point,
