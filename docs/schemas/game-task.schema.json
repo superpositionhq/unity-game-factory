@@ -1628,7 +1628,7 @@
     },
     "Has": {
       "additionalProperties": false,
-      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (a Renderer\ndrawn, as the components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D): an object\na player can shove (docs/task-probes.md, section 2.4).",
+      "description": "A component the object carries (docs/task-probes.md, section 2.4): it matches when one of its parts (the components of\nitself and its descendants) matches every key given: `component` (its C# type, a base type or an interface, by\nname or full name), `lit` (it gives off light, as the components `lit` field reads it), `visible` (a Renderer\ndrawn, as the components `visible` field reads it), `near` (the part's own place within `radius` m of a point),\n`simulating` (a non-kinematic Rigidbody or a Dynamic Rigidbody2D): an object a player can shove\n(docs/task-probes.md, section 2.4).",
       "minProperties": 1,
       "properties": {
         "component": {
@@ -2519,7 +2519,7 @@
     },
     "PiecesMeasure": {
       "additionalProperties": false,
-      "description": "Placed mesh pieces, whatever their form (docs/task-probes.md, section 2.14): a MeshRenderer whose mesh has triangles is one, a\nSkinnedMeshRenderer one, a Terrain's tree instances one each, under a LODGroup only LOD 0's; counted over all of\nthem, never cut at the rows cap. `triangles`/`visible_triangles`: the triangles those pieces (those drawn) hold;\nthey depend on the meshes a build chose, so their threshold is calibrated or relative to the start, never a\nliteral (tools/validate-game.py).",
+      "description": "Placed mesh pieces, whatever their form (docs/task-probes.md, section 2.14): a MeshRenderer whose mesh has triangles is one, a\nSkinnedMeshRenderer with a mesh one, a Terrain's tree instances one each, under a LODGroup only LOD 0's; counted\nover all of them, never cut at the rows cap. `triangles`/`visible_triangles`: the triangles those pieces (those\ndrawn) hold; they depend on the meshes a build chose, so their threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
       "properties": {
         "agg": {
           "anyOf": [
