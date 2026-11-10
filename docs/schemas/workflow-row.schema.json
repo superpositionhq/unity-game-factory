@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "unity-workflow/v0",
   "title": "workflow.jsonl row",
-  "description": "One editor, code or build operation of the game's creation, written when it happened. workflow.jsonl holds one such object per line, in order. Per-file rules beyond one row (unique ids, seq strictly increasing, direction links) are in docs/game-format.md (workflow.jsonl).",
+  "description": "One editor, code or build operation of the game's creation, written when it happened. workflow.jsonl holds one such object per line, in order. Per-file rules beyond one row (unique ids, seq strictly increasing, direction links) are in docs/game-format-v1.json, dataset.workflow.",
   "type": "object",
   "required": [
     "schema",
@@ -50,11 +50,11 @@
     "op": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)*$",
-      "description": "<area>.<verb>, e.g. actor.spawn, asset.create, code.edit, build.editor, user.direction; a few one-word ops (note, correction) also occur"
+      "description": "<area>.<verb>, e.g. scene.build, asset.create, code.edit, build.player, user.direction; a few one-word ops (note, correction) also occur"
     },
     "target": {
       "type": "string",
-      "description": "what the operation acted on: an asset path, file, map, actor or area"
+      "description": "what the operation acted on: an asset path, file, scene, object or area"
     },
     "params": {
       "type": "object",
