@@ -1022,7 +1022,8 @@ task is void.
   (section 1.1): what a boot scene sets up in `Start` (a save loaded, a manager filled in) is missing in a play that
   opens a later scene. Such a game is started through its own `play_args` with `play_scene` null.
 - **A measure that reads the same on the start and the fix can't gate.** If both sides give the same value, the probe
-  doesn't see the bug (calibrated ones make the task invalid outright). Pick a measure the fix actually changes.
+  doesn't see the bug (a required calibrated one makes the task invalid outright). Pick a measure the fix actually
+  changes.
 - **Calibrate thresholds between the start and the fix.** Use `calibrate` (or literal values that sit clearly between
   what the start and the fix measure), never a threshold guessed from the fix alone: another valid fix must pass and
   the start must fail.
