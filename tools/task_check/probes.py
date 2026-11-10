@@ -508,10 +508,10 @@ def measured(measure, probe, log=""):
 
 def _own_errors(measure, probe):
     """The play's `query_errors` lines about `measure`'s own query: those naming its kind and id ("components
-    q1a2b3c4d5e: ..."), then those naming its kind alone ("components: no component type X": the probe writes a
-    select's own errors so); another query's or the play's are left out. A measure read off a render (drawn; an
-    object's or a component's lit and glow) also takes the lines of the renderer they share, which name no query
-    ("rendering: the render pipeline isn't URP: drawn and glow as rendered have no value")."""
+    q1a2b3c4d5e: no component type X"), then those naming its kind alone ("ui: the uGUI canvases couldn't be read:
+    ...": a reader every query of that kind shares); another query's or the play's are left out. A measure read off a
+    render (drawn; an object's or a component's lit and glow) also takes the lines of the renderer they share, which
+    name no query ("rendering: the render pipeline isn't URP: drawn and glow as rendered have no value")."""
     query = next(iter(needs(measure)), None)
     if query is None:
         return []
