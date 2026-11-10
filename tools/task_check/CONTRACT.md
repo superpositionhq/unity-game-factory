@@ -1,32 +1,39 @@
 # Unity task verifier: engineering contract
 
-The Unity port of game-factory's task verifier (`tools/task_check`, `tools/validate-game.py`, the task schema, the
-TaskProbe plugin). Everyone building a part of it builds against this file. The Unreal original is the reference for
-behaviour: same rules, same file formats, same verdict logic, unless this file says otherwise. Where the Unreal docs say
-"actor", "pawn", "map", "cm", "Z up", read the Unity term below.
+The Unity port of game-factory's task verifier: the checker (`tools/task-check.py`, `tools/task-try.py`,
+`tools/task_check/*.py`), the validator (`tools/validate-game.py`), the task schema
+(`docs/schemas/game-task.schema.json`) and the probe, the Unity package `tools/task_check/TaskProbe/` that the checker
+adds to its copy of a game. A change to any of them is checked against this file: what of the Unreal original maps to
+what in Unity and why, where the port differs from the original on purpose, and the files the probe and the checker
+exchange. The Unreal original is the reference for behaviour: the same rules, the same verdict logic and the same
+result files, unless this file says otherwise (section 2 lists the rules that differ, section 5 the files). Where the
+Unreal docs say "actor", "pawn", "map", "cm", "Z up", read the Unity term of section 1.
 
-User-facing docs (written from this): `docs/task-probes.md`, `docs/task-check.md`, `docs/task-try.md`.
+The users' documents describe the same behaviour for their readers and must agree with this file:
+`docs/task-probes.md` (what each measure means, for a task's author), `docs/task-check.md` and `docs/task-try.md`. What
+a field means is there; this file holds what an implementer needs beyond it.
 
 ## 1. Terms and units
 
 | Unreal | Unity (this verifier) |
 |---|---|
 | actor | **object**: a GameObject. Its **parts** are the components of itself and its descendants |
-| pawn (the player pawn) | **player**: the task's `player` select, else the first active object tagged `Player`, else one with a `PlayerInput`, else one with a `CharacterController`, else the root of the main camera |
-| player camera | `Camera.main` (tag MainCamera, enabled), else the enabled camera of highest depth that renders to the screen |
+| pawn (the player pawn) | **player**: the first object the task's `player` select matches (when it matches nothing there is no player: no fallback), else an active object tagged `Player` (`GameObject.FindGameObjectWithTag`), else an object with a `PlayerInput`, else one with a `CharacterController` (`FindFirstObjectByType`), else the root of the player camera (next row); looked up again every frame |
+| player camera | `Camera.main` (an enabled camera tagged MainCamera), else the enabled camera of highest depth that renders to the screen (no target texture) |
 | map, `play_map` (`/Game/Maps/L_X?Scenario=2`) | scene: `play_scene` (`Assets/Scenes/X.unity`) and `play_args` (`["-scenario", "2"]`) |
-| component class | **component**: a C# type name (`Projectile`, `MeshRenderer`); matches the type, its base types and interfaces, by `Type.Name` or full name |
+| component class | **component**: a C# type, by its name (`Projectile`, `MeshRenderer`) or full name (`MyGame.Projectile`). An object select's `component`, a `has`, a pieces or widgets select, a widget click and a Part match the type, its base types and its interfaces; a components select's and `spawns`' `component` must name a Component type, which its subtypes match (an interface gives "no component type <name>") |
 | UMG / Slate widget | **widget**: a uGUI component's object or a UI Toolkit element |
-| cm, cm/s | **m, m/s** (Unity units). Every default scales: 200 cm -> 2 m, 1 cm -> 0.01 m, 2 km -> 2000 m |
-| Z up; yaw about Z | **Y up**. `yaw` = euler Y, `pitch` = euler X (positive looks down), `roll` = euler Z, as the Inspector shows them, normalised to (-180, 180] |
+| cm, cm/s | **m, m/s** (Unity units). Every default and limit scales: 200 cm -> 2 m, 1 cm -> 0.01 m, 2 km -> 2000 m; a near's radius up to 100,000 m (its `y_min`/`y_max` within +-100,000), a teleport's `distance` and a camera point's `forward` up to 1000 m, a line's radius up to 100 m |
+| Z up; yaw about Z | **Y up**. `yaw`, `pitch`, `roll` are the euler Y, X and Z angles of the world rotation (`transform.eulerAngles`; the Inspector shows a child's local rotation), normalised to (-180, 180]; a positive `pitch` looks down (Unreal's looks up) |
 | `xy` (ground), `z_min`/`z_max`/`z_relative` (near) | `xz`, `y_min`/`y_max`/`y_relative` |
-| editor target build | **player build**: Windows x64, Mono, non-development, of the scratch copy |
-| `-game` offscreen | the built player, windowed 960x540, started by the checker on a Windows desktop of its own (`desk.py`): nothing on the user's screen, no keyboard or cursor taken, the game counts itself focused throughout, the frame identical to a normal window's. Only a player started by hand on the user's desktop has its window moved off-screen and deactivated by the probe |
+| editor target build | **player build**: Windows x64, Mono, non-development, of the scratch copy (section 5) |
+| `-game` offscreen | the built player, windowed 960x540, started by the checker on a Windows desktop of its own (`desk.py`): nothing on the user's screen, no keyboard or cursor taken, the game counts itself focused throughout, the frame identical to a normal window's. Only a player started by hand on the user's own desktop has its window moved off every screen and never activated, by the probe (`Window.cs`) |
 | engine 5.7 | Unity 6.3 LTS: `ProjectSettings/ProjectVersion.txt` `m_EditorVersion: 6000.3.*`; task `"engine": "unity-6000.3"` |
-| `GF_ROOT`, `gfroot`, `ue-heavy.ps1`, `GF_NO_RECORDING` | `UGF_ROOT`, `ugfroot` (`machine/lib/ugfroot.py`: `root()`, `unity_editor(project)`, `check_free(path, what)`), `unity-heavy.ps1`, `UGF_NO_RECORDING` (set `GF_NO_RECORDING` too) |
+| `GF_ROOT`, `gfroot` (`engine(project)`), `ue-heavy.ps1`, `GF_NO_RECORDING` | `UGF_ROOT`, `ugfroot` (`machine/lib/ugfroot.py`: `root()`, `unity_editor(project)` for the Unity.exe a project's `ProjectVersion.txt` names, `check_free(path, what)`), `unity-heavy.ps1` (`machine/tools/`, run as `<root>\tools\unity-heavy.ps1`), `UGF_NO_RECORDING` (the task try sets it and `GF_NO_RECORDING` for its agent; the Unity hooks skip on either) |
 
-Forward vector from a camera row: `[cos(pitch) * sin(yaw), -sin(pitch), cos(pitch) * cos(yaw)]` (degrees in). "Height"
-is `y` (index 2 of a `[t, x, y, z]` row).
+Forward vector from a camera row: `[cos(pitch) * sin(yaw), -sin(pitch), cos(pitch) * cos(yaw)]` (degrees in; the
+probe's own `{"camera": true}` point uses the camera's `transform.forward`, the same direction). "Height" is `y`
+(index 2 of a `[t, x, y, z]` row).
 
 ## 2. The task format (Unity flavour of game-task/1)
 
