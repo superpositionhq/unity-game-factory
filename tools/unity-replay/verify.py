@@ -455,8 +455,15 @@ def deviations(ctx, report):
     add("asset_drops", "store packs restored into the project where the builder copied them in",
         [{"id": d["id"], "packs": [it.get("pack") or it.get("to") or it.get("from_git") for it in d["items"]], "reason": d.get("reason")}
          for d in cfg.get("asset_drops", [])])
+    add("external_sources_rebuilt", "external source folders rebuilt from library archives (the builder's scratch folder "
+        "is gone)", [{"id": e["id"], "rebuild": e["rebuild"], "reason": e.get("role")}
+                     for e in cfg.get("external_sources", []) if e.get("rebuild")])
     log = [json.loads(l) for l in open(os.path.join(ctx.work, "runs.jsonl"), encoding="utf-8")] \
         if os.path.exists(os.path.join(ctx.work, "runs.jsonl")) else []
+    add("step_paths_remapped", "absolute paths in the builder's steps to a folder outside the project (on the machine the "
+        "game was built on) pointed at its copy on this machine for the run, then put back",
+        [{"run": x.get("run"), "method": x.get("method"), "files": x["step_paths_remapped"]} for x in log
+         if x.get("step_paths_remapped")])
     add("editor_switch", "commits that name another editor version (an upgrade): from that window on the replay runs on "
         "the editor the commit names, with the project imported again",
         [{"window": x.get("window"), "commit": (x.get("commit") or "")[:10], "from": x.get("from"), "to": x.get("to")}
