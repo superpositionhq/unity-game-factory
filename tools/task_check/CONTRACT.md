@@ -322,15 +322,16 @@ original's, unchanged (`probes.py`).
   the player's view): the URP volume stack at the camera, blended by the probe for the camera's volume trigger and layer
   mask at each sample as URP's UpdateVolumeFramework does (`source: "camera"`), or the camera's own stack when it
   updates by script (`camera_stack`); `source` is `none` when there is no stack to read (no URP, no camera, or URP's
-  volume framework not set up yet, as at a play's first sample). The stack is read as the constants URP's
-  ColorGradingLutPass prepares: `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation`
-  (multipliers, 1 neutral), `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`,
-  `gain` (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off
-  gives neutral constants. The value also holds `sun` (`{name, color, intensity, temperature, use_temperature,
-  lit_color}` of the strongest directional light that is on, or null), `sky` (`{mode, color, intensity}`), `fog`
-  (`{enabled, density, color, mode}`), `source`, `pipeline`, `post_processing`, `grading_mode` (`ldr`, `hdr`); colours
-  are linear. A `post:<Component>.<parameter>` asked for is the parameter's value after blending (one no volume
-  overrides reads the component's default): the component by its type's name or full name, exactly, among
+  volume framework not set up yet, as at a play's first sample); without URP one `query_errors` line says so (`grading
+  <id>: the render pipeline isn't URP: ...`). The stack is read as the constants URP's ColorGradingLutPass prepares:
+  `color_balance` (`ColorUtils.ColorBalanceToLMSCoeffs`), `contrast` and `saturation` (multipliers, 1 neutral),
+  `color_filter` (linear rgb), `post_exposure` (EV), `hue_shift` (degrees), `lift`, `gamma`, `gain`
+  (`ColorUtils.PrepareLiftGammaGain`, rgb), `tonemapping` (its mode's name). A camera with post-processing off gives
+  neutral constants. The value also holds `sun` (`{name, color, intensity, temperature, use_temperature, lit_color}` of
+  the strongest directional light that is on, the first in hierarchy order of equals, or null), `sky` (`{mode, color,
+  intensity}`), `fog` (`{enabled, density, color, mode}`), `source`, `pipeline`, `post_processing`, `grading_mode`
+  (`ldr`, `hdr`); colours are linear. A `post:<Component>.<parameter>` asked for is the parameter's value after blending
+  (one no volume overrides reads the component's default): the component by its type's name or full name, exactly, among
   `VolumeManager.baseComponentTypeArray`, the parameter a field of that name, a third part a channel of its value by
   either spelling (`r` or `x` the first, `g` or `y`, `b` or `z`, `a` or `w`; `GradingQuery.Channel`, as the editor
   pass's `AssetValues.Channel`); a name that doesn't resolve, a colour or vector without its part, a part of anything
