@@ -73,8 +73,9 @@ if ($IdPrefix -cnotmatch '^[a-z]+$') { throw "workflow row id prefix '$IdPrefix'
 # Scripts\unity.ps1: keep it plain text. (The description lands only in README.md.)
 if ($Title -match '["\\\r\n]') { throw "no quotes, backslashes or line breaks in the title: '$Title'" }
 
-# Names that must never appear inside a game (code, config, commits, builds).
-foreach ($v in @($Slug, $Project, $Title, $Description, $Reason)) {
+# Names that must never appear inside a game (code, config, commits, builds). The repo's own name counts: the slug
+# factory-floor passes alone, but unity-game-factory-floor holds a banned name wherever the repo is named.
+foreach ($v in @($Slug, "unity-game-$Slug", $Project, $Title, $Description, $Reason)) {
     if ($v -match '(?i)superposition|game[-_ ]?factory|claude|anthropic|openai' -or ($Org -and $v -match ('(?i)' + [regex]::Escape($Org)))) { throw "banned name in '$v' (see the unity-game-session skill)" }
 }
 if ((Test-Path -LiteralPath $Path) -and @(Get-ChildItem -LiteralPath $Path -Force).Count) { throw "$Path exists and is not empty" }
