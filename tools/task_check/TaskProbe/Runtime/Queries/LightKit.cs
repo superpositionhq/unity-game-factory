@@ -1,5 +1,6 @@
-// What the light, grading and audio queries share: which Lights are on and the colour they light with (as URP hands it
-// to its shaders), line-of-sight traces that ignore the player, and the URP volume stack as it stands at the camera.
+// What the light and grading queries share: the Lights that are on, the colour URP lights with, which Lights URP draws
+// at run time and which of them it shadows, the line of sight from a light to a point, the ambient light at a point, and
+// the URP volume stack as it stands at the camera.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,36 +13,120 @@ namespace TaskProbe
 {
     public static class LightKit
     {
-        // core Color.hlsl Luminance / ColorUtils.Luminance: linear sRGB (Rec. 709) weights
-        public const double LumR = 0.2126729, LumG = 0.7151522, LumB = 0.0721750;
-        /// <summary>How far a trace toward a directional light or the sky reaches (m).</summary>
-        public const float SkyReach = 2000f;
-        /// <summary>A trace toward a point stops this short of it (m), so the surface the point lies on doesn't hide it.</summary>
+        // core Color.hlsl Luminance (ColorUtils.Luminance), linear sRGB: the light measure takes the engine's own
+        // luminance, as the original does (FLinearColor::GetLuminance); glow, screen and drawn use their Rec. 709 one
+        const double LumR = 0.2126729, LumG = 0.7151522, LumB = 0.0721750;
+        /// <summary>How far away a directional light's ray starts (m).</summary>
+        public const float TraceLength = 2000f;
+        /// <summary>A ray toward a point stops this short of it (m), so the surface the point lies on doesn't hide it.</summary>
         const float EndGap = 0.01f;
 
         public static double Luminance(Color c) => LumR * c.r + LumG * c.g + LumB * c.b;
 
-        /// <summary>A Light that is on: enabled, active in the hierarchy, intensity above 0.</summary>
-        public static bool On(Light l) => l != null && l.enabled && l.gameObject.activeInHierarchy && l.intensity > 0f;
+        /// <summary>Whether URP is the render pipeline (what light and grading read is URP's).</summary>
+        public static bool Urp
+        {
+            get
+            {
+#if TASKPROBE_URP
+                return GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset;
+#else
+                return false;
+#endif
+            }
+        }
 
-        public static Light[] Lights() => UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        // ---------------------------------------------------------------- the Lights
+
+        static readonly List<Light> lights = new List<Light>();
+        static Light main;
+        static int lightsStamp = -1;
+
+        /// <summary>Every Light on an active object, in hierarchy order (a sum or a tie comes out the same in every play),
+        /// looked up once a pass (Probe.Stamp).</summary>
+        public static List<Light> Lights()
+        {
+            if (lightsStamp == Probe.Stamp) return lights;
+            lightsStamp = Probe.Stamp;
+            lights.Clear();
+            lights.AddRange(UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
+            Find.SortByHierarchy(lights);
+            main = MainLight();
+            return lights;
+        }
+
+        /// <summary>URP's main light (UniversalRenderPipeline.GetMainLightIndex): the sun source of the Lighting settings
+        /// when it is a directional light URP draws, else the one of the highest intensity (of equals the first in
+        /// hierarchy order); none when the pipeline asset draws no main light, or without URP.</summary>
+        static Light MainLight()
+        {
+#if TASKPROBE_URP
+            if (!(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp) || urp.mainLightRenderingMode != LightRenderingMode.PerPixel) return null;
+            Light best = null;
+            var sun = RenderSettings.sun;
+            foreach (var l in lights)
+            {
+                if (l == null || l.type != LightType.Directional || !Find.LightOn(l) || Baked(l)) continue;
+                if (l == sun) return l;
+                if (best == null || l.intensity > best.intensity) best = l;
+            }
+            return best;
+#else
+            return null;
+#endif
+        }
+
+        /// <summary>Whether URP lights with `l` at run time (Lights() first), and whether it draws its shadows: only then
+        /// does a wall stop its light (a light without shadows lights through walls in the frame). Not a Light that is
+        /// off, nor one whose bake stored its light in the lightmaps and light probes (one set to Baked but never baked
+        /// still lights at run time, a Mixed one always does), nor an area light (URP only bakes those); and only what
+        /// the pipeline asset lights: the main light when it is lit per pixel, the others when additional lights are on.
+        /// Shadows: the light's own (on, of a strength above 0) where the asset has shadows for it: the main light's,
+        /// point and spot lights' (URP shadows no other directional light). Without URP: every Light that is on,
+        /// shadowed when its shadows are on and the quality settings have shadows.</summary>
+        public static bool Lit(Light l, out bool shadowed)
+        {
+            shadowed = false;
+            if (!Find.LightOn(l) || Baked(l)) return false;
+            if (l.type != LightType.Directional && l.type != LightType.Point && l.type != LightType.Spot) return false;
+            var casts = l.shadows != LightShadows.None && l.shadowStrength > 0f;
+#if TASKPROBE_URP
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
+            {
+                if (l == main)
+                {
+                    shadowed = casts && urp.supportsMainLightShadows;
+                    return true;
+                }
+                if (urp.additionalLightsRenderingMode == LightRenderingMode.Disabled) return false;
+                shadowed = casts && l.type != LightType.Directional && urp.supportsAdditionalLightShadows;
+                return true;
+            }
+#endif
+            shadowed = casts && QualitySettings.shadows != UnityEngine.ShadowQuality.Disable;
+            return true;
+        }
+
+        /// <summary>A Light whose last bake stored its light in the lightmaps and light probes: the engine leaves it out at
+        /// run time. Light.lightmapBakeType is the editor's setting; bakingOutput is what the player has.</summary>
+        static bool Baked(Light l)
+        {
+            var bake = l.bakingOutput;
+            return bake.isBaked && bake.lightmapBakeType == LightmapBakeType.Baked;
+        }
 
         /// <summary>The colour of a light's colour temperature as the engine multiplies it in (white when the light or the
         /// pipeline doesn't use temperature).</summary>
-        public static Color TemperatureColor(Light l)
+        static Color TemperatureColor(Light l)
         {
             if (l == null || !l.useColorTemperature || !GraphicsSettings.lightsUseColorTemperature) return Color.white;
             return Mathf.CorrelatedColorTemperatureToRGB(l.colorTemperature);
         }
 
-        /// <summary>A colour from the editor's colour picker in the space lighting is done in (linear in a linear
-        /// project).</summary>
-        public static Color Working(Color c) => QualitySettings.activeColorSpace == ColorSpace.Linear ? c.linear : c;
-
         /// <summary>The light's colour without its intensity, in the working space, temperature applied.</summary>
         public static Color LitColor(Light l)
         {
-            var c = Working(l.color) * TemperatureColor(l);
+            var c = Find.Linear(l.color) * TemperatureColor(l);
             c.a = 1f;
             return c;
         }
@@ -65,8 +150,11 @@ namespace TaskProbe
         static readonly RaycastHit[] Hits = new RaycastHit[64];
 #endif
 
-        /// <summary>Whether a collider other than the player's (and `own`'s, a lamp's own housing) lies between `from` and
-        /// `to`. Triggers and the Ignore Raycast layer never block.</summary>
+        /// <summary>Whether a collider stops the ray from a light at `from` to the point `to` (1 cm short of it, so the
+        /// surface the point lies on doesn't): any collider but a trigger, one on the Ignore Raycast layer, the player's
+        /// and `own`'s (the Light's object and what is under it). A ray doesn't hit a collider it starts inside, so a
+        /// housing around a lamp never stops its light; one around the point does. Without the physics module nothing
+        /// can.</summary>
         public static bool Blocked(Vector3 from, Vector3 to, Transform own)
         {
 #if TASKPROBE_PHYSICS
@@ -75,11 +163,7 @@ namespace TaskProbe
             if (length <= 0f) return false;
             var dir = delta / delta.magnitude;
             var n = Physics.RaycastNonAlloc(from, dir, Hits, length, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-            if (n >= Hits.Length)
-            {
-                // more hits than the buffer holds: one of them surely isn't the player's
-                return true;
-            }
+            if (n >= Hits.Length) return true;  // more hits than the buffer holds: one of them surely isn't the player's
             var player = Probe.Active != null ? Probe.Active.Player : null;
             for (var i = 0; i < n; i++)
             {
@@ -93,59 +177,64 @@ namespace TaskProbe
             return false;
         }
 
-        /// <summary>Whether a ray from `from` along `dir` (unit) is blocked within SkyReach.</summary>
-        public static bool BlockedToward(Vector3 from, Vector3 dir, Transform own) => Blocked(from, from + dir * SkyReach, own);
-
         // ---------------------------------------------------------------- ambient
 
         static readonly Vector3[] Up = { Vector3.up };
         static readonly Color[] UpResult = new Color[1];
 
-        /// <summary>The ambient light falling on an upward-facing surface, as URP shades it: the ambient probe
-        /// (RenderSettings.ambientProbe, which the engine builds from the flat colour, the gradient or the skybox with its
-        /// intensity) evaluated straight up. `colour` is the setting itself (the flat colour, the gradient's sky colour, or
-        /// the probe's value for a skybox), in the working space.</summary>
-        public static double Ambient(out string mode, out Color colour, out double intensity)
+        /// <summary>The light no Light gives an upward-facing surface at `p`: the spherical harmonics URP lights a moving
+        /// object there with, evaluated straight up: the baked light probes around `p` when the scene has them (they
+        /// hold the baked Lights, the sky and their bounces, shaded by walls as they were baked), else the ambient probe
+        /// (the flat colour, the gradient or the skybox). URP doesn't shade either by walls at run time.</summary>
+        public static double Ambient(Vector3 p)
+        {
+            SphericalHarmonicsL2 sh;
+            var probes = LightmapSettings.lightProbes;
+            if (probes != null && probes.count > 0) LightProbes.GetInterpolatedProbe(p, null, out sh);
+            else sh = RenderSettings.ambientProbe;
+            sh.Evaluate(Up, UpResult);
+            return Math.Max(0.0, Luminance(UpResult[0]));
+        }
+
+        /// <summary>The ambient as the Lighting settings set it: its mode, its colour in the working space (the flat
+        /// colour, the gradient's sky colour, or for a skybox the ambient probe straight up) and its intensity.</summary>
+        public static void Sky(out string mode, out Color colour, out double intensity)
         {
             mode = RenderSettings.ambientMode.ToString();
             intensity = RenderSettings.ambientIntensity;
-            var probe = RenderSettings.ambientProbe;
-            probe.Evaluate(Up, UpResult);
-            var up = UpResult[0];
             switch (RenderSettings.ambientMode)
             {
-                case UnityEngine.Rendering.AmbientMode.Flat: colour = Working(RenderSettings.ambientLight); break;
-                case UnityEngine.Rendering.AmbientMode.Trilight: colour = Working(RenderSettings.ambientSkyColor); break;
-                default: colour = up; break;
+                case AmbientMode.Flat: colour = Find.Linear(RenderSettings.ambientLight); break;
+                case AmbientMode.Trilight: colour = Find.Linear(RenderSettings.ambientSkyColor); break;
+                default:
+                    RenderSettings.ambientProbe.Evaluate(Up, UpResult);
+                    colour = UpResult[0];
+                    break;
             }
             colour.a = 1f;
-            return Math.Max(0.0, Luminance(up));
         }
 
         // ---------------------------------------------------------------- the volume stack at the camera
 
-        /// <summary>The probe's own stack, blended for the camera at sample time.</summary>
 #if TASKPROBE_URP
-        static VolumeStack own;
-        static int stackFrame = -1;
+        static VolumeStack own;  // the probe's own stack, blended for the camera at sample time
+        static int stackStamp = -1;
         static VolumeStack stackCached;
         static string sourceCached;
         static bool postCached;
 
-        /// <summary>The volume stack in effect at the player's camera now: the camera's own stack when it is updated only
-        /// by script (URP renders with it as it stands), else every volume blended for the camera's volume trigger and
-        /// layer mask at this moment (as URP's UpdateVolumeFramework does before it renders the camera). Null without
-        /// URP's volume manager or a camera. `post`: whether the camera renders post-processing at all.</summary>
+        /// <summary>The volume stack in effect at the player's camera now, looked up once a pass: the camera's own stack
+        /// when it is updated only by script (URP renders with it as it stands), else every volume blended for the
+        /// camera's volume trigger and layer mask at this moment (as URP's UpdateVolumeFramework does before it renders
+        /// the camera). Null without URP's volume manager or a camera. `post`: whether the camera renders
+        /// post-processing at all.</summary>
         public static VolumeStack StackAt(out string source, out bool post)
         {
-            if (stackFrame == Time.frameCount)
+            if (stackStamp != Probe.Stamp)
             {
-                source = sourceCached;
-                post = postCached;
-                return stackCached;
+                stackStamp = Probe.Stamp;
+                stackCached = Evaluate(out sourceCached, out postCached);
             }
-            stackFrame = Time.frameCount;
-            stackCached = Evaluate(out sourceCached, out postCached);
             source = sourceCached;
             post = postCached;
             return stackCached;
@@ -155,7 +244,7 @@ namespace TaskProbe
         {
             post = false;
             source = "none";
-            if (!(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)) return null;
+            if (!Urp) return null;
             var manager = VolumeManager.instance;
             if (manager == null || !manager.isInitialized) return null;
             var view = Probe.Active != null ? Probe.Active.View : null;

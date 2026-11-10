@@ -32,26 +32,31 @@ namespace TaskProbe
         {
             var v = new Dictionary<string, object>(StringComparer.Ordinal);
             var pipeline = GraphicsSettings.currentRenderPipeline;
+            if (LightKit.Urp)
+            {
 #if TASKPROBE_URP
-            v["pipeline"] = pipeline is UniversalRenderPipelineAsset ? "urp" : pipeline != null ? pipeline.GetType().Name : "builtin";
-            var stack = LightKit.StackAt(out var source, out var post);
-            v["source"] = source;
-            v["post_processing"] = post ? 1.0 : 0.0;
-            var urp = pipeline as UniversalRenderPipelineAsset;
-            v["grading_mode"] = urp != null && urp.colorGradingMode == ColorGradingMode.HighDynamicRange ? "hdr" : "ldr";
-            // a camera that renders no post-processing draws the image ungraded: the constants are neutral
-            Grade(post ? stack : null, v);
-            foreach (var name in posts) v[name] = stack != null ? Post(stack, name) : null;
-#else
-            v["pipeline"] = pipeline != null ? pipeline.GetType().Name : "builtin";
-            v["source"] = "none";
-            v["post_processing"] = 0.0;
-            v["grading_mode"] = "ldr";
-            Neutral(v);
-            foreach (var name in posts) v[name] = null;
+                v["pipeline"] = "urp";
+                var stack = LightKit.StackAt(out var source, out var post);
+                v["source"] = source;
+                v["post_processing"] = post ? 1.0 : 0.0;
+                v["grading_mode"] = ((UniversalRenderPipelineAsset)pipeline).colorGradingMode == ColorGradingMode.HighDynamicRange ? "hdr" : "ldr";
+                // a camera that renders no post-processing draws the image ungraded: the constants are neutral
+                Grade(post ? stack : null, v);
+                foreach (var name in posts) v[name] = stack != null ? Post(stack, name) : null;
 #endif
+            }
+            else
+            {
+                Probe.Error("grading " + Id + ": the render pipeline isn't URP: no grading is read (the constants are neutral, post: has no value)");
+                v["pipeline"] = pipeline != null ? pipeline.GetType().Name : "builtin";
+                v["source"] = "none";
+                v["post_processing"] = 0.0;
+                v["grading_mode"] = "ldr";
+                Neutral(v);
+                foreach (var name in posts) v[name] = null;
+            }
             v["sun"] = Sun();
-            LightKit.Ambient(out var mode, out var colour, out var intensity);
+            LightKit.Sky(out var mode, out var colour, out var intensity);
             v["sky"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["mode"] = mode, ["color"] = Json.Rgb(colour), ["intensity"] = intensity,
@@ -186,8 +191,9 @@ namespace TaskProbe
         }
 #endif
 
-        /// <summary>The strongest directional light that is on (by intensity): its colour (linear), intensity, temperature
-        /// and the colour it lights with (colour x the temperature colour when used). Null when there is none.</summary>
+        /// <summary>The strongest directional light that is on (by intensity; of equals the first in hierarchy order): its
+        /// colour (linear), intensity, temperature and the colour it lights with (colour x the temperature colour when
+        /// used). Null when there is none.</summary>
         static object Sun()
         {
             Light sun = null;
