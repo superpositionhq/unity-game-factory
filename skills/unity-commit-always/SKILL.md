@@ -150,7 +150,8 @@ to go back and redo everything after it.
 ## The WIP auto-commit
 
 The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a
-game repo as `WIP` at the end of every turn.
+game repo as `WIP` at the end of every turn, except while conflicts are unresolved or HEAD is detached (a merge, a
+rebase, a bisect under way): finish those and commit yourself.
 It is a safety net so nothing is lost, not a way of working: a `WIP` commit carries no reason and no row ids, and it
 reads as sloppy in the dataset's `git.log`. If one of yours appears, say in your next commit's body what the WIP
 commit contained. Don't squash or amend it away; the history is the record. The hook does not cover
