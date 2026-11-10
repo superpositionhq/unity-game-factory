@@ -290,9 +290,11 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
 
 Rows with no value are skipped by `of`: `count`, `any`, `sum` and `all` of none are 0, the others have no value.
 Samples with no value are skipped by `agg`, and a window where no sample has a value has no value, whatever the `agg`.
-A probe whose measure has no value fails, with the reason in its detail (section 3). Anything the probe doesn't know (a
-component type, a member, a widget, a kind) gives empty rows or no value and a line in the play's `query_errors` (each
-line once; past 50 lines the list ends with `<n> more in probe.log`); it never stops the play. (The editor pass is
+A probe whose measure has no value fails, with the reason in its detail (section 3). A query that names something the
+probe can't find (a kind, a component type in any select, a field, a volume component or parameter), or lacks its
+point or place, or whose regex doesn't compile, gives empty rows or no value and one line in the play's `query_errors`
+(each line once; past 50 lines the list ends with `<n> more in probe.log`); it never stops the play. A select that
+matches nothing (no rows), or a `prop:` member an object doesn't have (no value), writes no line. (The editor pass is
 stricter: section 2.11.)
 
 ### 2.2 `player`: the player
