@@ -1,7 +1,7 @@
 // ground: the lie of the land (contract section 3, "ground"): a ray straight down from 2000 m up meets the first
 // collider that isn't a trigger nor the player's (the Ignore Raycast layer aside); with `select`, only colliders of the
 // objects it matches (or of their descendants) are ground, the rest traced through. A 3D ray: 2D colliders are never
-// met. Without the physics module there is no collider: nothing is met.
+// met. Without the Physics module there is no collider: nothing is met, and the query says so once in query_errors.
 // `xz` [x, z] -> "value": {"height" (null when nothing was met), "hit"};
 // `box` [x0, z0, x1, z1] + `grid` (2-32, default 8; corners and edges included) -> "value": {"min", "max", "mean",
 // "range" (null with no hit), "hits", "points"}; null with neither.
@@ -22,6 +22,9 @@ namespace TaskProbe
 
         public override void Load()
         {
+#if !TASKPROBE_PHYSICS
+            Probe.Error(Kind + " " + Id + ": the project has no Physics module: no ground is read");
+#endif
             if (Numbers("box", 4, out var b))
             {
                 box = new[] { Math.Min(b[0], b[2]), Math.Min(b[1], b[3]), Math.Max(b[0], b[2]), Math.Max(b[1], b[3]) };
