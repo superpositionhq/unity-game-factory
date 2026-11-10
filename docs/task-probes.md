@@ -229,8 +229,9 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
 
 ### 2.1 Common fields
 
-- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (the sample nearest each time, when
-  one is within 0.26 s of it) or `"end"` (the last sample); not both. Default: the whole play.
+- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-120; the
+  sample nearest each time, when one is within 0.26 s of it) or `"end"` (the last sample); not both. Default: the
+  whole play.
 - `agg`: how the samples reduce to one number: `min`, `max`, `mean`, `first`, `last`, `delta` (last minus first),
   `any` (1 if any sample is non-zero), `all` (1 if every sample is non-zero), `count` (number of non-zero samples),
   `sum`, `range` (max minus min), `std` (standard deviation), `changes` (how many times the value changes between
