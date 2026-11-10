@@ -1,10 +1,10 @@
 # Called by each game repo's git post-commit hook: append the new commit to
 # <root>\.recording\<repo name>\commits.jsonl, whoever made it. <root> = the machine root (ugf-root.ps1 next to this
 # file; machine/lib/ugf-root.ps1 in the repo). machine/install-git-hook.ps1 adds the hook line to a repo.
-# A commit on the orphan `tasks` branch (the game's tasks, unity-write-tasks skill) is not recorded: task work never
+# A commit on the orphan `tasks` branch (the game's tasks, docs/game-format.md) is not recorded: task work never
 # enters the game's recorded history.
 param([string]$Repo)
-if ($env:UGF_NO_RECORDING -or $env:GF_NO_RECORDING) { exit 0 }   # a task try's agent is never recorded
+if ($env:UGF_NO_RECORDING -or $env:GF_NO_RECORDING) { exit 0 }   # a task try's agent (tools/task-try.py) is never recorded
 $ErrorActionPreference = 'Continue'   # git warnings on stderr must not abort the record
 $utf8 = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8   # git writes UTF-8; read it as such

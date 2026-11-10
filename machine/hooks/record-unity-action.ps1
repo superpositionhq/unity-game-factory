@@ -11,23 +11,22 @@
 # (transcript_path in the hook input; Claude Code: subagent transcripts beside it; Codex: the rollout file's completed
 # CommandExecution / FileChange / McpToolCall items), in order, before the mapping call's own row,
 # with status "from_transcript". Calls older than the transcript file (copied context of a fork) are not imported.
-# `record-unity-action.ps1 -Backfill <session id> [-TranscriptPath <file>]` does the same for a session mapped before this
-# existed: the rows go in just before that session's first row. Each session is backfilled at most once
+# `record-unity-action.ps1 -Backfill <session id> [-TranscriptPath <file>]` does the same for a session mapped before
+# this existed: the rows go in just before that session's first row. Each session is backfilled at most once
 # (recording-backfill.json next to this file), and a call already in actions.jsonl is never written twice.
 # On Stop, leftover changes in a game repo are committed ("WIP") so no work stays uncommitted.
-# Nothing is recorded when UGF_NO_RECORDING (or the Unreal factory's GF_NO_RECORDING) is set: a task try's agent is
-# not a game session.
-# This is the Unity factory's copy: it maps only paths under ITS root (<UnityWork>\games\<slug>). The Unreal
-# game-factory's own record-unity-action.ps1 may be registered next to it in the same agent settings; each writes only its
-# own root's .recording\ and keeps its own session map (recording-sessions.json in its own hooks dir), so a session
-# is never recorded twice.
+# Nothing is recorded when UGF_NO_RECORDING (or the Unreal factory's GF_NO_RECORDING) is set: tools/task-try.py sets
+# both for the agent it runs on a task.
+# The Unreal game-factory's record-action.ps1 may run on the same calls (same agent settings): each factory maps only
+# paths under its own root and keeps its own session map, so a session is recorded by the factory whose root its calls
+# name (by both, if they name both).
 # <root> = the machine root (ugf-root.ps1 next to this file; machine/lib/ugf-root.ps1 in the repo).
 # machine/bootstrap.ps1 installs this into the hooks dir (config "hooks_dir") and wires it into Claude Code
 # (machine/hooks/settings-hooks.json -> ~\.claude\settings.json) and Codex (machine/hooks/codex-hooks.json ->
 # ~\.codex\hooks.json, pre-trusted in ~\.codex\config.toml).
 param([switch]$Stop, [string]$Backfill, [string]$TranscriptPath, [ValidateSet('claude', 'codex')][string]$Agent = 'claude')
 $ErrorActionPreference = 'Stop'
-if ($env:UGF_NO_RECORDING -or $env:GF_NO_RECORDING) { exit 0 }   # a task try's agent: not a game session, never recorded
+if ($env:UGF_NO_RECORDING -or $env:GF_NO_RECORDING) { exit 0 }   # a task try's agent (tools/task-try.py): not a game session, never recorded
 [Console]::InputEncoding = [Text.Encoding]::UTF8
 $utf8 = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8   # git writes UTF-8; read it as such
