@@ -38,7 +38,7 @@ probe's own `{"camera": true}` point uses the camera's `transform.forward`, the 
 ## 2. The task format (Unity flavour of game-task/1)
 
 `docs/schemas/game-task.schema.json` is the Unreal schema, definition by definition, except for what this section
-lists (a structural diff of the two files finds nothing else). The validator's rules beyond the schema
+lists and the limits section 1 scales (a structural diff of the two files finds nothing else). The validator's rules beyond the schema
 (`tools/validate-game.py`: `probe_errors`, `task_semantic_errors`, the repo checks) and the task check's rules
 (`verdict.py`, `probes.py`) are the original's in Unity terms, except where this section says.
 
@@ -77,9 +77,9 @@ Selects and points:
 - `component` in place of `class` in every select (object select, `has`, components, pieces, widgets) and in `spawns`:
   a C# type's name or full name, `^[A-Za-z_][A-Za-z0-9_]{0,120}(\.[A-Za-z_][A-Za-z0-9_]{0,120}){0,8}$` (what it
   matches: section 1).
-- Object select (`Select`): `component`, `tag`, `layer` (new: a layer, by name), `name` (a wildcard on the GameObject's
-  whole name), `near`, `has`, `player` (true), `inactive` (new: true lets inactive objects match; by default only
-  objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating` (at least one key;
+- Object select (`Select`): `component`, `tag`, `layer` (new: a layer, by name, `^[A-Za-z0-9_. -]{1,80}$`), `name` (a
+  wildcard on the GameObject's whole name), `near`, `has`, `player` (true), `inactive` (new: true lets inactive
+  objects match; by default only objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating` (at least one key;
   `lit`, `visible`, `simulating` only `true`). The original's `movable` has no Unity counterpart: a non-kinematic
   Rigidbody can always move, so `simulating` says what the pair said, and a built player keeps no Static flag
   (`GameObject.isStatic` reads false there for an object saved static: measured).
@@ -113,8 +113,8 @@ Measures:
   URP volume parameter belongs to its component.
 - `spawns`: `{"probe": "spawns", "component": "<type>", "field": "spawned|destroyed"}`.
 - `asset`: one of `asset` (`^(Assets|Packages)/[A-Za-z0-9_][A-Za-z0-9_ /.()@-]{0,299}$`), `scene`
-  (`^Assets/[A-Za-z0-9_ /.()-]+\.unity$`) and `prefab` (`^(Assets|Packages)/[A-Za-z0-9_ /.()-]+\.prefab$`), in place
-  of `asset` and `map`. Fields: the original's `count`, `material_default`, `mesh_collision`, `material:<property>` and
+  (`^Assets/[A-Za-z0-9_ /.()-]+\.unity$`) and `prefab` (`^(Assets|Packages)/[A-Za-z0-9_ /.()-]+\.prefab$`; these two
+  at most 300 characters), in place of `asset` and `map`. Fields: the original's `count`, `material_default`, `mesh_collision`, `material:<property>` and
   `prop:<path>`, plus a channel or `.name` after `material:<property>`, `material:keyword:<NAME>`, `import:<path>`,
   `shader:<Property>` (with a channel `.r`-`.a` or `.x`-`.w`, or `.name`) and `keyword:<NAME>`.
 
@@ -139,7 +139,7 @@ renames, plus audio `level` (`NEVER_LITERAL`, `PIECE_TRIANGLES`): components `in
 pieces `triangles`, `visible_triangles`; `screen` (all); audio `volume`, `max_volume`, `level`; ground `range`; drawn
 everything but `drawn`.
 
-The task check's rules differ from the original's in four places, each a case the original gets wrong:
+The task check's rules differ from the original's in six places, each a case the original gets wrong:
 
 - a still-works probe is excused only when its start play has no samples ("no samples in the window": the play
   crashed, ended early or wrote no probe file); one that finds nothing to measure in a start that ran counts against
@@ -151,7 +151,14 @@ The task check's rules differ from the original's in four places, each a case th
   reference measured 0, so there is no threshold" (`verdict.make_threshold`);
 - "no value in the window (nothing it selects was measured); the probe said: <error>" quotes only an error about that
   measure's own query (a `query_errors` line starting `<kind> <id>:`, `<kind> <id> (` or `<kind>: `), never another
-  query's (`probes._own_errors`; the original quotes the play's first error).
+  query's (`probes._own_errors`; the original quotes the play's first error);
+- a sample without the player (a `[t]` track row) or without a camera row has no value for the player's and the
+  camera's own fields, so a play that ran but never found them fails "no value in the window", not "no samples" (the
+  original drops those rows, and the still-works excuse above would then cover a broken `player` select)
+  (`probes.series`);
+- a look cut from the reference's boot keeps its samples up to its seconds + 0.5, where a look of its own stops
+  sampling, so `"at": "end"` and a measure without a window read the same span on both sides (`check.first_seconds`,
+  `check.OVERRUN`; the original cuts at its seconds, though its plugin samples to Seconds + 0.5 as well).
 
 Everything else is the original's: the checks (`build`, `boot`, `log_absent`, `file_exists`, `package`, `probe`,
 judges), milestones, `expect` (`value`, `calibrate`, `start_times`, `start_plus`),
@@ -469,11 +476,12 @@ the keyboard has no key <x>`, `the mouse has no control <x>`, `the gamepad has n
 The original passes its plugin a flag for each setting (`-TaskProbeOut`, `-TaskProbeSeconds`, `-TaskProbeInputs`
 ...) and runs its editor pass as a Python script in its headless editor. The port hands the player one play spec and
 runs an editor method, so those requests are its own formats; `probe.json` is the original's `game-probe/1` under the
-name `unity-probe/1`, with `scene` in place of `map` and `player` added, and the editor pass's result is the original's. The checker's files of a
-copy are under `<copy>/Logs/TaskProbe/` (`unity.LOGS`; a game never keeps anything in Unity's `Logs/`), each made
-fresh before its job. The examples below are of the sample game's task `lamp-keeper-fix-lamps-hud-camera`, its
-reference commit's copy written as a run with `--scratch C:\tc` places it (`C:\tc\38e8bcd7\ff49e5194fe4`): the
-requests are what the checker's own functions write for it, the results the real ones, unless one says otherwise.
+name `unity-probe/1`, with `scene` in place of `map` and `player` added, and the editor pass's result is the
+original's. The checker's files of a copy are under `<copy>/Logs/TaskProbe/` (`unity.LOGS`; a game never keeps
+anything in Unity's `Logs/`), each made fresh before its job. The examples below are of the sample game's task
+`lamp-keeper-fix-lamps-hud-camera`, its reference commit's copy written as a run with `--scratch C:\tc` places it
+(`C:\tc\38e8bcd7\ff49e5194fe4`): the requests are what the checker's own functions write for it, the results the real
+ones, unless one says otherwise.
 
 **The play spec** (`<copy>/Logs/TaskProbe/play_spec.json`, written by `unity.Project.play`, read by `Probe.Begin`). The
 task play `scenario_two`, with its queries as `probes.plan` makes them (the ids are those of the play's real
