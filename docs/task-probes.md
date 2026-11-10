@@ -509,8 +509,10 @@ Limits:
 - a mesh drawn only on its inside (a sky dome, a room seen from within) is rendered from outside, usually as nothing,
   so it reads dark that way; one on a layer the player camera's URP renderer doesn't draw (section 2.19) reads dark
   that way too;
-- rendering is done at the sample, each renderer once a sample, at most 64 renders a sample over every query (past
-  that, as without a render, above: a mesh's bound, anything else no value);
+- rendering is done at the sample, each renderer once a sample (every measure of the sample, and its selects'
+  `has.lit`, share that one reading; an input's select, a `teleport_to` by `has.lit`, is read before the game's
+  scripts and has its own), at most 64 renders a sample over every query (past that, as without a render, above: a
+  mesh's bound, anything else no value);
 - a Light's cookie is not read; decals, sprite masks and UI are not sources (3D text is a mesh source: it draws with a
   MeshRenderer); select the lamp (by owner, tag, `mesh` or `near`), not every renderer in the scene.
 
