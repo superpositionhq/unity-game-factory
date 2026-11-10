@@ -160,7 +160,7 @@ row ids in commit messages are fine.
   edit, reorder or backfill rows (`log.gap` row for anything missed), except to remove a banned name
   (unity-commit-always skill: `tools/scrub-workflow-rows.py --apply`, which appends the `log.correct` row). Banned
   names include the machine's account name (in paths): enforced in every non-script file; scripts and editor steps
-  that already ran keep it (packaging scrubs them).
+  that already ran keep it (packaging, not available yet, will scrub them).
 - Editor steps write their own rows with the template's `WorkflowLog.Row(op, target, parameters)`
   (`Assets/Editor/Tools/WorkflowLog.cs`): the op and target are the step's (`scene.build`,
   `Assets/Scenes/Harbor.unity`); it fills in the id, `seq` and time, the step's own file and its sha256 as `source`,
