@@ -220,4 +220,4 @@ try {
   if ($lowHeld) { try { $lowM.ReleaseMutex() } catch { } }
   Log 'end' @{ exit_code = $code; duration_s = [int]((Get-Date) - $t1).TotalSeconds; slots = 'mutex' }
 }
-exit $code
+exit $(if ($null -ne $code) { $code } else { 1 })   # no exit code: the job never started (e.g. no such exe), not a 0
