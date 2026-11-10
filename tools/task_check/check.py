@@ -80,10 +80,11 @@ class Built:
     scene the build lacks has it built again with every scene asked for so far (a player only holds the scenes its
     build was given), so the copy's build always serves every task before it too."""
 
-    def __init__(self, project, log=print):
+    def __init__(self, project, log=print, cache=None):
         self.project, self.log = project, log
         self._build = None
         self._scenes = set()  # the scenes the current build was given
+        self._cache = cache  # gives the folder of another copy of the run that was built already (or None)
 
     def has_built(self, scenes=()):
         """Whether a build that holds `scenes` is already made."""
@@ -95,6 +96,12 @@ class Built:
                 more = sorted(set(scenes) - self._scenes)
                 self.log(f"  {self.project.label}: building again, for scene(s) the earlier build lacks: "
                          f"{', '.join(more)}")
+            elif self._cache is not None:
+                # Unity imports every asset of a fresh copy before it can build (the long part). Its import cache is
+                # keyed by content, so a built copy's cache serves this one: only what differs is imported again.
+                donor = self._cache()
+                if donor is not None and seeds.seed_library(donor, self.project.folder):
+                    self.log(f"  {self.project.label}: starts from the import cache of {Path(donor).name}")
             self._scenes |= set(scenes)
             self._build = self.project.build(timeout, sorted(self._scenes))
         return self._build
@@ -128,7 +135,8 @@ class Builds:
                 self.copies[sha] = exc
             else:
                 machine = unity.Machine.for_project(folder, self.direct)
-                self.copies[sha] = (Built(unity.Project(folder, machine, sha[:12]), self.log),
+                self.copies[sha] = (Built(unity.Project(folder, machine, sha[:12]), self.log,
+                                          cache=lambda own=sha: self._built_copy(own)),
                                     {"files": made["files"], "lfs_linked": made["linked"],
                                      "lfs_copied": made["copied"], "engine": str(machine.editor),
                                      "slots": "unity-heavy" if machine.heavy else "direct"})
@@ -136,6 +144,13 @@ class Builds:
         if isinstance(found, Exception):
             raise found
         return found
+
+    def _built_copy(self, own):
+        """The folder of a copy of this run, other than `own`, that has been built (its import cache is whole)."""
+        for sha, found in self.copies.items():
+            if sha != own and not isinstance(found, Exception) and found[0].has_built():
+                return found[0].project.folder
+        return None
 
     def _room(self, needed):
         try:

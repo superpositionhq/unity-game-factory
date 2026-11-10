@@ -848,3 +848,33 @@ class SavedData(unittest.TestCase):
                 seeds.remove(Path(tmp) / "run")
             self.assertEqual(forgotten, [project])
             self.assertFalse((Path(tmp) / "run").exists())
+
+
+class ImportCache(unittest.TestCase):
+    def test_a_copy_takes_a_built_copys_import_cache_without_its_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            donor, fresh = Path(tmp) / "a", Path(tmp) / "b"
+            (donor / "Library" / "Artifacts").mkdir(parents=True)
+            (donor / "Library" / "Artifacts" / "x").write_text("1")
+            (donor / "Library" / "ScriptAssemblies").mkdir()
+            (donor / "Library" / "ScriptAssemblies" / "Game.dll").write_text("dll")
+            (donor / "Library" / "Artifacts" / "Bee").mkdir()  # only the top folders named are left out
+            fresh.mkdir()
+            self.assertTrue(seeds.seed_library(donor, fresh))
+            self.assertTrue((fresh / "Library" / "Artifacts" / "x").is_file())
+            self.assertTrue((fresh / "Library" / "Artifacts" / "Bee").is_dir())
+            self.assertFalse((fresh / "Library" / "ScriptAssemblies").exists(), "compiled scripts are the other copy's")
+            self.assertFalse(seeds.seed_library(donor, fresh), "never over a cache the copy already has")
+            self.assertFalse(seeds.seed_library(Path(tmp) / "none", Path(tmp) / "c"), "no donor cache: nothing to take")
+
+    def test_only_a_copys_first_build_takes_the_cache(self):
+        project = FakeProject()
+        project.folder = Path("X:/scratch/copy")
+        taken = []
+        with mock.patch.object(seeds, "seed_library", lambda donor, folder: taken.append((donor, folder)) or True):
+            built = check.Built(project, log=lambda _: None, cache=lambda: Path("X:/scratch/other"))
+            built.build(60)
+            built.build(60, ["Assets/Scenes/More.unity"])  # built again for a scene: its own cache is there now
+        self.assertEqual(taken, [(Path("X:/scratch/other"), Path("X:/scratch/copy"))])
+        with mock.patch.object(seeds, "seed_library", lambda *a: self.fail("no built copy to take from")):
+            check.Built(FakeProject(), log=lambda _: None, cache=lambda: None).build(60)

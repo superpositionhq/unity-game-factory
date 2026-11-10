@@ -179,6 +179,32 @@ def check_length(folder):
     return Path(folder)
 
 
+LIBRARY = "Library"
+LIBRARY_LEFT = ("TaskProbe", "Bee", "ScriptAssemblies", "PlayerDataCache", "PlayerScriptAssemblies", "BuildPlayerData",
+                "StateCache", "il2cpp_cache", "BurstCache")  # of the other copy's code and builds: made again here
+
+
+def seed_library(donor, project):
+    """Unity's import cache (Library/) of the built scratch copy `donor`, copied into `project` when it has none yet,
+    so its first build imports only the assets that differ. The cache is keyed by each asset's content and import
+    settings, and is never part of the game: both copies stay exactly as committed. What belongs to the other copy's
+    code and builds is left out (compiled scripts, build caches). False when there was nothing to copy or it failed
+    (the copy then imports everything itself, as before)."""
+    source, target = Path(donor) / LIBRARY, Path(project) / LIBRARY
+    if not source.is_dir() or target.exists():
+        return False
+
+    def skip(folder, names):
+        return [n for n in names if n in LIBRARY_LEFT] if Path(folder) == source else []
+
+    try:
+        shutil.copytree(source, target, ignore=skip)
+    except (OSError, shutil.Error):
+        shutil.rmtree(target, ignore_errors=True)
+        return False
+    return True
+
+
 def saves_company(project):
     """The company name the probe's build gives a scratch copy's player (TaskProbe/Editor/Build.cs `Tag`): "TaskProbe."
     and 12 hex digits of its folder's sha256. A play's saved data (PlayerPrefs in the registry, the persistent data
