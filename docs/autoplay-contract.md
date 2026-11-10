@@ -46,8 +46,8 @@ What a game does today, so that it is ready for AutoPlay (the task check's plays
 
 Report what is ready to the coordinator (the commit sha, the scenarios that start with `-scenario <n>`, the release
 build's result); never queue, request or wait for a recording, since there is no recorder yet. The framing check and the
-README's screenshots, which the original takes from a bot run, come from one short rendered play of the built player
-until then (unity-game-session skill).
+README's screenshots, which come from a bot run once the drop-in is here, come from one short rendered play of the
+built player until then (unity-game-session skill).
 
 Everything below is the plan: what the drop-in will do, and what a game adds once it is here.
 
@@ -191,9 +191,8 @@ All JSON is UTF-8; `*.jsonl` has one object per line. Every row carries the same
 
 `type`: `header` | `inject` (`edge` = `down` when a control is pressed, `hold` once per frame while it is held, `up`
 when it is released) | `release` (an `up` the drop-in writes itself for a control still held when the run ends) |
-`cursor`.
-`key` is the control's Input System path; `value` is what the control reads (1/0 for a key or button, a number for an
-axis, `[x, y]` for a stick, a mouse delta or a position).
+`cursor`. `key` is the control's Input System path; `value` is what the control reads (1/0 for a key or button, a
+number for an axis, `[x, y]` for a stick, a mouse delta or a position).
 
 ### `telemetry.jsonl` (drop-in rows + your game's rows)
 
@@ -291,7 +290,7 @@ report what is ready to the coordinator instead, and take the framing stills fro
 1. Build the player: `Scripts/unity.ps1 build` (release) or `-Development`.
 2. Run one scenario rendered through the limiter:
    `Scripts/unity.ps1 play -Scenario 1 -Render -Seconds 180 -Extra "-autoplay -goTimeout 0 -maxSeconds 120 -outputDir <abs dir>"`
-   (`-Extra` is split at spaces: an `-outputDir` without spaces).
+   (`-Extra` is split at spaces, so the `-outputDir` path must have none).
 3. Check the run's files: every file of section 5 present and well formed, `inputs.jsonl` has injected input,
    `telemetry.jsonl` has `scenario_start` and `scenario_end`, `outcome.json` has a result, `audio.wav` is not silent.
    The run checker comes with the pipeline (not available yet). The bot plays like a human, but its score never holds
