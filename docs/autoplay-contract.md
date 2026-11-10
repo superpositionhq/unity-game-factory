@@ -315,8 +315,8 @@ the files change shape.
 
 The names **Superposition**, **game-factory** and **unity-game-factory** (case-insensitive, including `game_factory` /
 `gamefactory`) must not appear anywhere in a game: repo files, code, comments, settings (e.g. `companyName` in
-`ProjectSettings/ProjectSettings.asset`, which also becomes the exe's company and the `persistentDataPath` folder),
-scripts, commit messages, builds, logs, in-game files, or anything passed to the game process; agent, model and
-provider names stay out too (the unity-game-session skill's "Names"). Everything else stays as it is: recording and
-workflow traces are fine and `workflow.jsonl` stays in the repo. The drop-in will follow this. Words like recording,
-dataset, pipeline, workflow row ids in commit messages and `workflow.jsonl` are fine.
+`ProjectSettings/ProjectSettings.asset`, which the build carries in `<Game>_Data\app.info` and which names the player's
+`persistentDataPath` folder), scripts, commit messages, builds, logs, in-game files, or anything passed to the game
+process; agent, model and provider names stay out too (the unity-game-session skill's "Names"). Everything else stays
+as it is: recording and workflow traces are fine and `workflow.jsonl` stays in the repo. The drop-in will follow this.
+Words like recording, dataset, pipeline, workflow row ids in commit messages and `workflow.jsonl` are fine.
