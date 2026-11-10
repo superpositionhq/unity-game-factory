@@ -1,0 +1,288 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ocr/Made/OcrLab.unity",
+ "queries": [
+  {
+   "id": "edge_clear",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.0375,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "edge_touch",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.040625,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "edge_cut",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.041667,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "hooked3",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.185185,
+     0.270833,
+     0.292593
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "flat3",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.302083,
+     0.185185,
+     0.541667,
+     0.292593
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "bold",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.333333,
+     0.208333,
+     0.411111
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "thin",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.302083,
+     0.333333,
+     0.479167,
+     0.411111
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "slanted",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.444444,
+     0.302083,
+     0.551852
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "lone",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.421875,
+     0.444444,
+     0.489583,
+     0.551852
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "faint",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.592593,
+     0.28125,
+     0.7
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "ruled",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.291667,
+     0.592593,
+     0.552083,
+     0.7
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "framed",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.016667,
+     0.733333,
+     0.260417,
+     0.9
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "shaded",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.296875,
+     0.75,
+     0.536458,
+     0.87963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "small",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.614583,
+     0.055556,
+     0.708333,
+     0.111111
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  }
+ ]
+}

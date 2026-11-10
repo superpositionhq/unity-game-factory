@@ -1,0 +1,25 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ocr/Made/OcrLab.unity",
+ "queries": [
+  {
+   "id": "cap",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0,
+     0,
+     1,
+     1
+    ]
+   },
+   "fields": [
+    "text",
+    "x"
+   ]
+  }
+ ]
+}

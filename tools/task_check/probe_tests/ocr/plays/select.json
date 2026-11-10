@@ -1,0 +1,196 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ocr/Made/OcrLab.unity",
+ "queries": [
+  {
+   "id": "text_rect",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "regex_rect",
+   "kind": "ui",
+   "select": {
+    "text": "^HP",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "text_only",
+   "kind": "ui",
+   "select": {
+    "kind": "text"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "rect_only",
+   "kind": "ui",
+   "select": {
+    "rect": [
+     0.03125,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "box_rect",
+   "kind": "ui",
+   "select": {
+    "kind": "box",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "image_regex_rect",
+   "kind": "ui",
+   "select": {
+    "kind": "image",
+    "text": "HP",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.291667,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "regex_only",
+   "kind": "ui",
+   "select": {
+    "text": "HP"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "swapped",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.291667,
+     0.162963,
+     0.03125,
+     0.055556
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "outside",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     1.2,
+     1.2,
+     1.5,
+     1.5
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "zero",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.3,
+     0.3,
+     0.3,
+     0.3
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "before",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     -0.5,
+     -0.5,
+     -0.1,
+     -0.1
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "label",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.510417,
+     0.055556,
+     0.739583,
+     0.166667
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  }
+ ]
+}

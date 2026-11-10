@@ -1,0 +1,84 @@
+{
+ "seconds": 10,
+ "shots": 10,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ocr/Made/OcrLab.unity",
+ "queries": [
+  {
+   "id": "clock",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.489583,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "clock_regex",
+   "kind": "ui",
+   "select": {
+    "text": "^TIME \\d:\\d\\d\\.\\d$",
+    "rect": [
+     0.03125,
+     0.055556,
+     0.489583,
+     0.162963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "points",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.203704,
+     0.489583,
+     0.311111
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "clock_gl",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.03125,
+     0.351852,
+     0.489583,
+     0.462963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  }
+ ]
+}

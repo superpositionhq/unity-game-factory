@@ -1,0 +1,43 @@
+{
+ "seconds": 1,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ocr/Made/OcrLab.unity",
+ "queries": [
+  {
+   "id": "found_text",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "rect": [
+     0.020833,
+     0.037037,
+     0.3125,
+     0.462963
+    ]
+   },
+   "fields": [
+    "text",
+    "x",
+    "y",
+    "w",
+    "h"
+   ]
+  },
+  {
+   "id": "found_any",
+   "kind": "ui",
+   "select": {
+    "rect": [
+     0.020833,
+     0.037037,
+     0.3125,
+     0.462963
+    ]
+   },
+   "fields": [
+    "text"
+   ]
+  }
+ ]
+}
