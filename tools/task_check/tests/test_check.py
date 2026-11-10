@@ -4,6 +4,7 @@ pass hand Unity."""
 
 import contextlib
 import io
+import itertools
 import json
 import os
 import shutil
@@ -1062,6 +1063,33 @@ class Cli(unittest.TestCase):
             self.assertIn("finished", final)
             self.assertIn("VALID   g-fix-one  (1 min)", final)
             self.assertTrue(json.loads((out / "progress.json").read_text(encoding="utf-8"))["finished"])
+
+    def test_two_runs_at_once_on_one_repo_have_folders_of_their_own(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, _, _, _ = make_game(tmp)
+            path = Path(tmp) / "metro-runner-fix-x.json"
+            path.write_text(json.dumps({**task_with(probe()), "name": "metro-runner-fix-x"}), encoding="utf-8")
+            scratches = []
+
+            class Recorded:
+                def __init__(self, repo_, scratch, direct, log):
+                    scratches.append(Path(scratch))
+
+                def release(self, sha):
+                    pass
+
+                def close(self):
+                    pass
+
+            with mock.patch.object(check, "check_task", lambda *a, **k: {"task": "x", "verdict": "VALID", "reasons": []}), \
+                    mock.patch.object(check, "Builds", Recorded), \
+                    mock.patch.object(cli.time, "time", lambda: 1700000000.0), \
+                    mock.patch.object(cli.os, "getpid", itertools.count(4100).__next__), \
+                    mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                for _ in range(2):  # two processes started in one tick of the clock (15.6 ms on Windows)
+                    cli.main([str(repo), "--task", str(path), "--scratch", str(Path(tmp) / "s")])
+            self.assertEqual(len(set(scratches)), 2, "one folder each: the first to end deleted the other's copies")
 
     def test_the_default_scratch_is_on_the_repos_own_drive(self):
         with tempfile.TemporaryDirectory() as tmp:

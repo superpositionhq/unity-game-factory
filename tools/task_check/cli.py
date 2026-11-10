@@ -140,7 +140,8 @@ def main(argv=None):
     ignore_results(repo, out)
     scratch_root = Path(args.scratch).resolve() if args.scratch else default_scratch(repo)
     started = time.time()
-    tag = hashlib.sha256(f"{repo}:{started}".encode()).hexdigest()[:8]
+    # the process too: two runs on one repo started in one tick of the clock (15.6 ms on Windows) shared a folder
+    tag = hashlib.sha256(f"{repo}:{started}:{os.getpid()}".encode()).hexdigest()[:8]
     too_long = seeds.too_long(scratch_root / tag / ("0" * 12))  # a copy's folder: <scratch>/<run tag>/<sha[:12]>
     if too_long:
         parser.error(too_long)
