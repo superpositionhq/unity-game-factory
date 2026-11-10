@@ -46,7 +46,8 @@ namespace TaskProbe
 
         public static bool IsRectField(string f) => f == "x" || f == "y" || f == "w" || f == "h";
 
-        static bool InFrame(double x, double y, double w, double h) => x + w > 0.0 && x < 1.0 && y + h > 0.0 && y < 1.0;
+        /// <summary>A rectangle with a size that lies at least partly inside the frame.</summary>
+        static bool OnScreen(double x, double y, double w, double h) => w > 0.0 && h > 0.0 && x + w > 0.0 && x < 1.0 && y + h > 0.0 && y < 1.0;
 
         // ---------------------------------------------------------------- elements on screen (ui)
 
@@ -74,9 +75,12 @@ namespace TaskProbe
 
 #if TASKPROBE_UGUI
         static readonly Vector3[] Corners = new Vector3[4];
+        static readonly List<Canvas> CanvasesUp = new List<Canvas>();
+        static readonly List<CanvasGroup> GroupsUp = new List<CanvasGroup>();
 
-        /// <summary>A RectTransform's rectangle in viewport fractions (y down). `screenOnly`: false for a world-space
-        /// canvas (none is read for ui). A world-space canvas projects through the player's camera; false when behind it.</summary>
+        /// <summary>A RectTransform's rectangle in viewport fractions (y down). A world-space canvas (when `screenOnly` is
+        /// false) projects through the player's camera; false when a corner is behind it. False for a canvas drawn
+        /// into a texture or on another display: it isn't on the screen.</summary>
         public static bool RectOf(RectTransform rt, Canvas canvas, bool screenOnly, out double x, out double y, out double w, out double h)
         {
             x = y = w = h = 0.0;
@@ -85,11 +89,16 @@ namespace TaskProbe
             Camera cam = null;
             switch (root.renderMode)
             {
-                case RenderMode.ScreenSpaceOverlay: break;
-                case RenderMode.ScreenSpaceCamera: cam = root.worldCamera; break;  // none: drawn as an overlay
+                case RenderMode.ScreenSpaceOverlay:
+                    if (root.targetDisplay != 0) return false;
+                    break;
+                case RenderMode.ScreenSpaceCamera:
+                    cam = root.worldCamera;  // none: drawn as an overlay
+                    if (cam != null && (cam.targetTexture != null || cam.targetDisplay != 0)) return false;
+                    break;
                 default:
                     if (screenOnly) return false;
-                    cam = Probe.Active != null ? Probe.Active.View : Camera.main;
+                    cam = Probe.Active != null ? Probe.Active.View : null;
                     if (cam == null) return false;
                     break;
             }
@@ -117,42 +126,30 @@ namespace TaskProbe
             return true;
         }
 
-        /// <summary>The alpha of the CanvasGroups above (and on) `t`, and whether every Canvas up the chain is enabled.</summary>
-        static float GroupAlpha(Transform t, out bool canvasesOn)
+        /// <summary>Drawn on screen: active, every Canvas up the chain enabled, an alpha above the floor up the chain
+        /// (CanvasGroups until one ignores its parents; `graphic`'s own colour and CanvasRenderer when it has one, which
+        /// must be enabled and not culled), with a rectangle on screen.</summary>
+        public static bool UguiVisible(GameObject go, Graphic graphic, bool screenOnly)
         {
-            canvasesOn = true;
+            if (go == null || !go.activeInHierarchy) return false;
+            var canvas = go.GetComponentInParent<Canvas>();
+            if (canvas == null) return false;
             var alpha = 1f;
             var groupsDone = false;
-            var groups = new List<CanvasGroup>();
-            var canvases = new List<Canvas>();
-            for (var p = t; p != null; p = p.parent)
+            for (var p = go.transform; p != null; p = p.parent)
             {
-                p.GetComponents(canvases);
-                foreach (var c in canvases)
-                    if (!c.enabled) canvasesOn = false;
+                p.GetComponents(CanvasesUp);
+                foreach (var c in CanvasesUp)
+                    if (!c.enabled) return false;
                 if (groupsDone) continue;
-                p.GetComponents(groups);
-                foreach (var g in groups)
+                p.GetComponents(GroupsUp);
+                foreach (var g in GroupsUp)
                 {
                     if (!g.enabled) continue;
                     alpha *= g.alpha;
                     if (g.ignoreParentGroups) groupsDone = true;
                 }
             }
-            return alpha;
-        }
-
-        /// <summary>On screen: active, enabled, its canvases on, alpha above the floor up the chain, not culled, partly in
-        /// the frame. `behaviour`: the component whose enabled state counts; `graphic` (may be null) adds its own alpha.</summary>
-        public static bool UguiVisible(GameObject go, Behaviour behaviour, Graphic graphic, bool screenOnly)
-        {
-            if (go == null || !go.activeInHierarchy || (behaviour != null && !behaviour.enabled)) return false;
-            var canvas = go.GetComponentInParent<Canvas>();
-            if (canvas == null || !canvas.isActiveAndEnabled) return false;
-            var root = canvas.rootCanvas;
-            if (root.renderMode == RenderMode.ScreenSpaceOverlay && root.targetDisplay != 0) return false;
-            var alpha = GroupAlpha(go.transform, out var canvasesOn);
-            if (!canvasesOn) return false;
             if (graphic != null)
             {
                 if (!graphic.enabled) return false;
@@ -164,8 +161,8 @@ namespace TaskProbe
                     alpha *= cr.GetAlpha();
                 }
             }
-            if (alpha <= AlphaFloor) return false;
-            return RectOf(go.transform as RectTransform, canvas, screenOnly, out var x, out var y, out var w, out var h) && InFrame(x, y, w, h);
+            return alpha > AlphaFloor && RectOf(go.transform as RectTransform, canvas, screenOnly, out var x, out var y, out var w, out var h)
+                && OnScreen(x, y, w, h);
         }
 
         static bool IsTmpPart(Graphic g)
@@ -207,7 +204,7 @@ namespace TaskProbe
             foreach (var g in graphics)
             {
                 if (g == null || IsTmpPart(g) || MaskHides(g) || Probe.IsOwn(g.gameObject)) continue;
-                if (!UguiVisible(g.gameObject, g, g, true)) continue;
+                if (!UguiVisible(g.gameObject, g, true)) continue;
                 var e = new UiElement { Name = g.gameObject.name, Class = g.GetType().Name, Source = "ugui" };
                 var text = GraphicText(g);
                 if (text != null)
@@ -232,25 +229,28 @@ namespace TaskProbe
         // ---------------------------------------------------------------- UI Toolkit
 
 #if TASKPROBE_UITK
-        /// <summary>Every UIDocument's tree once (documents nested in another's tree are walked with it).</summary>
-        public static IEnumerable<UIE.VisualElement> UitkRoots()
+        /// <summary>Every UIDocument's tree once (a document nested in another's tree is walked with it), in hierarchy
+        /// order, and whether its panel is drawn on the screen.</summary>
+        public static List<KeyValuePair<UIE.VisualElement, bool>> UitkRoots()
         {
             var docs = new List<UIE.UIDocument>(UnityEngine.Object.FindObjectsByType<UIE.UIDocument>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
-            Find.SortByHierarchy(docs);  // a stable order from play to play
-            var roots = new List<UIE.VisualElement>();
+            Find.SortByHierarchy(docs);
+            var roots = new List<KeyValuePair<UIE.VisualElement, bool>>();
             foreach (var d in docs)
             {
                 if (d == null || !d.isActiveAndEnabled || Probe.IsOwn(d.gameObject)) continue;
                 var root = d.rootVisualElement;
-                if (root != null && !roots.Contains(root)) roots.Add(root);
+                if (root == null || roots.Exists(r => r.Key == root)) continue;
+                // drawn on the screen: not in world space, not into a texture, on the first display
+                var settings = d.panelSettings;
+                var onScreen = settings != null && settings.renderMode == UIE.PanelRenderMode.ScreenSpaceOverlay && settings.targetTexture == null
+                    && settings.targetDisplay == 0;
+                roots.Add(new KeyValuePair<UIE.VisualElement, bool>(root, onScreen));
             }
+            var top = new List<KeyValuePair<UIE.VisualElement, bool>>();
             foreach (var r in roots)
-            {
-                var nested = false;
-                foreach (var other in roots)
-                    if (other != r && other.Contains(r)) nested = true;
-                if (!nested) yield return r;
-            }
+                if (!roots.Exists(o => o.Key != r.Key && o.Key.Contains(r.Key))) top.Add(r);
+            return top;
         }
 
         /// <summary>Every element under `root` (itself included), shadow children too, depth first.</summary>
@@ -262,28 +262,16 @@ namespace TaskProbe
             for (var i = 0; i < children.childCount; i++) Walk(children[i], output, depth + 1);
         }
 
-        /// <summary>Whether the element's panel is drawn on the screen (not world-space, not into a texture).</summary>
-        static bool ScreenPanel(UIE.VisualElement e)
-        {
-            if (e.panel == null) return false;
-            foreach (var d in UnityEngine.Object.FindObjectsByType<UIE.UIDocument>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-            {
-                if (d.rootVisualElement == null || d.rootVisualElement.panel != e.panel) continue;
-                var settings = d.panelSettings;
-                if (settings == null) return false;
-                return settings.renderMode == UIE.PanelRenderMode.ScreenSpaceOverlay && settings.targetTexture == null && settings.targetDisplay == 0;
-            }
-            return true;
-        }
-
-        /// <summary>An element's rectangle in viewport fractions: its panel's coordinates scaled to the frame.</summary>
+        /// <summary>An element's rectangle in viewport fractions: its panel's coordinates over the panel's own size (its
+        /// scale mode left out).</summary>
         public static bool RectOf(UIE.VisualElement e, out double x, out double y, out double w, out double h)
         {
             x = y = w = h = 0.0;
             if (e?.panel == null) return false;
             var whole = e.panel.visualTree.worldBound;
             var b = e.worldBound;
-            if (!(whole.width > 0f) || !(whole.height > 0f) || float.IsNaN(b.x) || float.IsNaN(b.width)) return false;
+            if (!(whole.width > 0f) || !(whole.height > 0f) || float.IsNaN(b.x) || float.IsNaN(b.y) || float.IsNaN(b.width) || float.IsNaN(b.height))
+                return false;
             x = (b.x - whole.x) / whole.width;
             y = (b.y - whole.y) / whole.height;
             w = b.width / whole.width;
@@ -291,20 +279,21 @@ namespace TaskProbe
             return true;
         }
 
-        /// <summary>Displayed, visible, of an opacity above the floor up the chain, in a screen panel, partly in the frame.</summary>
-        public static bool UitkVisible(UIE.VisualElement e, bool checkPanel = true)
+        /// <summary>Drawn on screen, in a panel on the screen (`onScreen`): displayed all the way up (display: none takes
+        /// an element and everything under it out), visible (visibility is inherited, and a child may be visible again
+        /// under a hidden parent: its own resolved value decides), of an opacity above the floor down the tree, with a
+        /// rectangle on screen.</summary>
+        public static bool UitkVisible(UIE.VisualElement e, bool onScreen)
         {
-            if (e?.panel == null) return false;
+            if (!onScreen || e?.panel == null || e.resolvedStyle.visibility != UIE.Visibility.Visible) return false;
             var opacity = 1f;
             for (var p = e; p != null; p = p.hierarchy.parent)
             {
                 var s = p.resolvedStyle;
-                if (s.display == UIE.DisplayStyle.None || s.visibility != UIE.Visibility.Visible) return false;
+                if (s.display == UIE.DisplayStyle.None) return false;
                 opacity *= s.opacity;
             }
-            if (opacity <= AlphaFloor) return false;
-            if (checkPanel && !ScreenPanel(e)) return false;
-            return RectOf(e, out var x, out var y, out var w, out var h) && InFrame(x, y, w, h);
+            return opacity > AlphaFloor && RectOf(e, out var x, out var y, out var w, out var h) && OnScreen(x, y, w, h);
         }
 
         static UnityEngine.Object BackgroundAsset(UIE.Background b)
@@ -343,12 +332,12 @@ namespace TaskProbe
             var all = new List<UIE.VisualElement>();
             foreach (var root in UitkRoots())
             {
-                if (!ScreenPanel(root)) continue;
+                if (!root.Value) continue;
                 all.Clear();
-                Walk(root, all);
+                Walk(root.Key, all);
                 foreach (var e in all)
                 {
-                    if (!UitkVisible(e, false)) continue;
+                    if (!UitkVisible(e, true)) continue;
                     var s = e.resolvedStyle;
                     var name = string.IsNullOrEmpty(e.name) ? e.GetType().Name : e.name;
                     var cls = e.GetType().Name;
@@ -453,7 +442,6 @@ namespace TaskProbe
             readonly GameObject go;
             readonly Selectable selectable;
             readonly Graphic graphic;  // its own text if it has one, else its first graphic
-            readonly Component main;
 
             public UguiWidget(GameObject go, Component matched)
             {
@@ -467,16 +455,12 @@ namespace TaskProbe
                     if (text == null && GraphicText(g) != null) text = g;
                 }
                 graphic = text ?? first;
-                main = matched != null ? matched : selectable != null ? selectable : (Component)graphic;
+                var main = matched != null ? matched : selectable != null ? selectable : (Component)graphic;
                 Name = go.name;
                 Class = main != null ? main.GetType().Name : "GameObject";
             }
 
-            public override bool Visible()
-            {
-                var behaviour = main as Behaviour;
-                return UguiVisible(go, behaviour, graphic, false);
-            }
+            public override bool Visible() => UguiVisible(go, graphic, false);
 
             public override string Text()
             {
@@ -533,8 +517,10 @@ namespace TaskProbe
                 }
                 if (IsRectField(f))
                 {
-                    var canvas = go.GetComponentInParent<Canvas>(true);
-                    if (!RectOf(go.transform as RectTransform, canvas, false, out var x, out var y, out var w, out var h) || (w <= 0.0 && h <= 0.0)) return null;  // not laid out
+                    // no value before it is laid out (no size)
+                    if (!RectOf(go.transform as RectTransform, go.GetComponentInParent<Canvas>(true), false, out var x, out var y, out var w, out var h) ||
+                        (w <= 0.0 && h <= 0.0))
+                        return null;
                     return f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
                 }
                 return null;
@@ -546,33 +532,39 @@ namespace TaskProbe
         static void UitkWidgets(string component, string name, Regex text, bool visibleOnly, List<UiWidget> found)
         {
             var all = new List<UIE.VisualElement>();
-            foreach (var root in UitkRoots()) Walk(root, all);
-            foreach (var e in all)
+            foreach (var root in UitkRoots())
             {
-                if (!string.IsNullOrEmpty(component) && !Reflect.IsA(e.GetType(), component)) continue;
-                if (name != null && !Find.Wild(name, e.name ?? "")) continue;
-                if (text != null)
+                all.Clear();
+                Walk(root.Key, all);
+                foreach (var e in all)
                 {
-                    var shown = UitkText(e);
-                    if (shown == null || !text.IsMatch(shown)) continue;
+                    if (!string.IsNullOrEmpty(component) && !Reflect.IsA(e.GetType(), component)) continue;
+                    if (name != null && !Find.Wild(name, e.name ?? "")) continue;
+                    if (text != null)
+                    {
+                        var shown = UitkText(e);
+                        if (shown == null || !text.IsMatch(shown)) continue;
+                    }
+                    if (visibleOnly && !UitkVisible(e, root.Value)) continue;
+                    found.Add(new UitkWidget(e, root.Value));
                 }
-                if (visibleOnly && !UitkVisible(e)) continue;
-                found.Add(new UitkWidget(e));
             }
         }
 
         sealed class UitkWidget : UiWidget
         {
             readonly UIE.VisualElement e;
+            readonly bool onScreen;  // its panel is drawn on the screen
 
-            public UitkWidget(UIE.VisualElement e)
+            public UitkWidget(UIE.VisualElement e, bool onScreen)
             {
                 this.e = e;
+                this.onScreen = onScreen;
                 Name = string.IsNullOrEmpty(e.name) ? e.GetType().Name : e.name;
                 Class = e.GetType().Name;
             }
 
-            public override bool Visible() => UitkVisible(e);
+            public override bool Visible() => UitkVisible(e, onScreen);
             public override string Text() => UitkText(e);
 
             static double Share(double value, double low, double high) => high != low ? (value - low) / (high - low) : 0.0;
@@ -606,7 +598,8 @@ namespace TaskProbe
                 }
                 if (IsRectField(f))
                 {
-                    if (!RectOf(e, out var x, out var y, out var w, out var h) || (w <= 0.0 && h <= 0.0)) return null;  // not laid out (display: none)
+                    // no value before it is laid out (no size, display: none), nor in a panel off the screen
+                    if (!onScreen || !RectOf(e, out var x, out var y, out var w, out var h) || (w <= 0.0 && h <= 0.0)) return null;
                     return f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
                 }
                 return null;
@@ -627,26 +620,31 @@ namespace TaskProbe
             {
                 if (s == null || Probe.IsOwn(s.gameObject)) continue;
                 if (!Find.Wild(want, s.gameObject.name) && !Reflect.IsA(s.GetType(), want)) continue;
-                if (!s.IsInteractable() || !UguiVisible(s.gameObject, s, s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null, false)) continue;
+                var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
+                if (!s.isActiveAndEnabled || !s.IsInteractable() || !UguiVisible(s.gameObject, own, false)) continue;
                 UguiClick(s);
                 return true;
             }
 #endif
 #if TASKPROBE_UITK
             var all = new List<UIE.VisualElement>();
-            foreach (var root in UitkRoots()) Walk(root, all);
-            foreach (var e in all)
+            foreach (var root in UitkRoots())
             {
-                if (!(e is UIE.Button button)) continue;
-                if (!Find.Wild(want, e.name ?? "") && !Reflect.IsA(e.GetType(), want)) continue;
-                if (!e.enabledInHierarchy || !UitkVisible(e)) continue;
-                // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or pad press does
-                using (var submit = UIE.NavigationSubmitEvent.GetPooled())
+                all.Clear();
+                Walk(root.Key, all);
+                foreach (var e in all)
                 {
-                    submit.target = button;
-                    button.SendEvent(submit);
+                    if (!(e is UIE.Button button)) continue;
+                    if (!Find.Wild(want, e.name ?? "") && !Reflect.IsA(e.GetType(), want)) continue;
+                    if (!e.enabledInHierarchy || !UitkVisible(e, root.Value)) continue;
+                    // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or pad press does
+                    using (var submit = UIE.NavigationSubmitEvent.GetPooled())
+                    {
+                        submit.target = button;
+                        button.SendEvent(submit);
+                    }
+                    return true;
                 }
-                return true;
             }
 #endif
             return false;
