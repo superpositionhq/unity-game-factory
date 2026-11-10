@@ -2,7 +2,7 @@
 // SkinnedMeshRenderer whose mesh has triangles is 1, a Terrain's tree instances are 1 each. Under a
 // LODGroup only LOD 0's renderers count. Renderers of objects active in the hierarchy only (a deactivated object is
 // no placed piece; a disabled renderer is a piece that isn't drawn). Counted over every piece, never cut at a cap.
-// Unity has no instanced or procedural mesh component (the original's instances and sections): a mesh drawn from code
+// Unity has no instanced or procedural mesh component: a mesh drawn from code
 // (Graphics.RenderMesh*) is no piece, a mesh built at run time is an ordinary one, its submeshes one piece.
 // select: component (MeshRenderer, SkinnedMeshRenderer, Terrain, Renderer...), name (wildcard on its object's name),
 // mesh (wildcard on its mesh asset's name; a tree's: its prototype's first mesh), owner (an object select its object

@@ -5,8 +5,8 @@
 // A mesh renderer is read from its materials' properties when every material it draws with has a shader with the
 // standard interface (an emissive `_EmissionColor` + `_EMISSION` keyword, or an unlit shader's `_BaseColor`/`_Color`),
 // no texture multiplies the colour read and no MaterialPropertyBlock sets it; else (a texture, a block's value, a
-// Shader Graph or a custom shader) it is rendered alone (DrawnRender.Glow), as the original renders a mesh whose
-// material graph it can't evaluate whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot;
+// Shader Graph or a custom shader) it is rendered alone (DrawnRender.Glow), since its material can't be evaluated
+// whole: a texture may be an atlas whose part the mesh shows, or dark but for a spot;
 // a block's value may have been set as a colour or as a vector, which the shader gets differently. Any other part (a
 // sprite, a line) and a live effect (a particle system, a trail, a visual effect) are always read as rendered: what
 // they draw is their own (a sprite, vertex colours), not their material's. Past the render budget a mesh reads the

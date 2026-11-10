@@ -1,6 +1,6 @@
 // camera: the player's camera against the player (contract section 3, "camera"). The checker reads occluded and
 // player_on_screen from here; distance, height, pitch, yaw and fov it computes from the probe's camera and track rows
-// (probes.series), and they are here too, as in the original.
+// (probes.series), and they are here too.
 // "value": {"pitch", "yaw", "fov", "distance", "height", "occluded", "player_on_screen"} (the player's fields null
 // without a player) | null without a camera.
 using System;

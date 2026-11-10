@@ -29,9 +29,9 @@ namespace TaskProbe
 
         /// <summary>The parts an object draws with, drawn or hidden (changed, spin, lit, glow; extent_ and spread take the
         /// drawn ones): the renderers of itself and its descendants that draw a shape, each with something to draw (a
-        /// MeshRenderer's mesh with vertices, a SkinnedMeshRenderer's mesh, a SpriteRenderer's sprite), as the original
-        /// takes an actor's mesh components with a mesh, its 2D sprites and cables among them. Effects (particle systems,
-        /// trails, visual effects) are no parts: they span where their particles went. Sprite masks draw nothing.</summary>
+        /// MeshRenderer's mesh with vertices, a SkinnedMeshRenderer's mesh, a SpriteRenderer's sprite). Effects
+        /// (particle systems, trails, visual effects) are no parts: they span where their particles went. Sprite masks
+        /// draw nothing.</summary>
         public static void Parts(GameObject go, List<Renderer> parts)
         {
             parts.Clear();
@@ -379,7 +379,7 @@ namespace TaskProbe
     }
 
     /// <summary>changed, bounds_change, pose_change: each part against the first sample it was seen in. Kept for the
-    /// query, as the original keeps its first states for the play; what was destroyed is forgotten after the sample
+    /// query, its first states kept for the play; what was destroyed is forgotten after the sample
     /// (an instance id is never used again).</summary>
     public sealed class Changes
     {
@@ -413,7 +413,7 @@ namespace TaskProbe
         /// <summary>An object's parts as its own first sample had them. A part is also each of its ancestors' (parts take
         /// descendants), so one object's first sample must never stand in for another's: a child first matched later
         /// than its parent (inactive until then, or come into a near) would else overwrite the parent's first state of
-        /// the child's renderer. (The original keys by component alone: there an actor's parts are its own.)</summary>
+        /// the child's renderer.</summary>
         sealed class ObjectFirst
         {
             public GameObject Go;

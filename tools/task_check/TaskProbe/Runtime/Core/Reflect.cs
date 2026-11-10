@@ -12,7 +12,7 @@ namespace TaskProbe
 {
     public static class Reflect
     {
-        const int MaxSteps = 16;  // the original's: a path of more steps reads nothing
+        const int MaxSteps = 16;  // a path of more steps reads nothing
         static readonly Dictionary<string, Type[]> TypesByName = new Dictionary<string, Type[]>(StringComparer.Ordinal);
         static readonly Dictionary<Type, Type[]> Implementers = new Dictionary<Type, Type[]>();
         static readonly Dictionary<Type, HashSet<string>> NamesOfType = new Dictionary<Type, HashSet<string>>();

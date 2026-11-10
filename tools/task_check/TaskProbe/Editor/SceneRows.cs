@@ -79,7 +79,7 @@ namespace TaskProbe.EditorTools
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true))
                 {
                     var slots = r.sharedMaterials;
-                    // a part of the mesh beyond the last slot is drawn with no material: the original's empty slot
+                    // a part of the mesh beyond the last slot is drawn with no material: an empty slot
                     if (slots.Length == 0 || slots.Length < Parts(r)) bad = true;
                     foreach (var s in slots)
                         if (s == null || AssetValues.IsErrorShader(s.shader) || AssetValues.IsDefault(s)) bad = true;

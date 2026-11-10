@@ -7,8 +7,9 @@
 // no other comes near; anything else (a glyph that fits two characters, an unknown mark, a line cut by the rect, a busy
 // background) reads nothing for that line rather than a guess.
 //
-// A port of the Unreal probe's reader (OcrRead and its helpers): the same constants and decisions in the same order, the
-// sort of a line's marks included; only the pixel source differs (a FrameImage, its rows read from the top).
+// The pixels come from a FrameImage, its rows read from the top; every constant and decision below, the sort of a
+// line's marks included, decides what the reader reads (probe_tests/ocr/harness compares it with its reference
+// readings).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -188,7 +189,7 @@ namespace TaskProbe
         static KeyValuePair<char, string> S(char c, string lines) => new KeyValuePair<char, string>(c, lines);
 
         static int FloorToInt(double v) => (int)Math.Floor(v);
-        static int RoundToInt(double v) => (int)Math.Floor(v + 0.5);  // Unreal's RoundToInt: halves up
+        static int RoundToInt(double v) => (int)Math.Floor(v + 0.5);  // halves up
         static int Clamp(int v, int lo, int hi) => v < lo ? lo : v > hi ? hi : v;
 
         static Point Normal(double x, double y, double centreX, double top, double scaleX, double height) =>
@@ -822,10 +823,9 @@ namespace TaskProbe
             }
         }
 
-        /// <summary>Unreal's TArray::Sort (Algo::IntroSort and its heap sort, Unreal Engine 5.7), which the original
-        /// sorts a line's marks with. It isn't stable, and the order it leaves marks of one left edge in decides which
-        /// glyph a narrow one joins (two marks that start at one column, the narrow one over the glyph before), so the
-        /// marks are sorted as there.</summary>
+        /// <summary>The sort of a line's marks: an introsort with a heap sort below it. It isn't stable, and the order
+        /// it leaves marks of one left edge in decides which glyph a narrow one joins (two marks that start at one
+        /// column, the narrow one over the glyph before), so the marks are always sorted by exactly this one.</summary>
         static void IntroSort(List<int> v, Func<int, int, bool> less)
         {
             if (v.Count < 2) return;

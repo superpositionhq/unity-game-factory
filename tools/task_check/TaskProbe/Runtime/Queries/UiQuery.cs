@@ -39,7 +39,7 @@ namespace TaskProbe
                     Probe.Error("ui " + Id + ": the text regex " + pattern + " doesn't compile");
                 }
             }
-            // the rect as the original's FillUi reads it: exactly four items, one that isn't a number keeping its default
+            // the rect: exactly four items, one that isn't a number keeping its default
             if (select.TryGetValue("rect", out var r) && r is List<object> items && items.Count == 4)
             {
                 rect = new[] { 0.0, 0.0, 1.0, 1.0 };

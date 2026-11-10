@@ -1,8 +1,8 @@
 // The UI as the widgets and ui queries read it (contract section 3): uGUI (UnityEngine.UI graphics and selectables,
 // TextMeshPro) on the scene's canvases, and UI Toolkit (every UIDocument's panel); and the widget click input.
 // Rectangles are viewport fractions 0-1 with y down from the top, whatever render mode, scaler or panel scale placed
-// them. Two rules say whether a widget shows. Visible (the widgets field and select, and the widget click) is a state,
-// as the original's: active, every Canvas up the chain enabled, its graphic enabled, the CanvasGroups' alpha above
+// them. Two rules say whether a widget shows. Visible (the widgets field and select, and the widget click) is a state:
+// active, every Canvas up the chain enabled, its graphic enabled, the CanvasGroups' alpha above
 // 0.004 (in UI Toolkit: displayed all the way up, its own visibility visible, an opacity above 0.004 down the tree),
 // on a canvas or panel drawn on the screen, and inside the frame; its colour, its size and clipping don't count. On
 // screen (a ui element) is drawn: visible on a screen canvas or panel, and also its colour and CanvasRenderer alpha
@@ -146,7 +146,7 @@ namespace TaskProbe
             return true;
         }
 
-        /// <summary>Visible, a state (the original's): active, every Canvas up the chain enabled, `graphic` (when it has
+        /// <summary>Visible, a state: active, every Canvas up the chain enabled, `graphic` (when it has
         /// one) enabled, the CanvasGroups' alpha above the floor (up to one that ignores its parents), on a canvas drawn
         /// on the screen (a world-space one through the player's camera, unless `screenOnly`) and inside the frame. Its
         /// colour, its size and clipping don't count. `alpha` is the CanvasGroups' product, `canvas` its canvas, the
@@ -414,7 +414,7 @@ namespace TaskProbe
         /// <summary>The widgets a select picks: uGUI objects in hierarchy order, then UI Toolkit elements in tree order
         /// (a control's own parts too, an unnamed one named by its type). `component`: a type name a component
         /// of the object, or the element (a base type included), carries; with `name`, a component on an object above,
-        /// or an element above, also matches (the original's enclosing user widget; the row keeps its own class).
+        /// or an element above, also matches (the row keeps its own class).
         /// `name`: a wildcard on the object's or element's name; without `component` it finds any object of a canvas
         /// (a panel with no graphic too). `text`: a regex its text must match (a Selectable's is its label's, so a text
         /// matches the Selectable and its label). `visible`: visible only.</summary>
@@ -469,7 +469,7 @@ namespace TaskProbe
                 if (!string.IsNullOrEmpty(component))
                 {
                     matched = Reflect.ComponentNamed(go, component, false);
-                    // with a name, a component on an object above also matches (the original's enclosing user widget)
+                    // with a name, a component on an object above also matches
                     if (matched == null && (name == null || !CarriedAbove(t, component))) continue;
                 }
                 var w = new UguiWidget(go, matched);
@@ -600,7 +600,7 @@ namespace TaskProbe
                 foreach (var e in all)
                 {
                     if (name != null && !Find.Wild(name, NameOf(e))) continue;
-                    // with a name, an element above of that type also matches (the original's enclosing user widget)
+                    // with a name, an element above of that type also matches
                     if (!string.IsNullOrEmpty(component) && !Reflect.IsA(e.GetType(), component) && (name == null || !AboveIsA(e, component))) continue;
                     if (text != null)
                     {
@@ -679,8 +679,8 @@ namespace TaskProbe
         // ---------------------------------------------------------------- widget click
 
         /// <summary>Clicks the first visible, interactable uGUI Selectable whose object's name matches `want` (a wildcard)
-        /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it (the original's
-        /// FindButton and its pressed, released, clicked). Visible is the widgets' state (a fully transparent button
+        /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it
+        /// (pressed, released, clicked). Visible is the widgets' state (a fully transparent button
         /// takes a click). No raycast: an image over it doesn't stop it. Without an EventSystem a player's click reaches
         /// no uGUI widget, and neither does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or
         /// a type name may match several: the log names the one), or null when none.</summary>

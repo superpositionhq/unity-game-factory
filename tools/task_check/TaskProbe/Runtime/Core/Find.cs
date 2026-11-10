@@ -42,7 +42,7 @@ namespace TaskProbe
     }
 
     /// <summary>A select's `has`: a part of the object (a component of it or of a descendant) that matches every key
-    /// given. The original's `movable` (a component's Mobility) has no counterpart: Unity keeps no Static flags in a
+    /// given. A `movable` key isn't read: Unity keeps no Static flags in a
     /// player, so a `has` that gives it reads it as any key it doesn't know: not at all.</summary>
     public sealed class HasSel
     {
@@ -108,7 +108,7 @@ namespace TaskProbe
                 Check(Json.Obj(Json.Obj(near, "point"), "object"), about, depth + 1);
         }
 
-        /// <summary>A key's text; an empty one is no key (the original's: empty matches everything).</summary>
+        /// <summary>A key's text; an empty one is no key (it matches everything).</summary>
         internal static string Text(Dictionary<string, object> o, string key)
         {
             var s = Json.Str(o, key);
@@ -120,7 +120,7 @@ namespace TaskProbe
     {
         /// <summary>A point deeper than this doesn't resolve (a select inside a point inside a select...; the depth goes
         /// up by one from a select to its points and from a point to its object select): two object selects nest inside
-        /// a select's points, the second without a point of its own (the original's limit).</summary>
+        /// a select's points, the second without a point of its own.</summary>
         public const int MaxDepth = 3;
         static readonly Dictionary<string, Regex> Wildcards = new Dictionary<string, Regex>(StringComparer.Ordinal);
         static readonly Dictionary<string, TagHandle?> Tags = new Dictionary<string, TagHandle?>(StringComparer.Ordinal);
@@ -293,7 +293,7 @@ namespace TaskProbe
         }
 
         /// <summary>has: a part of `go` (a component of it or of a descendant active in the hierarchy; with `inactive` of
-        /// any descendant) that matches every key given, the original's order: `lit` last, as it may render.</summary>
+        /// any descendant) that matches every key given, in this order: `lit` last, as it may render.</summary>
         static bool Carries(GameObject go, HasSel has, Vector3 nearCentre, bool inactive)
         {
             foreach (var c in go.GetComponentsInChildren<Component>(inactive))

@@ -162,7 +162,7 @@ namespace TaskProbe.EditorTools
 
         /// <summary>`path` on a Unity object: by reflection (Reflect.ReadPath), else as a SerializedObject property path.
         /// `ok` false only when it names a member the object doesn't have: a path that stops at an unset reference or
-        /// past the end of a list has no value, as in the original's editor pass.</summary>
+        /// past the end of a list has no value.</summary>
         static object Path(UnityEngine.Object target, string path, out bool ok)
         {
             var read = Reflect.ReadPath(target, path, out ok);
@@ -196,7 +196,7 @@ namespace TaskProbe.EditorTools
         }
 
         /// <summary>Whether `path`, which doesn't read, names members `target` has and stops early: at an unset
-        /// reference, or at an index past the end of a list (the original's path_value reads None there).</summary>
+        /// reference, or at an index past the end of a list (the path has no value there).</summary>
         static bool Stops(object target, string path)
         {
             var head = "";

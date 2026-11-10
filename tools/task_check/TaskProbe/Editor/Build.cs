@@ -186,7 +186,7 @@ namespace TaskProbe.EditorTools
 
         /// <summary>{scene: {"missing": [guid, ...], "names": n}} for the played scenes that name assets the project
         /// doesn't have (a pack committed only later): they load as missing. Built-in resources (a GUID of 16 zeros
-        /// first) aren't assets. Only what the scene itself names, as the original reads a map's own imports.</summary>
+        /// first) aren't assets. Only what the scene itself names, not what those assets name in turn.</summary>
         static Dictionary<string, object> Missing(string project, List<string> played)
         {
             var found = new Dictionary<string, object>(StringComparer.Ordinal);

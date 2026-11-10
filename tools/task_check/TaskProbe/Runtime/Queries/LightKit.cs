@@ -14,7 +14,7 @@ namespace TaskProbe
     public static class LightKit
     {
         // core Color.hlsl Luminance (ColorUtils.Luminance), linear sRGB: the light measure takes the engine's own
-        // luminance, as the original does (FLinearColor::GetLuminance); glow, screen and drawn use their Rec. 709 one
+        // luminance; glow, screen and drawn use their Rec. 709 one
         const double LumR = 0.2126729, LumG = 0.7151522, LumB = 0.0721750;
         /// <summary>How far away a directional light's ray starts (m).</summary>
         public const float TraceLength = 2000f;
@@ -258,7 +258,7 @@ namespace TaskProbe
 
         /// <summary>Whether the grade the camera's frame gets is known now: without URP (no grade is read: neutral), for a
         /// camera that renders no post-processing (its frame is ungraded), or once its stack can be read. Not without a
-        /// camera, nor before URP has set up its volume framework: no value then (the original's exposure has none
+        /// camera, nor before URP has set up its volume framework: no value then (no exposure is known
         /// until the renderer has one), never a neutral one no frame shows.</summary>
         public static bool GradeKnown()
         {

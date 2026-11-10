@@ -1,8 +1,7 @@
 // What the listener hears, measured and then silenced. A filter on an AudioListener's object receives the final mix of
 // every source (mixers and effects applied); the tap sums its level for the `audio` measure and then zeroes the buffer,
-// so no play is ever heard on the machine (the original's plays run with -nosound, or -muteaudio when they measure
-// audio). Only in a probe play: Follow, which only the probe calls, arms every tap; a tap anywhere else (the package
-// copied into a game, a component added by code) lets the sound through untouched.
+// so no play is ever heard on the machine. Only in a probe play: Follow, which only the probe calls, arms every tap; a
+// tap anywhere else (the package copied into a game, a component added by code) lets the sound through untouched.
 #if TASKPROBE_AUDIO
 using System;
 using System.Collections.Generic;

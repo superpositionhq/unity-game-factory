@@ -72,8 +72,7 @@ namespace TaskProbe
         public Color32 At(int x, int yFromTop) => Pixels[(Height - 1 - yFromTop) * Width + x];
 
         /// <summary>The pixels a rect [x0, y0, x1, y1] in viewport fractions (y down) covers: columns x0..x1-1 and rows
-        /// y0..y1-1 from the top, its corners in either order, clamped to the frame and at least one pixel (as the
-        /// original reads a screen rect).</summary>
+        /// y0..y1-1 from the top, its corners in either order, clamped to the frame and at least one pixel.</summary>
         public void Area(double[] rect, out int x0, out int y0, out int x1, out int y1)
         {
             x0 = Clamp(Math.Floor(Math.Min(rect[0], rect[2]) * Width), 0, Width - 1);
@@ -87,7 +86,7 @@ namespace TaskProbe
 
     /// <summary>The rows of one selection sample: at most 200 kept, every match counted, and each field's numbers summed
     /// up over every match, so a count, a sum, a min or a max reads them all ("total" and "full", written when more
-    /// matched than the rows hold, as the original's SetTotal: every field asked for, in the order asked).</summary>
+    /// matched than the rows hold: every field asked for, in the order asked).</summary>
     public sealed class RowSet
     {
         public const int MaxRows = 200;

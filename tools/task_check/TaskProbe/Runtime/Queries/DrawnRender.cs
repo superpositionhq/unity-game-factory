@@ -605,7 +605,7 @@ namespace TaskProbe
 
         /// <summary>One renderer alone with no light at all, from the four corners of a tetrahedron in its own frame
         /// (128 x 128, orthographic, HDR). At most 64 renders a pass over the scene (Probe.Stamp) across every caller,
-        /// each renderer once a pass, as the original renders each mesh once a sample and a select's has.lit on its own;
+        /// each renderer once a pass;
         /// what each costs goes to probe.log.</summary>
         public static RenderedGlow Glow(Renderer r)
         {

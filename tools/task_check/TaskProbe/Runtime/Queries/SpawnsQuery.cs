@@ -1,10 +1,10 @@
 // spawns: objects carrying a component (its type, a base type or an interface, as an object select's `component`) that
 // appeared (became active in the hierarchy) or went (were destroyed or deactivated), counted every frame since the play's
 // clock started (contract section 3, "spawns"); cumulative, the checker differences them. Unity raises no event when an
-// object is made, so the objects are compared frame to frame (the original counts its world's spawn and destroy
-// events): objects there when the clock starts aren't spawned; a pooled object counts each time it comes and goes; an
-// object that comes and goes within one frame isn't seen; a scene loaded or unloaded during the play brings and takes
-// its objects; an object given the component counts as one that appeared.
+// object is made, so the objects are compared frame to frame: objects there when the clock starts aren't spawned; a
+// pooled object counts each time it comes and goes; an object that comes and goes within one frame isn't seen; a scene
+// loaded or unloaded during the play brings and takes its objects; an object given the component counts as one that
+// appeared.
 // "value": {"spawned", "destroyed"} | null when no component can be of that type.
 using System;
 using System.Collections.Generic;
