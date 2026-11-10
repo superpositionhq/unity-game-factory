@@ -343,8 +343,9 @@ renderers, else its position.
     `collision` (it or a descendant has an enabled collider that isn't a trigger); `speed` (m/s): its own velocity
     when it reports one that isn't zero (the first of these it has: a non-kinematic Rigidbody, a Dynamic Rigidbody2D,
     an enabled CharacterController, a NavMeshAgent on its NavMesh), else how far it moved since the previous sample
-    over that time. One with such a velocity source at rest reads 0 on its first sample; one without has no value the
-    first time it is seen;
+    over the time of the frames since (1/30 s each, a wait's and a scene load's among them: the play's clock holds
+    then, the game runs on). One with such a velocity source at rest reads 0 on its first sample; one without has no
+    value the first time it is seen;
   - `spin` (deg/s): how fast the object turns, the fastest of its parts (as `extent_*` counts them, drawn or not; none:
     its own transform), each read as a component's `spin` (section 2.5). **Its threshold is calibrated or relative to
     the start, never a literal value**;
