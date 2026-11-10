@@ -10,13 +10,11 @@ namespace TaskProbe.EditorTools
 {
     public static class SceneRows
     {
-        const int MaxDepth = 4;  // a select inside a point inside a select...
-
         /// <summary>{"rows": [{"name", "value"}]} or {"error"} of a measure over `objects` (the scene's or prefab's, in
         /// hierarchy order, inactive ones included).</summary>
         public static Dictionary<string, object> Measure(Dictionary<string, object> m, List<GameObject> objects)
         {
-            var field = Json.Str(m, "field") ?? "count";
+            var field = Json.Str(m, "field") ?? "";
             if (!(field == "count" || field == "material_default" || field == "mesh_collision"
                   || field.StartsWith("material:", StringComparison.Ordinal) || field.StartsWith("prop:", StringComparison.Ordinal)))
                 return AssetPass.Error("unknown field " + field + " (count, material_default, material:<property>, mesh_collision, prop:<Component>.<path>)");
@@ -33,7 +31,7 @@ namespace TaskProbe.EditorTools
         {
             var found = new List<GameObject>();
             why = null;
-            if (depth > MaxDepth) { why = "the select nests too deep"; return found; }
+            if (depth > Find.MaxDepth) { why = "the select nests too deep"; return found; }
             if (sel.Player) { why = "`player` selects need a running game: the editor pass can't match them"; return found; }
             if (sel.Has != null) { why = "`has` needs a running game: the editor pass can't match it"; return found; }
             var centre = Vector3.zero;
@@ -70,63 +68,60 @@ namespace TaskProbe.EditorTools
             return true;
         }
 
-        /// <summary>`go`'s rows of `field`; false for an unknown field.</summary>
-        static bool AddRows(GameObject go, string field, List<object> rows)
+        /// <summary>`go`'s rows of `field` (a known one).</summary>
+        static void AddRows(GameObject go, string field, List<object> rows)
         {
-            if (field == "count") { rows.Add(Row(go.name, 1.0)); return true; }
-            if (field == "material_default")
+            if (field == "count") rows.Add(Row(go.name, 1.0));
+            else if (field == "material_default")
             {
                 var bad = false;
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true))
                 {
                     var slots = r.sharedMaterials;
-                    if (slots.Length == 0) bad = true;
+                    // a part of the mesh beyond the last slot is drawn with no material: the original's empty slot
+                    if (slots.Length == 0 || slots.Length < Parts(r)) bad = true;
                     foreach (var s in slots)
                         if (s == null || AssetValues.IsErrorShader(s.shader) || AssetValues.IsDefault(s)) bad = true;
                     if (bad) break;
                 }
                 rows.Add(Row(go.name, bad ? 1.0 : 0.0));
-                return true;
             }
-            if (field.StartsWith("material:", StringComparison.Ordinal))
+            else if (field.StartsWith("material:", StringComparison.Ordinal))
             {
                 var spec = field.Substring(9);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true))
                     foreach (var s in r.sharedMaterials)
                         rows.Add(Row(go.name + "/" + r.gameObject.name, s != null ? AssetValues.MaterialValue(s, spec, out _) : null));
-                return true;
             }
-            if (field == "mesh_collision")
+            else if (field == "mesh_collision")
             {
                 foreach (var filter in go.GetComponentsInChildren<MeshFilter>(true))
                 {
                     if (filter.sharedMesh == null) continue;
                     var has = false;
                     for (var t = filter.transform; t != null && !has; t = t == go.transform ? null : t.parent)
-                        has = Collides(t.gameObject);
+                        has = Find.Collides(t.gameObject, false);
                     rows.Add(Row(go.name + "/" + filter.gameObject.name, has ? 1.0 : 0.0));
                 }
-                return true;
             }
-            if (field.StartsWith("prop:", StringComparison.Ordinal))
+            else
             {
                 var value = AssetValues.ObjectProp(go, field.Substring(5), out var ok);
                 rows.Add(Row(go.name, ok ? value : null));
-                return true;
             }
-            return false;
         }
 
-        static Type colliderType;
-
-        /// <summary>An enabled collider that isn't a trigger on the object (by reflection: the physics module is optional).</summary>
-        static bool Collides(GameObject go)
+        /// <summary>How many parts (submeshes) a renderer's mesh has; the slot of each part's index draws it.</summary>
+        static int Parts(Renderer r)
         {
-            if (colliderType == null) colliderType = Reflect.TypeNamed("UnityEngine.Collider");
-            if (colliderType == null) return false;
-            foreach (var c in go.GetComponents(colliderType))
-                if (c != null && Reflect.Get(c, "enabled") is bool on && on && !(Reflect.Get(c, "isTrigger") is bool trigger && trigger)) return true;
-            return false;
+            Mesh mesh = null;
+            if (r is SkinnedMeshRenderer skinned) mesh = skinned.sharedMesh;
+            else if (r is MeshRenderer)
+            {
+                var filter = r.GetComponent<MeshFilter>();
+                if (filter != null) mesh = filter.sharedMesh;
+            }
+            return mesh != null ? mesh.subMeshCount : 0;
         }
 
         static Dictionary<string, object> Row(string name, object value) =>
