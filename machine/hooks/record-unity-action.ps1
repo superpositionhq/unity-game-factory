@@ -181,7 +181,7 @@ function Save-BackfillState([string]$Sid, [string]$Project, [string]$Path, $Rows
 # ---- manual backfill of a session that was mapped before the backfill existed ---------------------------------------
 if ($Backfill) {
   $mutex = New-Object Threading.Mutex($false, 'Global\ugf-recording-hooks')
-  [void](Enter-UGFMutex $mutex 30000)
+  $held = Enter-UGFMutex $mutex 30000
   try {
     $map = Read-JsonMap $mapFile
     if (-not $map.ContainsKey($Backfill)) { throw "session $Backfill is not mapped to a project (recording-sessions.json)" }
@@ -206,7 +206,7 @@ if ($Backfill) {
     }
     Save-BackfillState $Backfill $project $TranscriptPath $rows $got
     Write-Host "backfilled $($rows.Count) call(s) of session $Backfill into $file (before row $([Math]::Max($firstIdx, 0) + 1); $($got.unparsed_lines) unparsed transcript lines)"
-  } finally { $mutex.ReleaseMutex() }
+  } finally { if ($held) { $mutex.ReleaseMutex() } }
   exit 0
 }
 
@@ -218,9 +218,10 @@ if ((Test-Path $excludeFile) -and ((Get-Content $excludeFile) -contains $sid)) {
 
 # One mutex for every writer of this factory's recording (both agents' hooks, record-unity-commit.ps1). Not the Unreal
 # factory's mutex: the two write different files and need not wait on each other. A hook killed at its timeout leaves
-# it abandoned; Enter-UGFMutex takes it over (WaitOne threw there, and every hook waiting on it lost its row).
+# it abandoned; Enter-UGFMutex takes it over (WaitOne threw there, and every hook waiting on it lost its row). After
+# 30 s the hook goes on without it, and then releases nothing: releasing a mutex not held throws.
 $mutex = New-Object Threading.Mutex($false, 'Global\ugf-recording-hooks')
-[void](Enter-UGFMutex $mutex 30000)
+$held = Enter-UGFMutex $mutex 30000
 try {
   $map = Read-JsonMap $mapFile
 
@@ -279,9 +280,9 @@ try {
         git -C $repo add -A 2>$null | Out-Null
         # the commit's post-commit hook (record-unity-commit.ps1) takes this mutex: held through the commit, every WIP
         # commit waited out that script's 30 s timeout, and the session with it
-        $mutex.ReleaseMutex()
+        if ($held) { $mutex.ReleaseMutex() }
         git -C $repo commit -q -m "WIP" 2>$null | Out-Null
-        [void](Enter-UGFMutex $mutex 30000)
+        if ($held) { $held = Enter-UGFMutex $mutex 30000 }
         $row.auto_commit = [ordered]@{ sha = (git -C $repo rev-parse HEAD); files = @($dirty).Count }
       } else { $row.auto_commit = $null }
     }
@@ -296,5 +297,5 @@ try {
     $row.response = Clip $resp $maxResp
   }
   [IO.File]::AppendAllText($actions, ($row | ConvertTo-Json -Depth 12 -Compress) + "`n", $utf8)
-} finally { $mutex.ReleaseMutex() }
+} finally { if ($held) { $mutex.ReleaseMutex() } }
 exit 0

@@ -33,6 +33,6 @@ $row = [ordered]@{
   files       = $files
 }
 $mutex = New-Object Threading.Mutex($false, 'Global\ugf-recording-hooks')
-[void](Enter-UGFMutex $mutex 30000)   # an abandoned one (a hook killed while holding it) is taken over
+$held = Enter-UGFMutex $mutex 30000   # an abandoned one (a hook killed while holding it) is taken over
 try { [IO.File]::AppendAllText((Join-Path $dir 'commits.jsonl'), ($row | ConvertTo-Json -Depth 6 -Compress) + "`n", $utf8) }
-finally { $mutex.ReleaseMutex() }
+finally { if ($held) { $mutex.ReleaseMutex() } }   # after 30 s it writes without it: release only what it holds
