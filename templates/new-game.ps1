@@ -135,7 +135,8 @@ function Commit-All([string]$Message) {
     & git -C $Path commit -q -F $msgFile 2>&1 | Out-Null
     $code = $LASTEXITCODE
     Remove-Item $msgFile -ErrorAction SilentlyContinue
-    if ($code -ne 0) { throw "commit failed (git user.name / user.email set?)" }
+    # what is left (the files, git, no commit) makes a second run refuse the folder as not empty
+    if ($code -ne 0) { throw "commit failed (git user.name / user.email set?): set them, delete $Path and run new-game.ps1 again" }
     return (& git -C $Path rev-parse --short HEAD)
 }
 $sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), root-anchored .gitignore, LFS for every binary type.`n`nworkflow: $rowId"
