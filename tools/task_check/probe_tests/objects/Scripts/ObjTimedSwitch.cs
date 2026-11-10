@@ -3,12 +3,12 @@ using UnityEngine;
 namespace ProbeTests.Objects
 {
     // At `at` s of game time does one thing to its target, as a game would: deactivate it, disable its renderer, switch
-    // its Light on or off, set its emission through a MaterialPropertyBlock (on every material, or on material `index`
-    // alone), switch its own material's _EMISSION keyword on, force its renderer off, kick its Rigidbodies apart
-    // (`amount` m/s outward and 2 m/s up), or spin its Rigidbody2D at `amount` deg/s.
+    // its Light on or off, set its emission colour through a MaterialPropertyBlock (on every material, or on material
+    // `index` alone) or set it as a vector, switch its own material's _EMISSION keyword on, force its renderer off, kick
+    // its Rigidbodies apart (`amount` m/s outward and 2 m/s up), or spin its Rigidbody2D at `amount` deg/s.
     public class ObjTimedSwitch : MonoBehaviour
     {
-        public enum Action { Deactivate, HideRenderer, LightOn, LightOff, EmissionOn, EmissionOnIndex, KeywordOn, ForceOff, Kick, Spin2D }
+        public enum Action { Deactivate, HideRenderer, LightOn, LightOff, EmissionOn, EmissionOnIndex, EmissionVector, KeywordOn, ForceOff, Kick, Spin2D }
         public GameObject target;
         public Action action;
         public float at = 3f;
@@ -30,11 +30,14 @@ namespace ProbeTests.Objects
                 case Action.LightOff: target.GetComponent<Light>().intensity = 0f; break;
                 case Action.EmissionOn:
                 case Action.EmissionOnIndex:
+                case Action.EmissionVector:
                 {
                     var block = new MaterialPropertyBlock();
-                    if (action == Action.EmissionOn) r.GetPropertyBlock(block); else r.GetPropertyBlock(block, index);
-                    block.SetColor("_EmissionColor", emission);
-                    if (action == Action.EmissionOn) r.SetPropertyBlock(block); else r.SetPropertyBlock(block, index);
+                    var one = action == Action.EmissionOnIndex;
+                    if (one) r.GetPropertyBlock(block, index); else r.GetPropertyBlock(block);
+                    if (action == Action.EmissionVector) block.SetVector("_EmissionColor", emission);
+                    else block.SetColor("_EmissionColor", emission);
+                    if (one) r.SetPropertyBlock(block, index); else r.SetPropertyBlock(block);
                     break;
                 }
                 case Action.KeywordOn: r.material.EnableKeyword("_EMISSION"); break;  // the renderer's own copy of it

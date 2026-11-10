@@ -252,8 +252,8 @@ namespace ProbeTests.Objects
             }
 
             // a lamp the game lights in the frame an input selects it by has.lit (before the game's scripts): the sample
-            // after the game's scripts in that frame must read it lit
-            var lampLate = Prim(PrimitiveType.Cube, "LampLate", new Vector3(8f, 0.5f, 12f), Vector3.one, switchable);
+            // after the game's scripts in that frame must read it lit. Off the player's way (x 0 to 8, z 0 to 30)
+            var lampLate = Prim(PrimitiveType.Cube, "LampLate", new Vector3(-12f, 0.5f, 12f), Vector3.one, switchable);
             Switch(switches, lampLate, ObjTimedSwitch.Action.EmissionOn, 3.99f);
 
             // two bulbs, one above the other: near with a height band picks one
@@ -264,6 +264,9 @@ namespace ProbeTests.Objects
             var sparks = new GameObject("Sparks");
             sparks.transform.position = new Vector3(10f, 1f, 10f);
             var ps = sparks.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ps.useAutoRandomSeed = false;  // the same sparks every play: two plays compare value for value
+            ps.randomSeed = 1234;
             var main = ps.main;
             main.loop = true;
             main.startLifetime = 1f;
@@ -480,12 +483,13 @@ namespace ProbeTests.Objects
             twoMat.GetComponent<Renderer>().sharedMaterials = new[] { plain, switchable };
             var byIndex = Switch(switches, twoMat, ObjTimedSwitch.Action.EmissionOnIndex, 2f);
             byIndex.index = 1;
-            Prim(PrimitiveType.Cube, "LampStandard", new Vector3(-6f, 0.5f, 4f), Vector3.one, Mat("LampStandard", "Standard", m =>
+            var standard = Mat("LampStandard", "Standard", m =>
             {
                 m.SetColor("_EmissionColor", new Color(2f, 2f, 2f));
                 m.EnableKeyword("_EMISSION");
                 m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
-            }));
+            });
+            Prim(PrimitiveType.Cube, "LampStandard", new Vector3(-6f, 0.5f, 4f), Vector3.one, standard);
             var atlas = Emissive("Atlas", new Color(4f, 4f, 4f), half);
             Prim(PrimitiveType.Cube, "AtlasWhite", new Vector3(-4f, 0.5f, 4f), Vector3.one, atlas).GetComponent<MeshFilter>().sharedMesh = Uvs("AtlasWhite", 0.25f);
             Prim(PrimitiveType.Cube, "AtlasBlack", new Vector3(-2f, 0.5f, 4f), Vector3.one, atlas).GetComponent<MeshFilter>().sharedMesh = Uvs("AtlasBlack", 0.75f);
@@ -493,9 +497,9 @@ namespace ProbeTests.Objects
             Switch(switches, keyword, ObjTimedSwitch.Action.KeywordOn, 2f);
             var forced = Prim(PrimitiveType.Cube, "LampForced", new Vector3(2f, 0.5f, 4f), Vector3.one, emissive);
             Switch(switches, forced, ObjTimedSwitch.Action.ForceOff, 0f);
-            // either side of the floor (luminance 0.01): 0.09 grey is 0.0085 in linear, 0.11 grey 0.0116
-            Prim(PrimitiveType.Cube, "LampDim", new Vector3(-12f, 0.5f, 6f), Vector3.one, Emissive("LampDim", new Color(0.09f, 0.09f, 0.09f)));
-            Prim(PrimitiveType.Cube, "LampFaint", new Vector3(-10f, 0.5f, 6f), Vector3.one, Emissive("LampFaint", new Color(0.11f, 0.11f, 0.11f)));
+            // either side of the floor (luminance 0.01): URP Lit's emission is [HDR], so the shader gets 0.009 and 0.011
+            Prim(PrimitiveType.Cube, "LampDim", new Vector3(-12f, 0.5f, 6f), Vector3.one, Emissive("LampDim", new Color(0.009f, 0.009f, 0.009f)));
+            Prim(PrimitiveType.Cube, "LampFaint", new Vector3(-10f, 0.5f, 6f), Vector3.one, Emissive("LampFaint", new Color(0.011f, 0.011f, 0.011f)));
             Prim(PrimitiveType.Cube, "LampUnlitMap", new Vector3(-8f, 0.5f, 6f), Vector3.one, Mat("LampUnlitMap", "Universal Render Pipeline/Unlit", m =>
             {
                 m.SetColor("_BaseColor", new Color(1f, 0.9f, 0.5f));
@@ -511,6 +515,16 @@ namespace ProbeTests.Objects
                 Prim(PrimitiveType.Cube, "LampGraph", new Vector3(4f, 0.5f, 4f), Vector3.one, m);
             }
             var white = AssetDatabase.LoadAssetAtPath<Sprite>(AssetDatabase.GetAssetPath(Png("White", 32, (x, y) => new Color32(255, 255, 255, 255), true)));
+            // a colour and a vector set on a property block at 2 s, each on a cube read from its properties and on one
+            // whose white emission map has it rendered: what a block's reading says against what the shader got
+            var mappedBlack = Emissive("BlockMapped", Color.black, white.texture);
+            Switch(switches, Prim(PrimitiveType.Cube, "BlockColour", new Vector3(-6f, 0.5f, 6f), Vector3.one, switchable), ObjTimedSwitch.Action.EmissionOn, 2f);
+            Switch(switches, Prim(PrimitiveType.Cube, "BlockColourMap", new Vector3(-4f, 0.5f, 6f), Vector3.one, mappedBlack), ObjTimedSwitch.Action.EmissionOn, 2f);
+            Switch(switches, Prim(PrimitiveType.Cube, "BlockVector", new Vector3(-2f, 0.5f, 6f), Vector3.one, switchable), ObjTimedSwitch.Action.EmissionVector, 2f);
+            Switch(switches, Prim(PrimitiveType.Cube, "BlockVectorMap", new Vector3(0f, 0.5f, 6f), Vector3.one, mappedBlack), ObjTimedSwitch.Action.EmissionVector, 2f);
+            var facts = new GameObject("Facts").AddComponent<ObjFacts>();
+            facts.lit = emissive;
+            facts.standard = standard;
             Sprite2D("SpriteLamp", new Vector3(6f, 1f, 4f), white, new Color(1f, 0.5f, 0.25f));
             Sprite2D("SpriteDark", new Vector3(8f, 1f, 4f), white, Color.black);
             var line = new GameObject("LineLamp").AddComponent<LineRenderer>();
@@ -530,6 +544,8 @@ namespace ProbeTests.Objects
                 var vfx = new GameObject("Vfx").AddComponent<VisualEffect>();
                 vfx.transform.position = new Vector3(18f, 1f, 4f);
                 vfx.visualEffectAsset = vfxAsset;
+                vfx.resetSeedOnPlay = false;  // the same particles every play, as far as the GPU repeats itself
+                vfx.startSeed = 1234;
             }
 
             // 2D physics in the plane z 20: a ground, a box that falls on it, a kinematic body moved at 2 m/s, a body

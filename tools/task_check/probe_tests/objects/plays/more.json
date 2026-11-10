@@ -32,6 +32,29 @@
    ]
   },
   {
+   "id": "m_blocks",
+   "kind": "objects",
+   "select": {
+    "name": "Block*"
+   },
+   "fields": [
+    "lit",
+    "glow"
+   ]
+  },
+  {
+   "id": "m_facts",
+   "kind": "objects",
+   "select": {
+    "name": "Facts"
+   },
+   "fields": [
+    "prop:ObjFacts.litHdr",
+    "prop:ObjFacts.standardHdr",
+    "prop:ObjFacts.blockColour"
+   ]
+  },
+  {
    "id": "m_sprites",
    "kind": "objects",
    "select": {
@@ -77,7 +100,16 @@
     "name": "Vfx"
    },
    "fields": [
-    "lit",
+    "lit"
+   ]
+  },
+  {
+   "id": "m_vfx_glow",
+   "kind": "objects",
+   "select": {
+    "name": "Vfx"
+   },
+   "fields": [
     "glow"
    ]
   },
@@ -112,8 +144,7 @@
    },
    "fields": [
     "active",
-    "lit",
-    "glow"
+    "lit"
    ]
   },
   {

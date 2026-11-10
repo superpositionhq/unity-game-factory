@@ -38,8 +38,15 @@ def linear(v):
 
 
 def lum(r, g, b):
-    """Rec. 709 luminance of a colour picked in gamma space, as the shader gets it (linear)."""
+    """Rec. 709 luminance of a colour picked in gamma space, as the shader gets it (linear): a plain colour property's,
+    and a colour set on a MaterialPropertyBlock."""
     return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+
+
+def hdr(r, g, b):
+    """Rec. 709 luminance of a colour property the shader marks [HDR] (URP Lit's _EmissionColor): Unity hands it to the
+    shader as the material holds it (measured: (4, 4, 4) renders 4, not 4^2.2)."""
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 def quarter(x, y, z):
@@ -49,9 +56,10 @@ def quarter(x, y, z):
 
 CUBE = quarter(1, 1, 1)
 TURNED6 = 1.5 * math.cos(math.radians(6)) + 0.15 * math.sin(math.radians(6))  # the blade's x half-size turned 6 degrees
-EMISSIVE = lum(4, 3, 2)  # LampEmissive, the bulbs, TubeLit
-WHITE4 = lum(4, 4, 4)  # LampSwitch's and LampTwoMat's emission, LampKeyword's
-CUSTOM = lum(3, 2, 1)  # ProbeTests/ObjGlow's _Glow
+EMISSIVE = hdr(4, 3, 2)  # LampEmissive's, the bulbs', TubeLit's URP Lit emission
+HDR4 = hdr(4, 4, 4)  # LampKeyword's and the atlas's URP Lit emission
+BLOCK4 = lum(4, 4, 4)  # LampSwitch's, LampLate's, LampTwoMat's and BlockColour's: (4, 4, 4) set on a property block
+CUSTOM = lum(3, 2, 1)  # ProbeTests/ObjGlow's _Glow, a plain colour property
 
 
 def rel(want, tol):
@@ -234,11 +242,12 @@ def lamps(t, play):
     t.eq("lit after 4 s (LampSwitch's block, LampLater on, LampOff at 0)", [field(play, q, after, n, "lit") for n in order],
          [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0])
     t.near("LampLight: intensity 5 x white", field(play, q, before, "LampLight", "glow"), 5.0, FLOAT)
-    near_rel(t, "LampEmissive: (4, 3, 2) linear, x a quarter of a unit cube's surface", field(play, q, before, "LampEmissive", "glow"), EMISSIVE * CUBE, 1e-4)
+    near_rel(t, "LampEmissive: (4, 3, 2) as the material holds it (URP Lit's emission is [HDR]) x a quarter of a unit cube's surface",
+             field(play, q, before, "LampEmissive", "glow"), EMISSIVE * CUBE, 1e-4)
     near_rel(t, "LampUnlit: (1, 0.9, 0.5) linear x a unit sphere's box", field(play, q, before, "LampUnlit", "glow"), lum(1, 0.9, 0.5) * CUBE, 1e-4)
-    near_rel(t, "LampMapped: (2, 2, 2) on half of each face, as rendered", field(play, q, before, "LampMapped", "glow"), lum(2, 2, 2) * 0.5 * CUBE, RENDER)
+    near_rel(t, "LampMapped: (2, 2, 2) on half of each face, as rendered", field(play, q, before, "LampMapped", "glow"), hdr(2, 2, 2) * 0.5 * CUBE, RENDER)
     t.eq("LampSwitch before its block: dark", field(play, q, before, "LampSwitch", "glow"), 0.0)
-    near_rel(t, "LampSwitch after: the block's (4, 4, 4)", field(play, q, after, "LampSwitch", "glow"), WHITE4 * CUBE, 1e-4)
+    near_rel(t, "LampSwitch after: the block's (4, 4, 4), made linear", field(play, q, after, "LampSwitch", "glow"), BLOCK4 * CUBE, 1e-4)
     near_rel(t, "LampLater after: 3 x (1, 0.5, 0.25) linear", field(play, q, after, "LampLater", "glow"), 3 * lum(1, 0.5, 0.25), 1e-4)
     t.near("LampOff before: intensity 2", field(play, q, before, "LampOff", "glow"), 2.0, FLOAT)
     t.eq("LampOff after: intensity 0 is off", field(play, q, after, "LampOff", "glow"), 0.0)
@@ -264,7 +273,7 @@ def lamps(t, play):
          "teleport_to skipped (no object matches)" in play.probe_log, play.probe_log[-300:])
     t.eq("the sample at 4 s, after the game's scripts, reads it lit (not what the input's select read)",
          field(play, "o_late", 4.0, "LampLate", "lit"), 1.0)
-    near_rel(t, "and its glow", field(play, "o_late", 4.0, "LampLate", "glow"), WHITE4 * CUBE, 1e-4)
+    near_rel(t, "and its glow", field(play, "o_late", 4.0, "LampLate", "glow"), BLOCK4 * CUBE, 1e-4)
 
     t.eq("near with y_min 2: the upper bulb", [r.get("y") for r in play.rows("o_bulb_hi", 1.0)], [3.0])
     near_rel(t, "its glow: (4, 3, 2) over a 0.4 m ball's box", field(play, "o_bulb_hi", 1.0, "Bulb", "glow"), EMISSIVE * quarter(0.4, 0.4, 0.4), 1e-4)
@@ -454,15 +463,17 @@ def more(t, play):
     near_rel(t, "a Light at 3000 K: intensity 2 x its temperature's colour's luminance",
              field(play, q, 1.0, "LampTemp", "glow"), 2 * (0.2126 * kelvin[0] + 0.7152 * kelvin[1] + 0.0722 * kelvin[2]), 1e-5)
     t.eq("two materials, the second's emission off-black: dark before its block", field(play, q, 1.0, "LampTwoMat", "lit"), 0.0)
-    near_rel(t, "a block on material 1 alone lights it", field(play, q, 2.5, "LampTwoMat", "glow"), WHITE4 * CUBE, 1e-4)
-    near_rel(t, "the built-in Standard shader reads by its properties too", field(play, q, 1.0, "LampStandard", "glow"), lum(2, 2, 2) * CUBE, 1e-4)
+    near_rel(t, "a block on material 1 alone lights it", field(play, q, 2.5, "LampTwoMat", "glow"), BLOCK4 * CUBE, 1e-4)
+    standard = field(play, "m_facts", 1.0, "Facts", "prop:ObjFacts.standardHdr")
+    near_rel(t, f"the built-in Standard shader reads by its properties too ((2, 2, 2), [HDR] {standard})",
+             field(play, q, 1.0, "LampStandard", "glow"), (hdr if standard == 1.0 else lum)(2, 2, 2) * CUBE, 1e-4)
     t.eq("LampStandard: props", field(play, q, 1.0, "LampStandard", "glow_read"), "props")
     t.eq("_EMISSION off: dark whatever its colour", field(play, q, 1.0, "LampKeyword", "glow"), 0.0)
-    near_rel(t, "the keyword switched on at 2 s (its own material copy): lit", field(play, q, 2.5, "LampKeyword", "glow"), WHITE4 * CUBE, 1e-4)
+    near_rel(t, "the keyword switched on at 2 s (its own material copy): lit", field(play, q, 2.5, "LampKeyword", "glow"), HDR4 * CUBE, 1e-4)
     t.eq("a renderer forced off reads dark without being read", (field(play, q, 1.0, "LampForced", "lit"), field(play, q, 1.0, "LampForced", "glow_read")), (0.0, None))
-    t.eq("an emission of luminance 0.0085 (0.09 grey) is under the floor: dark", field(play, q, 1.0, "LampDim", "lit"), 0.0)
-    t.eq("0.0116 (0.11 grey) is over it: lit", field(play, q, 1.0, "LampFaint", "lit"), 1.0)
-    near_rel(t, "and glows that much over the cube", field(play, q, 1.0, "LampFaint", "glow"), lum(0.11, 0.11, 0.11) * CUBE, 1e-4)
+    t.eq("an emission of luminance 0.009 is under the floor of 0.01: dark", field(play, q, 1.0, "LampDim", "lit"), 0.0)
+    t.eq("0.011 is over it: lit", field(play, q, 1.0, "LampFaint", "lit"), 1.0)
+    near_rel(t, "and glows that much over the cube", field(play, q, 1.0, "LampFaint", "glow"), hdr(0.011, 0.011, 0.011) * CUBE, 1e-4)
     t.eq("an unlit material with a main texture is rendered", field(play, q, 1.0, "LampUnlitMap", "glow_read"), "render")
     near_rel(t, "its colour on half of each face", field(play, q, 1.0, "LampUnlitMap", "glow"), lum(1, 0.9, 0.5) * 0.5 * CUBE, RENDER)
     t.eq("its source: unlit", field(play, q, 1.0, "LampUnlitMap", "glow_sources"), "unlit")
@@ -471,9 +482,28 @@ def more(t, play):
         near_rel(t, "and gives its colour (0.5, 1, 0.25)", field(play, q, 1.0, "LampGraph", "glow"), lum(0.5, 1, 0.25) * CUBE, RENDER)
     q = "m_atlas"
     t.eq("a mesh showing the white half of its emission map: lit", field(play, q, 1.0, "AtlasWhite", "lit"), 1.0)
-    near_rel(t, "with the map's white, (4, 4, 4), all over", field(play, q, 1.0, "AtlasWhite", "glow"), WHITE4 * CUBE, RENDER)
+    near_rel(t, "with the map's white, (4, 4, 4), all over", field(play, q, 1.0, "AtlasWhite", "glow"), HDR4 * CUBE, RENDER)
+    near_rel(t, "what the properties read of the same [HDR] colour (LampKeyword) is what the render shows",
+             field(play, "m_lamps", 2.5, "LampKeyword", "glow") or 0, field(play, q, 2.5, "AtlasWhite", "glow") or 0, RENDER)
     t.eq("one showing the black half of the same map: dark (its mean would say lit)", field(play, q, 1.0, "AtlasBlack", "lit"), 0.0)
     t.eq("both rendered", [field(play, q, 1.0, n, "glow_read") for n in ("AtlasWhite", "AtlasBlack")], ["render", "render"])
+
+    q = "m_facts"
+    t.eq("URP Lit marks _EmissionColor [HDR]", field(play, q, 1.0, "Facts", "prop:ObjFacts.litHdr"), 1.0)
+    t.near("a property block's GetColor gives back the colour set on it (0.5 grey)", field(play, q, 1.0, "Facts", "prop:ObjFacts.blockColour"), 0.5, 1e-6)
+    q = "m_blocks"
+    blocks = ("BlockColour", "BlockColourMap", "BlockVector", "BlockVectorMap")
+    t.eq("before 2 s, black: dark, the mapped ones without a render (their bound is 0)",
+         [(field(play, q, 1.0, n, "lit"), field(play, q, 1.0, n, "glow_read")) for n in blocks],
+         [(0.0, "props"), (0.0, "bound"), (0.0, "props"), (0.0, "bound")])
+    near_rel(t, "a colour (4, 4, 4) set on a block at 2 s, read from the block: made linear", field(play, q, 2.5, "BlockColour", "glow"), BLOCK4 * CUBE, 1e-4)
+    t.eq("over a white emission map: rendered", field(play, q, 2.5, "BlockColourMap", "glow_read"), "render")
+    near_rel(t, "and the render shows what the block's reading says", field(play, q, 2.5, "BlockColourMap", "glow") or 0,
+             field(play, q, 2.5, "BlockColour", "glow") or 0, RENDER)
+    near_rel(t, "a vector (4, 4, 4) set on a block, read from the block as it is", field(play, q, 2.5, "BlockVector", "glow"), HDR4 * CUBE, 1e-4)
+    t.eq("over a white emission map: rendered", field(play, q, 2.5, "BlockVectorMap", "glow_read"), "render")
+    near_rel(t, "and the render shows what the block's reading says", field(play, q, 2.5, "BlockVectorMap", "glow") or 0,
+             field(play, q, 2.5, "BlockVector", "glow") or 0, RENDER)
 
     q = "m_sprites"
     t.eq("a SpriteRenderer gives light, as rendered", field(play, q, 1.0, "SpriteLamp", "lit"), 1.0)
@@ -498,7 +528,9 @@ def more(t, play):
     if vfx is not None:  # the project has the VFX Graph package (the scene has the effect only then)
         t.eq("a VisualEffect holding particles is a live effect", "Vfx" in names(play, "m_effects", 1.0), True)
         t.eq("its component is active", field(play, "m_c_vfx", 1.0, "Vfx", "active"), 1.0)
-        t.eq("it gives light, as rendered", (vfx.get("lit"), vfx.get("glow_sources")), (1.0, "effect"))
+        t.eq("it gives light, as rendered", (vfx.get("lit"), vfx.get("glow_sources"), vfx.get("glow_read")), (1.0, "effect", "render"))
+        t.ok("some glow (its value is left out of the comparison of two plays)", (field(play, "m_vfx_glow", 1.0, "Vfx", "glow") or 0) > 0,
+             field(play, "m_vfx_glow", 1.0, "Vfx", "glow"))
     else:
         t.eq("without the VFX Graph package: no VisualEffect", play.rows("m_c_vfx", 1.0), [])
 
@@ -570,7 +602,7 @@ def budget(t, play):
         t.ok(f"at {at} s the next 16 have no value", all("lit" not in r and "glow" not in r and r.get("glow_read") == "unread" for r in rows[64:80]), rows[64:66])
         t.ok(f"at {at} s the 4 with an emission map read their bound (the map taken as white)",
              all(r.get("glow_read") == "bound" and r.get("lit") == 1.0 for r in rows[80:]), rows[80:])
-        near_rel(t, f"the bound at {at} s: (2, 2, 2) over the cube", rows[80].get("glow"), lum(2, 2, 2) * CUBE, 1e-4)
+        near_rel(t, f"the bound at {at} s: (2, 2, 2) over the cube", rows[80].get("glow"), hdr(2, 2, 2) * CUBE, 1e-4)
     obj = play.row("b_obj", 1.0, "Lamps")
     t.eq("the object of them all is lit", obj.get("lit"), 1.0)
     t.eq("and says how its renderers were read", obj.get("glow_read"), "render,bound,unread")
@@ -610,7 +642,9 @@ PLAYS = {
         r"^objects o_bad: no field nonsense$", r"^components c_bad: no component type NoSuchType$",
         r"^components c_none: the select names no component and no effect$"]},
     "world": {"check": world, "errors": [r"^spawns( sp_bad)?: no component type Nope$"]},
-    "more": {"check": more},
+    # a VisualEffect simulates on the GPU: its glow differed between two plays before its seed was fixed, and a GPU
+    # isn't promised to repeat itself
+    "more": {"check": more, "varies": ["m_vfx_glow"]},
     # a wait lasts its seconds of real time: how many frames the game runs in it differs from play to play
     "wait": {"check": wait_, "varies": True},
     "budget": {"check": budget},

@@ -22,12 +22,15 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
 - **ObjMore**: what ObjLab lacks. A Light with a colour temperature; a renderer with two materials and a property block
   on the second alone; the built-in Standard shader; two cubes with one emission map, one showing its white half and
   one its black half (as meshes show their parts of an atlas); a material whose `_EMISSION` keyword the game switches
-  on; a renderer forced off; a Shader Graph whose path isn't `Shader Graphs/` (copied from the Shader Graph package's
-  unlit template); sprites and a line; two skinned meshes whose root bone is scaled 2 (one emissive, one with the
-  custom shader); a VisualEffect when the project has the VFX Graph package; 2D physics (a box that falls, a
-  kinematic body, a body spun at 90 deg/s); a NavMeshAgent on a NavMesh of its own; a humanoid stick figure whose head
-  bone is named `Skull`; a ragdoll (three bodies on the bones of one skinned mesh) kicked apart at 1 s; an object moved
-  by its transform alone and a spinner; an object with nothing but a BoxCollider.
+  on; a renderer forced off; two emissions either side of the floor of 0.01; a colour and a vector set on a property
+  block at 2 s, each on a cube read from its properties and on one rendered through a white emission map; `ObjFacts`,
+  what the engine does with a colour on its way to a shader (whether URP Lit and Standard mark `_EmissionColor`
+  `[HDR]`, what a property block gives back); a Shader Graph whose path isn't `Shader Graphs/` (copied from the Shader
+  Graph package's unlit template); sprites and a line; two skinned meshes whose root bone is scaled 2 (one emissive,
+  one with the custom shader); a VisualEffect when the project has the VFX Graph package; 2D physics (a box that
+  falls, a kinematic body, a body spun at 90 deg/s); a NavMeshAgent on a NavMesh of its own; a humanoid stick figure
+  whose head bone is named `Skull`; a ragdoll (three bodies on the bones of one skinned mesh) kicked apart at 1 s; an
+  object moved by its transform alone and a spinner; an object with nothing but a BoxCollider.
 - **ObjBudget**: 80 cubes drawn with the custom shader, then 4 with an emission map: more renders than one sample may
   make.
 - **ObjStress**: 3000 boxes with colliders (every third emissive, every thirtieth spinning, every hundredth with a
@@ -41,9 +44,13 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
   `owner`, `mesh`, `visible`, `effect`; row order and `class`; the errors of an unknown field and type; that a sample
   reads a lamp as the game left it in that frame, though an input read it before the game's scripts.
 - `world` (ObjLab, the `drive` keys): the camera, spawns, pieces and ground kinds on the same scene.
-- `more` (ObjMore): lit and glow of every kind of source (and how each was read), sprites and lines as parts, the
-  skinned meshes' boxes in their root bone's frame, 2D bodies, the NavMeshAgent's speed, human bones by name only, the
-  ragdoll's spread, and that the queries changed nothing.
+- `more` (ObjMore): lit and glow of every kind of source (and how each was read); that what a colour's properties
+  read is what its render shows: an `[HDR]` colour (URP Lit's emission) as the material holds it, a plain one made
+  linear, a property block's colour made linear and a vector on it as it is; sprites and lines as parts, the skinned
+  meshes' boxes in their root bone's frame, 2D bodies, the NavMeshAgent's speed, human bones by name only, the
+  ragdoll's spread, and that the queries changed nothing. The VisualEffect's glow (`m_vfx_glow`) is left out of the
+  comparison of two plays: it differed between two plays before its seed was fixed, and a GPU isn't promised to
+  repeat itself.
 - `wait` (ObjMore, a 2 s wait at 1 s): speed and spin over the sample after a wait divide by the game time that passed
   (the play's clock holds while the game runs on). Played once: how many frames a wait runs depends on real time.
 - `budget` (ObjBudget): at most 64 renders a sample, in hierarchy order, the same at every sample; past them a mesh
@@ -54,17 +61,18 @@ checked on the same scene (their own tests are `probe_tests/world`). The checks 
 ## What a sample cost (measured)
 
 On the shared 16 GB machine of the run that wrote this, with other Unity jobs running (so take them as upper values),
-a sample of one query over the 3004 objects of ObjStress cost:
+a sample of one query over the 3004 objects of ObjStress cost (probe.log stamps real time in tenths of a second, so
+each is good to about 1 ms):
 
 | query | ms a sample |
 |---|---|
-| objects, every object, `x y z speed extent_x hidden collision spin` | STRESS_ALL |
-| objects, every object, `lit glow` (1000 emissive boxes read by their properties) | STRESS_GLOW |
-| objects, every object, `changed bounds_change spread` | STRESS_CHANGE |
-| objects, `has.lit` (1022 matches) | STRESS_HASLIT |
-| objects, tag `ObjEnemy` (300 rows), 2 fields | STRESS_TAG |
-| components, every MeshRenderer (3001), `x spin lit glow changed visible` | STRESS_COMPONENTS |
-| pieces, ground (a 32 x 32 grid), spawns, camera | about 1 or less |
+| objects, every object, `x y z speed extent_x hidden collision spin` | 24 |
+| objects, every object, `lit glow` (1000 emissive boxes read by their properties) | 15 |
+| objects, every object, `changed bounds_change spread` | 25 |
+| objects, `has.lit` (1022 matches) | 5 |
+| objects, tag `ObjEnemy` (300 rows), 2 fields | 2 |
+| components, every MeshRenderer (3001), `x spin lit glow changed visible` | 20 |
+| pieces, ground (a 32 x 32 grid), spawns, camera | under 1 each |
 
 A render for `lit` or `glow` (a texture, a Shader Graph, a custom shader, a sprite, a line, a live effect) costs a few
 ms more each, at most 64 a sample (the drawn family measures it).
