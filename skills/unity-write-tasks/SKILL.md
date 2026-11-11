@@ -1,6 +1,6 @@
 ---
 name: unity-write-tasks
-description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, up to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, every task medium or hard, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by a model judge or pixels; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
+description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, at least 5, up to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, every task hard, at most one medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by a model judge or pixels; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
 ---
 
 # Writing a game's tasks (Unity)
@@ -10,8 +10,9 @@ fair, checkable and not leaked. One file per task, `Tasks/<game>-<kind>-<slug>.j
 `change`; the whole name in lower-case letters, digits and `-`, at most 63 characters), in the task format `GameTask`
 ([docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json), `game-task/1`; its `"engine"` is
 `"unity-6000.3"`), with `"name"` equal to the file stem (run and grade ids depend on it; never rename a
-shipped task). Up to about 10 per game, every one a long thread of multiple edits (section 1): fewer good tasks beat
-filling the count with short ones. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
+shipped task). At least 5 and up to about 10 per game, every one a long thread of multiple edits (section 1): a game
+with fewer than 5 tasks is rejected, and a short task never fills the count: a game whose history does not hold 5 long
+threads is not ready. The tasks branch is the single source: tasks are loaded as `Tasks/*.json` from the
 repos' tasks branches, and the packager ships them in the dataset split into the agent's and the grader's halves
 (docs/game-format.md). Write tasks with this skill and the unity-game-factory tools only, never
 with another skill (AGENTS.md, "Only these skills"). `<root>` and `<UGF_ROOT>` below are the machine root
@@ -83,8 +84,8 @@ strong agent can't solve it easily. You judge this in the session from the threa
 on every submitted task. A task is a stretch of the game's real history where its own sessions needed many commits,
 several attempts or several rounds of directions, touching many files across several systems, before the outcome
 held. Strong agents finish a single fix, one cause in one place, in minutes, however long it took in the game; such a
-task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "medium"` or `"hard"`,
-with the tag `long-thread`.
+task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "hard"`, with
+the tag `long-thread`; at most one of a game's tasks may be medium, none easy.
 
 A thread qualifies only when all of these hold (the validator enforces the numbers, section 6):
 
@@ -371,10 +372,12 @@ never the threshold toward what the start happens to measure.
 
 ## 6. Difficulty, limits and what the validator enforces
 
-- `difficulty` is `medium` or `hard` (never `easy`), and `tags` hold `long-thread`. Which of the two is your own
-  estimate of the thread; our runs of the task decide its difficulty (last item below).
+- `difficulty` is `hard`; at most one of a game's tasks may be `medium`, none easy (a task that names no difficulty
+  counts as medium), and `tags` hold `long-thread`. It is your own estimate of the thread; our runs of the task decide
+  its difficulty (last item below).
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
-- `tools/validate-game.py` fails a task that is `easy`, has no `seed.reference`, has fewer than 3 required probes
+- `tools/validate-game.py` fails a game with fewer than 5 tasks or more than one `medium` task, and a task that is
+  `easy`, has no `seed.reference`, has fewer than 3 required probes
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
   `seed.reference`. These are floors, not targets: pick the longest threads the history has. It also refuses a task
@@ -482,7 +485,7 @@ thresholds.
            "reference": "2222222222222222222222222222222222222222"},
   "play_scene": "Assets/Scenes/Harbor.unity",
   "play_args": ["-scenario", "2"],
-  "difficulty": "medium",
+  "difficulty": "hard",
   "tags": ["long-thread"],
   "limits": {"max_turns": 400, "max_minutes": 480, "max_usd": 150, "tool_timeout_seconds": 1800},
   "milestones": [

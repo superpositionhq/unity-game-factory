@@ -30,9 +30,10 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   needs sound (the design doc's audio direction, every UI, player, combat, world or ambience sound): finding, choosing
   and importing sound effects through `tools/sfx.py`.
 - **unity-write-tasks** ([skills/unity-write-tasks/SKILL.md](skills/unity-write-tasks/SKILL.md)): sessions that write,
-  move or review a game's tasks (the orphan `tasks` branch, never on main; up to about 10 per game, every one a long
-  thread of multiple edits from the real history, never a single fix; seed and reference commits, observation-only
-  briefs, milestones with deterministic probe checks).
+  move or review a game's tasks (the orphan `tasks` branch, never on main; at least 5 and up to about 10 per game,
+  every one a long thread of multiple edits from the real history, never a single fix, hard: at most one of a game's
+  tasks may be medium, none easy; seed and reference commits, observation-only briefs, milestones with deterministic
+  probe checks).
 
 **Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory
 use the four skills above and no others. Never install, enable or invoke any other skill: not the person's own
@@ -76,8 +77,9 @@ scenario and the milestone tag (unity-game-session skill, "Dataset", release ste
 the release commit with three products of it: the pipeline's release build, the gameplay video of each scenario's
 first valid recording of that commit (`Gameplay/`) and the creation replay's package (`ReplayScripts/`, made by
 `python tools/unity-replay/unity_replay.py release --game <slug>`, [docs/unity-replay.md](docs/unity-replay.md)). With
-a video and the replay it writes `Dataset.zip` (a FAIL verdict too); while either is missing it writes
-`Dataset.pending.zip` and lists what is missing. The release steps are in the unity-game-session skill ("Dataset").
+a video and the replay it writes `Dataset.zip` (a FAIL verdict too); while the replay is missing it writes
+`Dataset.pending.zip` and lists it as pending; without a video it refuses (a game without a gameplay video is rejected
+at upload). The release steps are in the unity-game-session skill ("Dataset").
 Before its first run a game's `Dataset\` stays as the template made it, and nobody assembles a dataset by hand.
 
 This checkout is shared by several sessions at once: stage explicit paths only and never commit another session's
@@ -96,7 +98,7 @@ changes.
 | AutoPlay drop-in (`tools/unity-pipeline/autoplay/`, `install.ps1`, `Scripts/unity.ps1 autoplay`) | available: [docs/autoplay-contract.md](docs/autoplay-contract.md) |
 | recording pipeline: release build from a commit, recorder, queue, run checker, stills, gameplay videos (`tools/unity-pipeline/`) | available: [docs/unity-pipeline.md](docs/unity-pipeline.md) |
 | creation replay, live after every commit and at release (`tools/unity-replay/`) | available: [docs/unity-replay.md](docs/unity-replay.md) |
-| dataset packager (`tools/package-dataset.py`) | available: `Dataset.zip` from the release commit, its pipeline build, its recordings and its creation replay; `Dataset.pending.zip` while a recording or the replay is missing ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
+| dataset packager (`tools/package-dataset.py`) | available: `Dataset.zip` from the release commit, its pipeline build, its recordings and its creation replay; `Dataset.pending.zip` while the replay is missing, no package without a recording ([docs/unity-pipeline.md](docs/unity-pipeline.md#dataset-packager)) |
 
 Where a skill or doc names a part that is not available yet, it says what to do instead: do that, and report the rest
 as open. Never stand in for a missing tool by hand or with another factory's tool.

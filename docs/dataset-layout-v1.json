@@ -87,7 +87,7 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": true,
-      "what": "the release version's scenario videos: at least one (user rule 2026-10-19: one recorded scenario is enough; videos of other scenarios already recorded may be included), named by their scenario number; may be pending (listed in manifest pending, status pending) while the game has no recordings: a complete delivery has at least one video",
+      "what": "the release version's scenario videos: at least one (user rule 2026-10-19: one recorded scenario is enough; videos of other scenarios already recorded may be included), named by their scenario number; a game without a gameplay video is rejected at upload: a delivered dataset (variant full) never lists Gameplay/ as pending; only a repo's Dataset/ folder may (listed in manifest pending, status pending)",
       "only_files_matching": "^<game>_S([0-9]+)\\.mp4$",
       "scenario_numbers": "distinct, 1 or more; a dataset may hold a subset of the game's scenarios",
       "pending_allowed": true
@@ -232,7 +232,7 @@
     "manifest": "manifest.json history.sessions: {\"messages\": {\"file\": \"History/sessions/messages.jsonl\", \"rows\": n}, \"actions\": {\"file\": \"History/sessions/actions.jsonl\", \"rows\": n}}, one key per file that is there"
   },
   "tasks": {
-    "count": "at least 1; about 10 recommended (fewer or more is fine)",
+    "count": "at least 5 and up to about 10 per game (a game with fewer than 5 is rejected); hard; at most one of a game's tasks may be medium, none easy (a task that names no difficulty is medium)",
     "format": "GameTask (game-task/1, docs/schemas/game-task.schema.json); merging task.json and grader.json (grader.json's seed into task.json's) gives the task",
     "split": {
       "task.json": "name, title, instruction, engine, seed {game, commit, kind}, play_scene, play_args, player, asset_packs, difficulty, tags, limits",

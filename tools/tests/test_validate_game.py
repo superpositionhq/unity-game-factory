@@ -1,5 +1,5 @@
-"""tools/validate-game.py on throwaway Unity game repos: a valid one (with a long-thread task on its orphan tasks branch
-and a full Dataset.zip) and one broken variant per rule. Fixtures are made with plain git, no Unity and no PowerShell.
+"""tools/validate-game.py on throwaway Unity game repos: a valid one (with five long-thread tasks on its orphan tasks
+branch and a full Dataset.zip) and one broken variant per rule. Fixtures are made with plain git, no Unity and no PowerShell.
 
     python -m unittest discover -s tools/tests -p "test_validate_game.py" -v
 """
@@ -206,6 +206,19 @@ def task(start, ref, **over):
     return t
 
 
+TASKS = ('fix-hero-hud', 'feat-enemy-glow', 'fix-kiln-tags', 'feat-score-hud', 'fix-hero-prefab')
+
+
+def game_tasks(start, ref, **over):
+    """The five hard tasks a valid game ships ({name: task}; they share the one thread); over changes the first."""
+    tasks = {}
+    for i, n in enumerate(TASKS):
+        kind = 'feature' if n.startswith('feat-') else 'bug_fix'
+        t = task(start, ref, name=f'{SLUG}-{n}', seed={'game': SLUG, 'commit': start, 'reference': ref, 'kind': kind})
+        tasks[t['name']] = dict(t, **over) if i == 0 else t
+    return tasks
+
+
 def errors(rep, area=None):
     return [m for s, a, m in rep.items if s == 'error' and (area is None or a.startswith(area))]
 
@@ -231,7 +244,7 @@ class Base(unittest.TestCase):
             tmp = tempfile.mkdtemp(prefix='ugfv')
             base = os.path.join(tmp, 'base', SLUG)
             start, ref = make_game(base)
-            set_tasks(base, {f'{SLUG}-fix-hero-hud': task(start, ref)})
+            set_tasks(base, game_tasks(start, ref))
             BASE.update(tmp=tmp, base=base, start=start, ref=ref)
         cls.tmp = tempfile.mkdtemp(prefix='ugfv')
         cls.base, cls.start, cls.ref = BASE['base'], BASE['start'], BASE['ref']
@@ -258,7 +271,7 @@ class ValidGame(Base):
         self.assertEqual(errors(rep), [])
         notes = ' '.join(m for s, a, m in rep.items if s == 'note')
         self.assertIn('Unity 6000.3.26f1', notes)
-        self.assertIn('1 task(s) on tasks', notes)
+        self.assertIn('5 task(s) on tasks', notes)
 
     def test_cli_exit_code(self):
         r = subprocess.run([sys.executable, os.path.join(TOOLS, 'validate-game.py'), self.repo, '--quiet'],
@@ -272,7 +285,7 @@ class ValidGame(Base):
         r = git(self.repo, 'commit-tree', f'{self.ref}^{{tree}}', '-p', s, '-m', 'reference')
         name = f'{SLUG}-fix-hero-hud'
         git(self.repo, 'update-ref', f'refs/heads/starts/{name}', r)
-        set_tasks(self.repo, {name: task(s, r)})
+        set_tasks(self.repo, dict(game_tasks(self.start, self.ref), **{name: task(s, r)}))
         self.assertEqual(errors(self.check()), [])
         git(self.repo, 'update-ref', '-d', f'refs/heads/starts/{name}')
         self.assertTrue(any('is not a commit of this game' in e for e in errors(self.check())))
@@ -487,7 +500,7 @@ class RepoRules(Base):
         self.assertTrue(any(e.startswith('main tracks 1 path(s) under Tasks/') for e in errs), errs)
 
     def test_tasks_branch_not_orphan(self):
-        set_tasks(self.repo, {f'{SLUG}-fix-hero-hud': task(self.start, self.ref)}, extra=['-p', self.ref])
+        set_tasks(self.repo, game_tasks(self.start, self.ref), extra=['-p', self.ref])
         self.assertTrue(any('shares history with main' in e for e in errors(self.check(), 'repo: Tasks')))
 
     def test_no_tasks_branch(self):
@@ -502,7 +515,7 @@ class TaskRules(Base):
         return rep
 
     def tasks(self, **over):
-        set_tasks(self.repo, {f'{SLUG}-fix-hero-hud': task(self.start, self.ref, **over)})
+        set_tasks(self.repo, game_tasks(self.start, self.ref, **over))
         return errors(self.check(), 'repo: Tasks')
 
     def probe(self, i, **measure):
@@ -513,6 +526,25 @@ class TaskRules(Base):
     def test_easy(self):
         errs = self.tasks(difficulty='easy')
         self.assertTrue(any("difficulty 'easy'" in e for e in errs), errs)
+
+    def test_fewer_than_five_tasks(self):
+        tasks = game_tasks(self.start, self.ref)
+        del tasks[f'{SLUG}-{TASKS[-1]}']
+        set_tasks(self.repo, tasks)
+        self.assertEqual(errors(self.check(), 'repo: Tasks'),
+                         ['tasks: 4 task(s): a game ships at least 5 (unity-write-tasks section 1)'])
+
+    def test_at_most_one_medium(self):
+        self.assertEqual(self.tasks(difficulty='medium'), [])   # one medium task of the five: the game stands
+        tasks = game_tasks(self.start, self.ref, difficulty='medium')
+        del tasks[f'{SLUG}-{TASKS[1]}']['difficulty']           # no difficulty: medium, the schema's default
+        set_tasks(self.repo, tasks)
+        self.assertEqual(errors(self.check(), 'repo: Tasks'),
+                         [f"tasks: 2 medium tasks ({SLUG}-{TASKS[1]}, {SLUG}-{TASKS[0]}): at most 1 of a game's tasks may be "
+                          'medium, the rest are hard (unity-write-tasks section 1)'])
+        tasks[f'{SLUG}-{TASKS[0]}']['difficulty'] = 'hard'
+        set_tasks(self.repo, tasks)
+        self.assertEqual(errors(self.check(), 'repo: Tasks'), [])   # the one that names none is the game's one medium
 
     def test_never_literal(self):
         ms = self.probe(2, probe='objects', select={'component': 'Enemy'}, field='spread', of='max')
@@ -565,7 +597,7 @@ class TaskRules(Base):
         r = git(self.repo, 'commit-tree', f'{self.ref}^{{tree}}', '-p', old, '-m', 'ref')
         name = f'{SLUG}-fix-hero-hud'
         git(self.repo, 'update-ref', f'refs/heads/starts/{name}', r)
-        set_tasks(self.repo, {name: task(old, r)})
+        set_tasks(self.repo, dict(game_tasks(self.start, self.ref), **{name: task(old, r)}))
         errs = errors(self.check(), 'repo: Tasks')
         self.assertTrue(any(f'seed.commit {old[:12]} is a Unity 2022.3.62f1 project' in e for e in errs), errs)
         self.assertFalse(any('seed.reference' in e and 'project' in e for e in errs), errs)
@@ -629,6 +661,19 @@ class Units(unittest.TestCase):
                    '9\t3\tAssets/Scenes/Yard.unity\n-\t-\tAssets/Art/crate.png\n30\t0\tAssets/ThirdParty/Pack/P.cs\n'
                    '25\t5\tAssets/Scripts/Hero.cs\n')
         self.assertEqual(vg.thread_size(numstat), (40 + 25 + 5, 3))   # code, scene, material
+
+    def test_task_bar(self):
+        """A game's bar: at least 5 tasks, all hard but for at most one medium (a task that names none is medium)."""
+        hard = {f't{i}': 'hard' for i in range(5)}
+        self.assertEqual(vg.task_bar_errors(hard), [])
+        self.assertEqual(vg.task_bar_errors(dict(hard, t0='medium')), [])
+        self.assertEqual(vg.task_bar_errors(dict(hard, t0=None)), [])
+        self.assertEqual(vg.task_bar_errors(dict(hard, t4='medium', t1=None)),
+                         ["2 medium tasks (t1, t4): at most 1 of a game's tasks may be medium, the rest are hard"])
+        self.assertEqual(vg.task_bar_errors({'t0': 'hard', 't1': 'hard'}), ['2 task(s): a game ships at least 5'])
+        self.assertEqual(vg.task_bar_errors(dict(hard, t0='easy')), [])   # an easy task is thread_errors' finding
+        self.assertEqual(vg.task_bar_errors(dict(hard, t0='trivial')), ['t0: difficulty \'trivial\': a task is "hard"'])
+        self.assertTrue(any("difficulty 'easy'" in e for e in vg.thread_errors({'difficulty': 'easy'}, 3)))
 
     def test_game_paths(self):
         """The git pathspecs that count a thread's game files and commits (GAME_PATHS) name exactly the files GAME_FILE
@@ -1399,8 +1444,9 @@ class Dataset(Base):
                     lfs_bytes += os.path.getsize(os.path.join(d, f))
         tasks_src = os.path.join(self.tmp, f'tasks{self.n}')
         os.makedirs(tasks_src)
-        name = f'{SLUG}-fix-hero-hud'
-        write(tasks_src, f'{name}.json', git(repo, 'show', f'tasks:Tasks/{name}.json'))
+        names = sorted(f'{SLUG}-{n}' for n in TASKS)
+        for name in names:
+            write(tasks_src, f'{name}.json', git(repo, 'show', f'tasks:Tasks/{name}.json'))
         subprocess.run([sys.executable, os.path.join(TOOLS, 'split-tasks.py'), tasks_src, os.path.join(ds, 'Tasks')],
                        check=True, capture_output=True)
         write(ds, 'Tasks/README.md', '# Tasks\n')
@@ -1408,6 +1454,7 @@ class Dataset(Base):
             write(ds, 'UnityProject/' + f, read(os.path.join(repo, f), 'rb'))
         write(ds, 'Build/KilnRun.exe', b'MZ' + b'\0' * 30)
         write(ds, 'Screenshots/hero.jpg', read(os.path.join(repo, 'Docs/screenshots/hero.jpg'), 'rb'))
+        write(ds, f'Gameplay/{SLUG}_S1.mp4', b'\0\0\0\x18ftypmp42' + b'\0' * 64)   # a full delivery has a gameplay video
         sections = ['Requirements', 'Package contents', 'Play the game', 'Replay the creation process',
                     'Restore the git history', 'Tasks', 'Scenarios', 'Screenshots', 'Assets and licences', 'Integrity']
         write(ds, 'README.md', '# Kiln Run\n\nThis delivery is pending.\n\n' + ''.join(
@@ -1421,7 +1468,8 @@ class Dataset(Base):
                 data = read(os.path.join(d, f), 'rb')
                 files.append({'path': rel, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
         m = {'layout': 'unity-dataset-layout/v1', 'game': SLUG, 'title': 'Kiln Run', 'version': '1.0', 'commit': head,
-             'status': 'pending', 'variant': 'full', 'pending': ['ReplayScripts', 'Gameplay'], 'scenarios': [],
+             'status': 'pending', 'variant': 'full', 'pending': ['ReplayScripts'],
+             'scenarios': [{'file': f'Gameplay/{SLUG}_S1.mp4', 'scenario': 1, 'name': 'Rush', 'result': 'win', 'seconds': 30}],
              'totals': {'files': len(files), 'bytes': sum(f['bytes'] for f in files)}, 'files': files,
              'replay_verification': None,
              'build': {'config': 'Release', 'commit': head, 'exe': 'Build/KilnRun.exe'},
@@ -1429,7 +1477,7 @@ class Dataset(Base):
                          'commits': int(git(repo, 'rev-list', '--count', 'main')), 'refs': ['refs/heads/main'],
                          'lfs_objects': n_lfs, 'lfs_bytes': lfs_bytes, 'authors_anonymised': True},
              'brief': {'brief': 'Brief/brief.md', 'design': 'Brief/design.md'},
-             'tasks': {'count': 1, 'names': [name], 'schema': 'game-task/1'}}
+             'tasks': {'count': len(names), 'names': names, 'schema': 'game-task/1'}}
         if mutate:
             mutate(m, ds)
         write(ds, 'manifest.json', json.dumps(m, indent=1))
@@ -1447,7 +1495,7 @@ class Dataset(Base):
         vg.check_dataset(rep, z, 'dataset')
         self.assertEqual(errors(rep), [])
         notes = ' '.join(m for s, a, m in rep.items)
-        self.assertIn('1 task(s)', notes)
+        self.assertIn('5 task(s)', notes)
         self.assertIn('LFS objects referenced', notes)
         if shutil.which('powershell') or shutil.which('pwsh'):
             rep = vg.Report()
@@ -1458,6 +1506,11 @@ class Dataset(Base):
     def test_dataset_errors(self):
         def mutate(m, ds):
             m['tasks']['count'] = 2
+            shutil.rmtree(os.path.join(ds, 'Tasks', f'{SLUG}-{TASKS[1]}'))   # four tasks left, two of them medium
+            for n, level in ((TASKS[2], 'medium'), (TASKS[3], None)):
+                g = os.path.join(ds, 'Tasks', f'{SLUG}-{n}', 'task.json')
+                t = dict(json.loads(read(g)), difficulty=level)
+                write(ds, os.path.relpath(g, ds).replace('\\', '/'), json.dumps({k: v for k, v in t.items() if v is not None}))
             g = os.path.join(ds, 'Tasks', f'{SLUG}-fix-hero-hud', 'task.json')
             t = json.loads(read(g))
             t['milestones'] = []
@@ -1474,13 +1527,27 @@ class Dataset(Base):
         vg.check_dataset(rep, z, 'dataset')
         errs = ' | '.join(errors(rep))
         for what in ("holds the grader's half (milestones)", 'manifest tasks (count, names) differ',
-                     'banned name (?i)\\bclaude\\b x1'):
+                     'banned name (?i)\\bclaude\\b x1', 'Tasks/: 4 task(s): a game ships at least 5',
+                     f'Tasks/: 2 medium tasks ({SLUG}-{TASKS[3]}, {SLUG}-{TASKS[2]}): at most 1'):
             self.assertIn(what, errs)
         self.assertIn('listed asset file not present: Crates: Assets/ThirdParty/Kenney/', errs)
         if shutil.which('powershell') or shutil.which('pwsh'):
             rep = vg.Report()
             vg.run_layout_validator(rep, z, False)
             self.assertIn('UnityProject/ has no ProjectSettings/ProjectVersion.txt', errors(rep))
+
+    def test_gameplay_pending(self):
+        """A game without a gameplay video is rejected: a full delivery never lists Gameplay/ as pending (a pending
+        ReplayScripts/ stays allowed, as test_valid_dataset has it)."""
+        def mutate(m, ds):
+            shutil.rmtree(os.path.join(ds, 'Gameplay'))
+            m['files'] = [f for f in m['files'] if not f['path'].startswith('Gameplay/')]
+            m['totals'] = {'files': len(m['files']), 'bytes': sum(f['bytes'] for f in m['files'])}
+            m.update(pending=['ReplayScripts', 'Gameplay'], scenarios=[])
+        rep = vg.Report()
+        vg.check_dataset(rep, self.make_zip(mutate), 'dataset')
+        self.assertEqual(errors(rep), ['Gameplay/ is pending: a game is rejected without a gameplay video; record a scenario '
+                                       'of the release commit and package again'])
 
     def test_cli_with_zip(self):
         self.make_zip()

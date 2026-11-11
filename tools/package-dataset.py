@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build a Unity game's dataset (unity-dataset-layout/v1, docs/game-format.md): <repo>/Dataset.zip, or
-<repo>/Dataset.pending.zip while an entry is missing.
+<repo>/Dataset.pending.zip while the creation replay is missing.
 
     python tools/package-dataset.py <slug>                      # the game at <root>/games/<slug>, its HEAD
     python tools/package-dataset.py <slug> --commit <rev> --version 1.0 --brief <brief.md> --design <design.md>
@@ -40,7 +40,8 @@ READY; --replay names another):
     README.md, manifest.json
 
 Status "complete" and Dataset.zip when Gameplay/ holds a video and ReplayScripts/ is there (a FAIL verdict too);
-otherwise "pending", the missing entries listed in the manifest's pending, and Dataset.pending.zip. A pipeline build
+while ReplayScripts/ is missing "pending", listed in the manifest's pending, and Dataset.pending.zip. A game without a
+gameplay video is rejected by the Lab: with no valid recording of the release commit nothing is packaged. A pipeline build
 whose leak scan found anything, a development player or another product's, and a running pipeline job of the game
 (its lock in <root>/builds/) refuse the package.
 
@@ -1760,7 +1761,10 @@ def package(args):
         warnings.append(f'scenario(s) {", ".join(map(str, missing))} of the {ready} ready (milestone/autoplay-{ready}) have no valid '
                         'recording of the release commit: Gameplay/ holds the others (one video is enough)')
     elif not runs:
-        warnings.append(f'no valid recording of the release commit in {os.path.join(root, "recordings", game)}: Gameplay/ stays pending')
+        # a game without a gameplay video is rejected at upload (owner, 2026-11-10): Gameplay/ is never pending
+        problems.append(f'error: no gameplay video: no valid recording of the release commit {sha[:8]} in '
+                        f'{os.path.join(root, "recordings", game)}, and the Lab rejects a game without a gameplay video. Record a '
+                        f'scenario of the release commit (tools/unity-pipeline/record.ps1 {game} -Build latest), then package again')
     replay = os.path.abspath(args.replay or os.path.join(ugfroot.out(), '_replay', game, sha[:8]))
     rs_src, report = os.path.join(replay, 'ReplayScripts'), None
     if os.path.isfile(lp(os.path.join(replay, 'READY'))) and os.path.isdir(lp(rs_src)):
@@ -1777,7 +1781,7 @@ def package(args):
     else:
         warnings.append(f'no creation replay of {sha[:8]} in {replay}: ReplayScripts/ stays pending '
                         f'(python tools/unity-replay/unity_replay.py release --game {game} makes it)')
-    pending = [e for e, missing_entry in (('ReplayScripts', report is None), ('Gameplay', not runs)) if missing_entry]
+    pending = ['ReplayScripts'] if report is None else []
     status = 'pending' if pending else 'complete'
     brief = find_brief(repo, sha, game, args.brief, 'brief', warnings)
     design = find_brief(repo, sha, game, args.design, 'design', warnings)
@@ -1796,7 +1800,9 @@ def package(args):
     if tasks_at:
         task_files = [n for n in git_text(repo, 'ls-tree', '--name-only', tasks_at[1] + ':Tasks', check=False).splitlines() if n.endswith('.json')]
     if not task_files:
-        problems.append('error: no tasks: the repo needs Tasks/<name>.json on its tasks branch (a game ships at least one; the unity-write-tasks skill)')
+        problems.append('error: no tasks: the repo needs Tasks/<name>.json on its tasks branch (a game ships at least 5; the unity-write-tasks skill)')
+    elif len(task_files) < 5:
+        problems.append(f'error: {len(task_files)} task(s) on {tasks_at[0]}: a game with fewer than 5 tasks is rejected (the unity-write-tasks skill)')
     if not os.path.isfile(os.path.join(recording, 'actions.jsonl')):
         warnings.append(f'no {os.path.join(recording, "actions.jsonl")}: History/sessions/ will hold no tool calls')
     if not os.path.isfile(os.path.join(recording, 'messages.jsonl')):

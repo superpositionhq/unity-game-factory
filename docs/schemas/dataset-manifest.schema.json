@@ -215,7 +215,7 @@
           }
         }
       },
-      "description": "one per Gameplay/ video; empty only while Gameplay/ is pending"
+      "description": "one per Gameplay/ video; empty only while Gameplay/ is pending (a repo's Dataset/ folder only: a delivered dataset has a video)"
     },
     "totals": {
       "type": "object",
