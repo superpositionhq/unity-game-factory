@@ -62,7 +62,9 @@ coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key
    commit, one recorded run per scenario, one gameplay mp4 each ([docs/unity-pipeline.md](docs/unity-pipeline.md)).
 6. **Scrub and privacy**: no user names, machine paths or tool names in anything that ships (the packager's scrub rules
    and scan, the release build's leak scan; `tools/validate-game.py` checks a repo's tracked text for the names).
-7. **Dataset v1**: at the release commit, the coordinator queues its recording (the pipeline builds its release player
+7. **Dataset v1**: first the session ensures AutoPlay (the drop-in current through `install.ps1`, every scenario wired,
+   the bot written, each scenario's hand test passing, `milestone/autoplay-<n>` tagged; the `unity-game-session` skill,
+   "Dataset"); then, at the release commit, the coordinator queues its recording (the pipeline builds its release player
    and records each ready scenario), the creation replay's release run (`unity_replay.py release`: with the live replay
    current, only the last commits and a full final check remain) makes `ReplayScripts/`, and `tools/package-dataset.py`
    packs the commit with the three into `games\<slug>\Dataset.zip` and the repo's `Dataset/`
