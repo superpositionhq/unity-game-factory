@@ -519,6 +519,112 @@ class Products(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertTrue(base.read(os.path.join(repo, '.dataset', SLUG, 'Brief', 'brief.md')).startswith('# Brief\n\nThe committed brief.'))
 
+    def test_lfs_objects_naming_the_account_are_patched_for_delivery(self):
+        # an FBX exported from the profile keeps the path; the delivered history points at a patched copy (same length)
+        repo = self.inp['repo']
+        commit(repo, {'Assets/Art/hero.fbx': HERO_FBX}, 'Add the hero model')
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with zipfile.ZipFile(os.path.join(repo, 'Dataset.pending.zip')) as z:
+            mem = {n[len(SLUG) + 1:]: z.read(n) for n in z.namelist()}
+        patched = HERO_FBX.replace(ACCOUNT.encode(), b'user___')
+        self.assertEqual(mem['UnityProject/Assets/Art/hero.fbx'], patched)
+        new = hashlib.sha256(patched).hexdigest()
+        objs = {n.rsplit('/', 1)[1] for n in mem if n.startswith('History/lfs/objects/')}
+        self.assertIn(new, objs)
+        self.assertNotIn(hashlib.sha256(HERO_FBX).hexdigest(), objs)
+        with open(os.path.join(self.tmp, 'h.bundle'), 'wb') as f:
+            f.write(mem[f'History/{SLUG}.bundle'])
+        work = os.path.join(self.tmp, 'restored')
+        subprocess.run(['git', 'clone', '-q', '--no-checkout', os.path.join(self.tmp, 'h.bundle'), work], check=True, capture_output=True)
+        self.assertIn(f'oid sha256:{new}', base.git(work, 'show', 'main:Assets/Art/hero.fbx'))
+        report = json.loads(base.read(os.path.join(repo, '.dataset', f'{SLUG}.scrub-report.json')))
+        self.assertEqual((report['history']['lfs_objects_patched'], report['history']['lfs_pointers_swapped']), (1, 1))
+
+    def test_an_lfs_object_naming_the_account_in_its_text(self):
+        # outside a path, a whole string or an element nothing can be patched: the scan refuses it, unless the release
+        # commit's clean version of the path stands in for it
+        repo = self.inp['repo']
+        commit(repo, {'Assets/Art/notes.fbx': b'\0\1made by ' + ACCOUNT.encode() + b' for the kiln\0'}, 'Add the notes model')
+        r = run(self.inp, '--no-repo-dataset', '--no-zip')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('cannot be patched', r.stdout)
+        commit(repo, {'Assets/Art/notes.fbx': b'\0\1made by someone for the kiln\0'}, 'Clean the notes model')
+        self.assertEqual(run(self.inp, '--no-repo-dataset', '--no-zip').returncode, 2)   # the older commit still holds it
+        r = run(self.inp, '--no-repo-dataset', '--no-zip', '--lfs-unpatchable-use-head')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+HERO_FBX = b'Kaydara FBX Binary  \0\x1a\0' + b'\0FileName\0C:\\Users\\' + ACCOUNT.encode() + b'\\Desktop\\hero.blend\0\1\2'
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Helpers(unittest.TestCase):
+    """The pipeline's scrub tools: scrub-import-paths.py, export-lfs-history.py, scrub-lfs-history.py, scrub-history.ps1."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfh')
+        self.inp = make_inputs(self.tmp)
+        self.env = dict(base.ENV, UGF_ROOT=self.inp['root'], UGF_CONFIG=os.path.join(self.inp['root'], 'no-config.json'),
+                        USERNAME=ACCOUNT)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def tool(self, name, *args):
+        return subprocess.run([sys.executable, os.path.join(TOOLS, 'unity-pipeline', name), *args], capture_output=True, text=True, env=self.env)
+
+    def test_scrub_import_paths(self):
+        proj = os.path.join(self.tmp, 'proj')
+        base.write(proj, 'Assets/Art/hero.fbx', HERO_FBX)
+        base.write(proj, 'Assets/Art/story.png', b'\x89PNG\r\n\x1a\n\0tEXtComment\0drawn by ' + ACCOUNT.encode() + b' at home\0')
+        r = self.tool('scrub-import-paths.py', SLUG, '--repo', proj)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)   # a match it cannot patch
+        self.assertIn('WOULD PATCH Assets/Art/hero.fbx', r.stdout)
+        self.assertIn('UNHANDLED Assets/Art/story.png', r.stdout)
+        r = self.tool('scrub-import-paths.py', SLUG, '--repo', proj, '--apply')
+        self.assertIn('PATCHED Assets/Art/hero.fbx (1 rewritten)', r.stdout)
+        self.assertEqual(base.read(os.path.join(proj, 'Assets', 'Art', 'hero.fbx'), 'rb'), HERO_FBX.replace(ACCOUNT.encode(), b'user___'))
+        os.remove(os.path.join(proj, 'Assets', 'Art', 'story.png'))
+        r = self.tool('scrub-import-paths.py', SLUG, '--repo', proj, '--verify')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_export_lfs_history(self):
+        commit(self.inp['repo'], {'Assets/Art/hero.fbx': HERO_FBX}, 'Add the hero model')
+        out = os.path.join(self.tmp, 'objects')
+        r = self.tool('export-lfs-history.py', self.inp['repo'], out)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        res = json.loads(r.stdout)
+        new = hashlib.sha256(HERO_FBX.replace(ACCOUNT.encode(), b'user___')).hexdigest()
+        self.assertEqual((res['patched'], res['map'][hashlib.sha256(HERO_FBX).hexdigest()][0]), (1, new))
+        self.assertTrue(os.path.isfile(os.path.join(out, new[:2], new[2:4], new)))
+
+    def test_scrub_lfs_history(self):
+        repo = self.inp['repo']
+        commit(repo, {'Assets/Art/hero.fbx': HERO_FBX}, 'Add the hero model')
+        r = self.tool('scrub-lfs-history.py', SLUG, '--repo', repo)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('dry run: nothing changed', r.stdout)
+        r = self.tool('scrub-lfs-history.py', SLUG, '--repo', repo, '--apply')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        new = hashlib.sha256(HERO_FBX.replace(ACCOUNT.encode(), b'user___')).hexdigest()
+        self.assertIn(f'oid sha256:{new}', base.git(repo, 'show', 'HEAD:Assets/Art/hero.fbx'))
+        self.assertEqual(base.git(repo, 'for-each-ref', 'refs/original/'), '')
+
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('powershell'), 'Windows PowerShell and Git for Windows')
+    def test_scrub_history(self):
+        repo = self.inp['repo']
+        commit(repo, {'Docs/Studio.md': 'Made with unity-game-factory at Superposition.\n'}, 'Docs from the game-factory notes')
+        ps = ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', os.path.join(TOOLS, 'unity-pipeline', 'scrub-history.ps1'),
+              SLUG, '-RepoPath', repo, '-ArchiveDir', os.path.join(self.tmp, 'archive'), '-QuietMinutes', '0']
+        r = subprocess.run(ps, capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('dry run: nothing changed', r.stdout)
+        r = subprocess.run(ps + ['-Apply'], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('after: text blobs with a name 0', r.stdout)
+        self.assertEqual(base.git(repo, 'show', 'HEAD:Docs/Studio.md'), 'Made with studio-tools at Studio.')
+        self.assertNotRegex(base.git(repo, 'log', '--all', '--format=%B'), r'(?i)game[-_ ]?factory|superposition')
+
 
 def box(kind, payload):
     return (8 + len(payload)).to_bytes(4, 'big') + kind + payload

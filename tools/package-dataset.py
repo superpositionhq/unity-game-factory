@@ -163,6 +163,14 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def tool(name, *rel):
+    """A tool of this repo, loaded as a module (its file name has dashes)."""
+    spec = importlib.util.spec_from_file_location(name, os.path.join(HERE, *rel))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def git(repo, *args, input=None, check=True):
     r = subprocess.run(['git', '-C', repo, '-c', 'core.quotepath=off', *args], capture_output=True, input=input)
     if check and r.returncode != 0:
@@ -419,11 +427,12 @@ def identity_terms(repo, authors):
     return sorted(terms.items(), key=lambda kv: -len(kv[0]))
 
 
-def rewrite_history(repo, bare, rules, authors, stats):
+def rewrite_history(repo, bare, rules, authors, stats, lfs_map=None):
     """Stream `git fast-export` of every ref but the tasks branch and the stash into `git fast-import` of the new bare
     repo: author / committer / tagger -> dev_NN, agent trailer lines of messages dropped, the scrub rules on messages
-    and on text blobs (text by the path that first holds the blob); Git LFS pointers stay as they are. Returns the
-    original -> delivered commit id map."""
+    and on text blobs (text by the path that first holds the blob); a Git LFS pointer to an object of lfs_map ({oid:
+    [new oid, size]}: the objects patched for delivery) points at the patched object, every other pointer stays as it
+    is. Returns the original -> delivered commit id map."""
     blob_path = {}
     for line in git(repo, 'rev-list', '--objects', *HISTORY_REFS).decode('utf-8', 'replace').splitlines():
         if len(line) > 41 and line[40] == ' ':
@@ -486,7 +495,12 @@ def rewrite_history(repo, bare, rules, authors, stats):
                     raise Refused('the fast-export stream ended inside a data block')
                 if ctx == 'blob':
                     path = blob_path.get(orig or '', '')
-                    if d and not (n < 300 and d.startswith(LFS_MAGIC)) and is_text(path, d):
+                    pm = LFS_PTR.match(d) if n < 300 and d.startswith(LFS_MAGIC) else None
+                    if pm and lfs_map and pm.group(1).decode() in lfs_map:
+                        new_oid, new_size = lfs_map[pm.group(1).decode()]
+                        d = d[:pm.start(1)] + new_oid.encode() + d[pm.end(1):pm.start(2)] + str(new_size).encode() + d[pm.end(2):]
+                        stats['lfs_pointers_swapped'] = stats.get('lfs_pointers_swapped', 0) + 1
+                    elif d and not (n < 300 and d.startswith(LFS_MAGIC)) and is_text(path, d):
                         text, enc = decode(d)
                         new = apply_rules(text, rules, path.lower().endswith(('.json', '.jsonl')), False)
                         if new != text:
@@ -1609,6 +1623,9 @@ def main():
                                      '(default <out>/_replay/<slug>/<release sha8>)')
     ap.add_argument('--recording', help='the recording folder (default <root>/.recording/<slug>)')
     ap.add_argument('--out', help='where the zip and the scratch folder go (default the game repo)')
+    ap.add_argument('--lfs-unpatchable-use-head', action='store_true',
+                    help='a Git LFS object naming the account outside a path, a whole string or an XML element: deliver the '
+                         'release commit\'s clean version of its path in every commit that held it')
     ap.add_argument('--reviewed-hits', default=REVIEWED, help='single binary hits a person judged to be data, not text: a TSV of '
                                                                 'file sha256, offset, word (default tools/package-reviewed-hits.tsv)')
     ap.add_argument('--lenient-binaries', action='store_true',
@@ -1776,11 +1793,18 @@ def package(args):
     authors = {}
     identities = identity_terms(repo, authors)
     rules = build_rules(user, machine, session_ids, identities)
-    step(f'rewriting the history ({len(authors)} identities -> dev_NN, {len(rules)} scrub rules)')
+    # the history's Git LFS objects: one that names the account or an agent in a path, a whole string or an XML element
+    # is patched byte for byte (same length) into a new object, and the delivered history points at that one
+    elh = tool('export_lfs_history', 'unity-pipeline', 'export-lfs-history.py')
+    lfs_objects = elh.referenced(repo)
+    step(f'scanning the history\'s {len(lfs_objects)} Git LFS object(s) for the account and agent names')
+    lfs = elh.scan(repo, lfs_objects, os.path.join(scratch, '_lfs'), pats=elh.sip.byte_patterns(user or ''),
+                   use_head=sha if args.lfs_unpatchable_use_head else None)
+    step(f'rewriting the history ({len(authors)} identities -> dev_NN, {len(rules)} scrub rules, {lfs["patched"]} LFS object(s) patched)')
     bare = os.path.join(scratch, f'{game}.history.git')
     subprocess.run(['git', 'init', '--quiet', '--bare', bare], check=True, capture_output=True)
-    hstats = {'blobs_scrubbed': 0, 'messages_scrubbed': 0}
-    cmap = rewrite_history(repo, bare, rules, authors, hstats)
+    hstats = {'blobs_scrubbed': 0, 'messages_scrubbed': 0, 'lfs_pointers_swapped': 0}
+    cmap = rewrite_history(repo, bare, rules, authors, hstats, lfs['map'])
     if sha not in cmap:
         raise Refused(f'the rewritten history has no commit for {sha}: is it on a branch (not only on the tasks branch or in the stash)?')
     head = cmap[sha]
@@ -1804,11 +1828,16 @@ def package(args):
     os.makedirs(lp(hist), exist_ok=True)
     git(bare, 'symbolic-ref', 'HEAD', 'refs/heads/main')   # so a clone of the bundle checks main out
     git(bare, 'bundle', 'create', os.path.join(hist, f'{game}.bundle'), 'HEAD', *refs)
-    lfs_store = os.path.join(git_text(repo, 'rev-parse', '--absolute-git-dir'), 'lfs', 'objects')
+    lfs_store = elh.lfs_store(repo)
     need = lfs_pointers(bare, refs)
     lfs_bytes = 0
+    unpatchable = {u['oid']: u for u in lfs['unpatchable']}
     for oid, size in sorted(need.items()):
-        src = os.path.join(lfs_store, oid[:2], oid[2:4], oid)
+        src = lfs['files'].get(oid) or os.path.join(lfs_store, oid[:2], oid[2:4], oid)
+        if oid in unpatchable:   # delivered as it is: the binary scan below judges its bytes like every other file's
+            warnings.append(f'Git LFS object {oid[:12]}... ({unpatchable[oid]["path"]}) names the account or an agent outside a path, '
+                            'a whole string or an XML element, so it cannot be patched: re-export the asset, or pass '
+                            '--lfs-unpatchable-use-head to deliver the release commit\'s version of that path in every commit')
         if not os.path.isfile(lp(src)):
             problems.append(f'error: Git LFS object {oid[:12]}... of the history is not in the local store: git lfs fetch --all first')
         elif os.path.getsize(lp(src)) != size:
@@ -1824,7 +1853,7 @@ def package(args):
     # ---- UnityProject, workflow.jsonl, git.log ----
     step('writing UnityProject/ and git.log')
     project = os.path.join(stage, 'UnityProject')
-    n_project = export_tree(bare, head, lfs_store, project, problems)
+    n_project = export_tree(bare, head, os.path.join(hist, 'lfs', 'objects'), project, problems)   # the delivered objects
     if not os.path.isfile(lp(os.path.join(project, 'workflow.jsonl'))):
         problems.append('error: no workflow.jsonl at the commit')
     else:
@@ -1962,7 +1991,9 @@ def package(args):
         'rules': [{'id': k, 'what': RULE_TEXT.get(k, ''), 'replacements': v} for k, v in counts.items()],
         'files_touched_count': len(touched), 'files_touched': touched,
         'history': {'identities_numbered': len(authors), 'blobs_scrubbed': hstats['blobs_scrubbed'],
-                    'messages_scrubbed': hstats['messages_scrubbed'], 'commit_ids_mapped_in_files': remapped},
+                    'messages_scrubbed': hstats['messages_scrubbed'], 'commit_ids_mapped_in_files': remapped,
+                    'lfs_objects_patched': lfs['patched'], 'lfs_pointers_swapped': hstats['lfs_pointers_swapped'],
+                    'lfs_objects_unpatchable': len(lfs['unpatchable'])},
         'sessions': {n: ses_stats.get(n) for n in ('actions.jsonl', 'messages.jsonl')},
         'scan': {'text_and_path_hits': len(scan['hits']), 'history_hits': len([h for h in hits if h[1] == 'history']),
                  'binary_refusing': len(refusing), 'binary_listed': len(scan['binary']) - len(refusing),
@@ -1977,6 +2008,8 @@ def package(args):
                    ''.join(f'-\terror\t-\t{e}\n' for e in errors))
         for e in errors[:15]:
             print('  ' + e)
+        for w in warnings:
+            print('  warning: ' + w)
         by_file = {}
         for h in hits:
             by_file.setdefault(h[0], []).append(h)
