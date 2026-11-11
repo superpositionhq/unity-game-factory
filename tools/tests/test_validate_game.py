@@ -842,6 +842,17 @@ class Units(unittest.TestCase):
         self.assertIn('x: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)',
                       errors(rep))
 
+    def test_required_quality_judges(self):
+        """A required judge is noted as one that should be optional, but for the judges of the brief's looks: a `judge`
+        named `looks_as_asked` and a `judge` in `still_works`."""
+        def judge(name, kind='judge', **over):
+            return {'name': name, 'kind': kind, 'question': 'q', 'rubric': [{'key': 'k', 'criterion': 'c'}], **over}
+        t = {'milestones': [
+            {'name': 'done', 'checks': [judge('looks_as_asked'), judge('reads_well'), judge('optional', required=False),
+                                        judge('looks_as_asked', 'code_judge'), judge('worked_well', 'actions_judge')]},
+            {'name': 'still_works', 'checks': [judge('hud_unchanged'), judge('code', 'code_judge')]}]}
+        self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'worked_well', 'code'])
+
     def test_schema_keywords(self):
         """Every keyword the schemas use is one check_schema reads, an annotation, or the if/then/else that
         check_assets_manifest evaluates by hand (a keyword it ignored would be a rule never checked); each works."""
