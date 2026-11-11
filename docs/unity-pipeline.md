@@ -513,10 +513,12 @@ takes it ([Dataset packager](#dataset-packager)). The game's settings are its `R
 `python tools/package-dataset.py <slug>` builds a game's dataset in layout `unity-dataset-layout/v1`
 ([game-format.md](game-format.md), [dataset-layout-v1.json](dataset-layout-v1.json), manifest
 [schemas/dataset-manifest.schema.json](schemas/dataset-manifest.schema.json)). It writes `<repo>\Dataset.zip` (status
-`complete`) when the release has a gameplay video and its creation replay; otherwise `<repo>\Dataset.pending.zip`, with
-each missing entry (`Gameplay/`, `ReplayScripts/`) listed in `pending`. Nobody assembles a dataset or `Dataset.zip` by
-hand, and before the packager's first run on a game its `Dataset/` stays as the template made it and
-`tools/validate-game.py`'s "not packaged yet" warning is expected.
+`complete`) when the release has a gameplay video and its creation replay; `<repo>\Dataset.pending.zip`, with
+`ReplayScripts/` listed in `pending`, while the replay is missing. A game without a gameplay video is rejected at
+upload: with no valid recording of the release commit the packager refuses and says to record a scenario of the release
+commit, then package again. Nobody assembles a dataset or `Dataset.zip` by hand, and before the packager's first run on
+a game its `Dataset/` stays as the template made it and `tools/validate-game.py`'s "not packaged yet" warning is
+expected.
 
 It reads the game repo `<root>\games\<slug>` at the release commit (`--repo` names a repo elsewhere, `--commit` another
 commit than `HEAD`, `--commit milestone` the newest `milestone/autoplay-<n>` tag's), the game's recording

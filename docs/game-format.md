@@ -42,9 +42,10 @@ Builds the dataset of the game at `<root>\games\<slug>` from its repo at the rel
 pipeline's release build (`<root>\builds\<slug>\<sha8>\`, else the repo's `Build\Windows` from `Scripts\unity.ps1
 build`), the first valid recording of the release commit for each scenario (`<root>\recordings\<slug>\`) and
 `<out>\_replay\<slug>\<sha8>\ReplayScripts\` once `READY` is beside it. It writes `<repo>\Dataset.zip` (status
-`complete`) when the release has a gameplay video and the replay, else `<repo>\Dataset.pending.zip` (`pending`), and the
-repo's `Dataset/` folder, which the game session commits (with a `.gitattributes` that keeps its files byte for byte as
-`manifest.json` lists them: no line-ending conversion, videos and images in Git LFS).
+`complete`) when the release has a gameplay video and the replay, `<repo>\Dataset.pending.zip` (`pending`) while the
+replay is missing, and the repo's `Dataset/` folder, which the game session commits (with a `.gitattributes` that keeps
+its files byte for byte as `manifest.json` lists them: no line-ending conversion, videos and images in Git LFS). A game
+without a gameplay video is rejected at upload: without a valid recording of the release commit it packages nothing.
 
 It scrubs every text file of the delivery, then scans: a name left in a text file or a path refuses the package (exit
 2). Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv`, and
@@ -99,9 +100,9 @@ GUID (a folder copied with its `.meta` files), is an error. Names Unity skips on
 
 **Tasks live on the orphan `tasks` branch, never on main.** The same repo has a branch `tasks` that shares no history
 with main: `Tasks/<game>-<kind>-<slug>.json` (one task each in the task format `GameTask`,
-[schemas/game-task.schema.json](schemas/game-task.schema.json), `"engine": "unity-6000.3"`; at least one, up to about
-10, every one a long thread of multiple edits; written with the `unity-write-tasks` skill), a short `README.md`,
-optionally `tasks-workflow.jsonl`. It is checked out as a git worktree outside the game folder (e.g.
+[schemas/game-task.schema.json](schemas/game-task.schema.json), `"engine": "unity-6000.3"`; at least 5 and up to about
+10 per game, every one a long thread of multiple edits; written with the `unity-write-tasks` skill), a short
+`README.md`, optionally `tasks-workflow.jsonl`. It is checked out as a git worktree outside the game folder (e.g.
 `<root>/tasks/<slug>`), committed and pushed there. Task work never enters the game's history: main never tracks
 `Tasks/` and never references the tasks branch, the recording hooks ignore commits on it, and the delivered history
 leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main's history, or of the task's own start
@@ -143,7 +144,7 @@ Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zi
 
 `<repo>\Dataset.zip`, one top folder `<game>/`, made by the packager ([Package](#package);
 [unity-pipeline.md, Dataset packager](unity-pipeline.md#dataset-packager) says what it does; `Dataset.pending.zip`
-while an entry is missing, see "Complete vs pending" below):
+while the creation replay is missing, see "Complete vs pending" below):
 
 | Entry | In the repo's `Dataset/` | What |
 |---|---|---|
@@ -190,7 +191,7 @@ and the validator reports what it finds here as warnings and notes, never errors
 **Tasks.** A game is complete when its repo's orphan `tasks` branch has `Tasks/`: tasks an agent can be given on
 this game (a bug fix from its history, a correction from a person's direction, a feature, a look or content change),
 in the task format (`GameTask`, game-task/1), one file per task named `<game>-<kind>-<slug>.json` with `name` equal to
-the file name. About 10 are recommended; the count is reported, and only a game with none fails. The tasks branch is
+the file name. A game has at least 5 and up to about 10: with fewer than 5 it is rejected. The tasks branch is
 the single source: tasks are loaded as `Tasks/*.json` from the repos' tasks branches. How to write them: the
 `unity-write-tasks` skill. The validator reads the tasks from `tasks` (else `origin/tasks`) and checks each against
 [schemas/game-task.schema.json](schemas/game-task.schema.json) (the task format; probe checks:
@@ -198,7 +199,8 @@ the single source: tasks are loaded as `Tasks/*.json` from the repos' tasks bran
 that are never literal, the no-op rule), that its seed is on this game and its seed commits are ancestors of main's
 head or of the task's own start branch `starts/<task name>` and Unity `6000.3.x` projects as committed
 (`ProjectSettings/ProjectVersion.txt`), that the branch shares no history with main, and that main tracks nothing
-under `Tasks/`. It also holds each task to the bar of a long thread: `medium` or `hard`, tagged `long-thread`, with
+under `Tasks/`. Every task is `hard`; at most one of a game's tasks may be `medium`, none easy (a task that names no
+difficulty counts as medium). It also holds each task to the bar of a long thread: tagged `long-thread`, with
 `seed.reference`, at least 3 required outcome probes outside `still_works`, and from start to reference at least 5
 game files (`Assets/`, `Packages/`, `ProjectSettings/`; an editor step or a `.meta` is not one), 100 code lines and 2
 systems, and for a seed on main 4 commits that change the game (`tools/validate-game.py` holds the numbers).
@@ -216,11 +218,12 @@ its seeds are commits of `History/`.
 history); it sees only the brief and that snapshot. The grader's half never reaches the agent.
 
 **Complete vs pending.** `status` is `complete` when every entry is there, `ReplayScripts/` with its
-`Verification/report.json` included; `pending` while `ReplayScripts/` or `Gameplay/` is missing (listed in `pending`;
-the zip is then `Dataset.pending.zip`). The replay is required but need not pass (user rule): a FAIL verdict is
-metadata, like a gameplay run's result: manifest `replay_verification.pass` false (equal to the report's
-`verdict.pass`) and the README says FAIL. The packager writes the complete `Dataset.zip` once the release has a
-gameplay video and its replay ([Package](#package)).
+`Verification/report.json` included; `pending` while `ReplayScripts/` is missing (listed in `pending`;
+the zip is then `Dataset.pending.zip`). A game without a gameplay video is rejected at upload: a delivered zip that
+lists `Gameplay/` as pending is an error, and the packager refuses a release without a recording. The replay is
+required but need not pass (user rule): a FAIL verdict is metadata, like a gameplay run's result: manifest
+`replay_verification.pass` false (equal to the report's `verdict.pass`) and the README says FAIL. The packager writes
+the complete `Dataset.zip` once the release has a gameplay video and its replay ([Package](#package)).
 
 ## For a contractor
 
@@ -231,8 +234,9 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
 2. `workflow.jsonl` from the first operation, with every direction you were given as a `user.direction` row
    (neutral wording, what and why) before the work it caused, and `"direction": "<id>"` on the rows that act on it.
 3. `Brief/brief.md` (the brief you were given) and `Brief/design.md` (your design doc).
-4. Your game's tasks in `Tasks/` on an orphan `tasks` branch of the repo, never on main (about 10; the
-   `unity-write-tasks` skill), each seeded on commits of main's history (or its own `starts/<task>` branch).
+4. Your game's tasks in `Tasks/` on an orphan `tasks` branch of the repo, never on main (at least 5 and up to
+   about 10 per game, hard; the `unity-write-tasks` skill), each seeded on commits of main's history (or its own
+   `starts/<task>` branch).
 5. `python tools/validate-game.py <repo>` VALID. Its warning "Dataset/ has no manifest.json: not packaged yet" is
    expected only before the packager's first run.
 6. A release player (`tools/unity-pipeline/build.ps1 <slug>`, or `Scripts/unity.ps1 build` into `Build/Windows`), a
@@ -240,8 +244,9 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
    and its creation replay (`python tools/unity-replay/unity_replay.py release --game <slug>`): a complete
    `Dataset.zip` needs the last two. Then `python tools/package-dataset.py <slug>` (`--repo <repo>` when the repo is
    not `<root>/games/<slug>`). It runs the dataset checks itself and refuses on an error. Commit the `Dataset/`
-   folder it writes; `Dataset.zip` (`Dataset.pending.zip` while the gameplay video or the creation replay is
-   missing), written next to it, is never committed: deliver it beside the repo.
+   folder it writes; `Dataset.zip` (`Dataset.pending.zip` while the creation replay is missing), written next to it,
+   is never committed: deliver it beside the repo. A game without a gameplay video is rejected at upload: without a
+   recording of the release commit the packager refuses.
 
 Your agent sessions use only the unity-game-factory skills (`unity-commit-always`, `unity-game-session`,
 `unity-sound`, `unity-write-tasks`, installed by `machine/setup.ps1`): never install, enable or invoke any other

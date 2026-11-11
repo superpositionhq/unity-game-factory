@@ -66,7 +66,7 @@ coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key
    and records each ready scenario), the creation replay's release run (`unity_replay.py release`: with the live replay
    current, only the last commits and a full final check remain) makes `ReplayScripts/`, and `tools/package-dataset.py`
    packs the commit with the three into `games\<slug>\Dataset.zip` and the repo's `Dataset/`
-   (`Dataset.pending.zip` while a recording or the replay is missing).
+   (`Dataset.pending.zip` while the replay is missing; without a recording it packages nothing).
 
 ## Dataset format (layout v1, all games)
 
@@ -97,7 +97,8 @@ format's repo rules (one `assets.manifest.json` format, every asset committed wi
 [docs/game-format-v1.json](docs/game-format-v1.json), [docs/dataset-layout-v1.json](docs/dataset-layout-v1.json),
 [docs/schemas/](docs/schemas/). Build it with `python tools/package-dataset.py <slug>` at the release commit, once it
 has its pipeline build, a valid recording and the creation replay's package: it writes `Dataset.zip`, or
-`Dataset.pending.zip` (the missing entries listed) while a recording or the replay is missing; before its first run a
+`Dataset.pending.zip` while the replay is missing (a game without a gameplay video is rejected at upload: without a
+recording the packager refuses); before its first run a
 repo's `Dataset/` stays as the template made it. Check a repo and its datasets with
 `python tools/validate-game.py <repo>` (or `--dataset <zip>`); its "not packaged yet" warning is expected before the
 packager's first run.
@@ -129,7 +130,7 @@ packager's first run.
 ```
 tools/unity-pipeline/              release player from a commit, recorder, queue, run checker, stills, gameplay videos; autoplay/ = the AutoPlay drop-in
 tools/unity-replay/                creation replay: per commit (live) and at release; ReplayScripts/ of the dataset
-tools/package-dataset.py           a game's dataset: Dataset.zip (Dataset.pending.zip while an entry is missing) and the repo's Dataset/
+tools/package-dataset.py           a game's dataset: Dataset.zip (Dataset.pending.zip while the creation replay is missing) and the repo's Dataset/
 tools/task-check.py, task-try.py   a task checked on the engine; tried with a coding agent (internal) (task_check/)
 tools/thread-stats.py              a thread's own commits counted against the task floors (git only)
 tools/sfx.py                       sound effects for a game: search Freesound, fetch into the repo, measure (unity-sound skill)

@@ -298,8 +298,9 @@ the packager has run, or the replay and the recordings no longer match it):
    again once that is done). Its verdict, PASS or FAIL, is metadata.
 3. Once the coordinator says the recording is done: the packager (`--dry-run` first says what it would take and what
    is missing; `--commit <sha>` when `HEAD` has moved past the release commit). It writes `Dataset/`, which you then
-   commit, and `Dataset.zip`, or `Dataset.pending.zip` (the missing entries listed) while a recording or the replay is
-   missing; neither zip is ever committed.
+   commit, and `Dataset.zip`, or `Dataset.pending.zip` while the replay is missing; neither zip is ever committed. A
+   game without a gameplay video is rejected at upload: without a valid recording of the release commit the packager
+   refuses.
 
 It scrubs every text file, then refuses the package when a banned name is left in a text file, a path or a binary
 file's strings, when the release build's leak scan found anything, while the pipeline builds or records the game, or
@@ -323,7 +324,8 @@ orphan `.meta`, `workflow.jsonl` rows, README images, no banned names. The datas
 original brief (`Brief/`) and the full history.
 
 **Tasks (unity-write-tasks skill).** A game is complete when its repo has `Tasks/` on the tasks branch: tasks an agent
-can be given on this game, one `Tasks/<game>-<kind>-<slug>.json` each in the task format `GameTask`, up to about 10,
+can be given on this game, one `Tasks/<game>-<kind>-<slug>.json` each in the task format `GameTask`, at least 5 and up
+to about 10 per game (hard; at most one of a game's tasks may be medium, none easy),
 every one a long thread of multiple edits from your real history (a bug that took several attempts, a direction that
 took several rounds, a feature or look pass built over many commits), never a single fix. They live on the repo's
 orphan `tasks` branch, checked out as a worktree outside the game folder (`<root>/tasks/<slug>`), committed and pushed

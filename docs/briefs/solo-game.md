@@ -94,7 +94,7 @@ tools/unity-pipeline/validate-run.ps1, tag milestone/autoplay-<n>, framing scree
 build; 6) playtest checklist, status section in the design doc, and
 before calling it content-complete: 5-7 real gameplay stills in Docs/screenshots/ (JPG, LFS; until recordings exist,
 the framing frames there are, never invented ones) shown in the README as a hero image plus a captioned gallery,
-checked on github.com after I say push; Tasks/ with up to about 10 tasks on the game, every one a long thread of
+checked on github.com after I say push; Tasks/ with at least 5 and up to about 10 tasks on the game, every one a hard, long thread of
 multiple edits, on the tasks branch, never on main (unity-write-tasks skill); tools/validate-game.py VALID; 7) the
 release, when I say (unity-game-session skill, "Dataset"): tell me the release commit so I queue its recording (no
 other commit until it is packaged), run unity_replay.py release with HEAD at that commit, then, once I say the

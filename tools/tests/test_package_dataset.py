@@ -1,5 +1,5 @@
 """tools/package-dataset.py on a throwaway Unity game (the fixture of test_validate_game.py, with a person's commit, a
-start branch, a recording and a player build): the zip it writes, what the scrub leaves, the sessions' record, and what
+start branch, a recording, a gameplay recording of the release commit and a player build): the zip it writes, what the scrub leaves, the sessions' record, and what
 refuses a package. Plain git and git-lfs; no Unity and no PowerShell.
 
     python -m unittest discover -s tools/tests -p "test_package_dataset.py" -v
@@ -19,9 +19,10 @@ def row(**kv):
     return json.dumps(kv)
 
 
-def make_inputs(tmp):
+def make_inputs(tmp, recorded=True):
     """A game with tasks, one commit by a named person with an agent trailer, a start branch, and next to it the
-    recording, the build and the brief files. Returns the paths."""
+    recording, the build, the brief files and (recorded) a gameplay recording of the head, without which nothing is
+    packaged. Returns the paths."""
     root = os.path.join(tmp, 'root')
     repo = os.path.join(root, 'games', SLUG)
     os.makedirs(os.path.dirname(repo))
@@ -42,7 +43,7 @@ def make_inputs(tmp):
     base.git(repo, 'branch', f'starts/{SLUG}-fix-hero-hud', start)
     base.git(repo, 'branch', 'experiment', start)
     base.git(repo, 'update-ref', 'refs/remotes/origin/starts/made-elsewhere', start)   # a start branch only origin has
-    base.set_tasks(repo, {f'{SLUG}-fix-hero-hud': base.task(start, ref)})
+    base.set_tasks(repo, base.game_tasks(start, ref))
     rec = os.path.join(root, '.recording', SLUG)
     cwd = f'C:\\Users\\{ACCOUNT}\\UnityWork\\games\\{SLUG}'
     before, after = when[:11] + '00:00:01' + when[19:], '2099-01-01T00:00:00+00:00'
@@ -71,8 +72,11 @@ def make_inputs(tmp):
         base.write(build, rel, data)
     base.write(tmp, 'brief.md', '# Brief\n\n' + 'Build a small kiln game. ' * 20)
     base.write(tmp, 'design.md', '# Design\n\n' + 'Systems, scenes and scenarios. ' * 20)
-    return dict(root=root, repo=repo, build=build, head=head, start=start, ref=ref,
-                brief=os.path.join(tmp, 'brief.md'), design=os.path.join(tmp, 'design.md'))
+    inp = dict(root=root, repo=repo, build=build, head=head, start=start, ref=ref,
+               brief=os.path.join(tmp, 'brief.md'), design=os.path.join(tmp, 'design.md'))
+    if recorded:
+        record(inp)
+    return inp
 
 
 def run(inp, *extra, env=None, build=True, brief=True):
@@ -144,6 +148,11 @@ def bundle(inp, commit, scenario, stamp, status='ok', result='win', marker=None,
     return run_id
 
 
+def record(inp):
+    """A valid recording of scenario 1 of the game's head (after a test's own commit: of the new release commit)."""
+    return bundle(inp, base.git(inp['repo'], 'rev-parse', 'HEAD'), 1, '20990101-000100')
+
+
 def replay(inp, commit, passed=False, ready=True):
     """The creation replay's package of commit, as unity_replay.py release leaves it: <out>/_replay/<slug>/<sha8>/ with
     ReplayScripts/ (unscrubbed) and READY."""
@@ -203,18 +212,19 @@ class Package(unittest.TestCase):
         vg.check_dataset(rep, self.zip, 'dataset')
         self.assertEqual(base.errors(rep), [])
         m = json.loads(self.members()['manifest.json'])
-        self.assertEqual((m['status'], m['pending'], m['variant'], m['version']), ('pending', ['ReplayScripts', 'Gameplay'], 'full', '1.0'))
+        self.assertEqual((m['status'], m['pending'], m['variant'], m['version']), ('pending', ['ReplayScripts'], 'full', '1.0'))
         self.assertEqual(m['build']['exe'], 'Build/KilnRun.exe')
-        self.assertEqual(m['tasks']['names'], [f'{SLUG}-fix-hero-hud'])
+        self.assertEqual(m['tasks']['names'], sorted(f'{SLUG}-{n}' for n in base.TASKS))
 
     def test_entries(self):
         names = set(self.members())
         for want in ('README.md', 'git.log', 'workflow.jsonl', 'Brief/brief.md', 'Brief/design.md', f'History/{SLUG}.bundle',
                      'History/sessions/messages.jsonl', 'History/sessions/actions.jsonl', f'Tasks/{SLUG}-fix-hero-hud/task.json',
                      f'Tasks/{SLUG}-fix-hero-hud/grader.json', 'Tasks/README.md', 'UnityProject/ProjectSettings/ProjectVersion.txt',
-                     'UnityProject/Assets/Scripts/Kiln.cs', 'Screenshots/hero.jpg', 'Build/KilnRun.exe', 'Build/KilnRun_Data/app.info'):
+                     'UnityProject/Assets/Scripts/Kiln.cs', 'Screenshots/hero.jpg', 'Build/KilnRun.exe', 'Build/KilnRun_Data/app.info',
+                     f'Gameplay/{SLUG}_S1.mp4'):
             self.assertIn(want, names)
-        self.assertFalse([n for n in names if n.endswith('.pdb') or 'DoNotShip' in n or n.startswith(('Gameplay/', 'ReplayScripts/'))])
+        self.assertFalse([n for n in names if n.endswith('.pdb') or 'DoNotShip' in n or n.startswith('ReplayScripts/')])
         # an LFS file of the project arrives as its content, and as its object in the history
         self.assertTrue(self.members()['UnityProject/Docs/screenshots/hero.jpg'].startswith(b'\xff\xd8\xff'))
         self.assertTrue([n for n in names if n.startswith('History/lfs/objects/')])
@@ -291,8 +301,8 @@ class Package(unittest.TestCase):
         rep = vg.Report()
         vg.check_dataset(rep, ds, 'dataset')
         self.assertEqual(base.errors(rep), [])
-        self.assertEqual(sorted(os.listdir(ds)), ['.gitattributes', 'Brief', 'README.md', 'Screenshots', 'git.log', 'manifest.json',
-                                                  'workflow.jsonl'])
+        self.assertEqual(sorted(os.listdir(ds)), ['.gitattributes', 'Brief', 'Gameplay', 'README.md', 'Screenshots', 'git.log',
+                                                  'manifest.json', 'workflow.jsonl'])
         self.assertTrue(base.read(os.path.join(ds, '.gitattributes')).startswith('* -text\n'))   # committed byte for byte
         self.assertIsNone(json.loads(base.read(os.path.join(ds, 'manifest.json')))['history'])
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.history.git')))
@@ -306,7 +316,7 @@ class Complete(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp(prefix='ugfc')
-        inp = cls.inp = make_inputs(cls.tmp)
+        inp = cls.inp = make_inputs(cls.tmp, recorded=False)
         head, start = inp['head'], inp['start']
         pipeline_build(inp, head)
         cls.runs = {
@@ -502,11 +512,13 @@ class Products(unittest.TestCase):
         env = dict(base.ENV, GIT_COMMITTER_DATE=f'{future + 50} +0000', GIT_AUTHOR_DATE=f'{future + 50} +0000')
         base.write(repo, 'workflow.jsonl', base.read(os.path.join(repo, 'workflow.jsonl')) + '\n')
         subprocess.run(['git', '-C', repo, 'commit', '-qam', 'Record the build row'], check=True, env=env)
+        record(self.inp)
         r = run(self.inp, '--dry-run')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertNotIn('was built before', r.stdout)
         base.write(repo, 'Assets/Scripts/Kiln.cs', base.read(os.path.join(repo, 'Assets', 'Scripts', 'Kiln.cs')) + '// later\n')
         subprocess.run(['git', '-C', repo, 'commit', '-qam', 'Change the kiln after the build'], check=True, env=env)
+        record(self.inp)
         r = run(self.inp, '--dry-run')
         self.assertIn('Build/KilnRun.exe was built before 1 commit(s) that changed Assets/ or Packages/', r.stdout)
 
@@ -514,6 +526,7 @@ class Products(unittest.TestCase):
         repo = self.inp['repo']
         commit(repo, {'Brief/brief.md': '# Brief\n\n' + 'The committed brief. ' * 20, 'Brief/design.md': '# Design\n\n' + 'Committed. ' * 30},
                'Add the brief and the design doc')
+        record(self.inp)
         base.write(repo, 'Brief/brief.md', '# Brief\n\n' + 'An edit nobody committed. ' * 20)
         r = run(self.inp, '--no-repo-dataset', '--no-zip', brief=False)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -523,6 +536,7 @@ class Products(unittest.TestCase):
         # an FBX exported from the profile keeps the path; the delivered history points at a patched copy (same length)
         repo = self.inp['repo']
         commit(repo, {'Assets/Art/hero.fbx': HERO_FBX}, 'Add the hero model')
+        record(self.inp)
         r = run(self.inp, '--no-repo-dataset')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         with zipfile.ZipFile(os.path.join(repo, 'Dataset.pending.zip')) as z:
@@ -546,10 +560,12 @@ class Products(unittest.TestCase):
         # commit's clean version of the path stands in for it
         repo = self.inp['repo']
         commit(repo, {'Assets/Art/notes.fbx': b'\0\1made by ' + ACCOUNT.encode() + b' for the kiln\0'}, 'Add the notes model')
+        record(self.inp)
         r = run(self.inp, '--no-repo-dataset', '--no-zip')
         self.assertEqual(r.returncode, 2)
         self.assertIn('cannot be patched', r.stdout)
         commit(repo, {'Assets/Art/notes.fbx': b'\0\1made by someone for the kiln\0'}, 'Clean the notes model')
+        record(self.inp)
         self.assertEqual(run(self.inp, '--no-repo-dataset', '--no-zip').returncode, 2)   # the older commit still holds it
         r = run(self.inp, '--no-repo-dataset', '--no-zip', '--lfs-unpatchable-use-head')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -596,6 +612,7 @@ class Products(unittest.TestCase):
         base.git(repo, 'tag', 'milestone/autoplay-1', self.inp['start'])
         base.git(repo, 'tag', 'milestone/autoplay-2', 'HEAD~1')
         base.git(repo, 'tag', 'release/1.0', self.inp['start'])
+        bundle(self.inp, base.git(repo, 'rev-parse', 'HEAD~1'), 1, '20990101-000200')   # the milestone's own recording
         r = run(self.inp, '--dry-run', '--commit', 'milestone')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('--commit milestone: milestone/autoplay-2', r.stdout)
@@ -606,6 +623,7 @@ class Products(unittest.TestCase):
         text = base.read(os.path.join(repo, '.gitignore'))
         commit(repo, {'.gitignore': '\n'.join(l for l in text.splitlines() if 'Dataset' not in l and '.dataset' not in l) + '\n'},
                'An older .gitignore')
+        record(self.inp)
         r = run(self.inp, '--no-repo-dataset')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         exclude = base.read(os.path.join(repo, '.git', 'info', 'exclude'))
@@ -827,6 +845,42 @@ class Refusals(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn('no tasks', r.stdout)
 
+    def test_no_gameplay_video(self):
+        # a game without a gameplay video is rejected by the Lab: no Dataset.pending.zip with Gameplay/ pending any more
+        shutil.rmtree(os.path.join(self.inp['root'], 'recordings'), onerror=base.onerror)
+        for extra in ((), ('--dry-run',)):
+            r = run(self.inp, *extra)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn('error: no gameplay video: no valid recording of the release commit', r.stdout)
+            self.assertIn('the Lab rejects a game without a gameplay video. Record a scenario of the release commit', r.stdout)
+            self.assertIn('then package again', r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], '.dataset')))
+        # a recording of another commit is no video of the release
+        bundle(self.inp, self.inp['start'], 1, '20990101-000100')
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('error: no gameplay video', r.stdout)
+
+    def test_fewer_than_five_tasks(self):
+        tasks = base.game_tasks(self.inp['start'], self.inp['ref'])
+        del tasks[f'{SLUG}-{base.TASKS[-1]}']
+        base.set_tasks(self.inp['repo'], tasks)
+        r = run(self.inp, '--dry-run')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('error: 4 task(s) on tasks: a game with fewer than 5 tasks is rejected', r.stdout)
+
+    def test_two_medium_tasks(self):
+        # the delivery's own check refuses it: nothing is zipped
+        tasks = base.game_tasks(self.inp['start'], self.inp['ref'], difficulty='medium')
+        del tasks[f'{SLUG}-{base.TASKS[1]}']['difficulty']
+        base.set_tasks(self.inp['repo'], tasks)
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("2 medium tasks", r.stdout)
+        self.assertIn("at most 1 of a game's tasks may be medium", r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
+
     def test_dry_run_writes_nothing(self):
         r = run(self.inp, '--dry-run')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -910,6 +964,7 @@ class Refusals(unittest.TestCase):
     def test_the_account_name_glued_into_a_word_refuses(self):
         # OwnerNameDesktop: a lower -> upper boundary is a word's edge, so the name is found where the scrub leaves it
         commit(self.inp['repo'], {'Docs/Owner.md': f'The shortcut was named Owner{ACCOUNT.capitalize()}Desktop.\n'}, 'Add the owner note')
+        record(self.inp)
         r = run(self.inp, '--no-repo-dataset')
         self.assertEqual(r.returncode, 2)
         self.assertIn('UnityProject/Docs/Owner.md', base.read(os.path.join(self.inp['repo'], '.dataset', f'{SLUG}.refused-hits.tsv')))

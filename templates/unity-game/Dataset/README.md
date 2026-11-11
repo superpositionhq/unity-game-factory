@@ -16,9 +16,9 @@ Until the packager's first run, leave this folder as the template made it (nobod
 | `manifest.json` | path, bytes and sha256 of every file |
 
 `Gameplay/` comes from the recordings of the release commit and `ReplayScripts/` from its creation replay; a release
-packed before either was made lists it as pending in `manifest.json`.
+packed before the replay was made lists it as pending in `manifest.json`.
 
-The full delivery (a zip next to this folder: `Dataset.zip`, or `Dataset.pending.zip` while an entry is pending; never
+The full delivery (a zip next to this folder: `Dataset.zip`, or `Dataset.pending.zip` while the replay is pending; never
 committed) also
 has `UnityProject/` (the project at the release commit), `Build/` (the Windows release player), `History/` (the full
 git history, and the creation sessions as recorded: every prompt, every reply and every tool call) and `Tasks/` (the
