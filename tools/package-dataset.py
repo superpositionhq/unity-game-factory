@@ -1607,9 +1607,10 @@ def bin_emails(path):
 # ---- the package ---------------------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0], formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('game', help='the game\'s slug (the repo is <root>/games/<slug>)')
+    ap.add_argument('game', nargs='?', help='the game\'s slug (the repo is <root>/games/<slug>); --self-check needs none')
     ap.add_argument('--repo', help='the game repo, when it is not <root>/games/<slug>')
-    ap.add_argument('--commit', default='HEAD', help='the release commit (default HEAD)')
+    ap.add_argument('--commit', default='HEAD', help='the release commit (default HEAD); "milestone": the newest '
+                                                       'milestone/autoplay-<n> tag, the commit whose scenarios 1..n were recorded')
     ap.add_argument('--version', default='', help='the release version for the README and manifest.json, e.g. 1.0')
     ap.add_argument('--build', help='the player: a pipeline build folder (<root>/builds/<slug>/<sha8>, with build_info.json) or '
                                     'a player folder (default the newest pipeline release build of the release commit\'s '
@@ -1634,8 +1635,23 @@ def main():
     ap.add_argument('--no-repo-dataset', action='store_true', help='do not write the repo\'s Dataset/ folder')
     ap.add_argument('--no-zip', action='store_true', help='stop after the checks; the delivery stays in the scratch folder')
     ap.add_argument('--dry-run', action='store_true', help='print what would go in; write nothing')
+    tools = ap.add_mutually_exclusive_group()
+    tools.add_argument('--rescan', metavar='ZIP_OR_FOLDER', help='scan a delivered dataset again with the current rules (paths, '
+                       'text, binaries, its history); PASS exits 0, FAIL 2; the hits go to <out>/<slug>/<slug>.rescan-hits.tsv')
+    tools.add_argument('--scrub-dir', metavar='FOLDER', help='apply the scrub rules to every text file of a folder, in place '
+                       '(a report in <out>/<slug>/<slug>.scrub-dir.json); nothing is packaged')
+    tools.add_argument('--self-check', action='store_true', help='check the scrub and scan rules on built-in samples (the '
+                       'account name built at run time); the slug is not read')
     args = ap.parse_args()
     try:
+        if args.self_check:
+            return self_check()
+        if not args.game:
+            ap.error('the game\'s slug is needed')
+        if args.rescan:
+            return rescan(args)
+        if args.scrub_dir:
+            return scrub_dir(args)
         return package(args)
     except Refused as e:
         print(f'REFUSED: {e}', file=sys.stderr)
@@ -1654,6 +1670,11 @@ def package(args):
     out_root = os.path.abspath(args.out or repo)
     scratch = os.path.join(out_root, '.dataset')
     stage = os.path.join(scratch, game)
+    if args.commit == 'milestone':   # the newest milestone/autoplay-<n> tag: the commit the pipeline recorded
+        tags = [(int(m.group(1)), t) for t in git_text(repo, 'tag', '--list', 'milestone/autoplay-*', check=False).split()
+                if (m := re.fullmatch(r'milestone/autoplay-(\d+)', t))]
+        args.commit = max(tags)[1] if tags else 'HEAD'
+        step(f'--commit milestone: {args.commit}')
     sha = git_text(repo, 'rev-parse', '--verify', '-q', args.commit + '^{commit}', check=False)
     if not re.fullmatch(r'[0-9a-f]{40}', sha):
         raise Refused(f'--commit {args.commit}: no such commit in {repo}')
@@ -1662,6 +1683,14 @@ def package(args):
     user = os.environ.get('USERNAME') or getpass.getuser()
     machine = os.environ.get('COMPUTERNAME') or socket.gethostname().split('.')[0]
     problems, warnings = [], []
+    release_tag = None
+    if args.version:   # a release/<version> tag must name the release commit
+        tagged = git_text(repo, 'rev-parse', '--verify', '-q', f'release/{args.version}^{{commit}}', check=False)
+        if re.fullmatch(r'[0-9a-f]{40}', tagged):
+            if tagged == sha:
+                release_tag = f'release/{args.version}'
+            else:
+                warnings.append(f'the tag release/{args.version} names {tagged[:8]}, not the release commit {sha[:8]}')
 
     # inputs that can refuse the package before anything is written
     root = ugfroot.root()
@@ -1782,6 +1811,18 @@ def package(args):
         return 0
     ugfroot.check_free(out_root, 'package-dataset')
     lock = hold_lock(os.path.join(ugfroot.out(), game, '.package.lock'))   # noqa: F841  held until the run ends
+    if out_root == repo:   # the zips and the scratch sit in the repo: never committed (the template's .gitignore has them)
+        exclude = os.path.join(git_text(repo, 'rev-parse', '--git-common-dir'), 'info', 'exclude')
+        exclude = exclude if os.path.isabs(exclude) else os.path.join(repo, exclude)
+        have = read_bytes(exclude).decode('utf-8', 'replace').splitlines() if os.path.isfile(exclude) else []
+        for pat in ('/Dataset.zip', '/Dataset.pending.zip', '/.dataset/'):
+            # a trailing slash tells check-ignore the path is a folder (the scratch is not there yet)
+            if pat not in have and subprocess.run(['git', '-C', repo, 'check-ignore', '-q', '--no-index', pat.lstrip('/')],
+                                                  capture_output=True).returncode:
+                os.makedirs(os.path.dirname(exclude), exist_ok=True)
+                with open(exclude, 'a', encoding='ascii', newline='\n') as f:
+                    f.write(pat + '\n')
+                warnings.append(f'{pat} added to {exclude}: the repo\'s .gitignore lacks it (add it there and commit it)')
     remove_tree(scratch)
     os.makedirs(lp(stage))
 
@@ -1925,8 +1966,8 @@ def package(args):
     remove_tree(tasks_tmp)
 
     # ---- ReplayScripts: the creation replay's package as it is (unscrubbed there), scrubbed and remapped here ----
+    n_replay = 0
     if report is not None:
-        n_replay = 0
         for rel in files_under(rs_src):
             parts = rel.split('/')
             if '__pycache__' in parts or rel.lower().endswith(('.pyc', '.pdb')):
@@ -1934,6 +1975,17 @@ def package(args):
             copy_file(os.path.join(rs_src, *parts), os.path.join(stage, 'ReplayScripts', *parts))
             n_replay += 1
         step(f'ReplayScripts: {n_replay} files from {replay} (verdict {"PASS" if report["verdict"]["pass"] else "FAIL"})')
+
+    # ---- every folder arrived whole (a short copy once went unnoticed in the original's deliveries) ----
+    counts_in = {}
+    for rel in files_under(stage):
+        top = rel.split('/')[0]
+        counts_in[top] = counts_in.get(top, 0) + 1
+    expect = {'UnityProject': n_project, 'Build': n_build, 'Gameplay': len(runs), 'Screenshots': len(shots),
+              'Tasks': len(task_rows) * 2 + 1, 'ReplayScripts': n_replay if report is not None else 0}
+    short = [f'{k}/ holds {counts_in.get(k, 0)} file(s), {v} were copied' for k, v in expect.items() if counts_in.get(k, 0) != v]
+    if short:
+        raise Refused('the staged delivery is incomplete: ' + '; '.join(short) + f' ({stage})')
 
     # ---- the scrub of everything, the README, then the scan ----
     step('scrubbing every text file of the delivery')
@@ -2106,6 +2158,7 @@ def package(args):
         f.write(json.dumps({'time': datetime.now().astimezone().isoformat(timespec='seconds'), 'game': game, 'commit': sha,
                             'delivered_commit': head, 'version': args.version, 'status': status, 'pending': pending,
                             'zip': zip_path, 'zip_bytes': zip_bytes, 'files': len(files_under(stage)),
+                            'release_tag': release_tag,
                             'scenarios': [r['run'] for r in runs], 'replay': None if rv is None else ('PASS' if rv['pass'] else 'FAIL'),
                             'build': build_source.replace('{}', (cmap.get(build_commit) or head)[:12]),
                             'scrubbed_files': len(touched), 'warnings': warnings, 'audit': audit,
@@ -2132,6 +2185,170 @@ def package(args):
         print('  ' + p)
     print(f'  {(time.time() - t0) / 60:.1f} min')
     return 0
+
+
+# ---- the tools beside the package: rescan, scrub-dir, self-check -----------------------------------------------------------
+def machine_rules(repo=None):
+    """(user, identities, rules, enforced pattern, binary needles) with this machine's account and machine name and, when
+    the game repo is here, its history's identities and addresses."""
+    user = os.environ.get('USERNAME') or getpass.getuser()
+    machine = os.environ.get('COMPUTERNAME') or socket.gethostname().split('.')[0]
+    identities, emails = [], []
+    if repo and os.path.isdir(os.path.join(repo, '.git')):
+        identities, emails = identity_terms(repo, {}), identity_emails(repo)
+    return (user, identities, build_rules(user, machine, set(), identities), enforced_pattern(user, identities),
+            binary_needles(user, identities, emails))
+
+
+def rescan(args):
+    """--rescan: a delivered dataset (its zip or its folder) scanned again with the current rules: paths, text and
+    binaries as the package scan does them, the bundle's commits git.log does not show, and its identities (dev_NN
+    only). PASS exits 0, FAIL 2; every hit in <out>/<slug>/<slug>.rescan-hits.tsv."""
+    game = args.game
+    repo = os.path.abspath(args.repo or os.path.join(ugfroot.root(), 'games', game))
+    user, _identities, _rules, enforced, needles = machine_rules(repo)
+    out_dir = os.path.join(ugfroot.out(), game)
+    work = os.path.join(out_dir, '.rescan')
+    remove_tree(work)
+    target = os.path.abspath(args.rescan)
+    try:
+        root = target
+        if os.path.isfile(target):
+            with zipfile.ZipFile(target) as z:
+                names = z.namelist()
+                if any(n.startswith(('/', '\\')) or '..' in n.replace('\\', '/').split('/') for n in names):
+                    raise Refused(f'{target}: an entry outside the zip\'s folder')
+                z.extractall(lp(os.path.join(work, 'unpacked')))
+            tops = {n.split('/')[0] for n in names}
+            root = os.path.join(work, 'unpacked', *(list(tops) if len(tops) == 1 else []))
+        step(f'rescanning {target}')
+        scan = scan_tree(root, enforced, needles, user, reviewed_hits(args.reviewed_hits))
+        hits = scan['hits'] + [(b[0], 'binary', b[1], f'{b[3]}: {b[5]}') for b in scan['binary'] if b[6] == 'binary']
+        for b in [r for r in files_under(root) if r.startswith('History/') and r.endswith('.bundle')]:
+            bare = os.path.join(work, 'history.git')
+            remove_tree(bare)
+            subprocess.run(['git', 'clone', '-q', '--mirror', os.path.join(root, *b.split('/')), bare], check=True, capture_output=True)
+            refs = [r for r in git_text(bare, 'for-each-ref', '--format=%(refname)').split() if r]
+            if 'refs/heads/main' in refs:   # git.log, scanned above, shows main's history in full
+                for where, text in history_texts(bare, refs):
+                    for mm in list(enforced.finditer(text))[:20]:
+                        hits.append((b, 'history', where, text[max(0, mm.start() - 60):mm.end() + 60].replace('\n', ' ')))
+            people = {p for p in git_text(bare, 'log', '--all', '--format=%an%n%cn%n%ae%n%ce').splitlines() if p}
+            hits += [(b, 'identity', 0, p) for p in sorted(people) if not re.fullmatch(r'dev_\d+(?:@example\.invalid)?', p)]
+            remove_tree(bare)
+        tsv_path = os.path.join(out_dir, f'{game}.rescan-hits.tsv')
+        write_text(tsv_path, 'path\tkind\tline_or_offset\ttext\n' + ''.join('\t'.join(str(x) for x in h) + '\n' for h in hits))
+        by_file = {}
+        for h in hits:
+            by_file.setdefault(h[0], []).append(h)
+        for rel, hs in sorted(by_file.items(), key=lambda kv: -len(kv[1]))[:25]:
+            print(f'  {len(hs):5d}  {hs[0][1]:<8} {rel}  e.g. {str(hs[0][3])[:100]}')
+        print(f'{"FAIL" if hits else "PASS"}  {target}: {len(hits)} hit(s) in {len(by_file)} file(s), {len(scan["allowed"])} allowed, '
+              f'{len(scan["emails"])} e-mail address(es) and {len(scan["leaks"])} other profile folder(s) listed; {tsv_path}')
+        return 2 if hits else 0
+    finally:
+        remove_tree(work)
+
+
+def scrub_dir(args):
+    """--scrub-dir: the scrub rules on every text file of a folder, in place (this machine's account, the game repo's
+    identities, the session ids of its recording); a report in <out>/<slug>/<slug>.scrub-dir.json."""
+    game = args.game
+    repo = os.path.abspath(args.repo or os.path.join(ugfroot.root(), 'games', game))
+    user, identities, _rules, _enforced, _needles = machine_rules(repo)
+    recording = os.path.abspath(args.recording or os.path.join(ugfroot.root(), '.recording', game))
+    ids = set()
+    for name in ('actions.jsonl', 'messages.jsonl'):
+        if os.path.isfile(os.path.join(recording, name)):
+            with open(os.path.join(recording, name), encoding='utf-8', errors='replace') as f:
+                ids |= {m.group(1).lower() for m in SESSION_RX.finditer(f.read())}
+    machine = os.environ.get('COMPUTERNAME') or socket.gethostname().split('.')[0]
+    rules = build_rules(user, machine, ids, identities)
+    folder = os.path.abspath(args.scrub_dir)
+    if not os.path.isdir(lp(folder)):
+        raise Refused(f'--scrub-dir {folder}: no such folder')
+    counts, touched = {}, []
+    scrub_tree(folder, rules, counts, touched)
+    report = {'dir': folder, 'files': len(files_under(folder)), 'touched': len(touched), 'files_touched': touched, 'replacements': counts}
+    path = os.path.join(ugfroot.out(), game, f'{game}.scrub-dir.json')
+    write_text(path, json.dumps(report, indent=1) + '\n')
+    print(f'scrubbed {len(touched)} of {report["files"]} file(s) in {folder}' + (': ' + ', '.join(f'{k} {v}' for k, v in counts.items()) if counts else '')
+          + f'; {path}')
+    return 0
+
+
+def self_check():
+    """--self-check: the scrub and the scan on built-in samples, the account name built from this machine's at run time
+    (it is never written in this file). Text samples go through the scrub first where a delivery's text would; binary
+    samples are written to a temporary folder and scanned. Exit 0 when every sample comes out as expected."""
+    import random, tempfile
+    user = os.environ.get('USERNAME') or getpass.getuser()
+    machine = os.environ.get('COMPUTERNAME') or socket.gethostname().split('.')[0]
+    u = (user or 'x').lower()
+    u1 = u[:1].upper() + u[1:]
+    mixed = ''.join(c.upper() if i % 2 else c for i, c in enumerate(u))
+    identities = [('Jane Tester', 'dev_01')]
+    rules = build_rules(user, machine, {'11111111-2222-4333-8444-555555555555'}, identities)
+    enforced = enforced_pattern(user, identities)
+    needles = binary_needles(user, identities, ['jane.tester@corp.example'])
+    cases = [('studio-and-tools', 'scrub', 'pass', 'Made with unity-game-factory at Superposition (game factory, game_factory).'),
+             ('agents-and-providers', 'scrub', 'pass', 'Claude Code and Codex CLI wrote it for Anthropic and OpenAI, with gpt-5 and claude-opus-4.'),
+             ('model-in-prose', 'scrub', 'pass', 'The Opus run went well.'),
+             ('codec-forms', 'scan', 'pass', 'libopus, opus_decode, audio/opus, theme.opus'),
+             ('email', 'scrub', 'pass', 'mail jane.tester@corp.example'),
+             ('clip-names', 'scan', 'pass', 'Assets/Art/Keeper@Walk.anim'),
+             ('identity', 'scrub', 'pass', 'reviewed by Jane Tester'),
+             ('studio-name-left', 'scan', 'refuse', 'Made at Superposition.')]
+    if len(user) >= 3:
+        # inside longer words in lower case it is no hit; glued in camel case (Wu<Name>Shan) it is one, as OwnerNameDesktop
+        cases += [('user-in-longer-words', 'scan', 'pass', f'music: wu{u}shan_bgm.wav, the {u}ville map, ma{u}x'),
+                  ('user-camel-glued', 'scan', 'refuse', f'Wu{u1}ShanBoss1'),
+                  ('user-path', 'scrub', 'pass', f'C:\\Users\\{u1}\\UnityWork\\games\\kiln'),
+                  ('user-path-mixed-case', 'scrub', 'pass', f'C:\\Users\\{mixed}\\Desktop'),
+                  ('user-path-no-separators', 'scrub', 'pass', f'cd C:Users{u1}UnityWorkgames'),
+                  ('session-folder', 'scrub', 'pass', f'C:\\Users\\{u1}\\AppData\\Local\\Temp\\claude\\C--x\\11111111-2222-4333-8444-555555555555\\scratchpad'),
+                  ('user-glued', 'scrub', 'refuse', f'the shortcut Owner{u1}Desktop'),
+                  ('user-word-left', 'scan', 'refuse', f'thanks {u1}!')]
+    rnd = random.Random(7)
+    noise = bytes(rnd.randrange(256) for _ in range(600))
+
+    def mp4(payload, meta=b''):
+        def box(kind, p):
+            return (8 + len(p)).to_bytes(4, 'big') + kind + p
+        hdlr = box(b'hdlr', b'\0' * 8 + b'vide' + b'\0' * 12 + b'track\0')
+        moov = box(b'moov', box(b'trak', box(b'mdia', hdlr)) + (box(b'udta', meta) if meta else b''))
+        return box(b'ftyp', b'isom\0\0\0\0isom') + moov + box(b'mdat', payload)
+    bins = [('bin-studio-name', 'x.dll', b'\0built by unity-game-factory tools\0', 'refuse'),
+            ('bin-codec-forms', 'x.dll', b'\0opus_decode\0SpcSpOpusInfo\0libopus.dll\0', 'pass'),
+            ('bin-model-name', 'x.dll', b'\0trained on claude-opus-4\0', 'refuse'),
+            ('bin-opus-in-compressed-bytes', 'x.dat', noise + b'\xf3\xf2k3opusSe\xa0\x12' + noise, 'pass'),
+            ('bin-media-payload', 'x.mp4', mp4(b'\0\1xx Claude xx\2'), 'pass'),
+            ('bin-media-metadata', 'x.mp4', mp4(b'\0\1\2', b'\xa9cmt by Claude now'), 'refuse'),
+            ('bin-identity-email', 'x.png', b'\x89PNG\r\n\x1a\n\0tEXtAuthor\0jane.tester@corp.example\0', 'refuse')]
+    if len(user) >= 4:
+        bins.append(('bin-user-path', 'x.dll', b'\0C:\\Users\\' + u1.encode() + b'\\Desktop\\x.fbx\0', 'refuse'))
+    if 4 <= len(user) < 6:
+        bins.append(('bin-short-user-in-words', 'x.dll', b'\0X' + u.encode() + b'ia.' + u.encode() + b'ish\0', 'pass'))
+    bad = 0
+    for cid, mode, expect, text in cases:
+        t = apply_rules(text, rules, False, False) if mode == 'scrub' else text
+        got = 'refuse' if enforced.search(t) else 'pass'
+        bad += got != expect
+        print(f'{"ok  " if got == expect else "FAIL"} {cid}: {got}' + ('' if got == expect else f' (expected {expect})'))
+    tmp = tempfile.mkdtemp(prefix='ugf-selfcheck-')
+    try:
+        for cid, name, data, expect in bins:
+            path = os.path.join(tmp, cid, name)
+            write_bytes(path, data)
+            rows = scan_binary(path, needles, media_payload(path), {n for n, c, m in needles if n in ('claude', 'openai', 'opus') or c == 'username'})
+            got = 'refuse' if any(r[5] == 'binary' for r in rows) else 'pass'
+            bad += got != expect
+            print(f'{"ok  " if got == expect else "FAIL"} {cid}: {got}' + ('' if got == expect else f' (expected {expect})'))
+    finally:
+        remove_tree(tmp)
+    total = len(cases) + len(bins)
+    print(f'{"PASS" if not bad else "FAIL"}  self-check: {total - bad} of {total} samples as expected')
+    return 1 if bad else 0
 
 
 def scrub_tree(root, rules, counts, touched):

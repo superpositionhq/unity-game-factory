@@ -554,6 +554,65 @@ class Products(unittest.TestCase):
         r = run(self.inp, '--no-repo-dataset', '--no-zip', '--lfs-unpatchable-use-head')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_self_check(self):
+        for user in (ACCOUNT, 'nora'):   # a long account name and a short one
+            r = run(self.inp, '--self-check', env={'USERNAME': user})
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('PASS  self-check', r.stdout)
+            self.assertNotIn('FAIL', r.stdout)
+
+    def test_rescan(self):
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        zp = os.path.join(self.inp['repo'], 'Dataset.pending.zip')
+        r = run(self.inp, '--rescan', zp)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('PASS', r.stdout)
+        # a name planted in a delivered copy: the rescan finds it
+        bad = os.path.join(self.tmp, 'planted.zip')
+        with zipfile.ZipFile(zp) as src, zipfile.ZipFile(bad, 'w') as dst:
+            for n in src.namelist():
+                dst.writestr(n, src.read(n))
+            dst.writestr(f'{SLUG}/UnityProject/Docs/Later.md', f'Moved to C:\\Users\\{ACCOUNT}\\Desktop.\n')
+        r = run(self.inp, '--rescan', bad)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn('FAIL', r.stdout)
+        hits = base.read(os.path.join(self.inp['root'], 'deliverables', SLUG, f'{SLUG}.rescan-hits.tsv'))
+        self.assertIn('UnityProject/Docs/Later.md\ttext', hits)
+
+    def test_scrub_dir(self):
+        folder = os.path.join(self.tmp, 'loose')
+        base.write(folder, 'notes.md', f'C:\\Users\\{ACCOUNT}\\UnityWork with unity-game-factory and Claude Code.\n')
+        base.write(folder, 'data.bin', b'\0\1jtester\0')
+        r = run(self.inp, '--scrub-dir', folder)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(base.read(os.path.join(folder, 'notes.md')), 'C:\\Users\\dev\\UnityWork with studio-tools and agent-tool.\n')
+        self.assertEqual(base.read(os.path.join(folder, 'data.bin'), 'rb'), b'\0\1jtester\0')   # binaries are never changed
+        report = json.loads(base.read(os.path.join(self.inp['root'], 'deliverables', SLUG, f'{SLUG}.scrub-dir.json')))
+        self.assertEqual(report['touched'], 1)
+
+    def test_commit_milestone_and_the_release_tag(self):
+        repo = self.inp['repo']
+        base.git(repo, 'tag', 'milestone/autoplay-1', self.inp['start'])
+        base.git(repo, 'tag', 'milestone/autoplay-2', 'HEAD~1')
+        base.git(repo, 'tag', 'release/1.0', self.inp['start'])
+        r = run(self.inp, '--dry-run', '--commit', 'milestone')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('--commit milestone: milestone/autoplay-2', r.stdout)
+        self.assertIn('the tag release/1.0 names', r.stdout)
+
+    def test_the_ignore_fallback(self):
+        repo = self.inp['repo']
+        text = base.read(os.path.join(repo, '.gitignore'))
+        commit(repo, {'.gitignore': '\n'.join(l for l in text.splitlines() if 'Dataset' not in l and '.dataset' not in l) + '\n'},
+               'An older .gitignore')
+        r = run(self.inp, '--no-repo-dataset')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        exclude = base.read(os.path.join(repo, '.git', 'info', 'exclude'))
+        for pat in ('/Dataset.zip', '/Dataset.pending.zip', '/.dataset/'):
+            self.assertIn(pat, exclude)
+        self.assertEqual(base.git(repo, 'status', '--porcelain'), '')   # the zip and the scratch stay out of git
+
 
 HERO_FBX = b'Kaydara FBX Binary  \0\x1a\0' + b'\0FileName\0C:\\Users\\' + ACCOUNT.encode() + b'\\Desktop\\hero.blend\0\1\2'
 
