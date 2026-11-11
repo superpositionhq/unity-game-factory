@@ -798,6 +798,39 @@ class Units(unittest.TestCase):
         for what in ('check c: a code judge needs seed.reference', 'check j: a before/after judge needs a seed',
                      'check r: a reference judge needs seed.reference'):
             self.assertIn(what, said)
+        menu = {'name': 'menu', 'seconds': 6, 'inputs': [{'t': 1, 'key': '<Keyboard>/u', 'press': True}]}
+        shown = dict(before, before=False, plays=[menu])
+        self.assertEqual(errs(probe(x, menu), shown, dict(shown, name='k', shots=20)), '')
+        self.assertEqual(errs(dict(shown, plays=[dict(menu, name=f'm{i}') for i in range(4)])), '')
+        for check, said in (
+                (dict(shown, plays=[menu, menu]), 'judge check j names a play twice'),
+                (dict(shown, plays=[dict(menu, name='look')]), "check j: a task play can't be named look"),
+                (dict(shown, plays=[dict(menu, seconds=5, inputs=[key])]), 'check j: play menu has an input at or after'),
+                (dict(shown, plays=[dict(menu, args=['-batchmode'])]), "check j: a task play can't set -batchmode"),
+                (dict(shown, plays=[dict(menu, scene='Assets/../A.unity')]), 'check j: play menu: Assets/../A.unity has'),
+                (dict(shown, plays=[dict(menu, inputs=[{'t': 1, 'teleport_to': {
+                    'tag': 'Ore', 'near': dict(near, y_min=5, y_max=1)}}])]), 'check j: a near band has y_min < y_max'),
+                (dict(before, before=False, shots=8), 'judge check j sets shots but names no play of its own'),
+                (dict(shown, plays=[menu, dict(menu, name='m2')], shots=11),
+                 "judge check j asks 2 plays of 11 screenshots: more than a judge's 20"),
+                (dict(shown, plays=[dict(menu, name=f'm{i}') for i in range(4)], shots=6), "more than a judge's 20")):
+            self.assertIn(said, errs(check), said)
+        self.assertIn('check j: task play menu differs from another play of that name',
+                      errs(probe(x, menu), dict(shown, plays=[dict(menu, seconds=9)])))
+        self.assertIn('check p: task play menu differs from another play of that name',
+                      errs(shown, probe(x, dict(menu, seconds=9))))
+        coin = dict(shown, plays=[dict(menu, inputs=[{'t': 1, 'teleport_to': {'name': 'Coin*'}}])])
+        t = task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [coin]}])
+        self.assertIn('play menu: teleport_to {"name": "Coin*"} goes to the nearest', ' | '.join(vg.task_warnings(t)))
+        ok = lambda v: list(vg.check_schema(v, vg.SCHEMAS['game-task']['$defs']['Judge'], vg.SCHEMAS['game-task']))  # noqa: E731
+        self.assertEqual(ok(dict(shown, shots=20)), [])
+        for bad in (dict(shown, shots=1), dict(shown, shots=21), dict(shown, shots=7.5), dict(shown, plays=['look']),
+                    dict(shown, plays=[dict(menu, name=f'm{i}') for i in range(5)])):
+            self.assertNotEqual(ok(bad), [], bad)
+        step = probe(dict(x, agg='step'))
+        self.assertEqual(list(vg.check_schema(step, vg.SCHEMAS['game-task']['$defs']['Probe'], vg.SCHEMAS['game-task'])), [])
+        self.assertNotEqual(list(vg.check_schema(probe(dict(x, agg='jolt')), vg.SCHEMAS['game-task']['$defs']['Probe'],
+                                                 vg.SCHEMAS['game-task'])), [])
         said = errs(probe(x), probe(x), dict(broken, name='q', needs=['p', 'z']))
         self.assertIn('check p is named twice', said)
         self.assertIn("check q needs ['z'], which come later or do not exist", said)

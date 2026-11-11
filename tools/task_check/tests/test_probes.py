@@ -95,6 +95,66 @@ class Tasks(unittest.TestCase):
         task_with(probe("a", play={"name": "fire", "seconds": 10}), probe("b", play={"name": "fire", "seconds": 10}))
         task_with(probe(expect={"op": ">=", "start_times": 1.3}), seed=NO_FIX)
 
+    def test_a_judge_check_names_its_own_plays_under_a_task_plays_rules(self):
+        judge = {"kind": "judge", "name": "menu_reads", "question": "Does the upgrade menu read clearly?",
+                 "required": False, "rubric": [{"key": "menu", "criterion": "The menu is on screen."}]}
+        menu = {"name": "open_menu", "seconds": 6, "inputs": [{"t": 1.0, "key": "<Keyboard>/c", "press": True}]}
+        plain = task_with(probe(), judge)
+        self.assertNotIn("plays", plain["milestones"][0]["checks"][1], "a judge with no plays is as it was")
+        task = task_with(probe(play=menu), {**judge, "plays": [menu, {"name": "second_level", "seconds": 8,
+                                                                      "scene": "Assets/Scenes/Two.unity",
+                                                                      "args": ["-scenario", "2"]}]})
+        self.assertEqual(sorted(probes.task_plays(task)), ["open_menu"], "the checker plays what its probes name")
+        self.assertEqual(first_check(task_with({**judge, "plays": [menu]}))["plays"], [menu])
+        task_with({**judge, "plays": [{**menu, "name": f"play_{i}"} for i in range(4)]})
+        for checks, said in [
+            ([{**judge, "plays": [{**menu, "name": f"play_{i}"} for i in range(5)]}], "more than 4 item"),
+            ([{**judge, "plays": [menu, menu]}], "names a play twice"),
+            ([probe(play=menu), {**judge, "plays": [{**menu, "seconds": 9}]}], "task play open_menu differs"),
+            ([{**judge, "plays": [{**menu, "seconds": 9}]}, probe(play=menu)], "task play open_menu differs"),
+            ([{**judge, "plays": [menu]}, {**judge, "name": "again", "plays": [{**menu, "inputs": []}]}],
+             "task play open_menu differs"),
+            ([{**judge, "plays": [{**menu, "name": "look"}]}], "can't be named look"),
+            ([{**judge, "plays": [{**menu, "inputs": [{"t": 6, "key": "<Keyboard>/c", "press": True}]}]}],
+             "at or after its end"),
+            ([{**judge, "plays": [{**menu, "args": ["-taskProbeSeconds=99"]}]}], "can't set -taskProbeSeconds"),
+            ([{**judge, "plays": [{**menu, "scene": "Assets/Scenes/../Two.unity"}]}], 'has a "." or ".." part'),
+            ([{**judge, "plays": [{**menu, "inputs": [{"t": 1, "wait": 200}, {"t": 2, "wait": 200}]}]}], "waits 400 s"),
+            ([{**judge, "plays": [{**menu, "inputs": [{"t": 1, "teleport_to": {
+                "tag": "Ore", "near": {"point": {"player": True}, "radius": 5, "y_min": 5, "y_max": 1}}}]}]}],
+             "y_min < y_max"),
+            ([{**judge, "plays": ["look"]}], "expected object"),
+            ([{**judge, "plays": [{**menu, "shots": 5}]}], "unexpected key"),
+        ]:
+            with self.assertRaisesRegex(ValueError, said):
+                task_with(*checks)
+
+    def test_a_judge_check_with_plays_may_ask_a_run_of_screenshots(self):
+        judge = {"kind": "judge", "name": "door_eases", "question": "Does the door ease open?", "required": False,
+                 "rubric": [{"key": "eases", "criterion": "The door slows into its open position."}]}
+        door = {"name": "open_door", "seconds": 5, "inputs": [{"t": 1.0, "key": "<Keyboard>/e", "press": True}]}
+        two = [door, {**door, "name": "close_door"}]
+        self.assertEqual(first_check(task_with({**judge, "plays": [door], "shots": 20}))["shots"], 20)
+        task_with({**judge, "plays": two, "shots": 10})
+        task_with({**judge, "plays": [{**door, "name": f"play_{i}"} for i in range(4)], "shots": 5})
+        task_with({**judge, "plays": [door], "shots": 2})
+        task_with({**judge, "shots": 5})
+        # a probe measuring the same play every 0.1 s for its largest jump, beside the judge
+        task_with(probe(play={**door, "every": 0.1}, measure={"probe": "player", "field": "y", "agg": "step"},
+                        expect={"op": "<=", "value": 0.3}), {**judge, "plays": [{**door, "every": 0.1}], "shots": 20})
+        for check, said in [
+            ({**judge, "shots": 8}, "sets shots but names no play of its own"),
+            ({**judge, "plays": two, "shots": 11}, "asks 2 plays of 11 screenshots"),
+            ({**judge, "plays": [{**door, "name": f"play_{i}"} for i in range(4)], "shots": 6}, "more than a judge's 20"),
+            ({**judge, "plays": [door], "shots": 1}, "1 < 2"),
+            ({**judge, "plays": [door], "shots": 21}, "21 > 20"),
+            ({**judge, "plays": [door], "shots": 7.5}, "expected integer"),
+        ]:
+            with self.assertRaisesRegex(ValueError, said):
+                task_with(check)
+        with self.assertRaisesRegex(ValueError, "not one of"):
+            task_with(probe(measure={"probe": "player", "field": "y", "agg": "jolt"}))
+
     def test_a_screen_measure_takes_a_threshold_from_the_start_never_a_literal(self):
         screen = {"probe": "screen", "rect": [0.25, 0.25, 0.75, 0.75], "field": "luminance", "window": [10, 20]}
         with self.assertRaisesRegex(ValueError, "never a literal value"):
@@ -263,11 +323,14 @@ class Reducers(unittest.TestCase):
     def test_every_agg_and_of(self):
         values = [0.0, 2.0, None, 5.0, 0.0]
         want = {"min": 0, "max": 5, "mean": 1.75, "first": 0, "last": 0, "delta": 0, "any": 1, "all": 0, "count": 2,
-                "sum": 7, "range": 5, "changes": 3, "rises": 2, "falls": 1}
+                "sum": 7, "range": 5, "changes": 3, "rises": 2, "falls": 1, "step": 5}
         for agg, value in want.items():
             self.assertEqual(probes.aggregate(values, agg), value, agg)
         self.assertAlmostEqual(probes.aggregate(values, "std"), 2.0463, places=4)
         self.assertIsNone(probes.aggregate([None], "sum"))
+        self.assertEqual(probes.aggregate([4.0], "step"), 0, "one sample has no neighbour")
+        self.assertEqual(probes.aggregate([0.0, 1.0, 2.0, 3.0], "step"), 1, "an eased move")
+        self.assertEqual(probes.aggregate([0.0, 0.0, 3.0, 3.0], "step"), 3, "a snap over the same distance")
         self.assertEqual(probes.aggregate([3.0, 4.0], "all"), 1)
         self.assertEqual({of: probes.combine([3.0, 0.0, None], of) for of in
                           ("count", "any", "all", "min", "max", "mean", "sum", "first")},

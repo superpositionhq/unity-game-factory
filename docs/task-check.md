@@ -181,7 +181,9 @@ A task is **VALID** when all of this holds:
   or a probe, a `"required": false` one too (the task check measures that). Judges and trace probes aren't measured
   here, so their weights aren't covered by this rule.
 
-Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail), trace probes
+Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail; a judge's
+own `plays` and `shots`, [task-probes.md](task-probes.md) section 3.2, are validated, and a play is played only where
+a probe names the same one), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
 `file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
 all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and

@@ -659,6 +659,8 @@ DRAWN_LINE = ('drawn', 'reach', 'length')    # a drawn measure along a line
 ASSET_ONLY = ('import:', 'shader:', 'keyword:')    # fields of one asset (with prop:)
 SCENE_ONLY = ('count', 'material_default', 'mesh_collision', 'material:')   # fields of a scene's or prefab's objects
 WAITS = 300   # seconds of real time a task play's waits add at most
+JUDGE_PLAY_SHOTS = 5   # the screenshots a judge check is shown of each of its own plays, unless its `shots` says
+JUDGE_SHOTS = 20       # the screenshots a judge check is shown at most: its plays times its shots
 
 
 def dotted(path):
@@ -714,6 +716,31 @@ def component_selects(measure):
         yield measure['select']
 
 
+def task_play_errors(n, play, plays):
+    """A task play's rules beyond the schema, for check `n` (a probe's `play`, a judge's `plays`): not named
+    look/drive/editor/trace, no input at or after its end, no flag of the checker's own, a scene path without dotted
+    segments, waits of at most 300 s in all, and identical to every other task play of its name in the task (`plays`:
+    those seen so far, by name)."""
+    errs, pname = [], play.get('name')
+    if pname in ('look', 'drive', 'editor', 'trace'):
+        errs.append(f"check {n}: a task play can't be named {pname}")
+    secs = play.get('seconds')
+    if isinstance(secs, (int, float)) and any(isinstance(i, dict) and isinstance(i.get('t'), (int, float))
+                                              and i['t'] >= secs for i in play.get('inputs') or []):
+        errs.append(f'check {n}: play {pname} has an input at or after its end ({secs} s)')
+    for name in denied_play_args(play.get('args') if isinstance(play.get('args'), list) else []):
+        errs.append(f"check {n}: a task play can't set -{name}")
+    errs += [f'check {n}: play {pname}: {e}' for e in dotted(play.get('scene'))]
+    waits = sum(i['wait'] for i in play.get('inputs') or []
+                if isinstance(i, dict) and isinstance(i.get('wait'), (int, float)))
+    if waits > WAITS:
+        errs.append(f'check {n}: play {pname} waits {waits:g} s in all, more than {WAITS} s')
+    whole = dict(TASK_PLAY_DEFAULTS, **play)
+    if plays.setdefault(pname, whole) != whole:
+        errs.append(f'check {n}: task play {pname} differs from another play of that name')
+    return errs
+
+
 def probe_errors(c, seed, ref, plays):
     """A probe check's rules beyond the schema (docs/task-probes.md):
     asset measures only with play "editor" and trace measures only with play "trace"; an asset measure reads one
@@ -762,22 +789,7 @@ def probe_errors(c, seed, ref, plays):
     if probe == 'trace' and (c.get('required', True) or rel):
         errs.append(f'check {n}: a trace probe never gates (required: false) and takes a literal value')
     if isinstance(play, dict):
-        if pname in ('look', 'drive', 'editor', 'trace'):
-            errs.append(f"check {n}: a task play can't be named {pname}")
-        secs = play.get('seconds')
-        if isinstance(secs, (int, float)) and any(isinstance(i, dict) and isinstance(i.get('t'), (int, float))
-                                                  and i['t'] >= secs for i in play.get('inputs') or []):
-            errs.append(f'check {n}: play {pname} has an input at or after its end ({secs} s)')
-        for name in denied_play_args(play.get('args') if isinstance(play.get('args'), list) else []):
-            errs.append(f"check {n}: a task play can't set -{name}")
-        errs += [f'check {n}: play {pname}: {e}' for e in dotted(play.get('scene'))]
-        waits = sum(i['wait'] for i in play.get('inputs') or []
-                    if isinstance(i, dict) and isinstance(i.get('wait'), (int, float)))
-        if waits > WAITS:
-            errs.append(f'check {n}: play {pname} waits {waits:g} s in all, more than {WAITS} s')
-        whole = dict(TASK_PLAY_DEFAULTS, **play)
-        if plays.setdefault(pname, whole) != whole:
-            errs.append(f'check {n}: task play {pname} differs from another play of that name')
+        errs.extend(task_play_errors(n, play, plays))
     if probe == 'screen' and not rel:
         errs.append(f"check {n}: the frame's luminance moves between machines, so a screen measure's threshold is "
                     'calibrated or relative to the start, never a literal value')
@@ -848,7 +860,8 @@ def probe_errors(c, seed, ref, plays):
 def task_semantic_errors(t):
     """What the schema cannot say (the task format's own rules): check names unique, `needs` naming earlier
     checks, a code judge or a reference judge only with seed.reference, a before/after judge only with a seed, a
-    log_absent pattern that compiles, the task's play_args and player select (no flag of the checker's own; near
+    judge's own `plays` each named once in the check and under a task play's rules (task_play_errors), its `shots` only
+    with plays of its own and its plays times its shots 20 at most, a log_absent pattern that compiles, the task's play_args and player select (no flag of the checker's own; near
     bands; no `player` in the select that says which object the player is) and the probe rules (probe_errors);
     and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
     no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1)."""
@@ -880,6 +893,19 @@ def task_semantic_errors(t):
             if k == 'judge' and c.get('before') and broken:
                 errs.append(f"check {n} compares with the start (before: true), but the start doesn't build "
                             f"({broken}: fails_at_start), so it is never played")
+            if k == 'judge':
+                own = [p for p in c.get('plays') or [] if isinstance(p, dict)]
+                if len({p.get('name') for p in own}) != len(own):
+                    errs.append(f'judge check {n} names a play twice')
+                for p in own:
+                    errs.extend(task_play_errors(n, p, plays))
+                    errs.extend(near_errors(f'check {n}', p.get('inputs')))
+                shots = c.get('shots', JUDGE_PLAY_SHOTS)
+                if shots != JUDGE_PLAY_SHOTS and not own:
+                    errs.append(f'judge check {n} sets shots but names no play of its own to take them in')
+                if isinstance(shots, int) and len(own) * shots > JUDGE_SHOTS:
+                    errs.append(f"judge check {n} asks {len(own)} plays of {shots} screenshots: more than a judge's "
+                                f'{JUDGE_SHOTS}')
             if k == 'code_judge' and not ref:
                 errs.append(f'check {n}: a code judge needs seed.reference')
             if k == 'judge' and c.get('before') and not seed:
@@ -928,15 +954,17 @@ def task_warnings(t):
     out = []
     for m in t.get('milestones') or []:
         for c in (m.get('checks') or []) if isinstance(m, dict) else []:
-            if not isinstance(c, dict) or c.get('kind') != 'probe':
+            if not isinstance(c, dict) or c.get('kind') not in ('probe', 'judge'):
                 continue
             measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
-            play = c.get('play') if isinstance(c.get('play'), dict) else {}
-            inputs, check, first = play.get('inputs') or [], f'check {c.get("name")}', 'the first (in hierarchy order)'
-            found = [(f'play {play.get("name")}', 'teleport_to', i['teleport_to'], 'goes to the nearest') for i in inputs
-                     if isinstance(i, dict) and wild(i.get('teleport_to'))]
-            found += [(f'play {play.get("name")}', 'the point', {'object': p['object']}, 'stands at ' + first)
-                      for p in object_points(inputs) if wild(p['object'])]
+            own = [c.get('play')] if c['kind'] == 'probe' else c.get('plays') or []   # a judge's own plays too
+            check, first, found = f'check {c.get("name")}', 'the first (in hierarchy order)', []
+            for play in (p for p in own if isinstance(p, dict)):
+                inputs = play.get('inputs') or []
+                found += [(f'play {play.get("name")}', 'teleport_to', i['teleport_to'], 'goes to the nearest')
+                          for i in inputs if isinstance(i, dict) and wild(i.get('teleport_to'))]
+                found += [(f'play {play.get("name")}', 'the point', {'object': p['object']}, 'stands at ' + first)
+                          for p in object_points(inputs) if wild(p['object'])]
             found += [(check, 'the point', {'object': p['object']}, 'stands at ' + first)
                       for p in object_points(measure) if wild(p['object'])]
             if measure.get('of') == 'first' and wild(measure.get('select')):

@@ -282,7 +282,12 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
   `any` (1 if any sample is non-zero), `all` (1 if every sample is non-zero), `count` (number of non-zero samples),
   `sum`, `range` (max minus min), `std` (standard deviation), `changes` (how many times the value changes between
   consecutive samples), `rises` and `falls` (how many samples read more, or less, than the sample before: which way a
-  value moved, a score that only rises reads `falls` 0, a reset reads as a fall). Default `last` (`sum` for `spawns`).
+  value moved, a score that only rises reads `falls` 0, a reset reads as a fall), `step` (the largest change, up or
+  down, between two samples next to each other: 0 for one sample). Default `last` (`sum` for `spawns`).
+- How a thing moves, as a number ("eases instead of snapping", "gentle", "no sudden moves"): a task play with
+  `"every": 0.1` and `"agg": "step"` over the window of the move. A door that snaps 90 degrees open reads a `step`
+  of 90; one that turns open over a second reads 10 to 15, by its easing. `max` of a speed tells how fast, `step`
+  how abruptly.
 - `of` (`objects`, `components`, `widgets`, `ui`, and `asset` with a `select`): how the selected objects, components,
   widgets or UI elements combine within one sample: `count` (how many match and have a non-zero value), `any`, `all`,
   `min`, `max`, `mean`, `sum`, `first`. **Default `count`.** A measure that reads a value (a position, an extent, a
@@ -1242,6 +1247,40 @@ When making the start build is the task (its scripts don't compile, or the playe
 The start is then never played, so nothing in the task may need it played: **no start-relative thresholds**
 (`calibrate`, `start_times`, `start_plus`; use literal values) and **no judges comparing with the start**
 (`"before": true`). The task check requires the start not to build; a start that builds makes the task invalid.
+
+### 3.2 A judge check's own plays: `plays` and `shots`
+
+A `judge` check asks a question, rubric item by rubric item, over screenshots the grader takes itself. Left alone it
+is shown the two plays every task shares, the idle `look` and the `drive` of `play_scene`: they never press a task's
+own keys, open another scene or leave a title screen. When what the rubric asks about shows only after one of those,
+the check names up to 4 task plays (section 1.1) in `plays`, and its screenshots are taken in those plays instead:
+
+```json
+{"name": "upgrade_menu_reads", "kind": "judge", "required": false, "needs": ["boots_clean"], "before": true,
+ "question": "With the upgrade menu open, does it read the way the request asks?",
+ "rubric": [{"key": "costs_legible", "criterion": "Each upgrade's cost is legible against the panel behind it."}],
+ "plays": [{"name": "open_upgrades", "seconds": 10,
+            "inputs": [{"t": 0.5, "key": "<Keyboard>/u", "press": true},
+                       {"t": 0.7, "key": "<Keyboard>/u", "press": false}]}]}
+```
+
+- Each is a task play under the rules of section 1.1. Its name appears once in the check; a play with the name of
+  another check's play (a probe's or another judge's) must be identical to it, and is then played once and serves both.
+- The judge is shown 5 screenshots of each play, taken at 10, 30, 50, 70 and 90% of its `seconds` (a 10 s play: 1, 3,
+  5, 7 and 9 s). Time the inputs so that what is judged is on screen at those moments.
+- Each play is played on every side the check shows: the agent's game, the start with `"before": true`, the fix with
+  `"reference": true`. So it must run on the start as well; an input that does nothing there is fine.
+- `shots` (2-20, default 5; only on a check with `plays`): how many screenshots of each play the judge is shown,
+  evenly over it: screenshot i of N at `seconds` x (i + 0.5) / N. The check's plays times its `shots` are 20 at most
+  (one play of 20, two of 10, four of 5). A short play with many is a run of frames in which motion shows: a 5 s play
+  with `"shots": 20` is a frame every 0.25 s. A play two checks name is played once, with the most either asks.
+- Motion that is a number (how fast, how abruptly, how far) is a probe's to measure, not a judge's: a field over a
+  window, `step` on a play sampled every 0.1 s (section 2.1), `drawn` `motion`, `spin`. Motion that can only be seen
+  (feet that slide over the ground, a trail behind a blade) is a judge's, with a short play and many `shots`.
+- A check without `plays` is shown `look` and `drive`, as before.
+
+The task check asks no judge, so it never plays a judge's own plays or takes its `shots`; `tools/validate-game.py`
+checks their rules.
 
 ## 4. The task check
 
