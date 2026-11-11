@@ -1361,3 +1361,36 @@ class NamesTheStartHas(unittest.TestCase):
                               required=False)]}]}
             found = tasks.validator().reference_only_names(d, task)
         self.assertEqual(found, [("turrets", "Turret"), ("tagged", "TurretTag"), ("yard", "Assets/Scenes/Yard.unity")])
+
+
+class ToursInOneLaunch(unittest.TestCase):
+    """docs/task-probes.md, section 1.1: a task play tours several places and scenes in one launch (scene loads, view
+    turns, named shots), so the grader's pictures come from the task, not from views the game lists."""
+
+    TOUR = {"name": "tour", "seconds": 30, "inputs": [
+        {"t": 1, "teleport_to": {"tag": "Kiosk"}, "distance": 3}, {"t": 1.5, "view": [-15, 90]},
+        {"t": 2, "shot": "kiosk"}, {"t": 4, "scene": "Assets/Scenes/Yard.unity"}, {"t": 12, "shot": "yard"}]}
+
+    def test_a_tour_is_a_task_play_and_its_inputs_reach_the_probe_as_written(self):
+        task_with(probe(play=self.TOUR))
+        self.assertEqual(tasks.inputs(self.TOUR["inputs"])[1:], [
+            {"t": 1.5, "view": [-15.0, 90.0]}, {"t": 2.0, "shot": "kiosk"},
+            {"t": 4.0, "scene": "Assets/Scenes/Yard.unity"}, {"t": 12.0, "shot": "yard"}])
+
+    def test_shots_views_and_scenes_refuse_what_the_probe_cant_take(self):
+        def play(*extra):
+            return {**self.TOUR, "inputs": self.TOUR["inputs"] + list(extra)}
+        for bad, said in [(play({"t": 20, "shot": "kiosk"}), "names a shot twice"),
+                          (play({"t": 20, "view": [95, 0]}), "pitch -89 to 89"),
+                          (play({"t": 20, "shot": "12"}), ""),
+                          (play({"t": 20, "scene": "Scenes/Yard.unity"}), "")]:
+            with self.assertRaisesRegex(ValueError, said, msg=json.dumps(bad["inputs"][-1])):
+                task_with(probe(play=bad))
+
+    def test_a_judge_counts_its_plays_named_shots_in_its_twenty(self):
+        def judge(plays, shots=5):
+            return {"kind": "judge", "name": "looks", "required": False, "question": "Does it read?",
+                    "rubric": [{"key": "reads", "criterion": "It reads."}], "plays": plays, "shots": shots}
+        task_with(probe(), judge([self.TOUR], shots=18))
+        with self.assertRaisesRegex(ValueError, "and 2 named ones"):
+            task_with(probe(), judge([self.TOUR], shots=19))

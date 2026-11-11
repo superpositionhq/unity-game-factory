@@ -545,6 +545,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a UI element or component name guessed | read the names from the code and assets at `seed.commit` |
 | a probe named a component, tag or scene only the reference had, so a fair build that named it otherwise read as absent | select what the thread creates by what it does or where it is; the validator refuses a reference-only name |
 | a run wrote the feature but never ran the game to see it, and the task had no probe of the moment | a play that triggers each piece of feedback, and a probe of what the player sees then |
+| a judge's pictures came from views the game itself lists, so a build could dress only those spots | the task's own tour: `scene`, `teleport_to` what the build made, `view`, named `shot` inputs (docs/task-probes.md, section 1.1); never a view list from the game's files |
 | quoting the person | write from context |
 | a reference that crashed | the reference must compile and run |
 | tasks solved in minutes: one cause, one place, the brief named the system | only long threads of multiple edits, compound probes, observation-only briefs (section 1) |

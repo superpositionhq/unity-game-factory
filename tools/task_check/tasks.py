@@ -185,7 +185,8 @@ def measure(m):
 def inputs(rows):
     """A task play's inputs as the probe reads them: keys (Input System control paths), axes, clicks, cursor moves,
     teleports (`yaw` 0 when unset: a teleport always turns the player), teleports next to an object (`distance` 2 m and
-    `offset` 0 when unset, `face` only when set), either with `hold` only when set, and waits in real time."""
+    `offset` 0 when unset, `face` only when set), either with `hold` only when set, waits in real time, named shots,
+    scene loads and view turns."""
     out = []
     for r in rows or []:
         row = {"t": float(r["t"])}
@@ -198,6 +199,12 @@ def inputs(rows):
             row.update(teleport=_floats(r["teleport"]), yaw=float(r.get("yaw", 0.0)))
         elif "wait" in r:
             row.update(wait=float(r["wait"]))
+        elif "shot" in r:
+            row.update(shot=r["shot"])
+        elif "scene" in r:
+            row.update(scene=r["scene"])
+        elif "view" in r:
+            row.update(view=_floats(r["view"]))
         elif "cursor" in r:
             row.update(cursor=_floats(r["cursor"]))
         elif "widget" in r:

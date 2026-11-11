@@ -716,10 +716,16 @@ def component_selects(measure):
         yield measure['select']
 
 
+def named_shots(play):
+    """The names of the screenshots a task play's `shot` inputs take."""
+    return [i['shot'] for i in play.get('inputs') or [] if isinstance(i, dict) and isinstance(i.get('shot'), str)]
+
+
 def task_play_errors(n, play, plays):
     """A task play's rules beyond the schema, for check `n` (a probe's `play`, a judge's `plays`): not named
     look/drive/editor/trace, no input at or after its end, no flag of the checker's own, a scene path without dotted
-    segments, waits of at most 300 s in all, and identical to every other task play of its name in the task (`plays`:
+    segments, waits of at most 300 s in all, its named shots each named once (20 at most), a view's pitch within -89 to
+    89, scene loads without dotted segments, and identical to every other task play of its name in the task (`plays`:
     those seen so far, by name)."""
     errs, pname = [], play.get('name')
     if pname in ('look', 'drive', 'editor', 'trace'):
@@ -735,6 +741,19 @@ def task_play_errors(n, play, plays):
                 if isinstance(i, dict) and isinstance(i.get('wait'), (int, float)))
     if waits > WAITS:
         errs.append(f'check {n}: play {pname} waits {waits:g} s in all, more than {WAITS} s')
+    shots = named_shots(play)
+    if len(shots) != len(set(shots)):
+        errs.append(f'check {n}: play {pname} names a shot twice')
+    if len(shots) > JUDGE_SHOTS:
+        errs.append(f'check {n}: play {pname} takes {len(shots)} named shots, more than {JUDGE_SHOTS}')
+    for i in play.get('inputs') or []:
+        if not isinstance(i, dict):
+            continue
+        view = i.get('view')
+        if isinstance(view, list) and len(view) == 2 and all(isinstance(v, (int, float)) for v in view) and not (
+                -89 <= view[0] <= 89 and -360 <= view[1] <= 360):
+            errs.append(f'check {n}: play {pname} has a view {view}: [pitch, yaw], pitch -89 to 89, yaw -360 to 360')
+        errs += [f'check {n}: play {pname}: {e}' for e in dotted(i.get('scene'))]
     whole = dict(TASK_PLAY_DEFAULTS, **play)
     if plays.setdefault(pname, whole) != whole:
         errs.append(f'check {n}: task play {pname} differs from another play of that name')
@@ -903,9 +922,10 @@ def task_semantic_errors(t):
                 shots = c.get('shots', JUDGE_PLAY_SHOTS)
                 if shots != JUDGE_PLAY_SHOTS and not own:
                     errs.append(f'judge check {n} sets shots but names no play of its own to take them in')
-                if isinstance(shots, int) and len(own) * shots > JUDGE_SHOTS:
-                    errs.append(f"judge check {n} asks {len(own)} plays of {shots} screenshots: more than a judge's "
-                                f'{JUDGE_SHOTS}')
+                named = sum(len(named_shots(p)) for p in own)
+                if isinstance(shots, int) and len(own) * shots + named > JUDGE_SHOTS:
+                    errs.append(f"judge check {n} asks {len(own)} plays of {shots} screenshots"
+                                + (f' and {named} named ones' if named else '') + f": more than a judge's {JUDGE_SHOTS}")
             if k == 'code_judge' and not ref:
                 errs.append(f'check {n}: a code judge needs seed.reference')
             if k == 'judge' and c.get('before') and not seed:

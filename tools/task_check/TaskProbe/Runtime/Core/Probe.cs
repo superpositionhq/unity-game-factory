@@ -291,6 +291,32 @@ namespace TaskProbe
             }
         }
 
+        static readonly Regex ShotName = new Regex("^[a-z_][a-z0-9_]{0,31}$", RegexOptions.CultureInvariant);
+
+        /// <summary>A screenshot now, with the UI, named shot_&lt;name&gt;.png beside the evenly spaced ones (a `shot`
+        /// input).</summary>
+        public void Shot(string name)
+        {
+            if (name == null || !ShotName.IsMatch(name)) { Error("a shot named '" + name + "' isn't taken: a letter or _ first, then letters, digits, _"); return; }
+#if TASKPROBE_IMAGECONVERSION
+            var file = "shot_" + name + ".png";
+            pendingShots.Add(file);
+            shotNames.Add(file);
+            Log(FormattableString.Invariant($"screenshot {file} at {Elapsed:F2} s"));
+#else
+            Error("screenshots can't be written: the project has no ImageConversion module");
+#endif
+        }
+
+        /// <summary>The play opens another scene (a `scene` input), as the game's own load does; the clock stands still
+        /// while it loads.</summary>
+        public void LoadScene(string path)
+        {
+            if (SceneUtility.GetBuildIndexByScenePath(path) < 0) { Error("the scene " + path + " isn't in the build: no load"); return; }
+            SceneManager.LoadScene(path, LoadSceneMode.Single);
+            Log(FormattableString.Invariant($"scene {path} loads at {Elapsed:F2} s"));
+        }
+
         GameObject FindPlayer()
         {
             if (playerSel != null) return Find.First(playerSel);

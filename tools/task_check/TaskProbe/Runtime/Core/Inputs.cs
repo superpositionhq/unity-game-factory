@@ -1,7 +1,8 @@
 // A play's scripted inputs (contract section 4), sent at their times: keys, buttons and axes through the Input System
 // on the probe's own virtual Keyboard, Mouse and Gamepad (the game's actions read them as they read real devices; the
 // real ones deliver nothing to a window without focus), widget clicks, cursor moves, teleports of the player (held
-// there for a while when asked) and waits in real time. Each device's whole state is sent with every change, so two
+// there for a while when asked), waits in real time, named screenshots, scene loads and view turns: one launch can
+// visit several places and scenes and picture each. Each device's whole state is sent with every change, so two
 // inputs in one frame never undo each other.
 using System;
 using System.Collections.Generic;
@@ -49,14 +50,18 @@ namespace TaskProbe
 
         static double At(Dictionary<string, object> row) => Json.Num(row, "t", 0.0);
 
-        /// <summary>What a row asks for: a widget click, a cursor move, a teleport_to, a teleport, a wait, a key or an
-        /// axis, tried in this order; null for a row that is none of them (it is left out).</summary>
+        /// <summary>What a row asks for: a widget click, a cursor move, a teleport_to, a teleport, a named shot, a scene
+        /// load, a view turn, a wait, a key or an axis, tried in this order; null for a row that is none of them (it is
+        /// left out).</summary>
         static string Kind(Dictionary<string, object> row)
         {
             if (!string.IsNullOrEmpty(Json.Str(row, "widget")) && Json.Bool(row, "click")) return "click";
             if (row.TryGetValue("cursor", out var cursor) && Json.TryNumbers(cursor, 2, out _)) return "cursor";
             if (Json.Obj(row, "teleport_to") != null) return "teleport_to";
             if (row.TryGetValue("teleport", out var place) && Json.TryNumbers(place, 3, out _)) return "teleport";
+            if (Json.Str(row, "shot") != null) return "shot";
+            if (Json.Str(row, "scene") != null) return "scene";
+            if (row.TryGetValue("view", out var view) && Json.TryNumbers(view, 2, out _)) return "view";
             if (Json.TryNum(row, "wait", out _)) return "wait";
             return Json.Str(row, "key") != null ? "key" : null;
         }
@@ -168,6 +173,26 @@ namespace TaskProbe
                     Json.TryVec3(row["teleport"], out var at);
                     Place(player, at, Json.TryNum(row, "yaw", out var yaw) ? (float?)yaw : null);
                     StartHold(row, player, elapsed);
+                    break;
+                }
+                case "shot":
+                    probe.Shot(Json.Str(row, "shot"));
+                    break;
+                case "scene":
+                    probe.LoadScene(Json.Str(row, "scene"));
+                    break;
+                case "view":
+                {
+                    // the player turns to the yaw and the main camera to the pitch and yaw, once: a camera rig that sets
+                    // its own rotation every frame may turn it back (teleport_to with face places the player instead)
+                    Json.TryNumbers(row["view"], 2, out var pitchYaw);
+                    var pitch = (float)Math.Min(Math.Max(pitchYaw[0], -89.0), 89.0);
+                    var yaw = (float)pitchYaw[1];
+                    var player = probe.Player;
+                    if (player != null) player.transform.rotation = Quaternion.Euler(player.transform.eulerAngles.x, yaw, player.transform.eulerAngles.z);
+                    var cam = Camera.main;
+                    if (cam != null) cam.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+                    Probe.Log(FormattableString.Invariant($"view turned to pitch {pitch:F1} yaw {yaw:F1}") + (cam == null ? " (no main camera)" : ""));
                     break;
                 }
                 case "wait":

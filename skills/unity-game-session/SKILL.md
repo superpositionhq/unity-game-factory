@@ -226,6 +226,11 @@ by hand under these rules, or ask.
   colours, lights, dressing); a pause menu with settings and back navigation on Escape; tuned numbers a player feels
   (ranges, detection, damage, timers). Fix each playtest issue in its own commit whose message says what the player
   saw, so the thread can be found and checked later.
+- **Review views stay out of the game.** To look at your work from many places in one launch, keep the list of
+  stops (scenes, places, views) outside the repository (your notes, or a git-ignored folder such as `Logs/`), never
+  committed: the grader takes its own pictures from places it chooses by what the build made, and a committed list of
+  views invites dressing only those spots. A start option that puts the player somewhere (a scenario, a start point)
+  is fine.
 - **Every state reachable by a scenario.** Each scenario starts straight in the situation it shows, so a check reaches
   any moment in a short play from `play_scene` and `play_args`; no state reachable only after minutes of play or only
   from the title menu.

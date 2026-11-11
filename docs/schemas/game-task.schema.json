@@ -3014,6 +3014,30 @@
       "title": "RubricItem",
       "type": "object"
     },
+    "SceneLoad": {
+      "additionalProperties": false,
+      "description": "At `t` the play loads another scene of the build, as the game's own load does; the play's clock stands still while\nit loads (docs/task-probes.md, section 1.1). With shots and teleports, one launch visits several places and pictures each.",
+      "properties": {
+        "scene": {
+          "maxLength": 300,
+          "pattern": "^Assets/[A-Za-z0-9_ /.()-]+\\.unity$",
+          "title": "Scene",
+          "type": "string"
+        },
+        "t": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t",
+        "scene"
+      ],
+      "title": "SceneLoad",
+      "type": "object"
+    },
     "ScreenMeasure": {
       "additionalProperties": false,
       "description": "The frame the player sees (docs/task-probes.md, section 2.15): mean luminance of the frame as displayed, UI included (keep the rect\noff the HUD), over `rect` [x0, y0, x1, y1] in viewport fractions, y down (default the whole frame). It moves\nbetween machines, so its threshold is calibrated or relative to the start, never a literal (tools/validate-game.py).",
@@ -3311,6 +3335,29 @@
       "title": "Select",
       "type": "object"
     },
+    "Shot": {
+      "additionalProperties": false,
+      "description": "A screenshot at `t` with the UI, as the player sees it, named `shot` (shot_<name>.png beside the evenly spaced\nones): the grader's own picture of a moment, for a judge and for whoever reviews a run (docs/task-probes.md, section 1.1).\nNever a pass or fail by itself.",
+      "properties": {
+        "shot": {
+          "pattern": "^[a-z_][a-z0-9_]{0,31}$",
+          "title": "Shot",
+          "type": "string"
+        },
+        "t": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t",
+        "shot"
+      ],
+      "title": "Shot",
+      "type": "object"
+    },
     "SpawnsMeasure": {
       "additionalProperties": false,
       "properties": {
@@ -3547,6 +3594,15 @@
               },
               {
                 "$ref": "#/$defs/Wait"
+              },
+              {
+                "$ref": "#/$defs/Shot"
+              },
+              {
+                "$ref": "#/$defs/SceneLoad"
+              },
+              {
+                "$ref": "#/$defs/View"
               }
             ]
           },
@@ -3980,6 +4036,33 @@
         "value"
       ],
       "title": "Value",
+      "type": "object"
+    },
+    "View": {
+      "additionalProperties": false,
+      "description": "At `t` the player turns to the yaw and the main camera to `view` [pitch, yaw] in degrees (pitch -89 to 89), for a\nshot that faces a given way (docs/task-probes.md, section 1.1).",
+      "properties": {
+        "t": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        },
+        "view": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "View",
+          "type": "array"
+        }
+      },
+      "required": [
+        "t",
+        "view"
+      ],
+      "title": "View",
       "type": "object"
     },
     "Wait": {
