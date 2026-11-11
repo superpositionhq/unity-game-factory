@@ -154,6 +154,15 @@ by hand under these rules, or ask.
 - **Quality bar:** main menu, settings (volume, resolution, mouse sensitivity), pause, save/load where it fits, HUD,
   sound, clear win/lose, a Windows x64 release player build (non-development, IL2CPP where the toolchain has it, else
   Mono, noted in the design doc). Recorded and TTS voices are allowed.
+- **Room for hard tasks.** A game's tasks come from its own history (unity-write-tasks skill), and strong agents miss
+  what only shows when the game runs. So build these in, and work them over several rounds rather than in one commit:
+  feedback for every gameplay event (a HUD readout, marker, sound or effect); visible state changes (materials,
+  colours, lights, dressing); a pause menu with settings and back navigation on Escape; tuned numbers a player feels
+  (ranges, detection, damage, timers). Fix each playtest issue in its own commit whose message says what the player
+  saw, so the thread can be found and checked later.
+- **Every state reachable by a scenario.** Each scenario starts straight in the situation it shows, so a check reaches
+  any moment in a short play from `play_scene` and `play_args`; no state reachable only after minutes of play or only
+  from the title menu.
 
 ## Names
 

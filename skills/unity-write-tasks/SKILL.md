@@ -145,6 +145,24 @@ process rules, questions, praise, a fix that is only a re-import of assets the s
 resting on a pack imported later, anything whose outcome neither play nor code can show. If a game's history has fewer
 than 10 qualifying threads, ship fewer tasks.
 
+**Where strong agents fail (measured on our tries, 2026-11).** Most tasks a strong agent missed had the code
+written and the outcome never checked in the running game. Prefer threads that settled these, and give each one its
+own probe in a play that reaches the moment:
+
+- **Feedback that must show in play**: a HUD readout, a marker, a sound or an effect when the event happens (a play
+  that triggers the event, then `ui`, `drawn`, `audio`, `lit`);
+- **A look change**: colours, materials, dressing, HUD art (`drawn`, `lit`, `screen`, `pieces`, relative to the
+  start);
+- **Menu, pause and back flows**: Escape or Back closes what it opened and returns where it came from (a task play
+  with the keys, then `ui`);
+- **A tuned outcome judged in play**: seen or not seen at a distance, holds or breaks under load, passable, winnable
+  (a teleport to the spot, then the outcome);
+- **Many small requirements in one span**: one probe each, so a single dropped item shows.
+
+Threads that strong agents solve in minutes: one system's logic, a feature whose outcome the code alone shows, a brief
+that points at the system. Hiding the list of problems (a brief that reports the symptoms a player meets, not a
+checklist) lengthens a run without changing what it misses.
+
 **Finding threads.** Walk the history for clusters: `git log --stat` around a feature, runs of commits on the same
 files (`git log --format=%h -- <path>` piled up in a short window), several `user.direction` rows on one topic
 (the workflow rows' `"direction"` links), fixes followed by "still", "again", "regressed" or a revert, a render
@@ -332,8 +350,12 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   start has too (the fastest spin of any drawn object, 0 at the start), not over the new things alone, which leave a
   required probe without a threshold and the task INVALID.
 
-Write probes from the game's own code at `seed.commit` and `seed.reference`: the real component types, tags, layers,
-scene paths and UI element names. **Test the outcome a player sees, never the implementation**: another valid fix must
+Write probes from the game's own code at `seed.commit`: the real component types, tags, layers, scene paths and UI
+element names. **Never a name only the reference has** (a component type, tag, layer, object, scene or asset the
+thread itself created): another fair build names it otherwise and reads as absent. Select what the thread creates by
+what it does or where it is (`has`, `near`, `ui` with a `rect` or text, `drawn`, `lit`, `changed`); `validate-game.py`
+refuses a required probe that names something the start lacks and the reference has. **Test the outcome a player
+sees, never the implementation**: another valid fix must
 pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor
 times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). Lighting and colour
 are measured from the engine (`light`, `grading`), never from screenshots. `describe` says the assertion in plain
@@ -380,7 +402,8 @@ never the threshold toward what the start happens to measure.
   `easy`, has no `seed.reference`, has fewer than 3 required probes
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
-  `seed.reference`. These are floors, not targets: pick the longest threads the history has. It also refuses a task
+  `seed.reference`, and any required probe that names a component type, tag, layer, scene or asset the reference has
+  and the start doesn't (section 5). These are floors, not targets: pick the longest threads the history has. It also refuses a task
   without the `long-thread` tag, a weighted check a no-op passes (section 5) and anything against the format rules of
   section 0.
 - **Judge difficulty in the session; never run the task with another agent** (the try took up to 25 minutes a task
@@ -459,7 +482,9 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a probe that isn't required but passes at the start carried weight | every check the start passes takes `"weight": 0`, a `"required": false` probe too |
 | a probe that tests the reference's implementation ("spawnHeight = 0.92") | measure the outcome; another valid fix must pass |
 | the brief said "scenario 1" but not `-scenario 1` | `play_scene` and `play_args` always set and checked at the seed |
-| a UI element or component name guessed | read the names from the code and assets at `seed.commit` and `seed.reference` |
+| a UI element or component name guessed | read the names from the code and assets at `seed.commit` |
+| a probe named a component, tag or scene only the reference had, so a fair build that named it otherwise read as absent | select what the thread creates by what it does or where it is; the validator refuses a reference-only name |
+| a run wrote the feature but never ran the game to see it, and the task had no probe of the moment | a play that triggers each piece of feedback, and a probe of what the player sees then |
 | quoting the person | write from context |
 | a reference that crashed | the reference must compile and run |
 | tasks solved in minutes: one cause, one place, the brief named the system | only long threads of multiple edits, compound probes, observation-only briefs (section 1) |

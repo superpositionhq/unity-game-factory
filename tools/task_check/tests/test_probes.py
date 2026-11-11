@@ -1258,3 +1258,43 @@ class Editor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NamesTheStartHas(unittest.TestCase):
+    """unity-write-tasks section 5: a required probe never depends on a name only the reference has (a component
+    type, tag, scene or asset the thread created), since another fair build names it otherwise."""
+
+    def test_a_name_or_scene_the_thread_created_is_refused_and_the_rest_pass(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            def git(*a):
+                return subprocess.run(["git", "-C", d, *a], check=True, capture_output=True).stdout.decode().strip()
+            git("init", "-q")
+            git("config", "user.email", "t@t")
+            git("config", "user.name", "t")
+            (Path(d) / "Assets" / "Scripts").mkdir(parents=True)
+            (Path(d) / "Assets" / "Scenes").mkdir(parents=True)
+            (Path(d) / "Assets" / "Scripts" / "Hero.cs").write_text("public class Hero : MonoBehaviour {}\n")
+            (Path(d) / "Assets" / "Scenes" / "Start.unity").write_text("%YAML 1.1\n")
+            git("add", "-A")
+            git("commit", "-qm", "start")
+            (Path(d) / "Assets" / "Scripts" / "Turret.cs").write_text('public class Turret : MonoBehaviour {} // "TurretTag"\n')
+            (Path(d) / "Assets" / "Scenes" / "Yard.unity").write_text("%YAML 1.1\n")
+            git("add", "-A")
+            git("commit", "-qm", "reference")
+            def check(name, measure, play="look", **extra):
+                return {"kind": "probe", "name": name, "measure": measure, "play": play, **extra}
+            task = {"seed": {"commit": git("rev-parse", "HEAD~1"), "reference": git("rev-parse", "HEAD")},
+                    "milestones": [{"name": "done", "checks": [
+                        check("turrets", {"probe": "actors", "select": {"component": "Turret"}, "field": "count"}),
+                        check("tagged", {"probe": "actors", "select": {"tag": "TurretTag"}, "field": "count"}),
+                        check("yard", {"probe": "pawn", "field": "z"},
+                              play={"name": "yard", "seconds": 5, "scene": "Assets/Scenes/Yard.unity"}),
+                        check("hero", {"probe": "actors", "select": {"component": "Hero"}, "field": "count"}),
+                        check("lights", {"probe": "components", "field": "count",
+                                         "select": {"component": "Light", "owner": {"component": "Hero"}}}),
+                        check("pattern", {"probe": "actors", "select": {"component": "Tur*"}, "field": "count"}),
+                        check("optional", {"probe": "actors", "select": {"component": "Turret"}, "field": "count"},
+                              required=False)]}]}
+            found = tasks.validator().reference_only_names(d, task)
+        self.assertEqual(found, [("turrets", "Turret"), ("tagged", "TurretTag"), ("yard", "Assets/Scenes/Yard.unity")])
