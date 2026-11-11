@@ -229,7 +229,8 @@ before it gets it, and every game a new version of it, with one run of
 `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\tools\unity-pipeline\autoplay\install.ps1 -Game <UGF_ROOT>\games\<slug>`
 (its own commit and `autoplay.install` row; it refuses while `Assets/AutoPlay`, `Scripts/unity.ps1` or
 `workflow.jsonl` have uncommitted changes, so commit first). Never edit the drop-in or put code of your own in
-`Assets/AutoPlay/`.
+`Assets/AutoPlay/`. What this section asks is also the release gate: the release starts with it ("Dataset", release
+step 1, "Ensure AutoPlay"), and no game is released without it.
 
 - Once the first scenario is playable end to end, implement `docs/autoplay-contract.md` (Unity contract v1, section
   6): every scenario starts from the command line with `-scenario <n>` (1-based, the design doc's numbers: what
@@ -286,17 +287,28 @@ you commit it. The full dataset zip is `Dataset.zip` in the game folder, next to
 The packager is `python <UGF_ROOT>/unity-game-factory/tools/package-dataset.py <slug>` (docs/unity-pipeline.md,
 "Dataset packager"). It packs the release commit, not the working tree, with three products of that commit: the
 pipeline's release build, the gameplay video of each scenario's first valid recording (one is enough; the result
-never picks a run) and the creation replay's package. **The release**, once the game is content-complete, its tasks
-are on the tasks branch and everything is committed (that commit is the release commit; make no other commit until
-the packager has run, or the replay and the recordings no longer match it):
+never picks a run) and the creation replay's package. **The release**, in this order:
 
-1. Send the coordinator the release commit to record (its sha; the newest `milestone/autoplay-<n>` tag in its
-   history): the queue builds its release player (`tools/unity-pipeline/build.ps1`) and records each ready scenario.
-2. `python <UGF_ROOT>/unity-game-factory/tools/unity-replay/unity_replay.py release --game <slug>`, with `HEAD` at the
+1. **Ensure AutoPlay** (required: no game is released without it), before the release commit is chosen. Run
+   `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\tools\unity-pipeline\autoplay\install.ps1 -Game <UGF_ROOT>\games\<slug>`:
+   when the game is current it changes nothing and says "up to date: nothing to commit"; otherwise it writes the
+   current drop-in (and brings an unchanged copy of an older template's `Scripts/unity.ps1` up to date) in a commit of
+   its own with one `autoplay.install` row. It refuses while `Assets/AutoPlay`, `Scripts/unity.ps1` or
+   `workflow.jsonl` have uncommitted changes: commit them first. Then: every scenario wired
+   (docs/autoplay-contract.md, section 6); the bot written; for each scenario the hand test of section 7,
+   `Scripts/unity.ps1 autoplay -Scenario <n>` on a player built with `Scripts/unity.ps1 build`, and the run checker
+   (`tools/unity-pipeline/validate-run.ps1 <that run's folder>`) saying PASS; `milestone/autoplay-<n>` tagged
+   (scenarios 1..n work). Only then choose the release commit.
+2. The release commit: the game content-complete, its tasks on the tasks branch, everything committed, the milestone
+   tag in its history. Make no other commit until the packager has run, or the replay and the recordings no longer
+   match it.
+3. Send the coordinator the release commit to record (its sha): the queue builds its release player
+   (`tools/unity-pipeline/build.ps1`) and records scenarios 1..n of the newest milestone tag.
+4. `python <UGF_ROOT>/unity-game-factory/tools/unity-replay/unity_replay.py release --game <slug>`, with `HEAD` at the
    release commit, makes `ReplayScripts/` for it (docs/unity-replay.md, section 3; with the live replay current, only
    the last commits and a full final check remain; it refuses while the last commit's live replay still runs: run it
    again once that is done). Its verdict, PASS or FAIL, is metadata.
-3. Once the coordinator says the recording is done: the packager (`--dry-run` first says what it would take and what
+5. Once the coordinator says the recording is done: the packager (`--dry-run` first says what it would take and what
    is missing; `--commit <sha>` when `HEAD` has moved past the release commit). It writes `Dataset/`, which you then
    commit, and `Dataset.zip`, or `Dataset.pending.zip` (the missing entries listed) while a recording or the replay is
    missing; neither zip is ever committed.

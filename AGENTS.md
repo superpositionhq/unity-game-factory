@@ -13,7 +13,8 @@ agent reads are the new ones. The tools, task rules and validators change often;
 the Lab's checks. A game already in progress keeps its own copies of the template's files: bootstrap adds the live
 creation replay to its post-commit hook, and a game made before the AutoPlay drop-in gets it with one run of
 `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\tools\unity-pipeline\autoplay\install.ps1 -Game <UGF_ROOT>\games\<slug>`
-(its own commit; [docs/autoplay-contract.md](docs/autoplay-contract.md), "Getting the drop-in").
+(its own commit; [docs/autoplay-contract.md](docs/autoplay-contract.md), "Getting the drop-in"). Every release starts
+by running it again to ensure AutoPlay, a required step (unity-game-session skill, "Dataset", release step 1).
 
 Skills (one source, [skills/](skills/); `machine/bootstrap.ps1` copies them to `~\.claude\skills\` for Claude Code and
 `~\.agents\skills\` for Codex; read the `SKILL.md` named here before the work it covers, whichever agent you are). They
@@ -64,7 +65,9 @@ lighting, camera); then one AutoPlay run per scenario and the recording request,
 AutoPlay drop-in in `Assets/AutoPlay/`, unchanged (new games from `templates/new-game.ps1`, older ones through
 `tools/unity-pipeline/autoplay/install.ps1`). Once scenario 1 plays, wire it and write the bot
 ([docs/autoplay-contract.md](docs/autoplay-contract.md), sections 6-7), test once with `Scripts/unity.ps1 autoplay`
-and the run checker, tag `milestone/autoplay-<n>` and report to the coordinator (unity-game-session skill).
+and the run checker, tag `milestone/autoplay-<n>` and report to the coordinator (unity-game-session skill). No game is
+released before AutoPlay is ensured: the current drop-in, every scenario wired, the bot, a passing hand test per
+scenario and the milestone tag (unity-game-session skill, "Dataset", release step 1).
 
 **Dataset.** Each game's full dataset is `games\<slug>\Dataset.zip`: the same name everywhere, git-ignored
 (`/Dataset.zip`, `/Dataset.pending.zip`, `/.dataset/`), produced by the packager, never committed. The committed
