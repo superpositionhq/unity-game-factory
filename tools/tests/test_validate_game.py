@@ -1458,7 +1458,8 @@ class Dataset(Base):
         sections = ['Requirements', 'Package contents', 'Play the game', 'Replay the creation process',
                     'Restore the git history', 'Tasks', 'Scenarios', 'Screenshots', 'Assets and licences', 'Integrity']
         write(ds, 'README.md', '# Kiln Run\n\nThis delivery is pending.\n\n' + ''.join(
-            f'## {s}\n\n' + ('![hero](Screenshots/hero.jpg)\n\n' if s == 'Screenshots' else 'Text.\n\n') for s in sections))
+            f'## {s}\n\n' + ('![hero](Screenshots/hero.jpg)\n\n' if s == 'Screenshots' else
+                             f'1. Rush: Gameplay/{SLUG}_S1.mp4\n\n' if s == 'Scenarios' else 'Text.\n\n') for s in sections))
         files = []
         for d, _, fs in os.walk(ds):
             for f in fs:
@@ -1498,8 +1499,14 @@ class Dataset(Base):
         self.assertIn('5 task(s)', notes)
         self.assertIn('LFS objects referenced', notes)
         if shutil.which('powershell') or shutil.which('pwsh'):
-            rep = vg.Report()
-            vg.run_layout_validator(rep, z, False)
+            # The layout check probes gameplay videos with the ffprobe it finds: the machine root's pinned ffmpeg, else
+            # PATH. A scratch root keeps the machine's ffmpeg away from the stub video above (the probe is then noted
+            # as skipped); an ffprobe on PATH would still probe the stub, which is no video.
+            if shutil.which('ffprobe'):
+                self.skipTest('an ffprobe on PATH would probe the stub gameplay video')
+            with unittest.mock.patch.dict(os.environ, {'UGF_ROOT': self.tmp, 'UGF_CONFIG': os.path.join(self.tmp, 'none.json')}):
+                rep = vg.Report()
+                vg.run_layout_validator(rep, z, False)
             self.assertEqual(errors(rep), [])
             self.assertTrue(any('PENDING' in m for s, a, m in rep.items), rep.items)
 
