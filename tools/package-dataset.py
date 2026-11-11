@@ -1985,7 +1985,7 @@ def package(args):
             n_replay += 1
         step(f'ReplayScripts: {n_replay} files from {replay} (verdict {"PASS" if report["verdict"]["pass"] else "FAIL"})')
 
-    # ---- every folder arrived whole (a short copy once went unnoticed in the original's deliveries) ----
+    # ---- every folder arrived whole (a short copy once went unnoticed in a delivery) ----
     counts_in = {}
     for rel in files_under(stage):
         top = rel.split('/')[0]
