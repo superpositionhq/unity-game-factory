@@ -11,7 +11,8 @@ All machine paths hang off one root, the "UnityWork" folder that holds `unity-ga
 [../docs/unity-pipeline.md](../docs/unity-pipeline.md)): release builds, the queue and the gameplay bundles. The
 creation replay ([../docs/unity-replay.md](../docs/unity-replay.md)) keeps each game's isolated project and work files
 in `unity-replay\<slug>\` and writes its packages to `deliverables\_replay\`; the dataset packager,
-`tools/package-dataset.py`, writes into the game repo's own folder.
+`tools/package-dataset.py`, writes its zip and scratch into the game repo's own folder and keeps each delivery's
+commit map, audit files, `package-log.jsonl` and its run lock in `deliverables\<slug>\`.
 `lib/ugf-root.ps1` (PowerShell, dot-source it) and `lib/ugfroot.py` (Python: `sys.path.insert(0, <repo>/machine/lib)`,
 `ugfroot.root()`) resolve it in this order:
 
@@ -30,7 +31,8 @@ installed), `github_org` (the GitHub organisation or user that owns unity-game-f
 check.ps1 read it), and `record_extra_projects` (default `[]`: extra top-level folders the recording hooks treat as
 projects besides `games\<slug>`). Optional: `out` (env `UGF_OUT`; default `<root>\deliverables`: where the creation
 replay's packages go, `_replay\<slug>\<sha8>\`, GBs per game, so point it at a roomy drive; the dataset packager writes
-next to the game repo, or where its `--out` says) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task
+its zip next to the game repo, or where its `--out` says, and keeps each delivery's commit map, audit files,
+`package-log.jsonl` and its run lock in `<out>\<slug>\`) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task
 check, the task try, the creation replay and the dataset packager refuse to start on a drive with less free).
 
 Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),

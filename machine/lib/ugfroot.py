@@ -101,7 +101,9 @@ def org():
 
 
 def out():
-    """Output root for packages and dataset zips: env UGF_OUT, else "out" in the config file, else <root>/deliverables."""
+    """Output root for packages: the creation replay's, and the dataset packager's commit maps, audit files and run
+    lock (its zip goes next to the game repo unless --out). Env UGF_OUT, else "out" in the config file, else
+    <root>/deliverables."""
     o = os.environ.get("UGF_OUT") or config().get("out")
     return os.path.abspath(o) if o else os.path.join(root(), "deliverables")
 

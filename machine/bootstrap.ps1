@@ -8,7 +8,8 @@
      Get-UGFComputedSlots, recorded in slots_auto; values set by hand stay unless -Force) and creates the UnityWork
      layout under the root (games, tasks, builds\_queue, builds\_logs, recordings, .recording, deliverables,
      asset-library, tools; builds and recordings are the recording pipeline's, docs\unity-pipeline.md; deliverables
-     holds the creation replay's packages, docs\unity-replay.md) plus <ugb>\src and <ugb>\tmp (the release builds'
+     holds the creation replay's packages, docs\unity-replay.md, and per game the dataset packager's commit maps,
+     audit files and run lock) plus <ugb>\src and <ugb>\tmp (the release builds'
      private clones and their temp folder, outside the user profile so the user name is not compiled into a player).
   2. Tools: <root>\tools\unity-heavy.ps1 (+ ugf-root.ps1) and the pinned ffmpeg
      (machine\get-ffmpeg.ps1, downloaded and SHA-256 verified, never committed).

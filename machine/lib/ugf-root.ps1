@@ -181,8 +181,9 @@ function Get-UGFOrg($Cfg = (Get-UGFConfig)) {
     return ''
 }
 
-# Output root for packages (the creation replay's _replay\<slug>\<sha8>\; the dataset packager writes next to the game
-# repo unless its --out names another folder): $env:UGF_OUT, else "out" in the config file, else <root>\deliverables.
+# Output root for packages (the creation replay's _replay\<slug>\<sha8>\; the dataset packager's commit maps, audit
+# files, package-log.jsonl and run lock in <slug>\, its zip next to the game repo unless its --out names another
+# folder): $env:UGF_OUT, else "out" in the config file, else <root>\deliverables.
 # Point it at a roomy drive (packages and zips run to GBs per game).
 function Get-UGFOut {
     if ($env:UGF_OUT) { return [IO.Path]::GetFullPath($env:UGF_OUT.TrimEnd('\', '/')) }

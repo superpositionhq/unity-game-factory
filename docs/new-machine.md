@@ -118,8 +118,8 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
   the machine uses), with their basis in `slots_auto` (values edited by hand are kept, `-Force` recomputes);
 - the layout `games\ tasks\ builds\_queue\ builds\_logs\ recordings\ .recording\ deliverables\ asset-library\ tools\`
   and `<ugb>\src`, `<ugb>\tmp` (`builds\` and `recordings\` are the recording pipeline's, `deliverables\` holds the
-  creation replay's packages; a machine set up before `ugb` existed gets it from this bootstrap, and until then
-  `check.ps1` fails the layout);
+  creation replay's packages and, per game, the dataset packager's commit maps, audit files and run lock; a machine
+  set up before `ugb` existed gets it from this bootstrap, and until then `check.ps1` fails the layout);
 - `tools\unity-heavy.ps1` (the machine-wide job limiter) with `tools\ugf-root.ps1`, the pinned ffmpeg 8.1.2 (SHA-256
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into

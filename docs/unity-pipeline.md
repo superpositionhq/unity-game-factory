@@ -25,6 +25,10 @@ pipeline's scripts are `tools/unity-pipeline/` (Windows PowerShell 5.1).
 | `validate-run.ps1 <outputDir>` | contract check of one run's files, no video (for game sessions testing by hand) |
 | `mark-invalid.ps1 <game> -Commit sha \| -RunId id -Reason text` | exclude bundles from the dataset (INVALID file, validation status `invalid`); files kept |
 | `leak-scan.ps1 <dir> [-Patterns ..]` | byte search (ASCII + UTF-16) for the user name or other strings that must not ship |
+| `scrub-import-paths.py <game> [--apply \| --verify]` | the account and agent names out of a project's binary assets, byte for byte ([Names that must not reach the games](#names-that-must-not-reach-the-games)) |
+| `scrub-lfs-history.py <game> [--apply]` | the same in a game repo's own Git LFS history: patched objects, every commit repointed, archived first |
+| `scrub-history.ps1 <game> [-Apply]` | the studio and tool names out of a game repo's own history: text blobs, messages, identities; archived first |
+| `export-lfs-history.py <repo> <out>` | every LFS object of a history, with patched copies where one names the account (the dataset packager uses it) |
 | `gameplay-mp4.ps1 <game> [-Commit sha..] [-RunId id] [-Force]` | a run's `gameplay.mp4` again (updates metadata/manifest) |
 | `stills.ps1 <game> [-RunId id] [-Count n] [-Force]` | a run's README stills again (updates metadata/manifest) |
 | `sync-check.ps1 <bundle>` | measures video/audio lag against sync markers that a pipeline test game emits |
@@ -61,7 +65,9 @@ builds' private clones and their temp folder, outside the user profile). See
   .recording\<slug>\runs.jsonl      one row per recorded run
   .recording\<slug>\pipeline.jsonl  one row per pipeline run per game
   unity-replay\<slug>\              the creation replay's isolated project and work files (unity-replay.md)
-  deliverables\                     the creation replay's packages, _replay\<slug>\<sha8>\ (config "out", env UGF_OUT)
+  deliverables\                     the creation replay's packages, _replay\<slug>\<sha8>\, and per game, <slug>\, the
+                                    dataset packager's commit maps, audit files, package-log.jsonl and run lock
+                                    .package.lock (config "out", env UGF_OUT)
 <ugb>\src\<slug>\                   private clone the pipeline builds from (never the game's working copy); outside
                                     C:\Users so the user name isn't compiled into the player
 <ugb>\tmp\                          TEMP and TMP of the build
@@ -513,8 +519,8 @@ hand, and before the packager's first run on a game its `Dataset/` stays as the 
 `tools/validate-game.py`'s "not packaged yet" warning is expected.
 
 It reads the game repo `<root>\games\<slug>` at the release commit (`--repo` names a repo elsewhere, `--commit` another
-commit than `HEAD`), the game's recording `<root>\.recording\<slug>\` (`--recording`) and three products of the
-release:
+commit than `HEAD`, `--commit milestone` the newest `milestone/autoplay-<n>` tag's), the game's recording
+`<root>\.recording\<slug>\` (`--recording`) and three products of the release:
 
 - **The player.** The pipeline's release build ([Build](#build)): `builds\<slug>\<sha8>\Windows\` with its
   `build_info.json` (status `ok`, config `release`), the release commit's own or, without one, the nearest earlier
@@ -543,7 +549,7 @@ refuses to start. Without a player, a brief, a design doc or a task it refuses b
 | Entry | What goes in |
 |---|---|
 | `History/<slug>.bundle` | the history rewritten for delivery: authors and committers `dev_NN`, agent trailer lines dropped, the scrub rules on every message and text blob. It holds the release commit as `refs/heads/main` and each task's start branch as `refs/heads/starts/<task>`, nothing else |
-| `History/lfs/objects/` | every Git LFS object of every commit of the bundle, from the repo's own store |
+| `History/lfs/objects/` | every Git LFS object of every commit of the bundle, from the repo's own store; one that names the account or an agent as a patched copy (below) |
 | `History/sessions/` | the creation sessions as recorded: `messages.jsonl` (every prompt the person typed and every reply the model wrote) and `actions.jsonl` (every tool call), rows up to the release commit, without the sessions that packaged and those named with `--exclude-sessions`, each session named `session_NN` in both files. `manifest.json` counts the rows in `history.sessions` |
 | `git.log` | every commit of the delivered history up to the release, oldest first, with full diffs |
 | `workflow.jsonl` | the creation record at the release commit |
@@ -561,12 +567,35 @@ and machine name, e-mail addresses, git identities, the build machine's session 
 name left in a text file or a path refuses the package (exit 2, nothing zipped; the hits are in
 `<repo>\.dataset\<slug>.refused-hits.tsv`). The account name counts as a word, a path segment, or at a lower -> upper
 boundary (`OwnerNameDesktop`), and the delivered commits that `git.log` does not show (a task's start branch) are
-scanned too. Binary files are never changed: names found in them are listed in `<repo>\.dataset\<slug>.binary-hits.tsv`,
-and one inside a string (8 or more printable characters in a row) refuses the package too (a short account name counts
-only as a word of its own); `--lenient-binaries` lists them without refusing, to review a refusal. Commit ids change
-with the rewrite: the delivery uses the new ids everywhere, and `<out>\<slug>\<slug>_<sha8>.commit-map.tsv` keeps
-original -> delivered for each delivered release (`<sha8>`: the delivered release commit's; `<out>`: env `UGF_OUT`,
-config `out`, else `<root>\deliverables`).
+scanned too. In text, the account name in a `zh_` locale id and in random bytes written out as escapes (`\x86...`) is
+allowed.
+
+Binary files are never changed. A name in one refuses the package as one in a text file does (`--lenient-binaries`
+lists them without refusing, to review a refusal), except where it is allowed: the Opus audio codec's own names
+(`opus_*`, `libopus`, `audio/opus`, Authenticode's `SpcSpOpusInfo`, the bare codec name), "opus" spelled by compressed
+bytes, the short terms (claude, openai, opus, the account name) inside a media file's compressed payload (an MP4's
+`mdat` of video and audio tracks, a WAV `data` chunk, Matroska blocks; never their metadata), the account name in a
+`zh_` locale id, and the single hits a person reviewed (`--reviewed-hits`, default `tools/package-reviewed-hits.tsv`:
+the file's sha256, the offset and the word). "opus" counts only as a word of its own inside a string; so does a short
+account name (under 6 letters), which refuses in a string of 8 or more printable characters or as a whole C string and
+is only listed as a few letters among random bytes. The history's people refuse in binaries too: their full names,
+handles and e-mail addresses (an FBX's creator, a PNG's author); other e-mail addresses in binaries (a library
+author's in `UnityPlayer.dll`) are listed only. Every binary hit is in `<repo>\.dataset\<slug>.binary-hits.tsv`, every
+allowed one in `.allowlisted.tsv`.
+
+Every Git LFS object of the history is scanned (`tools/unity-pipeline/export-lfs-history.py`) for the account name and
+the agent and provider names. One that names them in a path segment, a whole length-prefixed string (an FBX property)
+or an XML element (XMP) is patched with a stand-in of the same length into a new object, and the delivered history
+points at that one: `History/lfs/objects/` and `UnityProject/` carry the patched bytes, and the game repo is not
+changed. An object that names them anywhere else is delivered as it is, for the scan to judge;
+`--lfs-unpatchable-use-head` puts the release commit's version of that path in every commit that held it instead.
+
+Commit ids change with the rewrite: the delivery uses the new ids everywhere, and
+`<out>\<slug>\<slug>_<sha8>.commit-map.tsv` keeps original -> delivered for each delivered release (`<sha8>`: the
+delivered release commit's; `<out>`: env `UGF_OUT`, config `out`, else `<root>\deliverables`). Beside it, never in the
+delivery, go the run's audit files (`<slug>_<sha8>.scrub-report.json`: the rules and their counts, the files touched,
+the history's and the scan's numbers; `.allowlisted.tsv`; `.binary-emails.tsv`; `.leaks.tsv`: other people's profile
+folders found in the delivery's text, listed only) and a row per delivery in `package-log.jsonl`.
 
 It ends with the checks a consumer runs: the dataset checks of `tools/validate-game.py` and, where PowerShell is
 installed, `tools/validate-dataset.ps1`. An error refuses the package. Then it writes the zip (`--no-zip` stops after
@@ -575,12 +604,21 @@ the checks) and, unless `--no-repo-dataset`, the repo's `Dataset/` folder (`READ
 for byte as `manifest.json` lists them: no line-ending conversion, videos and images in Git LFS), which the game
 session then commits. It never commits and never changes the game repo's history, and one run per game works at a time
 (a lock in `<out>\<slug>\`). Its scratch and reports are in `<repo>\.dataset\` (git-ignored); `--out` puts them and the
-zip in another folder. It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50).
-Standard library Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
+zip in another folder; when the repo's `.gitignore` lacks `/Dataset.zip`, `/Dataset.pending.zip` or `/.dataset/`,
+it adds them to the repo's `.git\info\exclude` and says so. Before the scrub it checks that every staged folder holds
+the files copied into it. With `--version`, a `release/<version>` tag must name the release commit (a warning
+otherwise). It refuses a drive with less than `min_free_gb` free (env `UGF_MIN_FREE_GB`, default 50). Standard library
+Python 3.10+, `git` and `git-lfs`; its tests are `tools/tests/test_package_dataset.py`.
+
+Three tools beside the package: `--rescan <zip or folder>` scans a delivered dataset again with the current rules (its
+paths, text and binaries, the bundle's commits that `git.log` does not show, and its identities: `dev_NN` only); PASS
+exits 0, FAIL 2, and the hits go to `<out>\<slug>\<slug>.rescan-hits.tsv`. `--scrub-dir <folder>` applies the scrub
+rules to every text file of a folder, in place. `--self-check` runs the scrub and the scan on built-in samples, with
+this machine's account name built in at run time.
 
 Measured on a template test game with one recorded scenario, its pipeline build (IL2CPP, 1.2 GB with Unity's
-"DoNotShip" folders, 114 MB without) and its replay (PASS): 0.6 min, a 49 MB `Dataset.zip` that both validators call
-VALID.
+"DoNotShip" folders, 114 MB without) and its replay (PASS): under a minute, a 49 MB `Dataset.zip` that both validators
+call VALID.
 
 ## Names that must not reach the games
 
@@ -597,3 +635,9 @@ account name, and `build.ps1`'s leak scan checks every file of a release build f
   `%UGF_ROOT%\recordings\`, `builds\` and `<ugb>\` contain none of the names.
 - The pipeline's own files (`.recording\*.jsonl`, `build_info.json`, bundle `metadata.json`, docs) may name things
   freely.
+- A game repo that names them can be cleaned in place, each tool a dry run first and archiving the original history
+  before it changes anything: `tools/unity-pipeline/scrub-import-paths.py <slug>` (the account and agent names in
+  binary assets, byte for byte: `--apply`, then `--verify`), `scrub-lfs-history.py <slug>` (the same in the
+  history's LFS objects, every commit repointed: `--apply`) and `scrub-history.ps1 <slug>` (the studio and tool
+  names in text blobs, messages and identities: `-Apply`). None of them pushes. The dataset packager needs none of
+  them: it delivers a scrubbed and patched copy.

@@ -5,17 +5,23 @@
     python tools/package-dataset.py <slug>                      # the game at <root>/games/<slug>, its HEAD
     python tools/package-dataset.py <slug> --commit <rev> --version 1.0 --brief <brief.md> --design <design.md>
     python tools/package-dataset.py <slug> --dry-run            # what would go in; writes nothing
+    python tools/package-dataset.py <slug> --rescan <zip>       # scan a delivered dataset again
+    python tools/package-dataset.py --self-check                # the scrub and scan rules on built-in samples
 
-What it packs, from the game repo at the release commit, its recording (<root>/.recording/<slug>/) and the release's
-three products: the player (the pipeline's release build <root>/builds/<slug>/<sha8>/ with build_info.json, else
-<repo>/Build/Windows from Scripts/unity.ps1 build; --build names another), the recordings (<root>/recordings/<slug>/)
-and the creation replay (<out>/_replay/<slug>/<release sha8>/ with READY; --replay names another):
+What it packs, from the game repo at the release commit (--commit milestone: the newest milestone/autoplay-<n> tag),
+its recording (<root>/.recording/<slug>/) and the release's three products: the player (the pipeline's release build
+<root>/builds/<slug>/<sha8>/ with build_info.json, else <repo>/Build/Windows from Scripts/unity.ps1 build; --build names
+another), the recordings (<root>/recordings/<slug>/) and the creation replay (<out>/_replay/<slug>/<release sha8>/ with
+READY; --replay names another):
 
     History/<slug>.bundle     the history rewritten for delivery: authors and committers dev_NN, agent trailer lines
-                              gone, the scrub rules on every message and text blob. The release commit as
-                              refs/heads/main and each task's start branch (refs/heads/starts/<task>), nothing else:
-                              a side branch, a tag off main or a stash can hold work the tasks ask for.
-    History/lfs/objects/      every Git LFS object of every commit of the bundle, from the repo's own store
+                              gone, the scrub rules on every message and text blob, LFS pointers to patched objects.
+                              The release commit as refs/heads/main and each task's start branch
+                              (refs/heads/starts/<task>), nothing else: a side branch, a tag off main or a stash can
+                              hold work the tasks ask for.
+    History/lfs/objects/      every Git LFS object of every commit of the bundle, from the repo's own store; one that
+                              names the account or an agent in a path, a whole string or an XML element as a copy
+                              patched byte for byte (tools/unity-pipeline/export-lfs-history.py)
     History/sessions/         the creation sessions as recorded: messages.jsonl (every prompt the person typed and
                               every reply the model wrote) and actions.jsonl (every tool call), rows up to the release
                               commit, each session named session_NN in both
@@ -40,18 +46,21 @@ whose leak scan found anything, a development player or another product's, and a
 
 Every text file of the delivery is scrubbed (studio and tool names, agent, model and provider names, the account and
 machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a name
-left in a text file or a path refuses the package (exit 2, nothing zipped; the hits in <scratch>/<slug>.refused-hits.tsv).
-Binary files are never changed: names found in them are listed in <scratch>/<slug>.binary-hits.tsv, and one inside a
-string (8 or more printable characters in a row) refuses the package too; --lenient-binaries lists them without
-refusing, to review a refusal. Commit ids change with the rewrite: the delivery uses the new ids everywhere, and
+left in a text file or a path refuses the package (exit 2, nothing zipped; hits in <scratch>/<slug>.refused-hits.tsv).
+Binary files are never changed: a name in one refuses the package too (--lenient-binaries lists them without refusing,
+to review a refusal), except the allowed forms (scan_binary: the Opus codec's names, compressed bytes, a media file's
+compressed payload, a locale id, a reviewed hit from --reviewed-hits); the history's people's names and addresses
+refuse in binaries as well. Commit ids change with the rewrite: the delivery uses the new ids everywhere, and
 <out>/<slug>/<slug>_<sha8>.commit-map.tsv keeps original -> delivered (<out>: env UGF_OUT, config "out", else
-<root>/deliverables).
+<root>/deliverables), beside the run's audit files (<slug>_<sha8>.scrub-report.json, .allowlisted.tsv,
+.binary-emails.tsv, .leaks.tsv) and package-log.jsonl.
 
 It ends with the checks a consumer runs: tools/validate-game.py --dataset on the delivery (an error refuses the
 package). Then it writes the zip and, unless --no-repo-dataset, the repo's Dataset/ folder (the delivery minus
 UnityProject/, Build/, History/ and Tasks/) for the game session to commit. Nothing is committed here, and the game
 repo's history is not changed. One run per game at a time (<out>/<slug>/.package.lock). Scratch: <repo>/.dataset/
-(git-ignored). Standard library, Python 3.10+, git, git-lfs; the pipeline's ffprobe checks the videos where it is found.
+(git-ignored; .git/info/exclude when the repo's .gitignore lacks it). Standard library, Python 3.10+, git, git-lfs; the
+pipeline's ffprobe checks the videos where it is found.
 """
 import argparse, base64, getpass, glob, hashlib, importlib.util, json, os, re, shutil, socket, stat, subprocess, sys, time, zipfile
 
