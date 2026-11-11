@@ -28,7 +28,7 @@ each.
 | Placeholder | From |
 |---|---|
 | `{{GAME_TITLE}}`, `{{SLUG}}`, `{{PROJECT}}` | the title, a lowercase slug (`island-survival`) and a PascalCase project name (`IslandSurvival`) |
-| `{{PITCH}}`, `{{SCENARIOS}}`, `{{STORY}}`, `{{ART_PACKS}}` | `games/<slug>.md`, or your own few lines |
+| `{{PITCH}}`, `{{SCENARIOS}}`, `{{STORY}}`, `{{ART_STYLE}}`, `{{ART_PACKS}}` | `games/<slug>.md`, or your own few lines |
 | `{{UGF_ROOT}}` | the machine root (e.g. `C:\Users\<name>\UnityWork`; `machine/lib/ugf-root.ps1`) |
 | `{{ORG}}` | the GitHub organisation (or user) owning the repos: `github_org` in the machine config |
 | `{{MODE}}` | `NEW` (no repo yet) or `CONTINUE` (repo already cloned into `{{UGF_ROOT}}\games\{{SLUG}}`) |
@@ -36,7 +36,7 @@ each.
 ```text
 You are the only session on this machine: build "{{GAME_TITLE}}" in Unity 6.3 LTS (URP) and record how it is built.
 There is no coordinator and there are no other sessions: never start, spawn or message other sessions. Whatever the
-skills say to send to "the coordinator" (recording requests, push requests, Asset Store requests, blockers), tell me
+skills say to send to "the coordinator" (recording requests, push requests, asset requests, blockers), tell me
 here and wait for my answer.
 
 Read first: {{UGF_ROOT}}\unity-game-factory\AGENTS.md, README.md, docs/autoplay-contract.md, docs/unity-pipeline.md,
@@ -48,7 +48,7 @@ and the unity-game-session, unity-commit-always and unity-sound skills
 - every editor, build or GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for
   you); one Unity process per project; content made by committed C# editor steps, never hand-edited scene or prefab
   YAML;
-- premium art from store packs (any folder under Assets/, committed with their .meta files, binaries through Git LFS,
+- premium art in one art style, from store packs, any licensed source or built from scratch (store packs: any folder under Assets/, committed with their .meta files, binaries through Git LFS,
   never git-ignored; the repo stays private), every sound through the unity-sound skill, styled UI with no plain text,
   story embedded in play, gentle camera; never the names of the toolkit or its owners inside the game;
 - one workflow.jsonl row per operation at the moment you act (rows are never edited, except to remove a banned name
@@ -81,7 +81,10 @@ Scenarios (AutoPlay contract; numbered start state + win/lose):
 Story:
 {{STORY}}
 
-Art to start from (store packs in {{UGF_ROOT}}\asset-library\, or ask me for Asset Store packs):
+Art style (docs/art-styles; a style's id and name, or "pick": the tool chooses, unity-game-session skill, "Art style"):
+{{ART_STYLE}}
+
+Art to start from (store packs in {{UGF_ROOT}}\asset-library\; any licensed source or built from scratch otherwise; ask me for paid packs):
 {{ART_PACKS}}
 
 Steps:

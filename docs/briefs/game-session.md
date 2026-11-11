@@ -7,7 +7,7 @@ then start the session with a fresh context and title `{{GAME_TITLE}}`. The rule
 
 | Placeholder | From |
 |---|---|
-| `{{GAME_TITLE}}`, `{{SLUG}}`, `{{PROJECT}}`, `{{GENRE_LINE}}`, `{{PITCH}}`, `{{BRIEF}}`, `{{SCENARIOS}}`, `{{STORY}}`, `{{ART_PACKS}}`, `{{GAME_NOTES}}` | `games/<slug>.md` |
+| `{{GAME_TITLE}}`, `{{SLUG}}`, `{{PROJECT}}`, `{{GENRE_LINE}}`, `{{PITCH}}`, `{{BRIEF}}`, `{{SCENARIOS}}`, `{{STORY}}`, `{{ART_STYLE}}`, `{{ART_PACKS}}`, `{{GAME_NOTES}}` | `games/<slug>.md` |
 | `{{UGF_ROOT}}` | the machine root (`machine/lib/ugf-root.ps1`; e.g. `C:\Users\<name>\UnityWork`) |
 | `{{ORG}}` | the GitHub organisation (or user) owning the repos: `github_org` in the machine config |
 | `{{MACHINE}}` | one line: `<CPU, RAM, GPU + driver, display>` of this machine |
@@ -32,7 +32,7 @@ Rules: follow the unity-game-session, unity-commit-always and unity-sound skills
 project, plugin, marketplace or agent built-in skill, nor another factory's skills. In short: every heavy or
 GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for you), one Unity process
 per project; content made by committed C# editor steps (Assets/Editor/Steps/, never hand-edited scene or prefab YAML);
-premium art from the bought/downloaded Asset Store packs and animation packs, every sound through the unity-sound
+premium art in one art style, from the asset library, any licensed source or built from scratch, every sound through the unity-sound
 skill, styled UI with no plain text, story embedded in play, gentle camera; never the names Superposition,
 game-factory or unity-game-factory anywhere in the game; one workflow.jsonl row per operation at the moment you act
 (rows never edited, except to remove a banned name with tools/scrub-workflow-rows.py --apply); commit after every
@@ -89,6 +89,9 @@ Scenarios (AutoPlay contract; numbered start state + win/lose):
 
 Story:
 {{STORY}}
+
+Art style (docs/art-styles; a style's id and name, or "pick": the tool chooses, unity-game-session skill, "Art style"):
+{{ART_STYLE}}
 
 Art to start from (paths under {{UGF_ROOT}}\asset-library\):
 {{ART_PACKS}}

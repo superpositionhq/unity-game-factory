@@ -46,6 +46,8 @@ by hand under these rules, or ask.
 3. Write the design doc + story bible in unity-game-factory `docs/games/<slug>.md` before building: systems, classes,
    ScriptableObjects, scenes, scenarios 1..n (start state + win/lose), art and audio direction, acceptance checklist.
    Keep its status section current. It is the only unity-game-factory file you edit.
+4. Choose the game's art style ("Art style" below) before writing the art direction: the design doc names the style
+   and the art, UI and lighting plans follow its guide.
 
 ## Machine rules (shared PC, several sessions at once)
 
@@ -128,20 +130,58 @@ by hand under these rules, or ask.
   `SaveScene` returns.
 - Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
   the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
-- **Art (user rule):** premium, coherent, never primitives or flat colours in the final game. Use the bought and
-  downloaded Unity Asset Store packs and the animation packs (library `<UGF_ROOT>\asset-library\`); characters and
-  creatures animated. Store content in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed with
+- **Art style (user rule):** every game has one style from the library
+  [docs/art-styles/](../../docs/art-styles/index.md) (100 guides: references, visual definition, Unity recipe, do /
+  do not), and everything on screen follows it: models and materials, lighting, post-processing, effects, UI.
+  - **Choosing.** A style named in your brief is the style. Otherwise the tool picks, at random among the styles that
+    fit the game's genre:
+    `python <UGF_ROOT>\unity-game-factory\tools\art-style.py pick --genre <slug> [--genre <slug>]` with the one or
+    two genres from the tool's list closest to your game (`art-style.py list` prints the styles with their genres; an
+    unknown genre prints the list). Styles other games on the machine already use are picked last. For a game no genre
+    fits, `pick` with no genre chooses among all 100. Take what it picks: never choose by taste, and pick again only
+    when the style cannot carry the brief's story or setting, saying why in the workflow row. _(why: left to choose,
+    every session lands on the same few looks; the games must differ)_
+  - **Adopting.**
+    `python <UGF_ROOT>\unity-game-factory\tools\art-style.py use <id> <UGF_ROOT>\games\<slug>` writes the guide to
+    the game's `Docs/ArtStyle.md`, the game's art bible; commit it and name the style in the design doc's art
+    direction. Read the whole guide before choosing or building assets, or building a scene.
+  - **Applying.** Choose or build the assets whose shapes suit the style, then bring them to it with the guide's Unity
+    recipe: material changes (shader swaps, Shader Graph materials, texture edits made by an editor step), lighting,
+    the URP renderer features and volume profile, effects and UI. An asset left as it came next to restyled ones
+    breaks the style; so does a default-looking menu. Check the guide's do / do not list against the framing
+    screenshots.
+- **Where art comes from (user rule):** wherever serves the game and its style best; no source is preferred and
+  none is required.
+  - **The asset library** (`<UGF_ROOT>\asset-library\`): the bought and downloaded store packs and animation packs.
+  - **Any other source:** the Unity Asset Store and other stores, free libraries (Poly Haven, ambientCG, Kenney, Quaternius, OpenGameArt,
+    Sketchfab's downloadable models) or any other site. Read the licence on the asset's own page: only **CC0**,
+    **CC BY** or a store licence that covers a shipped commercial game reaches a game (the game and its dataset are
+    used commercially); never non-commercial, no-derivatives, editorial or personal-use terms, an unstated licence, or
+    anything taken out of another game. Download free assets yourself; for a paid one write the request (below).
+  - **Built from scratch:** when no asset fits the game or its style, or building is quicker than adapting, make the
+    model yourself, by script: Blender in background mode when it is on the machine (`blender -b -P Scripts/<name>.py`, exporting FBX
+    that Unity imports), or Unity's own tools from an editor step (the `Mesh` API, ProBuilder's API, saved as mesh
+    assets). Paint its textures by script too. Commit the script under `Scripts/` with what
+    it produced, and run it by its project path (replay-friendly work, below). Hold it to the same bar as a store
+    asset: a clear silhouette, clean shading, UVs, materials in the game's style, collision. Props, architecture,
+    terrain dressing, vehicles, machines and creatures of rigid parts are all fair to build; a skinned character needs
+    a rig and clips, so prefer a rigged one from a library, restyled, unless you can rig yours.
+  A game with no fitting pack is never a reason for primitives, a mismatched pack or a missing object: find it or
+  build it.
+- **Art (user rule):** premium, coherent, never placeholder primitives or unfinished flat colours in the final game
+  (flat colour or simple shapes a style guide asks for are the style, done on purpose and finished). Characters and creatures are animated. Store content in any folder under `Assets/` (e.g. `Assets/ThirdParty/<Pack>/`), committed with
   its `.meta` files, through Git LFS where binary, and never git-ignored (the repo stays private; unity-commit-always
   skill, "Store packs are committed"); import a `.unitypackage` with an editor step
   (`AssetDatabase.ImportPackage(path, false)`, run with `-NoQuit`: above); adapt it (materials, kitbash, set dressing,
-  lighting). Record every external asset in `assets.manifest.json` (format `assets-manifest/v1`, docs/game-format.md:
+  lighting). Record every asset that came from outside in `assets.manifest.json` (format `assets-manifest/v1`, docs/game-format.md:
   URL, licence, version, the repo paths of its files, changes) and credits in `Docs/ThirdPartyNotices.md`, written as
-  a normal developer would. Need more? Write an "Asset Store requests" list (URL, price, licence, Unity 6 + URP
+  a normal developer would. Need a paid asset? Write an "Asset requests" list (URL, price, licence, Unity 6 + URP
   support, what it replaces) in your design doc and message the coordinator.
 - **Sound:** every sound effect comes through the **unity-sound** skill (read it before writing the audio direction):
   cues listed in the design doc, clips chosen by their numbers and measured with `tools/sfx.py`, CC0 or CC BY only,
   recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep.
-- **UI (user rule):** matches the game's art style: kit frames, icons, display fonts, styled numbers. UI Toolkit or
+- **UI (user rule):** matches the game's art style (its guide's UI and typography line): kit frames, icons, display
+  fonts, styled numbers. UI Toolkit or
   uGUI with TextMeshPro, either is fine. No plain or default-font text on screen: never the default
   `LiberationSans SDF` or the built-in `LegacyRuntime` font; make a TextMeshPro font asset (or a UI Toolkit font asset)
   from the game's own display font.

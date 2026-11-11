@@ -24,7 +24,7 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   Commit after every meaningful step, never end a turn with uncommitted work, every asset with its `.meta`, LFS for
   binaries, push only when the coordinator says.
 - **unity-game-session** ([skills/unity-game-session/SKILL.md](skills/unity-game-session/SKILL.md)): sessions that
-  build a game (art, UI, story, naming, unity-heavy/GPU, editor steps, workflow.jsonl, AutoPlay, framing screenshots,
+  build a game (art style, art, UI, story, naming, unity-heavy/GPU, editor steps, workflow.jsonl, AutoPlay, framing screenshots,
   dataset).
 - **unity-sound** ([skills/unity-sound/SKILL.md](skills/unity-sound/SKILL.md)): sessions that build a game, whenever it
   needs sound (the design doc's audio direction, every UI, player, combat, world or ambience sound): finding, choosing
