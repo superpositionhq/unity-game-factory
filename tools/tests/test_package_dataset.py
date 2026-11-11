@@ -4,7 +4,7 @@ refuses a package. Plain git and git-lfs; no Unity and no PowerShell.
 
     python -m unittest discover -s tools/tests -p "test_package_dataset.py" -v
 """
-import io, json, os, re, shutil, subprocess, sys, tempfile, time, unittest, zipfile
+import hashlib, io, json, os, re, shutil, subprocess, sys, tempfile, time, unittest, zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_validate_game as base  # noqa: E402  the fixture: make_game, task, set_tasks, git, write
@@ -377,6 +377,20 @@ class Complete(unittest.TestCase):
         self.assertEqual(m['build']['source'], "the pipeline's release build of the release commit (tools/unity-pipeline/build.ps1, il2cpp)")
         self.assertIn('Build/KilnRun.exe', self.members())
 
+    def test_the_audit_beside_the_deliveries(self):
+        m = manifest_of(self.zip)
+        out = os.path.join(self.inp['root'], 'deliverables', SLUG)
+        report = json.loads(base.read(os.path.join(out, f'{SLUG}_{m["commit"][:8]}.scrub-report.json')))
+        self.assertEqual((report['schema'], report['delivered_commit'], report['commit']), ('scrub-report/1', m['commit'], self.inp['head']))
+        self.assertGreater(report['files_touched_count'], 0)
+        self.assertEqual(report['scan']['text_and_path_hits'], 0)
+        self.assertIn('username', {r['id'] for r in report['rules']})
+        (row,) = [json.loads(l) for l in base.read(os.path.join(out, 'package-log.jsonl')).splitlines()]
+        self.assertEqual((row['status'], row['delivered_commit'], row['replay']), ('complete', m['commit'], 'FAIL'))
+        self.assertEqual(row['zip'], self.zip)
+        self.assertTrue(os.path.isfile(row['audit']['leaks.tsv']))
+        self.assertFalse([n for n in self.members() if 'scrub-report' in n or n.endswith('.tsv')])   # never in the delivery
+
     def test_the_repo_dataset_folder_has_gameplay_and_replay(self):
         ds = os.path.join(self.inp['repo'], 'Dataset')
         rep = vg.Report()
@@ -504,6 +518,111 @@ class Products(unittest.TestCase):
         r = run(self.inp, '--no-repo-dataset', '--no-zip', brief=False)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertTrue(base.read(os.path.join(repo, '.dataset', SLUG, 'Brief', 'brief.md')).startswith('# Brief\n\nThe committed brief.'))
+
+
+def box(kind, payload):
+    return (8 + len(payload)).to_bytes(4, 'big') + kind + payload
+
+
+def mp4(payload, handler=b'vide', meta=b''):
+    """A minimal MP4: ftyp, moov with one track (its hdlr) and a udta of meta, mdat holding payload."""
+    hdlr = box(b'hdlr', b'\0' * 8 + handler + b'\0' * 12 + b'track\0')
+    moov = box(b'moov', box(b'trak', box(b'mdia', hdlr)) + (box(b'udta', meta) if meta else b''))
+    return box(b'ftyp', b'isom\0\0\0\0isom') + moov + box(b'mdat', payload)
+
+
+def ebml(eid, payload):
+    n = len(payload)
+    return eid + (bytes([0x80 | n]) if n < 127 else bytes([0x40 | (n >> 8), n & 0xFF])) + payload
+
+
+def mkv(frame, tags=b''):
+    """A minimal Matroska: one video track, one cluster with a SimpleBlock of frame data, and a Tags element of tags."""
+    head = ebml(b'\x1a\x45\xdf\xa3', ebml(b'\x42\x82', b'matroska'))
+    tracks = ebml(b'\x16\x54\xae\x6b', ebml(b'\xae', ebml(b'\xd7', b'\x01') + ebml(b'\x83', b'\x01')))
+    cluster = ebml(b'\x1f\x43\xb6\x75', ebml(b'\xe7', b'\x00') + ebml(b'\xa3', b'\x81\x00\x00\x80' + frame))
+    return head + ebml(b'\x18\x53\x80\x67', tracks + cluster + (ebml(b'\x12\x54\xc3\x67', tags) if tags else b''))
+
+
+class Scan(unittest.TestCase):
+    """The scan's rules on files made here: what refuses, what is listed and what is allowed."""
+    USER = 'nora'
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfs')
+        self.needles = PKG.binary_needles(self.USER, [('Jane Tester', 'dev_01'), ('jtester42', 'dev_01')], ['jane.tester@corp.example'])
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def scan(self, files, reviewed=None):
+        for rel, data in files.items():
+            base.write(self.tmp, rel, data)
+        return PKG.scan_tree(self.tmp, PKG.enforced_pattern(self.USER, []), self.needles, self.USER, reviewed)
+
+    def kinds(self, out, rel):
+        return sorted({b[6] for b in out['binary'] if b[0] == rel} | {a[1] for a in out['allowed'] if a[0] == rel})
+
+    def test_the_opus_codec_and_the_models_name(self):
+        rnd = __import__('random').Random(7)
+        noise = lambda: bytes(rnd.randrange(256) for _ in range(600))   # noqa: E731
+        out = self.scan({'Build/a.dll': b'\0opus_decode\0SpcSpOpusInfo\0libopus.dll\0audio/opus\0',   # the codec's own forms
+                         'Build/b.dat': noise() + b'\xf3\xf2k3opusSe\xa0\x12' + noise(),               # compressed bytes spell it
+                         'Build/c.dll': b'\0trained on claude-opus-4 weights\0'})                     # the model's name
+        self.assertEqual(self.kinds(out, 'Build/a.dll'), ['allowed-codec'])
+        self.assertEqual(self.kinds(out, 'Build/b.dat'), ['allowed-entropy'])
+        self.assertEqual(self.kinds(out, 'Build/c.dll'), ['binary'])
+
+    def test_media_payloads_allow_short_terms_their_metadata_does_not(self):
+        frame = b'\x00\x01' + b'xx Claude xx' + b'\x02'
+        out = self.scan({'Gameplay/kiln-run_S1.mp4': mp4(frame), 'Gameplay/kiln-run_S2.mp4': mp4(b'\0\1\2', meta=b'\xa9cmt Made by Claude now'),
+                         'UnityProject/Assets/a.wav': b'RIFF\x30\0\0\0WAVEdata\x10\0\0\0' + frame[:16],
+                         'UnityProject/Assets/b.mkv': mkv(frame), 'UnityProject/Assets/c.mkv': mkv(b'\0\1\2', tags=b'by Claude here!')})
+        self.assertEqual(self.kinds(out, 'Gameplay/kiln-run_S1.mp4'), ['allowed-stream'])
+        self.assertEqual(self.kinds(out, 'Gameplay/kiln-run_S2.mp4'), ['binary'])
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/a.wav'), ['allowed-stream'])
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/b.mkv'), ['allowed-stream'])
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/c.mkv'), ['binary'])
+        # an mp4 with a track that is neither video nor audio (subtitles) gets no allowance
+        out = self.scan({'Gameplay/kiln-run_S3.mp4': mp4(frame, handler=b'sbtl')})
+        self.assertEqual(self.kinds(out, 'Gameplay/kiln-run_S3.mp4'), ['binary'])
+
+    def test_a_short_account_name(self):
+        out = self.scan({'Build/locale.bin': b'\0\1zh_nora\0\1',        # a locale id
+                         'Build/cstring.bin': b'\x01\x02\0Nora\0\x03',  # a whole C string, however short
+                         'Build/random.bin': b'\x01\x02\x7fNora\x03',   # a few letters among random bytes: listed only
+                         'Build/word.bin': b'\0Manor.Minoratoria\0'})    # inside longer words: no hit
+        self.assertEqual(self.kinds(out, 'Build/locale.bin'), ['allowed-locale'])
+        self.assertEqual(self.kinds(out, 'Build/cstring.bin'), ['binary'])
+        self.assertEqual(self.kinds(out, 'Build/random.bin'), ['binary-info'])
+        self.assertEqual(self.kinds(out, 'Build/word.bin'), [])
+
+    def test_the_historys_people_and_addresses(self):
+        out = self.scan({'UnityProject/Assets/a.png': b'\x89PNG\r\n\x1a\n\0tEXtAuthor\0jane.tester@corp.example\0',
+                         'UnityProject/Assets/b.fbx': b'\0Kaydara\0Creator\0Jane Tester\0',
+                         'UnityProject/Assets/c.fbx': b'\0Creator\0Jane Testers Guild\0',      # a longer name: not theirs
+                         'Build/UnityPlayer.dll': b'\0contact vrpn@cs.unc.edu for help\0'})
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/a.png'), ['binary'])
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/b.fbx'), ['binary'])
+        self.assertEqual(self.kinds(out, 'UnityProject/Assets/c.fbx'), [])
+        self.assertEqual([(e[0], e[2]) for e in out['emails']], [('Build/UnityPlayer.dll', 'vrpn@cs.unc.edu')])   # listed only
+
+    def test_a_reviewed_hit(self):
+        data = b'\x10\x11\x12' + b'random claudeXYZ bytes' + b'\x13'
+        out = self.scan({'Build/x.bin': data})
+        (hit,) = [b for b in out['binary'] if b[6] == 'binary']
+        reviewed = {(hashlib.sha256(data).hexdigest(), hit[1]): hit[5]}
+        out = self.scan({'Build/x.bin': data}, reviewed)
+        self.assertEqual(self.kinds(out, 'Build/x.bin'), ['allowed-reviewed'])
+        out = self.scan({'Build/x.bin': data + b'\0'}, reviewed)   # another version of the file: refuses again
+        self.assertEqual(self.kinds(out, 'Build/x.bin'), ['binary'])
+
+    def test_text_allowances_and_other_profiles(self):
+        out = self.scan({'History/sessions/actions.jsonl': '{"r": "zh_nora", "b": "\\\\x86\\\\x12\\\\x99Nora\\\\x1c\\\\x00\\\\x01"}\n',
+                         'UnityProject/Docs/Notes.md': 'Copied from C:\\Users\\bob\\Desktop and /home/alice/art; see C:\\Users\\dev\\x.\n'})
+        self.assertEqual(out['hits'], [])
+        self.assertEqual(sorted(a[1] for a in out['allowed']), ['allowed-escaped-bytes', 'allowed-locale'])
+        self.assertEqual(sorted(l[2] for l in out['leaks']), ['/home/alice', 'C:\\Users\\bob'])
 
 
 @unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')

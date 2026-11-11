@@ -363,15 +363,29 @@ def enforced_pattern(user, identities):
     if user and len(user) >= 3:
         # the account name as a word or path segment of its own, not inside a longer word (a place name); a lower ->
         # upper boundary counts as a word's edge (OwnerNameDesktop, and C:UsersNameWork: a path whose separators a
-        # shell dropped)
-        parts.append(r'(?:(?<=\\[nrtfb])|(?<=\\u[0-9a-fA-F]{4})|(?<![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))' + re.escape(user) +
-                     r'(?:(?![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))')
+        # shell dropped). Named: the scan allows it in a zh_ locale id and in escaped random bytes.
+        parts.append(r'(?:(?<=\\[nrtfb])|(?<=\\u[0-9a-fA-F]{4})|(?<![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))(?P<user>' + re.escape(user) +
+                     r')(?:(?![A-Za-z])|(?-i:(?<=[a-z])(?=[A-Z])))')
     elif user:
-        parts.append(r'(?:users|home)[\\/]{1,2}' + re.escape(user) + r'(?![A-Za-z0-9_])')
+        parts.append(r'(?:users|home)[\\/]{1,2}(?P<user>' + re.escape(user) + r')(?![A-Za-z0-9_])')
     for term, _ in identities:
         tail = '[A-Za-z0-9]*' if re.search(r'\d', term) and len(term) >= 5 else '(?![A-Za-z0-9])'
         parts.append(WORD_START + re.escape(term) + tail)
+    if not user:
+        parts.append(r'(?P<user>(?!x)x)')   # the group the scan reads, never matching
     return re.compile('|'.join(f'(?:{p})' for p in parts), re.I)
+
+
+def identity_emails(repo):
+    """The e-mail addresses of the history's authors and committers (the people who made the game), example, no-reply
+    and dev_NN addresses left out: a binary that carries one refuses the package."""
+    out = set()
+    for a in git_text(repo, 'log', '--format=%ae%n%ce', *HISTORY_REFS, check=False).splitlines():
+        a = a.strip().lower()
+        if '@' in a and 'noreply' not in a and not re.match(r'dev_\d+@', a) and \
+                not re.search(r'@(?:[\w-]+\.)*(?:example\.(?:com|org|net)|invalid|test|localhost)$', a):
+            out.add(a)
+    return sorted(out)
 
 
 # ---- the delivered history ---------------------------------------------------------------------------------------------
@@ -1123,16 +1137,36 @@ def replay_verification(report):
 
 
 # ---- scan ------------------------------------------------------------------------------------------------------------------
+# A binary hit is checked against the word around it (letters, digits, _ . / : -): the Opus audio codec's own forms
+# (engine, media and SDK code name it everywhere; the model's name is "opus" as a word of its own), Authenticode's
+# SpcSpOpusInfo (Mono's security library in every Mono player) and the bare codec name. One segment of a scoped or path
+# word is enough (third_party/opus/src/x.c, Media::OpusDecoder).
+OPUS_CODEC = (r'(?:^|.*/)third_party/opus/.*', r'libopus(?:file|enc|dec)?(?:\.(?:dll|lib|so|a|h))?',
+              r'opus(?:file|enc|dec)(?:\.(?:dll|lib|so|a|h))?', r'opus_(?:[a-z][a-z0-9_]*)?', r'OPUS_(?:[A-Z][A-Z0-9_]*)?',
+              r'\w*WebRtcOpus_\w*', r'WebRTC-[\w-]*Opus[\w-]*', r'OpusCustom\w*', r'opus[-_]codecs?', r'ogg[/_-]opus',
+              r'\.opus', r'[\w./-]*/[\w-]+\.opus', r'\w*Audio(?:En|De)coder\w*Opus\w*',
+              r'\w*Opus(?:Impl|Config|Decoder|Encoder|AudioInfo|Format|Codec|Header|Head|Tags|File)\w*',
+              r'[\w./-]*opus[\w.-]*\.(?:c|cc|cpp|h)', r'opus/\d+(?:/\d+)?', r'audio/opus', r'A_OPUS', r'Opus\w*(?:Decoder|Encoder)\w*',
+              r'\w*SpOpusInfo\w*', r'SPC_SP_OPUS_INFO\w*')
+ALLOW_BIN = re.compile(r'^(?:[\w./:-]*?[:/])?(?:' + '|'.join(OPUS_CODEC) + r')(?:[:/.][\w./:-]*)?$|^(?:[\w./:-]*?/)?opus$', re.I)
+MODEL_FORM = re.compile(r'(?i)claude|anthropic|opus[-_ .]?v?\d')   # never allowed as random bytes
+MIN_ENTROPY = 7.0          # bits per byte: compressed or encrypted data is near 8, text and tables well below
+MAX_STREAM_HITS = 1000     # past this, a file's hits inside media payloads refuse again (not chance any more)
+MEDIA_EXT = ('.mp4', '.mkv', '.mka', '.wav')
+REVIEWED = os.path.join(HERE, 'package-reviewed-hits.tsv')
+
+
 def short_token(buf, at, n, w):
-    """Whether a short needle (an account name of four or five letters) found at buf[at] with stride w (1 ASCII, 2
-    UTF-16LE) stands as a word of its own: spelled as a word is (name, Name, NAME), after a non-letter or at a lower ->
+    """Whether a short needle (an account name of four or five letters, "opus") found at buf[at] with stride w (1 ASCII,
+    2 UTF-16LE) stands as a word of its own: spelled as a word is (name, Name, NAME), after a non-letter or at a lower ->
     upper boundary, and not followed by a lower-case letter. The engine's own files spell short names inside longer
     words and identifiers, in any case (System.Core.dll's method names, a word list in mono-2.0-bdwgc.dll)."""
-    if w == 2 and any(buf[at + 2 * k + 1] for k in range(n)):
+    if w == 2 and any(buf[at + 2 * k + 1] for k in range(n) if at + 2 * k + 1 < len(buf)):
         return False
     s = bytes(buf[at + w * k] for k in range(n)).decode('latin-1')
     if not (s.islower() or s.isupper() or (s[0].isupper() and s[1:].islower())):
         return False
+
     def char(i):
         return buf[i] if 0 <= i < len(buf) and (w == 1 or (i + 1 < len(buf) and buf[i + 1] == 0)) else 0
     prev, nxt = char(at - w), char(at + n * w)
@@ -1140,39 +1174,420 @@ def short_token(buf, at, n, w):
     return (not letter(prev) or (97 <= prev <= 122 and s[0].isupper())) and not 97 <= nxt <= 122
 
 
-def scan_binary(path, needles):
-    """[(offset, needle, run)] of needles (lower-case ASCII) found in a binary file as ASCII or UTF-16LE, any case. run =
-    the printable characters in a row around the hit: compiled-in strings run long, compressed data seldom past 8."""
+def bounded_word(buf, at, n, w):
+    """Whether a name found at buf[at] is not part of a longer word: no letter right before or after it."""
+    def char(i):
+        return buf[i] if 0 <= i < len(buf) and (w == 1 or (i + 1 < len(buf) and buf[i + 1] == 0)) else 0
+    letter = lambda c: 65 <= c <= 90 or 97 <= c <= 122   # noqa: E731
+    return not letter(char(at - w)) and not letter(char(at + n * w))
+
+
+def bin_word(buf, at, n, w):
+    """The word around a hit (letters, digits, _ . / : -; up to 40 characters each side), decoded as it was found."""
+    ok = lambda c: 48 <= c <= 57 or 65 <= c <= 90 or 97 <= c <= 122 or c in b'_./:-'   # noqa: E731
+    a = at
+    while a - w >= 0 and at - a < 40 * w and ok(buf[a - w]) and (w == 1 or buf[a - w + 1] == 0):
+        a -= w
+    z = at + n * w
+    while z + w - 1 < len(buf) and z - at < 40 * w + n * w and ok(buf[z]) and (w == 1 or buf[z + 1] == 0):
+        z += w
+    return bytes(buf[a:z:w]).decode('latin-1')
+
+
+def entropy(buf, at):
+    """Shannon entropy (bits per byte) of the 512 bytes around at (0 with fewer than 256 bytes in the buffer)."""
+    lo, hi = max(0, at - 256), min(len(buf), at + 256)
+    if hi - lo < 256:
+        return 0.0
+    import math
+    counts = {}
+    for c in buf[lo:hi]:
+        counts[c] = counts.get(c, 0) + 1
+    n = hi - lo
+    return -sum(k / n * math.log2(k / n) for k in counts.values())
+
+
+def media_payload(path):
+    """Sorted [(start, end)] byte ranges of the compressed audio and video data in a media file, or None when the file is
+    no media file this reads (then nothing is relaxed): MP4, the mdat boxes when every track is video or audio (hdlr vide
+    or soun); WAV, the data chunk; Matroska (.mkv, .mka), the frame data of the blocks of video and audio tracks."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in MEDIA_EXT:
+        return None
+    try:
+        with open(lp(path), 'rb') as f:
+            r = _mp4_payload(f) if ext == '.mp4' else _wav_payload(f) if ext == '.wav' else _mkv_payload(f)
+    except (OSError, ValueError, IndexError):
+        return None
+    return sorted(r) if r else None
+
+
+def _read_at(f, off, n):
+    f.seek(off)
+    b = f.read(n)
+    if len(b) != n:
+        raise ValueError('short read')
+    return b
+
+
+def _mp4_payload(f):
+    f.seek(0, 2)
+    size_all, pos, mdat, moov = f.tell(), 0, [], None
+    while pos + 8 <= size_all:
+        h = _read_at(f, pos, 8)
+        size, kind, hl = int.from_bytes(h[:4], 'big'), h[4:8], 8
+        if size == 1:
+            size, hl = int.from_bytes(_read_at(f, pos + 8, 8), 'big'), 16
+        elif size == 0:
+            size = size_all - pos
+        if size < hl or pos + size > size_all:
+            return None
+        if kind == b'mdat':
+            mdat.append((pos + hl, pos + size))
+        elif kind == b'moov':
+            if size > (256 << 20) or moov is not None:
+                return None
+            moov = _read_at(f, pos + hl, size - hl)
+        pos += size
+    if moov is None or not mdat:
+        return None
+    handlers = []
+
+    def walk(b, start, end):
+        p = start
+        while p + 8 <= end:
+            size, kind = int.from_bytes(b[p:p + 4], 'big'), b[p + 4:p + 8]
+            if size < 8 or p + size > end:
+                handlers.append(b'?')
+                return
+            if kind in (b'trak', b'mdia'):
+                walk(b, p + 8, p + size)
+            elif kind == b'hdlr' and size >= 20:
+                handlers.append(b[p + 16:p + 20])
+            p += size
+    walk(moov, 0, len(moov))
+    return mdat if handlers and all(t in (b'vide', b'soun') for t in handlers) else None
+
+
+def _wav_payload(f):
+    h = _read_at(f, 0, 12)
+    if h[:4] != b'RIFF' or h[8:12] != b'WAVE':
+        return None
+    f.seek(0, 2)
+    size_all, pos, out = f.tell(), 12, []
+    while pos + 8 <= size_all:
+        c = _read_at(f, pos, 8)
+        size = int.from_bytes(c[4:8], 'little')
+        end = min(size_all, pos + 8 + size)
+        if c[:4] == b'data':
+            out.append((pos + 8, end))
+        pos = end + (size & 1)
+    return out or None
+
+
+def _vint(f, pos, keep_marker):
+    """(value, length, unknown size) of an EBML variable-length integer: an id keeps its marker bit, a size drops it."""
+    f.seek(pos)
+    b0 = f.read(1)
+    if not b0 or b0[0] == 0:
+        raise ValueError('bad vint')
+    b0, mask, n = b0[0], 0x80, 1
+    while not b0 & mask:
+        mask >>= 1
+        n += 1
+    if n > 8:
+        raise ValueError('bad vint')
+    v = b0 if keep_marker else b0 & (mask - 1)
+    ones = (b0 & (mask - 1)) == mask - 1
+    rest = f.read(n - 1)
+    if len(rest) != n - 1:
+        raise ValueError('short vint')
+    for b in rest:
+        v = v * 256 + b
+        ones = ones and b == 0xFF
+    return v, n, (not keep_marker) and ones
+
+
+CLUSTER_CHILDREN = {0xE7, 0xA3, 0xA0, 0xA7, 0xAB, 0x5854, 0xBF, 0xEC}
+
+
+def _mkv_payload(f):
+    f.seek(0, 2)
+    size_all = f.tell()
+    eid, n, _ = _vint(f, 0, True)
+    if eid != 0x1A45DFA3:
+        return None
+    sz, n2, unk = _vint(f, n, False)
+    if unk:
+        return None
+    pos = n + n2 + sz
+    eid, n, _ = _vint(f, pos, True)
+    if eid != 0x18538067:
+        return None
+    sz, n2, unk = _vint(f, pos + n, False)
+    seg_start = pos + n + n2
+    seg_end = size_all if unk else min(size_all, seg_start + sz)
+    types, blocks = {}, []
+    _ebml(f, seg_start, seg_end, types, blocks)
+    return [(b[0], b[1]) for b in blocks if types.get(b[2]) in (1, 2)] or None
+
+
+def _ebml(f, pos, end, types, blocks, parent=0, entry=None):
+    """Walk Segment > Tracks/Cluster > TrackEntry/BlockGroup: track types into types, block frame data into blocks."""
+    while pos < end:
+        try:
+            eid, n, _ = _vint(f, pos, True)
+        except ValueError:
+            return pos
+        if parent == 0x1F43B675 and eid not in CLUSTER_CHILDREN:
+            return pos   # an unknown-size Cluster ends here
+        try:
+            sz, n2, unk = _vint(f, pos + n, False)
+        except ValueError:
+            return pos
+        ds = pos + n + n2
+        de = end if unk else min(end, ds + sz)
+        if eid in (0x1654AE6B, 0x1F43B675, 0xA0):              # Tracks, Cluster, BlockGroup
+            stop = _ebml(f, ds, de, types, blocks, eid)
+            if unk:
+                de = stop
+        elif eid == 0xAE:                                       # TrackEntry
+            e = [-1, -1]
+            _ebml(f, ds, de, types, blocks, eid, e)
+            if e[0] >= 0:
+                types[e[0]] = e[1]
+        elif entry is not None and eid in (0xD7, 0x83) and sz <= 8:   # TrackNumber, TrackType
+            entry[0 if eid == 0xD7 else 1] = int.from_bytes(_read_at(f, ds, sz), 'big')
+        elif eid in (0xA3, 0xA1):                               # SimpleBlock, Block
+            try:
+                track, tn, _ = _vint(f, ds, False)
+            except ValueError:
+                track, tn = -1, 0
+            if track >= 0 and ds + tn + 3 <= de:
+                blocks.append((ds + tn + 3, de, track))
+        if unk and eid != 0x1F43B675:
+            return de   # an unknown size elsewhere: the rest is not read
+        pos = de
+    return pos
+
+
+def in_ranges(ranges, a, b):
+    """Whether [a, b) lies inside one of the sorted ranges."""
+    import bisect
+    i = bisect.bisect_right([r[0] for r in ranges], a) - 1
+    return i >= 0 and b <= ranges[i][1]
+
+
+def binary_needles(user, identities, emails):
+    """[(needle lower-case, category, mode)] of the binary scan. Modes: long (anywhere), short (a word of its own: an
+    account name under 6 letters), opus (a word of its own inside a string, the codec's forms allowed), word (an identity
+    name or handle, not inside a longer word), email (a developer's own address, anywhere)."""
+    out = [(n, 'banned-name', 'long') for n in ('superposition', 'game-factory', 'game_factory', 'gamefactory')]
+    out += [('anthropic', 'agent-name', 'long'), ('claude', 'agent-name', 'long'), ('openai', 'agent-name', 'long'),
+            ('opus', 'agent-name', 'opus')]
+    if user and len(user) >= 4:
+        out.append((user.lower(), 'username', 'short' if len(user) < 6 else 'long'))
+    seen = {n for n, _c, _m in out}
+    for term, _dev in identities:   # full names and handles of the history's people; their single words are too common
+        t = term.lower()
+        if t not in seen and t.isascii() and (' ' in t or (len(t) >= 8 and re.fullmatch(r'[a-z0-9._-]+', t)) or
+                                             (len(t) >= 5 and re.search(r'\d', t))):
+            out.append((t, 'git-identity', 'word'))
+            seen.add(t)
+    for e in emails:
+        if e.lower() not in seen and e.isascii():
+            out.append((e.lower(), 'email', 'long'))
+            seen.add(e.lower())
+    return out
+
+
+def scan_binary(path, needles, payload=None, stream_terms=()):
+    """Every needle found in a binary file as ASCII or UTF-16LE, any case: [(offset, needle, category, run, word, kind)].
+    run = the printable characters in a row around the hit (compiled-in strings run long, compressed data seldom past 8);
+    word = the word around it. kind: binary (refuses), binary-info (listed only: a short name or an identity in a run
+    under 8 that is not a whole C string) or allowed-<why> (locale, codec, stream: inside a media file's compressed
+    payload, entropy: "opus" spelled by compressed bytes)."""
     hits = []
-    wide = [n.encode('utf-16-le') for n in needles]
-    plain = [n.encode('ascii') for n in needles]
-    chunk, overlap, base, carry = 4 << 20, 128, 0, b''
+    plain = [n.encode('ascii') for n, _c, _m in needles]
+    wide = [n.encode('utf-16-le') for n, _c, _m in needles]
+    chunk, overlap, base, carry, stream_hits = 4 << 20, 160, 0, b'', 0
     with open(lp(path), 'rb') as f:
-        while True:
+        while len(hits) < 400:
             data = f.read(chunk)
             if not data:
                 break
             buf = carry + data
             low = buf.lower()
-            for k, n in enumerate(needles):
-                for pat, w in ((plain[k], False), (wide[k], True)):
+            for k, (n, cat, mode) in enumerate(needles):
+                for pat, w in ((plain[k], 1), (wide[k], 2)):
                     at = low.find(pat)
-                    while at >= 0 and len(hits) < 200:
+                    while at >= 0 and len(hits) < 400:
                         off = base - len(carry) + at
-                        if len(n) < 6 and not short_token(buf, at, len(n), 2 if w else 1):
-                            pass   # a short name inside a longer word or identifier, or in random bytes
-                        elif not any(h[0] == off for h in hits):
-                            st = 2 if w else 1
-                            run, a, z = len(n), at - st, at + len(pat)
-                            while a >= 0 and run < 64 and 0x20 <= buf[a] <= 0x7e and (not w or buf[a + 1] == 0):
-                                run, a = run + 1, a - st
-                            while z + st - 1 < len(buf) and run < 64 and 0x20 <= buf[z] <= 0x7e and (not w or buf[z + 1] == 0):
-                                run, z = run + 1, z + st
-                            hits.append((off, n, run))
+                        nl = len(n)
+                        if any(h[0] == off for h in hits):
+                            pass
+                        elif mode in ('short', 'opus') and not short_token(buf, at, nl, w):
+                            pass   # inside a longer word or identifier, or random bytes
+                        elif mode == 'word' and not bounded_word(buf, at, nl, w):
+                            pass
+                        else:
+                            run, a, z = nl, at - w, at + len(pat)
+                            while a >= 0 and run < 64 and 0x20 <= buf[a] <= 0x7e and (w == 1 or buf[a + 1] == 0):
+                                run, a = run + 1, a - w
+                            while z + w - 1 < len(buf) and run < 64 and 0x20 <= buf[z] <= 0x7e and (w == 1 or buf[z + 1] == 0):
+                                run, z = run + 1, z + w
+                            if mode == 'opus' and run < 8:
+                                at = low.find(pat, at + 1)
+                                continue   # the codec name and random bytes spell it outside strings all the time
+                            word = bin_word(buf, at, nl, w)
+                            kind = 'binary'
+                            p3 = at - 3 * w
+                            if cat == 'username' and p3 >= 0 and buf[p3] | 0x20 == ord('z') and buf[p3 + w] | 0x20 == ord('h') and buf[p3 + 2 * w] in b'_-':
+                                kind = 'allowed-locale'   # a zh_<name> / zh-<name> locale id
+                            elif ALLOW_BIN.match(word):
+                                kind = 'allowed-codec'
+                            elif payload and n in stream_terms and stream_hits < MAX_STREAM_HITS and in_ranges(payload, off, off + len(pat)):
+                                kind, stream_hits = 'allowed-stream', stream_hits + 1
+                            elif mode == 'opus' and run <= 16 and not MODEL_FORM.search(word) and entropy(buf, at) >= MIN_ENTROPY:
+                                kind = 'allowed-entropy'
+                            elif mode in ('short', 'word') and run < 8:
+                                end = at + len(pat)
+                                whole = (at < w or not any(buf[at - w:at])) and (end + w > len(buf) or not any(buf[end:end + w]))
+                                kind = 'binary' if whole else 'binary-info'   # a whole C string, or a few random letters
+                            hits.append((off, n, cat, run, word, kind + ('-utf16' if w == 2 and kind != 'binary' else '')))
                         at = low.find(pat, at + 1)
             carry = buf[-overlap:]
             base += len(data)
     return hits
+
+
+def reviewed_hits(path=REVIEWED):
+    """{(file sha256, offset): word} of a reviewed-hits TSV (tools/package-reviewed-hits.tsv: sha256, offset, word,
+    why): single binary hits a person judged to be data, not text, keyed by the file's own bytes, so another file or
+    another version of it still refuses."""
+    out = {}
+    if path and os.path.isfile(path):
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                p = line.rstrip('\n').split('\t')
+                if len(p) >= 3 and re.fullmatch(r'[0-9a-f]{64}', p[0]) and p[1].isdigit():
+                    out[(p[0], int(p[1]))] = p[2]
+    return out
+
+
+# the account name written out as escaped bytes (a Python bytes repr \xHH, JSON \uHHHH): a short literal run between
+# escapes is random bytes, not a path
+ESC_TOKEN = re.compile(r'\\+(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})')
+
+
+def escaped_bytes(s, at, n):
+    lo, hi = max(0, at - 64), min(len(s), at + n + 64)
+    while lo < at and s[lo] != '\\':
+        lo += 1
+    while lo > 0 and s[lo - 1] == '\\':
+        lo -= 1
+    w = s[lo:hi]
+    hs, he = at - lo, at - lo + n
+    before = after = 0
+    run_start = run_end = -1
+    for e in ESC_TOKEN.finditer(w):
+        if e.end() <= hs:
+            before, run_start = before + 1, e.end()
+        elif e.start() >= he:
+            after += 1
+            if run_end < 0:
+                run_end = e.start()
+        else:
+            return False
+    if before < 3 or after < 3 or run_end - run_start > 16:
+        return False
+    return not any(c == '\\' or c.isspace() for c in w[run_start:run_end])
+
+
+# other people's profile folders in a delivery's text: reported, never changed (AGENTS.md's leak scan)
+OTHER_PROFILE = re.compile(r'(?i)(?:\b[A-Z]:[\\/]{1,2}|[\\/]{2})Users[\\/]{1,2}([^\\/\s"\'<>|:*?`]{1,64})|(?<![\w.])/(?:Users|home)/([A-Za-z0-9._-]{1,64})')
+PROFILE_OK = {'dev', 'public', 'default', 'all users', 'default user', 'runneradmin', 'user', 'name', 'you', 'username', '<you>',
+              '<name>', '<user>', '<username>', '...', '…', '*', '%username%', '$env:username', '$username', '$user', '{user}',
+              'first', 'firstname', 'first.last', 'yourname', 'your_name', 'example', 'someone', 'me'}   # placeholders in docs
+
+
+def scan_tree(root, enforced, needles, user, reviewed=None, skip=()):
+    """The scan of a delivery folder (paths, text files with the enforced pattern, binaries with the needles):
+    {"hits": [(rel, kind, line, text)] of paths and text (each refuses), "binary": [(rel, offset, needle, category,
+    printable run, word, kind)] (kind binary refuses unless --lenient-binaries; binary-info is listed only), "allowed":
+    [(rel, kind, line or offset, word)], "emails": [(rel, offset, address)] (e-mail addresses in binaries, listed only),
+    "leaks": [(rel, line, text)] (other people's profile folders in text, listed only)}."""
+    out = {'hits': [], 'binary': [], 'allowed': [], 'emails': [], 'leaks': []}
+    reviewed = reviewed or {}
+    stream_terms = {n for n, cat, mode in needles if n in ('claude', 'openai', 'opus') or cat == 'username'}
+    sums = {}
+    for rel in files_under(root):
+        if rel in skip:
+            continue
+        if enforced.search(rel):
+            out['hits'].append((rel, 'path', 0, rel))
+        full = os.path.join(root, *rel.split('/'))
+        size = os.path.getsize(lp(full))
+        if size == 0 or rel.endswith('.bundle'):   # the bundle's messages and text blobs: history_texts
+            continue
+        with open(lp(full), 'rb') as f:
+            head_bytes = f.read(8000)
+        if not rel.startswith('History/lfs/objects/') and size < (256 << 20) and is_text(rel, head_bytes):
+            text = decode(read_bytes(full))[0]
+            found = 0
+            for i, line in enumerate(text.split('\n'), 1):
+                for mm in enforced.finditer(line):
+                    if mm.group('user') and user:
+                        a = mm.start('user')
+                        if a >= 3 and line[a - 3:a - 1].lower() == 'zh' and line[a - 1] in '_-':
+                            out['allowed'].append((rel, 'allowed-locale', i, 'zh_' + mm.group('user')))
+                            continue
+                        if escaped_bytes(line, a, len(mm.group('user'))):
+                            out['allowed'].append((rel, 'allowed-escaped-bytes', i, mm.group('user')))
+                            continue
+                    found += 1
+                    if found <= 20:
+                        out['hits'].append((rel, 'text', i, line[max(0, mm.start() - 60):mm.end() + 60].replace('\t', ' ').replace('\r', '')))
+                for lm in OTHER_PROFILE.finditer(line):
+                    who = (lm.group(1) or lm.group(2) or '').strip().rstrip('.')
+                    if who and who.lower() not in PROFILE_OK and not re.fullmatch(r'dev_\d+|<[^>]*>|\{[^}]*\}|%\w+%|\$\w+', who, re.I):
+                        out['leaks'].append((rel, i, lm.group(0)[:120]))
+        else:
+            for off, needle, cat, run, word, kind in scan_binary(full, needles, media_payload(full), stream_terms):
+                if kind == 'binary' and reviewed:
+                    if rel not in sums:
+                        sums[rel] = sha256_file(full)
+                    if reviewed.get((sums[rel], off)) == word:
+                        kind = 'allowed-reviewed'
+                if kind.startswith('allowed'):
+                    out['allowed'].append((rel, kind, off, f'{cat}: {word}'))
+                else:
+                    out['binary'].append((rel, off, needle, cat, run, word, kind))
+            if not rel.startswith('Gameplay/'):
+                out['emails'] += [(rel, off, addr) for off, addr in bin_emails(full)]
+    return out
+
+
+BIN_EMAIL = re.compile(rb'(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.)+(?:com|org|net|edu|gov|io|dev|co|uk|de|fr|jp|cn|ru|info|biz|me|ai|app)(?![A-Za-z0-9-])')
+
+
+def bin_emails(path):
+    """[(offset, address)] of the e-mail addresses in a binary file's bytes (streamed), example domains left out."""
+    out, chunk, overlap, base, carry = [], 8 << 20, 200, 0, b''
+    with open(lp(path), 'rb') as f:
+        while len(out) < 200:
+            data = f.read(chunk)
+            if not data:
+                break
+            buf = carry + data
+            for m in BIN_EMAIL.finditer(buf):
+                off = base - len(carry) + m.start()
+                addr = m.group(0).decode('latin-1')
+                if not re.search(r'(?i)@(?:[\w-]+\.)*(?:example\.(?:com|org|net)|invalid|test|localhost)$', addr) and not any(o == off for o, _a in out):
+                    out.append((off, addr))
+            carry = buf[-overlap:]
+            base += len(data)
+    return out
 
 
 # ---- the package ---------------------------------------------------------------------------------------------------------
@@ -1194,6 +1609,8 @@ def main():
                                      '(default <out>/_replay/<slug>/<release sha8>)')
     ap.add_argument('--recording', help='the recording folder (default <root>/.recording/<slug>)')
     ap.add_argument('--out', help='where the zip and the scratch folder go (default the game repo)')
+    ap.add_argument('--reviewed-hits', default=REVIEWED, help='single binary hits a person judged to be data, not text: a TSV of '
+                                                                'file sha256, offset, word (default tools/package-reviewed-hits.tsv)')
     ap.add_argument('--lenient-binaries', action='store_true',
                     help='list the names found in binary files without refusing the package (to review a refusal)')
     ap.add_argument('--strict-binaries', action='store_true', help=argparse.SUPPRESS)   # the default now
@@ -1509,42 +1926,51 @@ def package(args):
     write_text(os.path.join(stage, 'README.md'), remap_text(apply_rules(dataset_readme(ctx, False), rules, False, False), cmap))
     step('scanning every file (paths and text; binaries as ASCII and UTF-16)')
     enforced = enforced_pattern(user, identities)
-    needles = ['superposition', 'game-factory', 'game_factory', 'gamefactory', 'anthropic', 'claude', 'openai']
-    if user and len(user) >= 4:
-        needles.append(user.lower())
-    hits, bin_hits = [], []
-    for rel in files_under(stage):
-        if enforced.search(rel):
-            hits.append((rel, 'path', 0, rel))
-        full = os.path.join(stage, *rel.split('/'))
-        size = os.path.getsize(lp(full))
-        if size == 0 or rel.endswith('.bundle'):   # the bundle's messages and text blobs were scrubbed in the rewrite
-            continue
-        with open(lp(full), 'rb') as f:
-            head_bytes = f.read(8000)
-        if not rel.startswith('History/lfs/objects/') and size < (256 << 20) and is_text(rel, head_bytes):
-            text = decode(read_bytes(full))[0]
-            found = 0
-            for i, line in enumerate(text.split('\n'), 1):
-                for mm in enforced.finditer(line):
-                    found += 1
-                    if found <= 20:
-                        hits.append((rel, 'text', i, line[max(0, mm.start() - 60):mm.end() + 60].replace('\t', ' ').replace('\r', '')))
-        else:
-            for off, needle, run in scan_binary(full, needles):
-                bin_hits.append((rel, off, needle, run))
+    needles = binary_needles(user, identities, identity_emails(repo))
+    scan = scan_tree(stage, enforced, needles, user, reviewed_hits(args.reviewed_hits))
+    hits = scan['hits']
     # the bundle's commits that git.log does not show: the start branches' own messages and text blobs
     for where, text in history_texts(bare, refs):
         for mm in list(enforced.finditer(text))[:20]:
             hits.append((f'History/{game}.bundle', 'history', where, text[max(0, mm.start() - 60):mm.end() + 60].replace('\n', ' ')))
     tsv = lambda rows: ''.join('\t'.join(str(x) for x in r) + '\n' for r in rows)   # noqa: E731
-    write_text(os.path.join(scratch, f'{game}.binary-hits.tsv'), 'path\toffset\tname\tprintable_run\n' + tsv(bin_hits))
-    strings = [h for h in bin_hits if h[3] >= 8]
-    if bin_hits:
-        warnings.append(f'{len(bin_hits)} name(s) in {len({h[0] for h in bin_hits})} binary file(s), {len(strings)} of them inside a string of 8+ '
-                        f'characters: review {os.path.join(scratch, game + ".binary-hits.tsv")} (binaries are never changed)')
+    write_text(os.path.join(scratch, f'{game}.binary-hits.tsv'), 'path\toffset\tname\tcategory\tprintable_run\tword\tkind\n' + tsv(scan['binary']))
+    write_text(os.path.join(scratch, f'{game}.allowlisted.tsv'), 'path\tkind\tline_or_offset\tword\n' + tsv(scan['allowed']))
+    write_text(os.path.join(scratch, f'{game}.binary-emails.tsv'), 'path\toffset\taddress\n' + tsv(scan['emails']))
+    write_text(os.path.join(scratch, f'{game}.leaks.tsv'), 'path\tline\ttext\n' + tsv(scan['leaks']))
+    refusing = [b for b in scan['binary'] if b[6] == 'binary']
+    if scan['binary']:
+        warnings.append(f'{len(scan["binary"])} name(s) in {len({b[0] for b in scan["binary"]})} binary file(s), {len(refusing)} of them in a '
+                        f'string: review {os.path.join(scratch, game + ".binary-hits.tsv")} (binaries are never changed)')
+    if scan['allowed']:
+        warnings.append(f'{len(scan["allowed"])} hit(s) allowed (codec forms, media payloads, locale ids, reviewed): '
+                        f'{os.path.join(scratch, game + ".allowlisted.tsv")}')
+    if scan['emails']:
+        warnings.append(f'{len(scan["emails"])} e-mail address(es) in binary files, none of the history\'s people (listed only): '
+                        f'{os.path.join(scratch, game + ".binary-emails.tsv")}')
+    if scan['leaks']:
+        warnings.append(f'{len(scan["leaks"])} other profile folder(s) in text files (listed only): {os.path.join(scratch, game + ".leaks.tsv")}')
     if not args.lenient_binaries:   # a name in a binary file's strings refuses the package, as one in a text file does
-        hits += [(h[0], 'binary', h[1], h[2]) for h in strings]
+        hits += [(b[0], 'binary', b[1], f'{b[3]}: {b[5]}') for b in refusing]
+    # what the scrub changed and what the scan found, counts only (the words would carry the names): beside the delivery,
+    # never in it
+    by_kind = {}
+    for a in scan['allowed']:
+        by_kind[a[1]] = by_kind.get(a[1], 0) + 1
+    scrub_report = {
+        'schema': 'scrub-report/1', 'game': game, 'commit': sha, 'delivered_commit': head,
+        'rules': [{'id': k, 'what': RULE_TEXT.get(k, ''), 'replacements': v} for k, v in counts.items()],
+        'files_touched_count': len(touched), 'files_touched': touched,
+        'history': {'identities_numbered': len(authors), 'blobs_scrubbed': hstats['blobs_scrubbed'],
+                    'messages_scrubbed': hstats['messages_scrubbed'], 'commit_ids_mapped_in_files': remapped},
+        'sessions': {n: ses_stats.get(n) for n in ('actions.jsonl', 'messages.jsonl')},
+        'scan': {'text_and_path_hits': len(scan['hits']), 'history_hits': len([h for h in hits if h[1] == 'history']),
+                 'binary_refusing': len(refusing), 'binary_listed': len(scan['binary']) - len(refusing),
+                 'binary_lenient': bool(args.lenient_binaries), 'allowed': by_kind,
+                 'emails_in_binaries_listed': len(scan['emails']), 'other_profiles_listed': len(scan['leaks'])},
+        'binary_note': 'binary files are never changed; a name in one refuses the delivery unless it is an allowed form (the audio '
+                       'codec, a locale id, a media payload, compressed bytes, a reviewed hit)'}
+    write_text(os.path.join(scratch, f'{game}.scrub-report.json'), json.dumps(scrub_report, indent=1) + '\n')
     errors = [p for p in problems if p.startswith('error:')]
     if hits or errors:
         write_text(os.path.join(scratch, f'{game}.refused-hits.tsv'), 'path\tkind\tline_or_offset\ttext\n' + tsv(hits) +
@@ -1634,6 +2060,23 @@ def package(args):
     # the old -> new map of this delivery, kept where the next run does not empty it (the scratch is emptied each run)
     keep = os.path.join(ugfroot.out(), game, f'{game}_{head[:8]}.commit-map.tsv')
     write_text(keep, map_text)
+    # the delivery's audit beside the deliveries (the scratch is emptied each run): its scrub report, the lists the
+    # scan only reports, and one row per delivery in package-log.jsonl
+    audit = {}
+    for kind in ('scrub-report.json', 'leaks.tsv', 'allowlisted.tsv', 'binary-emails.tsv'):
+        src = os.path.join(scratch, f'{game}.{kind}')
+        if os.path.isfile(lp(src)):
+            audit[kind] = os.path.join(ugfroot.out(), game, f'{game}_{head[:8]}.{kind}')
+            copy_file(src, audit[kind])
+    zip_bytes = os.path.getsize(zip_path) if zip_path else None
+    with open(lp(os.path.join(ugfroot.out(), game, 'package-log.jsonl')), 'a', encoding='utf-8', newline='\n') as f:
+        f.write(json.dumps({'time': datetime.now().astimezone().isoformat(timespec='seconds'), 'game': game, 'commit': sha,
+                            'delivered_commit': head, 'version': args.version, 'status': status, 'pending': pending,
+                            'zip': zip_path, 'zip_bytes': zip_bytes, 'files': len(files_under(stage)),
+                            'scenarios': [r['run'] for r in runs], 'replay': None if rv is None else ('PASS' if rv['pass'] else 'FAIL'),
+                            'build': build_source.replace('{}', (cmap.get(build_commit) or head)[:12]),
+                            'scrubbed_files': len(touched), 'warnings': warnings, 'audit': audit,
+                            'duration_s': round(time.time() - t0, 1)}, ensure_ascii=False) + '\n')
 
     sizes = {}
     for rel in files_under(stage):
