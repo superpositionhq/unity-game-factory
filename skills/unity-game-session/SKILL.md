@@ -131,7 +131,8 @@ by hand under these rules, or ask.
 - Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
   the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
 - **Combat through one interface, state readable (user rule, 2026-11-11):** in a game where anything can be hurt,
-  declare `public interface IDamageable { void TakeDamage(float amount, GameObject source); }`; everything that can be
+  declare `public interface IDamageable { float TakeDamage(float amount, GameObject source); }`, returning the damage
+  actually applied (0 when the hit did nothing: a guard, a shield, invulnerability); everything that can be
   hurt is a component implementing it (on the object or its parent) and decides health, death, stagger, guard, parry
   and invulnerability in `TakeDamage` or what it calls; everything that hurts calls `TakeDamage` on it, never changing
   health directly. Your own hit method may exist only as a step called from `TakeDamage`. Key gameplay state lives on

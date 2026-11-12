@@ -1787,7 +1787,7 @@ def check_contract(rep, repo, files):
                 statics.append((f, text.count('\n', 0, m.start()) + 1, m.group('name'), why))
         for m in CS_HIT_FUNCTION.finditer(text):
             hit_functions.append((f, text.count('\n', 0, m.start()) + 1, m.group(1)))
-        if re.search(r'\binterface\s+IDamageable\b[^{]*\{[^}]*\bTakeDamage\s*\(\s*float\s+\w+\s*,\s*GameObject\b', text,
+        if re.search(r'\binterface\s+IDamageable\b[^{]*\{[^}]*\bfloat\s+TakeDamage\s*\(\s*float\s+\w+\s*,\s*GameObject\b', text,
                      re.S):
             declares = True
         if re.search(r'\bclass\s+\w+\s*:[^{]*\bIDamageable\b', text):
@@ -1798,8 +1798,8 @@ def check_contract(rep, repo, files):
         rep.note('contract', 'no combat (no health member, no hit function): the damage rule does not apply')
     else:
         if not declares:
-            rep.error('contract', 'combat without the IDamageable interface: declare `interface IDamageable { void '
-                      'TakeDamage(float amount, GameObject source); }`' + (
+            rep.error('contract', 'combat without the IDamageable interface: declare `interface IDamageable { float '
+                      'TakeDamage(float amount, GameObject source); }`, returning the damage actually applied' + (
                           f" (the game's own hit function {hit_functions[0][2]} at {hit_functions[0][0]}:"
                           f'{hit_functions[0][1]} must be a step called from TakeDamage)' if hit_functions else '')
                       + REQUIRED)

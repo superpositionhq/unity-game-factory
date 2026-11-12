@@ -109,7 +109,7 @@ leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main'
 branch `starts/<task name>`.
 
 **Combat contract (every game not yet submitted, from 2026-11-11).** In a game where anything can be hurt, a `public interface
-IDamageable { void TakeDamage(float amount, GameObject source); }` is declared, what can be hurt implements it, and
+IDamageable { float TakeDamage(float amount, GameObject source); }` (returning the damage actually applied) is declared, what can be hurt implements it, and
 every hit calls it; key gameplay state (a number or bool named with a word of health, hp, hitpoints, hull, poise,
 armor, shield, stamina, mana, lives, dead, alive, dying, stun, stagger, invulnerable, invincible, guard, blocking,
 parry, alert, aggro, awake, asleep, dormant, roused or cooldown; a whole number or enum named with phase or state)
