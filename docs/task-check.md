@@ -181,14 +181,28 @@ A task is **VALID** when all of this holds:
   or a probe, a `"required": false` one too (the task check measures that). Judges and trace probes aren't measured
   here, so their weights aren't covered by this rule.
 
-Never part of the check: judges (`judge`, `code_judge`, `actions_judge`: quality scores, never pass/fail; a judge's
-own `plays` and `shots`, [task-probes.md](task-probes.md) section 3.2, are validated, and a play is played only where
-a probe names the same one), trace probes
+Never decided by the check: judges (`judge`, `code_judge`, `actions_judge`: no model is asked), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
 `file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
 all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and
 a run counts as solved only when every required check passes, so a required one the reference itself fails is one no
 solution like the reference can pass. Fix its pattern, or make it `"required": false`.
+
+A `judge` check is looked at by you instead. The check plays its plays on the start and on the reference (its own
+`plays`, else `look` and `drive`; a play a probe names is the same play, played once, with the most screenshots a
+judge showing it asks) and saves the screenshots the cloud's judge would be shown ([task-probes.md](task-probes.md)
+section 3.2) under `<task>\judge-shots\<check>\`: `start\` and `reference\` (`<play>_<nn>.png`, in the order
+taken), `ask.md` (the brief, the question, the rubric and what each picture is) and a blind copy, `blind\A\` and
+`blind\B\`, whose sides are in `blind\key.json`. The task's notes in the result and its lines in `progress.txt` say
+`judge <check>: shots saved for start/reference, answer needed`. Before you call a task with a required judge VALID:
+
+1. Open `ask.md`, then look at `blind\A\` and `blind\B\` and score every rubric item of each from 0 to 1, as if
+   each were the developer's game, before opening `blind\key.json`.
+2. The start must fail every required rubric item (below 0.5) and the reference must pass every one. If not, fix the
+   rubric or the plays (never by easing what the task asks), and check again.
+3. Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row on the tasks branch).
+
+`--no-judge-shots` skips the judge plays.
 
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
 `still_works` and pass its still-works probes, and every required probe, a still-works one too, needs a threshold
@@ -246,10 +260,13 @@ without), so this is for drafts only.
   the fields asked for) or a `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
   `spawns` sample holds running totals since the play started; the checker reads each sample's rise over the one
   before.
+- `<repo>\.task-checks\<task>\judge-shots\<check>\`: each judge check's pictures to answer (VALID and INVALID
+  above); the result's `judges` lists them, each `answer needed`.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
-  finished task's console line with its minutes (`(18 min)`), and `checking <task>, then N more`. `progress.json`
-  (format `task-check-progress/1`) holds the same: `started` and `updated` (seconds since 1970), `tasks` (in order),
-  `done` (each finished task's `task`, `verdict`, `reasons` and `seconds`) and `finished`.
+  finished task's console line with its minutes (`(18 min)`) and a line per judge check waiting for an answer, and
+  `checking <task>, then N more`. `progress.json` (format `task-check-progress/1`) holds the same: `started` and
+  `updated` (seconds since 1970), `tasks` (in order), `done` (each finished task's `task`, `verdict`, `reasons`,
+  `seconds` and `judges_pending`) and `finished`.
 - `.task-checks\` is git-ignored: new games have it in `.gitignore` (templates/unity-game); for an older game the
   checker adds it to the repo's own `.git\info\exclude`. Never commit results.
 

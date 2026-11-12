@@ -12,7 +12,10 @@ For one task and each run:
 3. The workspace is graded as a solution: its build outputs and Library removed, TaskProbe added, built fresh,
    played, every check but judges, trace probes and packaging run against the thresholds the start and the reference
    give (both built and measured once for all runs, before the first agent starts, and deleted then: the reference copy
-   is the answer, and it would lie two folders above the agent's).
+   is the answer, and it would lie two folders above the agent's). Each `judge` check's plays are then played on the
+   agent's game and the screenshots its judge would see are saved under <name>/run<N>/judge-shots/<check>/agent/ with
+   ask.md (judges.py): no model is asked, so whoever runs the try looks at them and answers; the run's number leaves
+   judges out, and the result lists them as pending.
 
 The result says, per run, whether the agent solved the task (every required check passed), which milestones it
 reached, its time, turns and cost when the harness reports them, and whether its transcript names the game repo or the
@@ -27,7 +30,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import check, seeds, tasks, unity, verdict
+from . import check, judges, seeds, tasks, unity, verdict
 
 FORMAT = "task-try/1"
 LONG_MINUTES = 25  # a guide for a long task, not a requirement: what counts is that the agent can't solve it easily (owner, 2026-11-09)
@@ -323,15 +326,16 @@ def side(name, folder, task, direct, timeout, build_timeout, evidence, log):
 
 
 def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, extra=(), keep=False, direct=False,
-             timeout=1800, build_timeout=3600, places=(), log=print, clock=time.time):
+             timeout=1800, build_timeout=3600, places=(), log=print, clock=time.time, judge_shots=True):
     """Try one task `runs` times with `agent`; its result (written to <out_dir>/<name>.json, each run's transcript and
-    plays under <out_dir>/<name>/)."""
+    plays under <out_dir>/<name>/). `judge_shots`: each `judge` check's screenshots of the agent's game saved under
+    <out_dir>/<name>/run<N>/judge-shots/ for a person to answer (the run's number never waits on them)."""
     started = clock()
     name = task.get("name", "?")
     result = {"format": FORMAT, "task": name, "game": (task.get("seed") or {}).get("game"),
               "task_sha256": tasks.digest(raw), "agent": agent, "model": model, "status": None, "reasons": [],
-              "solved": 0, "runs": [], "limits": limits_of(task), "at": None, "seconds": None,
-              "evidence": f"{name}/"}
+              "solved": 0, "runs": [], "limits": limits_of(task), "judges_pending": [], "at": None,
+              "seconds": None, "evidence": f"{name}/"}
 
     def finish(status, reasons=()):
         result.update(status=status, reasons=list(reasons), solved=sum(1 for r in result["runs"] if r.get("solved")),
@@ -430,6 +434,10 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                            why=str(exc))
             else:
                 row.update(score(task, grade), checks=grade["checks"])
+                if judge_shots and judges.judges(task):
+                    row["judges"] = check.save_judge_shots(task, {"agent": tried}, evidence / label / "judge-shots",
+                                                           f"{name}/{label}/judge-shots/", log=log)
+                    result["judges_pending"] = sorted(row["judges"])
             log(f"  {label}: {'SOLVED' if row['solved'] else 'not solved'} "
                 f"({row['required_passed']}/{row['required'] or '?'} required checks)")
             result["runs"].append(row)
@@ -456,6 +464,8 @@ def line(result):
     tail = f"  (best {best}/{total} required checks"
     peeks = sorted({p for r in runs for p in r["peeked"]})
     tail += f"; transcript names {', '.join(peeks)}: it may have read the answer)" if peeks else ")"
+    if result.get("judges_pending"):
+        tail += f"  judge check(s) {', '.join(result['judges_pending'])}: screenshots saved, answer needed"
     # a run that hit its time limit or whose agent stopped with an error says nothing about length
     times = [r["seconds"] / 60 for r in runs if r.get("seconds") is not None and not r.get("timed_out")
              and r.get("exit_code", 0) == 0]
@@ -499,6 +509,10 @@ def main(argv=None):
                         help="run Unity directly, not through the machine's unity-heavy.ps1 slots")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds a play or the editor pass may run")
     parser.add_argument("--build-timeout", type=int, default=3600, help="seconds a build may run")
+    parser.add_argument("--no-judge-shots", dest="judge_shots", action="store_false",
+                        help="don't play judge checks' plays or save their screenshots (by default each judge check's "
+                             "screenshots of the agent's game are saved under <task>/run<N>/judge-shots/ to be looked "
+                             "at)")
     args = parser.parse_args(argv)
 
     repo = Path(args.repo).resolve()
@@ -558,7 +572,8 @@ def main(argv=None):
             tag = hashlib.sha256(f"{repo}:{name}:{time.time()}".encode()).hexdigest()[:8]
             result = try_task(repo, task, raw, scratch_root / tag, out, args.agent, exe, runs=args.runs,
                               model=args.model, extra=args.agent_arg, keep=args.keep, direct=args.direct,
-                              timeout=args.timeout, build_timeout=args.build_timeout, places=places, log=log)
+                              timeout=args.timeout, build_timeout=args.build_timeout, places=places, log=log,
+                              judge_shots=args.judge_shots)
             if args.keep:
                 log(f"  kept the workspaces in {scratch_root / tag}")
         results.append(result)

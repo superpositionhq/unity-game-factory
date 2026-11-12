@@ -71,6 +71,10 @@ check's).
    state, its build profiles, compiled scripts and build caches, which a game's files never carry), adds the probe
    package as `Packages/com.taskprobe/`, builds it afresh and plays the agent's game (on a desktop of its own, as the
    task check's plays) and runs every check but judges, trace probes and packaging, against the thresholds of step 1.
+5. Plays each `judge` check's plays on the agent's game and saves the screenshots the cloud's judge would be shown
+   under `<task>\run<N>\judge-shots\<check>\agent\`, with `ask.md` ([task-check.md](task-check.md), VALID and
+   INVALID). No model is asked: the run's number leaves judges out, and the result lists them in `judges_pending`.
+   `--no-judge-shots` skips this.
 
 Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved` (every required check passed),
 `score` (the weighted share of checks passed, as the cloud scores it, judges left out), `required_passed` of
@@ -92,6 +96,8 @@ task check keeps them.
 - **Longest run under 25 minutes:** shorter than the guide (about 25 minutes or more). It's a guide, not a
   requirement: a task the agent doesn't solve is a good task at any length. The printed line notes it. A run that hit
   its own time limit or crashed says nothing about length.
+- **`judges_pending` lists a check:** look at its pictures and answer `ask.md` before you call the task too easy or
+  held. A run that passes every probe but fails a required judge isn't solved.
 - **Solved in any run, quickly:** too easy. Extend the thread back to an earlier attempt, merge it with its
   neighbouring issues, or drop it (unity-write-tasks section 6).
 - **Never solved, but some required checks pass:** what a hard task looks like. Read the transcript: the agent should
