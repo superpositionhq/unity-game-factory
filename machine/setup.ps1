@@ -230,7 +230,7 @@ $ghOk = $false
 if (Has gh) {
     $ghOk = (Quiet { gh auth status }).code -eq 0
     if (-not $ghOk -and -not $DryRun -and $interactive) {
-        Write-Host '  GitHub sign-in: a browser page opens; sign in with the account that is a member of the org.'
+        Write-Host '  GitHub sign-in: a browser page opens; sign in with your own GitHub account. Contractors need no org membership: the skill pack is public and your game stays on your PC.'
         & gh auth login --hostname github.com --git-protocol https --web
         $ghOk = (Quiet { gh auth status }).code -eq 0
     }
@@ -261,7 +261,7 @@ if ($useCodex) {
 if (-not $Org) { Item TODO 'GitHub org' 'not set' 'run setup again with -Org <org> (the organisation or user that owns unity-game-factory)' }
 elseif ($ghOk) {
     $see = (Quiet { gh repo view "$Org/unity-game-factory" --json name }).code -eq 0
-    if ($see) { Item PASS 'GitHub org' "$Org/unity-game-factory visible" } else { Item TODO 'GitHub org' "cannot see $Org/unity-game-factory" "ask an owner of $Org to add your account (with rights to create private repos)" }
+    if ($see) { Item PASS 'GitHub org' "$Org/unity-game-factory visible" } else { Item TODO 'GitHub org' "cannot see $Org/unity-game-factory" "check that -Org is right and you are online (contractors: -Org superpositionhq, no membership needed). Staff who push game repos: ask an owner of $Org to add your account" }
 }
 
 # --- 5. unity-game-factory, bootstrap, check ---------------------------------------------------------------------------
