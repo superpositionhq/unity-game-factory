@@ -103,6 +103,7 @@ is recorded there (see Recording below). What they share on purpose:
 | `hooks/codex-hooks.json` | merged into `~\.codex\hooks.json` | Codex: the four hook entries (PostToolUse, Stop, UserPromptSubmit, SessionEnd; `{{HOOKS_DIR}}` filled in), trusted in `~\.codex\config.toml` |
 | `hooks/recording-exclude.txt` | the hooks dir (once) | session ids never recorded (the coordinator) |
 | `install-git-hook.ps1` | `<game>\.git\hooks\post-commit` | appends the commit recorder and the live creation replay's line (`tools/unity-replay/live-hook.ps1` of this checkout; it acts only for `<root>\games\<slug>`) after Git LFS's own lines (before another tool's final `exit` or `exec`); warns when the recorder isn't in the hooks dir, the live hook isn't in the checkout, or another tool's hook can end before them. bootstrap.ps1 runs it for every game under `<root>\games` |
+| `tests/test-recording.ps1` | | the recording hook and the reasoning-summary settings on made-up transcripts in a scratch folder under `%TEMP%` (whole tool results, the cut at 1,000,000 characters, picture markers, a saved command output, `thinking` rows of both agents, `-Backfill`, `config.toml`): `powershell -NoProfile -ExecutionPolicy Bypass -File machine\tests\test-recording.ps1`; exit code = failed checks |
 
 The hooks dir is `hooks_dir` in the config, default `~\.unity-game-factory\hooks\`. One copy serves both agents.
 `recording-sessions.json` (session id -> project map) is runtime state: bootstrap creates it empty next to the hooks
@@ -151,8 +152,15 @@ builds and plays go through `unity-heavy.ps1` like every other heavy job. So is 
   bytes read), so a session mapped late gets its earlier messages too. In it, a `thinking` row is a reasoning summary the agent saved for a turn (`redacted` true and no text when the agent saved it without readable text); `machine/bootstrap.ps1` turns the summaries on for both agents (Claude Code `showThinkingSummaries` and `alwaysThinkingEnabled` in `settings.json`; Codex `model_reasoning_summary = "detailed"` and `hide_agent_reasoning = false` in `config.toml`) and `machine/check.ps1` checks them; a Codex model that gives no summaries leaves only the textless rows. Not recorded here: tool calls and results
   (`actions.jsonl` has them, each call with its whole result (up to 1,000,000 characters, `response_chars` and `response_truncated` on a longer one; a picture or other binary payload as a short marker)), text the agent tool puts into a turn itself (meta rows,
   compaction summaries, background-task notices, API error notices) and a fork's copied context.
-- **Sessions recorded before messages were:** `record-unity-action.ps1 -Backfill all` imports the messages of every
-  mapped session whose transcript is still on this machine (either agent), and nothing else.
+- **Sessions recorded before messages, or before reasoning summaries, were:** `record-unity-action.ps1 -Backfill all`
+  imports the messages of every mapped session whose transcript is still on this machine (either agent), and nothing
+  else. It reads each transcript from its start, adds what is not yet in `messages.jsonl` (the `thinking` rows of a
+  session recorded before they were) and puts that session's rows back in the transcript's order. Run it once after
+  updating a machine that has sessions under way. A transcript written while the agent's summary setting was off
+  holds no summary text: those rows come out `redacted`.
+  The summary is what the agent shows: Claude Code's `thinking` blocks, Codex's `summary_text` (never its
+  `raw_content`, the reasoning itself where a model gives it). A long command output that Claude Code cut in the
+  result and saved to a file (`persistedOutputPath`) is read from that file while it is there.
 - Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `messages.jsonl` rows
   `"schema": "agent-message/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
 - Every row carries `agent` (`claude` or `codex`). Codex rows differ in two ways: file edits are `apply_patch` rows

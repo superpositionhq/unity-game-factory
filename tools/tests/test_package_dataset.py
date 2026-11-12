@@ -55,6 +55,12 @@ def make_inputs(tmp, recorded=True):
             response=f'{ref}\nsee C:\\Users\\{ACCOUNT}\\UnityWork\\unity-game-factory\\tools ' + 'QUJD' * 100),
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
             tool='apply_patch', tool_use_id='t2', input={'command': '*** Begin Patch'}, response='ok: runs/pilot-2c-opus-siege/summary.json'),
+        # a tool call's whole output (far past the 8,000 characters rows held before), a name deep inside it; and one cut at the cap
+        row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
+            tool='Bash', tool_use_id='t4', input={'command': 'type build.log'},
+            response='compiling\n' * 3000 + f'saved to C:\\Users\\{ACCOUNT}\\UnityWork\\out.txt for jane.tester@corp.example'),
+        row(schema='agent-action/v0', time=before, project=SLUG, session_id=S2, agent='codex', event='PostToolUse', cwd=cwd,
+            tool='Bash', tool_use_id='t5', input={'command': 'type big.log'}, response='x' * 500, response_chars=2000000, response_truncated=True),
         row(schema='agent-action/v0', time=before, project=SLUG, session_id=S3, agent='claude', event='PostToolUse', cwd=cwd,
             tool='Bash', tool_use_id='t3', input={'command': 'python tools/package-dataset.py kiln-run'}, response='ok'),
         row(schema='agent-action/v0', time=after, project=SLUG, session_id=S1, agent='claude', event='Stop', cwd=cwd)]) + '\n')
@@ -285,7 +291,11 @@ class Package(unittest.TestCase):
         # a reasoning summary is scrubbed like a reply; one saved without text keeps its mark
         self.assertEqual(msgs[2]['text'], 'Agent should mail <redacted-email> about the hero.')
         self.assertEqual((msgs[3]['text'], msgs[3]['redacted']), ('', True))
-        self.assertEqual([(r['session_id'], r['tool']) for r in acts], [('session_01', 'Bash'), ('session_02', 'apply_patch')])
+        self.assertEqual([(r['session_id'], r['tool']) for r in acts],
+                         [('session_01', 'Bash'), ('session_02', 'apply_patch'), ('session_02', 'Bash'), ('session_02', 'Bash')])
+        # a whole tool result is delivered whole and scrubbed to its end; a cut one keeps its marks
+        self.assertEqual(acts[2]['response'], 'compiling\n' * 3000 + 'saved to C:\\Users\\dev\\UnityWork\\out.txt for <redacted-email>')
+        self.assertEqual((acts[3]['response_truncated'], acts[3]['response_chars']), (True, 2000000))
         self.assertEqual(msgs[0]['text'], 'Keep the hero on the ground. Ask <redacted-email> if Studio agrees.')
         self.assertEqual(msgs[1]['text'], 'Done by Agent; Provider was not used.')
         self.assertEqual(msgs[1]['model'], 'agent-model')
@@ -299,7 +309,13 @@ class Package(unittest.TestCase):
         self.assertTrue(acts[0]['response'].startswith(delivered + '\n'))   # a commit id is the delivered history's
         self.assertNotEqual(delivered, self.inp['ref'])
         self.assertEqual(m['history']['sessions'], {'messages': {'file': 'History/sessions/messages.jsonl', 'rows': 5},
-                                                    'actions': {'file': 'History/sessions/actions.jsonl', 'rows': 2}})
+                                                    'actions': {'file': 'History/sessions/actions.jsonl', 'rows': 4}})
+        # the validator knows the new rows: nothing about roles, and the summaries counted
+        rep = vg.Report()
+        vg.check_dataset(rep, self.zip, 'dataset')
+        said = [msg for _sev, _area, msg in rep.items]
+        self.assertFalse([x for x in said if 'roles other than' in x], said)
+        self.assertTrue([x for x in said if '2 prompt(s), 1 repl(ies), 2 reasoning summar(ies)' in x], said)
         readme = mem['README.md'].decode()
         self.assertIn('History/sessions/', readme)
         self.assertIn('pending', readme.lower())
@@ -733,6 +749,58 @@ def mkv(frame, tags=b''):
     tracks = ebml(b'\x16\x54\xae\x6b', ebml(b'\xae', ebml(b'\xd7', b'\x01') + ebml(b'\x83', b'\x01')))
     cluster = ebml(b'\x1f\x43\xb6\x75', ebml(b'\xe7', b'\x00') + ebml(b'\xa3', b'\x81\x00\x00\x80' + frame))
     return head + ebml(b'\x18\x53\x80\x67', tracks + cluster + (ebml(b'\x12\x54\xc3\x67', tags) if tags else b''))
+
+
+class BigRows(unittest.TestCase):
+    """A row file too large to read whole (History/sessions/actions.jsonl holds every tool call's whole output) is
+    scrubbed, given the delivered commit ids and scanned a row at a time, with the result reading it whole gives; it is
+    never left out as other text of that size is."""
+    USER = 'nora'
+    OLD, NEW = 'a1' * 20, 'b2' * 20
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfr')
+        self.limit, PKG.BIG_TEXT = PKG.BIG_TEXT, 4000
+        self.rel = 'History/sessions/actions.jsonl'
+        self.text = ''.join(row(schema='agent-action/v0', time='2026-01-01T00:00:00+00:00', session_id='session_01', event='PostToolUse', tool='Bash',
+                                tool_use_id=f't{i}', response='building\n' * 80 + f'caf\u00e9 {self.OLD} C:\\Users\\{self.USER}\\UnityWork\\log{i}.txt '
+                                f'nora.q@corp.example by Claude ' + 'QUJD' * 100) + '\n' for i in range(8))
+        self.assertGreater(len(self.text.encode()), PKG.BIG_TEXT)
+        self.rules = PKG.build_rules(self.USER, 'NORA-PC', set(), [])
+
+    def tearDown(self):
+        PKG.BIG_TEXT = self.limit
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def test_scrubbed_and_remapped_as_a_whole_read_would(self):
+        base.write(self.tmp, self.rel, self.text)
+        base.write(self.tmp, 'Docs/big.txt', f'by {self.USER}\n' * 600)   # other text of that size: left to the scan, as before
+        whole = PKG.remap_text(PKG.apply_rules(self.text.encode().decode('latin-1'), self.rules, True, True), {self.OLD: self.NEW})
+        counts, touched = {}, []
+        PKG.scrub_tree(self.tmp, self.rules, counts, touched)
+        self.assertEqual(touched, [self.rel])
+        self.assertEqual(PKG.remap_tree(self.tmp, {self.OLD: self.NEW}), 1)
+        got = base.read(os.path.join(self.tmp, *self.rel.split('/')))
+        self.assertEqual(got, whole.encode('latin-1').decode())
+        rows = [json.loads(l) for l in got.splitlines()]
+        self.assertEqual(len(rows), 8)
+        for i, r in enumerate(rows):
+            self.assertEqual(r['response'], 'building\n' * 80 + f'caf\u00e9 {self.NEW} C:\\Users\\dev\\UnityWork\\log{i}.txt <redacted-email> by Agent '
+                             + r['response'][r['response'].index('<base64 omitted'):])
+            self.assertRegex(r['response'], r'<base64 omitted, 300 bytes, sha256 [0-9a-f]{16}>$')
+        self.assertGreaterEqual(counts.get('username', 0), 8)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, *self.rel.split('/')) + '.rows-tmp'))
+
+    def test_scanned_a_row_at_a_time(self):
+        base.write(self.tmp, self.rel, self.text)
+        out = PKG.scan_tree(self.tmp, PKG.enforced_pattern(self.USER, []), PKG.binary_needles(self.USER, [], []), self.USER)
+        lines = sorted({h[2] for h in out['hits'] if h[0] == self.rel and h[1] == 'text'})
+        self.assertEqual(lines, [1, 2, 3, 4, 5, 6, 7])   # every row refuses (20 hits listed a file: three a row)
+        self.assertFalse([b for b in out['binary'] if b[0] == self.rel])   # read as text, not as bytes
+        counts, touched = {}, []
+        PKG.scrub_tree(self.tmp, self.rules, counts, touched)
+        out = PKG.scan_tree(self.tmp, PKG.enforced_pattern(self.USER, []), PKG.binary_needles(self.USER, [], []), self.USER)
+        self.assertEqual([h for h in out['hits'] if h[0] == self.rel], [])
 
 
 class Scan(unittest.TestCase):

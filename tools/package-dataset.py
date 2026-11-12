@@ -22,9 +22,10 @@ READY; --replay names another):
     History/lfs/objects/      every Git LFS object of every commit of the bundle, from the repo's own store; one that
                               names the account or an agent in a path, a whole string or an XML element as a copy
                               patched byte for byte (tools/unity-pipeline/export-lfs-history.py)
-    History/sessions/         the creation sessions as recorded: messages.jsonl (every prompt the person typed and
-                              every reply the model wrote) and actions.jsonl (every tool call), rows up to the release
-                              commit, each session named session_NN in both
+    History/sessions/         the creation sessions as recorded: messages.jsonl (every prompt the person typed, every
+                              reply the model wrote and every reasoning summary the agent tool saved) and
+                              actions.jsonl (every tool call with its whole output), rows up to the release commit,
+                              each session named session_NN in both
     git.log                   every commit of the delivered history up to the release, oldest first, with full diffs
     workflow.jsonl            the creation record at the release commit
     UnityProject/             the delivered tree at the release commit, LFS files as their real content (no Dataset/)
@@ -233,6 +234,37 @@ def decode(data):
     if data[:2] == b'\xfe\xff':
         return data.decode('utf-16-be', 'replace'), 'utf-16-be'
     return data.decode('latin-1'), 'latin-1'
+
+
+BIG_TEXT = 256 << 20   # a text file of this size or more is not read whole
+
+
+def big_rows(rel, size):
+    """A .jsonl file too large to read whole: one row a line, so the scrub, the commit ids and the scan take it a row
+    at a time (History/sessions/actions.jsonl holds every tool call's whole output and passes 256 MB on a long game).
+    Never skipped: any other text file of that size is left to the binary scan, as before."""
+    return size >= BIG_TEXT and rel.lower().endswith('.jsonl')
+
+
+def rewrite_rows(full, change):
+    """change(row text) on every line of a row file, in place through a temporary file beside it (Latin-1 keeps every
+    byte, as decode() does; line ends stay as they are). True when a row changed."""
+    tmp, changed = full + '.rows-tmp', False
+    with open(lp(full), 'rb') as src, open(lp(tmp), 'wb') as dst:
+        for raw in src:
+            body = raw.rstrip(b'\r\n')
+            text = body.decode('latin-1')
+            new = change(text)
+            if new != text:
+                changed = True
+                dst.write(new.encode('latin-1', 'replace') + raw[len(body):])
+            else:
+                dst.write(raw)
+    if changed:
+        os.replace(lp(tmp), lp(full))
+    else:
+        os.remove(lp(tmp))
+    return changed
 
 
 # ---- the scrub rules -----------------------------------------------------------------------------------------------------
@@ -810,7 +842,7 @@ def session_logs(recording, until, exclude, dest, stats):
         if not os.path.isfile(src):
             stats[name] = None
             continue
-        kept, total = [], 0
+        kept, total, out = 0, 0, None   # written row by row: a row holds a tool call's whole output, up to 1 MB
         with open(src, encoding='utf-8', errors='replace', newline='') as f:
             for line in f:
                 line = line.rstrip('\r\n')
@@ -828,10 +860,14 @@ def session_logs(recording, until, exclude, dest, stats):
                 if sid in skip or when is None or when > until:
                     continue
                 label = numbers.setdefault(sid, 'session_%02d' % (len(numbers) + 1))
-                kept.append(line[:sm.start(1)] + label + line[sm.end(1):])   # the row's own session_id (its first)
-        stats[name] = {'rows': len(kept), 'source_rows': total, 'sessions_left_out': len(skip)}
-        if kept:
-            write_text(os.path.join(dest, name), '\n'.join(kept) + '\n')
+                if out is None:
+                    os.makedirs(lp(dest), exist_ok=True)
+                    out = open(lp(os.path.join(dest, name)), 'wb')
+                out.write((line[:sm.start(1)] + label + line[sm.end(1):] + '\n').encode('utf-8'))   # the row's own session_id (its first)
+                kept += 1
+        if out is not None:
+            out.close()
+        stats[name] = {'rows': kept, 'source_rows': total, 'sessions_left_out': len(skip)}
     stats['sessions'] = len(numbers)
     return ids
 
@@ -1556,10 +1592,18 @@ def scan_tree(root, enforced, needles, user, reviewed=None, skip=()):
             continue
         with open(lp(full), 'rb') as f:
             head_bytes = f.read(8000)
-        if not rel.startswith('History/lfs/objects/') and size < (256 << 20) and is_text(rel, head_bytes):
-            text = decode(read_bytes(full))[0]
+        rows = big_rows(rel, size)
+        if not rel.startswith('History/lfs/objects/') and (size < BIG_TEXT or rows) and is_text(rel, head_bytes):
+            if rows:
+                def lines_of(path=full):
+                    with open(lp(path), 'rb') as f:
+                        for raw in f:
+                            yield raw.rstrip(b'\n').decode('latin-1')
+                lines = lines_of()
+            else:
+                lines = decode(read_bytes(full))[0].split('\n')
             found = 0
-            for i, line in enumerate(text.split('\n'), 1):
+            for i, line in enumerate(lines, 1):
                 for mm in enforced.finditer(line):
                     if mm.group('user') and user:
                         a = mm.start('user')
@@ -2280,7 +2324,8 @@ def scrub_dir(args):
     for name in ('actions.jsonl', 'messages.jsonl'):
         if os.path.isfile(os.path.join(recording, name)):
             with open(os.path.join(recording, name), encoding='utf-8', errors='replace') as f:
-                ids |= {m.group(1).lower() for m in SESSION_RX.finditer(f.read())}
+                for line in f:   # a row at a time: actions.jsonl holds whole tool outputs
+                    ids |= {m.group(1).lower() for m in SESSION_RX.finditer(line)}
     machine = os.environ.get('COMPUTERNAME') or socket.gethostname().split('.')[0]
     rules = build_rules(user, machine, ids, identities)
     folder = os.path.abspath(args.scrub_dir)
@@ -2377,16 +2422,26 @@ def scrub_tree(root, rules, counts, touched):
             continue
         full = os.path.join(root, *rel.split('/'))
         size = os.path.getsize(lp(full))
-        if size == 0 or size >= (256 << 20):
+        if size == 0:
+            continue
+        # logs: the sessions' record and git.log, never the game's own JSON (a long hex or base64 value in game data is
+        # data: replaced in UnityProject/ alone it would differ from the release commit in History/)
+        log_file = rel == 'git.log' or rel.startswith('History/sessions/')
+        if big_rows(rel, size):
+            with open(lp(full), 'rb') as f:
+                head = f.read(8000)
+            if is_text(rel, head) and head[:2] not in (b'\xff\xfe', b'\xfe\xff'):
+                if rewrite_rows(full, lambda t: apply_rules(t, rules, True, log_file, counts)) and touched is not None:
+                    touched.append(rel)
+            continue
+        if size >= BIG_TEXT:
             continue
         data = read_bytes(full)
         if not is_text(rel, data[:8000]):
             continue
         text, enc = decode(data)
         is_json = rel.lower().endswith(('.json', '.jsonl'))
-        # logs: the sessions' record and git.log, never the game's own JSON (a long hex or base64 value in game data is
-        # data: replaced in UnityProject/ alone it would differ from the release commit in History/)
-        new = apply_rules(text, rules, is_json, rel == 'git.log' or rel.startswith('History/sessions/'), counts)
+        new = apply_rules(text, rules, is_json, log_file, counts)
         if new != text:
             write_bytes(full, new.encode(enc, 'replace'))
             if touched is not None:
@@ -2411,7 +2466,15 @@ def remap_tree(root, cmap):
             continue
         full = os.path.join(root, *rel.split('/'))
         size = os.path.getsize(lp(full))
-        if size == 0 or size >= (256 << 20):
+        if size == 0:
+            continue
+        if big_rows(rel, size):
+            with open(lp(full), 'rb') as f:
+                head = f.read(8000)
+            if is_text(rel, head) and head[:2] not in (b'\xff\xfe', b'\xfe\xff'):
+                n += rewrite_rows(full, lambda t: remap_text(t, cmap))
+            continue
+        if size >= BIG_TEXT:
             continue
         data = read_bytes(full)
         if not is_text(rel, data[:8000]):
@@ -2534,7 +2597,9 @@ def dataset_readme(c, repo):
             a.append('  `History/sessions/` — the creation sessions as recorded, one JSON row per line, oldest first within a session: ' +
                      ('`messages.jsonl` holds every prompt the person typed (`role` "user") and every reply the model wrote (`role` "assistant") and, where the sessions were recorded with them, the reasoning summaries the agent saved (`role` "thinking"); '
                       if 'messages.jsonl' in c['sessions'] else '') +
-                     ('`actions.jsonl` holds every tool call with its input and its result. ' if 'actions.jsonl' in c['sessions'] else '') +
+                     ('`actions.jsonl` holds every tool call with its input and its result (`response`: the whole text up to 1,000,000 characters; a longer one '
+                      'is cut there, and its row says `response_truncated` true and `response_chars`, its length before the cut; rows recorded '
+                      'before whole results were kept hold the first 8,000 characters). ' if 'actions.jsonl' in c['sessions'] else '') +
                      '`session_id` (session_NN) and `time` tie the rows of one session together.')
     a.append('- `Brief/` — the original brief the game was built from (`Brief/brief.md`) and its design doc with story bible and status (`Brief/design.md`).')
     if not repo:
