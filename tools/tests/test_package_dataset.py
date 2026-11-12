@@ -946,15 +946,14 @@ class Refusals(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn('error: 4 task(s) on tasks: a game with fewer than 5 tasks is rejected', r.stdout)
 
-    def test_two_medium_tasks(self):
+    def test_fewer_than_four_hard_tasks(self):
         # the delivery's own check refuses it: nothing is zipped
         tasks = base.game_tasks(self.inp['start'], self.inp['ref'], difficulty='medium')
         del tasks[f'{SLUG}-{base.TASKS[1]}']['difficulty']
         base.set_tasks(self.inp['repo'], tasks)
         r = run(self.inp, '--no-repo-dataset')
         self.assertEqual(r.returncode, 2)
-        self.assertIn("2 medium tasks", r.stdout)
-        self.assertIn("at most 1 of a game's tasks may be medium", r.stdout)
+        self.assertIn("3 hard task(s): a game needs at least 4 hard tasks", r.stdout)
         self.assertFalse(os.path.exists(os.path.join(self.inp['repo'], 'Dataset.pending.zip')))
 
     def test_dry_run_writes_nothing(self):

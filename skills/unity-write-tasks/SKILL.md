@@ -1,6 +1,6 @@
 ---
 name: unity-write-tasks
-description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, every task hard, at most one medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by pixels; judges only for asked looks; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
+description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, at least 4 hard, the rest medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by pixels; judges only for asked looks; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
 ---
 
 # Writing a game's tasks (Unity)
@@ -85,7 +85,9 @@ on every submitted task. A task is a stretch of the game's real history where it
 several attempts or several rounds of directions, touching many files across several systems, before the outcome
 held. Strong agents finish a single fix, one cause in one place, in minutes, however long it took in the game; such a
 task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "hard"`, with
-the tag `long-thread`; at most one of a game's tasks may be medium, none easy.
+the tag `long-thread`. A game needs at least 4 hard tasks; the others may be medium (what a task that names no
+difficulty is), none easier. Four is the floor, not a target: pick threads that make every task hard, and call a task
+medium only when its thread is.
 
 A thread qualifies only when all of these hold (the validator enforces the numbers, section 6):
 
@@ -483,11 +485,11 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 
 ## 6. Difficulty, limits and what the validator enforces
 
-- `difficulty` is `hard`; at most one of a game's tasks may be `medium`, none easy (a task that names no difficulty
-  counts as medium), and `tags` hold `long-thread`. It is your own estimate of the thread; our runs of the task decide
+- `difficulty` is `hard`; a game needs at least 4 `hard` tasks, the others may be `medium`, none easier (a task that
+  names no difficulty counts as medium; four is the floor, so aim every task at hard), and `tags` hold `long-thread`. It is your own estimate of the thread; our runs of the task decide
   its difficulty (last item below).
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
-- `tools/validate-game.py` fails a game with fewer than 5 tasks or more than one `medium` task, and a task that is
+- `tools/validate-game.py` fails a game with fewer than 5 tasks or fewer than 4 `hard` ones, and a task that is
   `easy`, has no `seed.reference`, has fewer than 3 required probes
   outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to

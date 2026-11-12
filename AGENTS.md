@@ -31,8 +31,8 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   and importing sound effects through `tools/sfx.py`.
 - **unity-write-tasks** ([skills/unity-write-tasks/SKILL.md](skills/unity-write-tasks/SKILL.md)): sessions that write,
   move or review a game's tasks (the orphan `tasks` branch, never on main; at least 5 and up to about 10 per game,
-  every one a long thread of multiple edits from the real history, never a single fix, hard: at most one of a game's
-  tasks may be medium, none easy; seed and reference commits, observation-only briefs, milestones with deterministic
+  every one a long thread of multiple edits from the real history, never a single fix, at least 4 of them hard: the others
+  may be medium, none easier; seed and reference commits, observation-only briefs, milestones with deterministic
   probe checks).
 
 **Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory

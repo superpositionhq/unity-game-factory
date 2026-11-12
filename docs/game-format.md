@@ -211,8 +211,8 @@ the single source: tasks are loaded as `Tasks/*.json` from the repos' tasks bran
 that are never literal, the no-op rule), that its seed is on this game and its seed commits are ancestors of main's
 head or of the task's own start branch `starts/<task name>` and Unity `6000.3.x` projects as committed
 (`ProjectSettings/ProjectVersion.txt`), that the branch shares no history with main, and that main tracks nothing
-under `Tasks/`. Every task is `hard`; at most one of a game's tasks may be `medium`, none easy (a task that names no
-difficulty counts as medium). It also holds each task to the bar of a long thread: tagged `long-thread`, with
+under `Tasks/`. At least 4 of a game's tasks are `hard`; the others may be `medium` (what a task that names no
+difficulty is), none easier. It also holds each task to the bar of a long thread: tagged `long-thread`, with
 `seed.reference`, at least 3 required outcome probes outside `still_works`, and from start to reference at least 5
 game files (`Assets/`, `Packages/`, `ProjectSettings/`; an editor step or a `.meta` is not one), 100 code lines and 2
 systems, and for a seed on main 4 commits that change the game (`tools/validate-game.py` holds the numbers).
@@ -247,7 +247,7 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
    (neutral wording, what and why) before the work it caused, and `"direction": "<id>"` on the rows that act on it.
 3. `Brief/brief.md` (the brief you were given) and `Brief/design.md` (your design doc).
 4. Your game's tasks in `Tasks/` on an orphan `tasks` branch of the repo, never on main (at least 5 and up to
-   about 10 per game, hard; the `unity-write-tasks` skill), each seeded on commits of main's history (or its own
+   about 10 per game, at least 4 of them hard, the others may be medium; the `unity-write-tasks` skill), each seeded on commits of main's history (or its own
    `starts/<task>` branch).
 5. `python tools/validate-game.py <repo>` VALID. Its warning "Dataset/ has no manifest.json: not packaged yet" is
    expected only before the packager's first run.

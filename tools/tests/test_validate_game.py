@@ -534,17 +534,22 @@ class TaskRules(Base):
         self.assertEqual(errors(self.check(), 'repo: Tasks'),
                          ['tasks: 4 task(s): a game ships at least 5 (unity-write-tasks section 1)'])
 
-    def test_at_most_one_medium(self):
-        self.assertEqual(self.tasks(difficulty='medium'), [])   # one medium task of the five: the game stands
+    def test_at_least_four_hard(self):
+        self.assertEqual(self.tasks(difficulty='medium'), [])   # four hard and one medium: the game stands
         tasks = game_tasks(self.start, self.ref, difficulty='medium')
         del tasks[f'{SLUG}-{TASKS[1]}']['difficulty']           # no difficulty: medium, the schema's default
         set_tasks(self.repo, tasks)
         self.assertEqual(errors(self.check(), 'repo: Tasks'),
-                         [f"tasks: 2 medium tasks ({SLUG}-{TASKS[1]}, {SLUG}-{TASKS[0]}): at most 1 of a game's tasks may be "
-                          'medium, the rest are hard (unity-write-tasks section 1)'])
+                         [f'tasks: 3 hard task(s): a game needs at least 4 hard tasks (medium: {SLUG}-{TASKS[1]}, '
+                          f'{SLUG}-{TASKS[0]}); the others may be medium (unity-write-tasks section 1)'])
         tasks[f'{SLUG}-{TASKS[0]}']['difficulty'] = 'hard'
         set_tasks(self.repo, tasks)
-        self.assertEqual(errors(self.check(), 'repo: Tasks'), [])   # the one that names none is the game's one medium
+        self.assertEqual(errors(self.check(), 'repo: Tasks'), [])   # four hard, and the one that names none is medium
+        for i in range(6):                                      # ten tasks, four hard and six medium: the game stands
+            t = dict(tasks[f'{SLUG}-{TASKS[0]}'], name=f'{SLUG}-fix-more-{i}', difficulty='medium')
+            tasks[t['name']] = t
+        set_tasks(self.repo, tasks)
+        self.assertEqual(errors(self.check(), 'repo: Tasks'), [])
 
     def test_reference_only_name(self):
         ms = self.probe(2, probe='objects', select={'component': 'Enemy', 'has': {'lit': True}}, field='glow', of='max')
@@ -676,16 +681,24 @@ class Units(unittest.TestCase):
         self.assertEqual(vg.thread_size(numstat), (40 + 25 + 5, 3))   # code, scene, material
 
     def test_task_bar(self):
-        """A game's bar: at least 5 tasks, all hard but for at most one medium (a task that names none is medium)."""
+        """A game's bar: at least 5 tasks, at least 4 of them hard; the others may be medium (what a task that names
+        none is)."""
         hard = {f't{i}': 'hard' for i in range(5)}
         self.assertEqual(vg.task_bar_errors(hard), [])
-        self.assertEqual(vg.task_bar_errors(dict(hard, t0='medium')), [])
+        self.assertEqual(vg.task_bar_errors(dict(hard, t0='medium')), [])   # 4 hard + 1 medium
         self.assertEqual(vg.task_bar_errors(dict(hard, t0=None)), [])
-        self.assertEqual(vg.task_bar_errors(dict(hard, t4='medium', t1=None)),
-                         ["2 medium tasks (t1, t4): at most 1 of a game's tasks may be medium, the rest are hard"])
-        self.assertEqual(vg.task_bar_errors({'t0': 'hard', 't1': 'hard'}), ['2 task(s): a game ships at least 5'])
+        self.assertEqual(vg.task_bar_errors(dict({f'm{i}': 'medium' for i in range(6)}, t0='hard', t1='hard', t2='hard',
+                                                 t3='hard')), [])           # 10 tasks: 4 hard + 6 medium
+        self.assertEqual(vg.task_bar_errors(dict(hard, t4='medium', t1=None)),   # 3 hard + 2 medium
+                         ['3 hard task(s): a game needs at least 4 hard tasks (medium: t1, t4); the others may be medium'])
+        self.assertEqual(vg.task_bar_errors({f't{i}': 'hard' for i in range(4)}), ['4 task(s): a game ships at least 5'])
+        self.assertEqual(vg.task_bar_errors({'t0': 'hard', 't1': 'hard'}),
+                         ['2 task(s): a game ships at least 5',
+                          '2 hard task(s): a game needs at least 4 hard tasks; the others may be medium'])
         self.assertEqual(vg.task_bar_errors(dict(hard, t0='easy')), [])   # an easy task is thread_errors' finding
         self.assertEqual(vg.task_bar_errors(dict(hard, t0='trivial')), ['t0: difficulty \'trivial\': a task is "hard"'])
+        self.assertEqual(vg.thread_errors({'difficulty': 'easy'}, 3)[0],
+                         'difficulty \'easy\': a task is "hard" or "medium" (a game needs at least 4 "hard")')
         self.assertTrue(any("difficulty 'easy'" in e for e in vg.thread_errors({'difficulty': 'easy'}, 3)))
 
     def test_game_paths(self):
@@ -1592,7 +1605,7 @@ class Dataset(Base):
         errs = ' | '.join(errors(rep))
         for what in ("holds the grader's half (milestones)", 'manifest tasks (count, names) differ',
                      'banned name (?i)\\bclaude\\b x1', 'Tasks/: 4 task(s): a game ships at least 5',
-                     f'Tasks/: 2 medium tasks ({SLUG}-{TASKS[3]}, {SLUG}-{TASKS[2]}): at most 1'):
+                     f'Tasks/: 2 hard task(s): a game needs at least 4 hard tasks (medium: {SLUG}-{TASKS[3]}, {SLUG}-{TASKS[2]})'):
             self.assertIn(what, errs)
         self.assertIn('listed asset file not present: Crates: Assets/ThirdParty/Kenney/', errs)
         if shutil.which('powershell') or shutil.which('pwsh'):

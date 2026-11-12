@@ -232,7 +232,7 @@
     "manifest": "manifest.json history.sessions: {\"messages\": {\"file\": \"History/sessions/messages.jsonl\", \"rows\": n}, \"actions\": {\"file\": \"History/sessions/actions.jsonl\", \"rows\": n}}, one key per file that is there"
   },
   "tasks": {
-    "count": "at least 5 and up to about 10 per game (a game with fewer than 5 is rejected); hard; at most one of a game's tasks may be medium, none easy (a task that names no difficulty is medium)",
+    "count": "at least 5 and up to about 10 per game (a game with fewer than 5 is rejected); at least 4 of them hard; the others may be medium (what a task that names no difficulty is), none easier",
     "format": "GameTask (game-task/1, docs/schemas/game-task.schema.json); merging task.json and grader.json (grader.json's seed into task.json's) gives the task",
     "split": {
       "task.json": "name, title, instruction, engine, seed {game, commit, kind}, play_scene, play_args, player, asset_packs, difficulty, tags, limits",
