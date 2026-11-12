@@ -195,7 +195,13 @@ by hand under these rules, or ask.
   support, what it replaces) in your design doc and message the coordinator.
 - **Sound:** every sound effect comes through the **unity-sound** skill (read it before writing the audio direction):
   cues listed in the design doc, clips chosen by their numbers and measured with `tools/sfx.py`, CC0 or CC BY only,
-  recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep.
+  recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep. Every sound the game plays
+  is an imported AudioClip asset (a clip from the unity-sound skill, or a WAV a committed script made and Unity
+  imported; user rule, 2026-11-11); none is made at run time: no `AudioClip.Create` (with or without a PCM reader
+  callback), no `OnAudioFilterRead` writing samples, no procedural clip data, for a game sound. `tools/validate-game.py`
+  scans for them (rule `sound`, games begun from 2026-11-12). _(failure: 52 of 218 Unreal games synthesised their
+  sounds at run time, so a task asking "each gun has its own sound" had no asset name for the grader to tell sounds
+  apart by)_
 - **UI (user rule):** matches the game's art style (its guide's UI and typography line): kit frames, icons, display
   fonts, styled numbers. UI Toolkit or
   uGUI with TextMeshPro, either is fine. No plain or default-font text on screen: never the default

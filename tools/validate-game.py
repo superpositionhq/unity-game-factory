@@ -1688,8 +1688,10 @@ def check_repo(rep, repo):
         rep.note('contract', 'skipped (--no-contract)')
     elif contract_applies(repo):
         check_contract(rep, repo, files)
+        check_sound(rep, repo, files)
     else:
-        rep.note('contract', f'a game begun before {CONTRACT_FROM}: the damage and key-state contract is not enforced')
+        rep.note('contract', f'a game begun before {CONTRACT_FROM}: the damage, key-state and sound rules are not '
+                 'enforced')
 
 
 # ---- the contract on a game with combat (Lab docs/planning/2026-11-11_game-contact-checks/spec.md section 11.2):
@@ -1705,6 +1707,30 @@ CS_HIT_FUNCTION = re.compile(r'\b(?:void|bool|float|int)\s+(?!TakeDamage\b)((?:T
 CS_MEMBER = re.compile(r'^\s*(?:\[[^\]]*\]\s*)*(?P<mods>(?:(?:public|private|protected|internal|static|readonly|volatile|'
                        r'new|const)\s+)*)(?!(?:return|else|throw|case|goto|await|yield|in|out|ref)\b)(?P<type>[A-Za-z_][\w.]*\??)\s+(?P<name>[A-Za-z_]\w*)\s*(?:=[^;]*;|;|\{\s*get)',
                        re.M)
+# a sound made at run time (the owner's decision of 2026-11-11): every game sound is an imported AudioClip asset
+RUNTIME_SOUND = re.compile(r'\bAudioClip\s*\.\s*Create\s*\(|\bvoid\s+OnAudioFilterRead\s*\(')
+
+
+def check_sound(rep, repo, files):
+    """Every sound the game plays is an imported asset: no code in Assets/ makes one at run time (AudioClip.Create,
+    OnAudioFilterRead), each named with its file and line."""
+    found = []
+    for f in (f for f in files if f.startswith('Assets/') and f.endswith('.cs') and '/AutoPlay/' not in f
+              and '/Editor/' not in f):
+        try:
+            text = _strip_cs(open(os.path.join(repo, f), encoding='utf-8-sig', errors='replace').read())
+        except OSError:
+            continue
+        for m in RUNTIME_SOUND.finditer(text):
+            what = 'OnAudioFilterRead' if 'OnAudioFilterRead' in m.group(0) else 'AudioClip.Create'
+            found.append((f, text.count('\n', 0, m.start()) + 1, what))
+    for f, ln, what in found[:20]:
+        rep.error('sound', f'{f}:{ln}: {what} makes a sound at run time: import every sound as an AudioClip asset (a '
+                  'clip, or a WAV a committed script made), so it has a name')
+    if len(found) > 20:
+        rep.error('sound', f'... {len(found) - 20} more places that make a sound at run time')
+
+
 CONTRACT_FROM = '2026-11-12'  # games begun on or after this day (their first commit); older games are not re-validated
 
 
@@ -1806,7 +1832,7 @@ def main():
     ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
     ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
     ap.add_argument('--no-contract', action='store_true',
-                    help='skip the damage and key-state contract (a game begun before 2026-11-12)')
+                    help='skip the damage, key-state and sound rules (a game begun before 2026-11-12)')
     a = ap.parse_args()
     OPTS['no_contract'] = a.no_contract
     OPTS['hash'] = not a.no_hash

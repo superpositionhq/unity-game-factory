@@ -81,6 +81,10 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
   for ambience and music; `preloadAudioData` on for short clips (Unity 6.3 imports with it off, so a clip's data loads
   only when it first plays); Vorbis, the default compression. Then `SaveAndReimport()`, one workflow row per run
   (unity-game-session skill, "Replay-friendly work"). Commit the WAVs, their `.meta` files and the step together.
+- **Imported assets only (user rule, 2026-11-11).** Every sound the game plays is an AudioClip imported from a file (a
+  Freesound clip, or a WAV a committed script generated, then imported like the rest), so it has an asset name the
+  grader can tell apart. Never make one at run time: no `AudioClip.Create` (PCM reader callback or `SetData`), no
+  `OnAudioFilterRead` writing samples. `tools/validate-game.py` checks the code (rule `sound`).
 - A cue that repeats (footsteps, hits, gunfire) gets 3 to 5 clips played at random with slight pitch variation, from a
   small `ScriptableObject` cue bank (clips, volume range, pitch range; Unity's Audio Random Container has no scripting
   API, so no editor step can fill one), so it never sounds like a loop. World sounds get a 3D `AudioSource` with a

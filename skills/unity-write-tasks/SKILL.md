@@ -454,6 +454,20 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   not do yet (Lab's Unreal grader has it as `damage`, 2026-11-11): until it does, word such an ask so a scenario or
   the player's own action stages it, and say in your notes what stayed open. _(failure: the 500-task rework left every
   contact ask unchecked, "no fixed play can guarantee the contact", and Lab's content review sent the tasks back)_
+- **Hints, never answers (owner, 2026-11-11).** An instruction may hint, in the ticket's own words, at what a player
+  must see, hear or meet, or what must exist in the world, and may say that hits go through the game's damage
+  interface. It never says how the build names or stores it: no class, field, method, tag, asset or file name, nothing
+  that is really the check's read target dictated to the solver. Names a check uses come from the start commit.
+  - Good: "Every blow that lands throws sparks and a short pause." "A training post stands in the yard to practise
+    on." "Hits reach her through the game's damage interface."
+  - Refused: "Add a component called TrainingPost to the yard." "Keep the enemy's health in a field called health."
+    "Tag each generator Generator so QA can find it."
+  _(failure: tasks were reworked by writing the check's read target into the ticket, which hands the solver the
+  answer)_
+- **A sound ask** is checked by a sound starting when the event happens (the `audio` reads near the source, rising in
+  a window right after the event; a clip's asset name when the ticket asks for distinct sounds, "each gun has its own
+  sound"). What the sound is, how it sounds, is never checked. New games import every sound (unity-game-session skill),
+  so every sound has an asset name.
 - **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
   ship an ask nothing checks. The instruction stays plain prose, never fields.
 

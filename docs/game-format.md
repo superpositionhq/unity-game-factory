@@ -114,8 +114,10 @@ every hit calls it; key gameplay state (a number or bool named with a word of he
 armor, shield, stamina, mana, lives, dead, alive, dying, stun, stagger, invulnerable, invincible, guard, blocking,
 parry, alert, aggro, awake, asleep, dormant, roused or cooldown; a whole number or enum named with phase or state)
 lives on component instances, never in a mutable static; a situation that takes more than a minute of play to reach has
-a scenario start option. The validator checks the first two (rule `contract`); games begun earlier are not
-re-validated (`--no-contract` skips it).
+a scenario start option. Every sound the game plays is an imported AudioClip asset (a file, or a WAV a committed script
+made), never made at run time (no `AudioClip.Create`, no `OnAudioFilterRead` writing samples). The validator checks
+the first two (rule `contract`) and the last (rule `sound`); games begun earlier are not re-validated (`--no-contract`
+skips them).
 
 No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
 any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;
