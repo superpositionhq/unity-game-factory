@@ -449,8 +449,9 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 - **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling):
   make the contact happen with what plays have today (a scenario start option the game has, `teleport_to` the foe,
   the task's own keys) and read it where the start keeps it (a `prop:` of the component holding health, state or
-  phase). When no play can make it happen surely (a hit taken at a known moment, a parry window), word the ask out of
-  the instruction and list it in your notes; never use an input or measure that docs/task-probes.md doesn't list.
+  phase). Contact asks that need a staged hit (a hit taken at a known moment, a parry window) are written as soon as
+  the factory announces the staging inputs; until then keep the ask in the instruction and say in the task's notes
+  that it is waiting for them. Never use an input or measure that docs/task-probes.md doesn't list.
 - **Hints, never answers (owner, 2026-11-11).** An instruction may hint, in the ticket's own words, at what a player
   must see, hear or meet, or what must exist in the world, and may say that hits go through the game's damage
   interface. It never says how the build names or stores it: no class, field, method, tag, asset or file name, nothing
