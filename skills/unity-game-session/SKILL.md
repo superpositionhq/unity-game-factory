@@ -130,6 +130,22 @@ by hand under these rules, or ask.
   `SaveScene` returns.
 - Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
   the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
+- **Combat through one interface, state readable (user rule, 2026-11-11):** in a game where anything can be hurt,
+  declare `public interface IDamageable { void TakeDamage(float amount, GameObject source); }`; everything that can be
+  hurt is a component implementing it (on the object or its parent) and decides health, death, stagger, guard, parry
+  and invulnerability in `TakeDamage` or what it calls; everything that hurts calls `TakeDamage` on it, never changing
+  health directly. Your own hit method may exist only as a step called from `TakeDamage`. Key gameplay state lives on
+  component instances (fields or properties of a `MonoBehaviour`, or of an object it holds), where the task probe's
+  `prop:` reads it, never in a mutable `static` field (constants aside): by rule, any number or bool member whose
+  name has a word `health`, `hp`, `hitpoints`, `hull`, `poise`, `armor`, `shield`, `stamina`, `mana`, `lives`, `dead`,
+  `alive`, `dying`, `stun(ned)`, `stagger(ed)`, `invulnerable`, `invincible`, `guard(ing)`, `blocking`,
+  `parry(ing)`, `alert`, `aggro`, `awake`, `asleep`, `dormant`, `roused` or `cooldown`, and any whole-number or enum
+  member with a word `phase` or `state`. A boss phase, an ending or any situation that takes more than a minute of
+  play to reach gets a scenario start option (a scene and a command-line flag), listed in the README's QA section.
+  `tools/validate-game.py` checks the interface and the statics (rule `contract`, games begun from 2026-11-12).
+  _(failure: combat asks could not be graded because damage and state lived in private sim code: a task's hit,
+  stagger, parry, stun or boss phase could not be staged or read by the grader, so reworked tasks shipped those asks
+  unchecked)_
 - **Art style (user rule):** every game has one style from the library
   [docs/art-styles/](../../docs/art-styles/index.md) (100 guides: references, visual definition, Unity recipe, do /
   do not), and everything on screen follows it: models and materials, lighting, post-processing, effects, UI.

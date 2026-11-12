@@ -108,6 +108,15 @@ with main: `Tasks/<game>-<kind>-<slug>.json` (one task each in the task format `
 leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main's history, or of the task's own start
 branch `starts/<task name>`.
 
+**Combat contract (games begun from 2026-11-12).** In a game where anything can be hurt, a `public interface
+IDamageable { void TakeDamage(float amount, GameObject source); }` is declared, what can be hurt implements it, and
+every hit calls it; key gameplay state (a number or bool named with a word of health, hp, hitpoints, hull, poise,
+armor, shield, stamina, mana, lives, dead, alive, dying, stun, stagger, invulnerable, invincible, guard, blocking,
+parry, alert, aggro, awake, asleep, dormant, roused or cooldown; a whole number or enum named with phase or state)
+lives on component instances, never in a mutable static; a situation that takes more than a minute of play to reach has
+a scenario start option. The validator checks the first two (rule `contract`); games begun earlier are not
+re-validated (`--no-contract` skips it).
+
 No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
 any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;
 the packager scans binaries too and refuses a delivery whose binaries carry a name in their strings, but it never

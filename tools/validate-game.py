@@ -470,7 +470,7 @@ def _check_dataset(rep, v, area):
 
 
 LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
-OPTS = {'hash': True, 'quick': False}
+OPTS = {'hash': True, 'quick': False, 'no_contract': False}
 
 
 def git_out(*args, input=None):
@@ -1684,6 +1684,112 @@ def check_repo(rep, repo):
         with open(os.path.join(repo, 'workflow.jsonl'), encoding='utf-8-sig', errors='replace') as f:
             check_workflow(rep, 'repo: workflow.jsonl', f)
     check_repo_tasks(rep, repo, files)
+    if OPTS['no_contract']:
+        rep.note('contract', 'skipped (--no-contract)')
+    elif contract_applies(repo):
+        check_contract(rep, repo, files)
+    else:
+        rep.note('contract', f'a game begun before {CONTRACT_FROM}: the damage and key-state contract is not enforced')
+
+
+# ---- the contract on a game with combat (Lab docs/planning/2026-11-11_game-contact-checks/spec.md section 11.2):
+# ---- damage through one IDamageable interface the probe can find, key gameplay state never in mutable statics -------
+HEALTH_WORDS = {'health', 'hp', 'hitpoints', 'hull', 'poise', 'armor', 'armour'}
+STATE_WORDS = {'shield', 'stamina', 'mana', 'lives', 'dead', 'alive', 'dying', 'stun', 'stunned', 'stagger', 'staggered',
+               'invulnerable', 'invincible', 'guard', 'guarding', 'blocking', 'parry', 'parrying', 'alert', 'aggro',
+               'awake', 'asleep', 'dormant', 'roused'}
+WHOLE_WORDS = {'phase', 'state'}
+SHOWN_WORDS = {'sound', 'sfx', 'audio', 'fx', 'vfx', 'shown', 'display', 'shake'}
+CS_NUMBERS = {'float', 'double', 'decimal', 'bool', 'int', 'uint', 'long', 'ulong', 'short', 'ushort', 'byte', 'sbyte'}
+CS_HIT_FUNCTION = re.compile(r'\b(?:void|bool|float|int)\s+(?!TakeDamage\b)((?:Take|Receive|Apply|Deal)(?:Hit|Hurt|Damage)\w*)\s*\(')
+CS_MEMBER = re.compile(r'^\s*(?:\[[^\]]*\]\s*)*(?P<mods>(?:(?:public|private|protected|internal|static|readonly|volatile|'
+                       r'new|const)\s+)*)(?!(?:return|else|throw|case|goto|await|yield|in|out|ref)\b)(?P<type>[A-Za-z_][\w.]*\??)\s+(?P<name>[A-Za-z_]\w*)\s*(?:=[^;]*;|;|\{\s*get)',
+                       re.M)
+CONTRACT_FROM = '2026-11-12'  # games begun on or after this day (their first commit); older games are not re-validated
+
+
+def _cs_words(name):
+    name = re.sub(r'^(?:m_|_+|k_|s_)', '', name)
+    return [w.lower() for w in re.findall(r'[A-Z]+(?=[A-Z][a-z]|\d|$)|[A-Z]?[a-z]+|\d+', name)]
+
+
+def _cs_key(type_, name):
+    """Why a C# member is key state (spec 11.2 K, the name rule of 11.1 K), or None."""
+    words, low, t = set(_cs_words(name)), name.lower(), type_.rstrip('?')
+    if SHOWN_WORDS & words:
+        return None
+    number = t in CS_NUMBERS
+    if number and (HEALTH_WORDS & words or 'hitpoint' in low):
+        return 'health'
+    if number and (STATE_WORDS & words or 'cooldown' in low):
+        return 'combat state'
+    if WHOLE_WORDS & words and (t in CS_NUMBERS - {'float', 'double', 'decimal', 'bool'} or re.match(r'^[A-Z]\w*$', t)):
+        return 'phase or state'
+    return None
+
+
+def _strip_cs(text):
+    """C# text without comments and string literals (newlines kept, so line numbers hold)."""
+    text = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text, flags=re.S)
+    text = re.sub(r'//[^\n]*', '', text)
+    return re.sub(r'@?"(?:[^"\\\n]|\\.)*"', '""', text)
+
+
+def contract_applies(repo):
+    """Whether the contract binds this game: its first commit is on or after CONTRACT_FROM (UTC)."""
+    out = subprocess.run(['git', '-C', repo, 'log', '--reverse', '--format=%cs'], capture_output=True, text=True,
+                         env=dict(os.environ, TZ='UTC')).stdout.split()
+    return bool(out) and out[0] >= CONTRACT_FROM
+
+
+def check_contract(rep, repo, files):
+    """Spec 11.2 D and K on the game's Assets/**/*.cs (the template's AutoPlay and editor code aside): a game with
+    combat declares an IDamageable interface with TakeDamage(float, GameObject), implements it and calls it; no key
+    state member is a mutable static (no prop: reads one). For new games (the owner's decision of 2026-11-11)."""
+    sources = [f for f in files if f.startswith('Assets/') and f.endswith('.cs') and '/AutoPlay/' not in f
+               and '/Editor/' not in f]
+    health, statics, hit_functions = [], [], []
+    declares = implements = calls = False
+    for f in sources:
+        try:
+            text = _strip_cs(open(os.path.join(repo, f), encoding='utf-8-sig', errors='replace').read())
+        except OSError:
+            continue
+        for m in CS_MEMBER.finditer(text):
+            why = _cs_key(m.group('type'), m.group('name'))
+            if not why:
+                continue
+            mods = m.group('mods').split()
+            if why == 'health':
+                health.append(f)
+            if 'static' in mods and 'readonly' not in mods and 'const' not in mods:
+                statics.append((f, text.count('\n', 0, m.start()) + 1, m.group('name'), why))
+        for m in CS_HIT_FUNCTION.finditer(text):
+            hit_functions.append((f, text.count('\n', 0, m.start()) + 1, m.group(1)))
+        if re.search(r'\binterface\s+IDamageable\b[^{]*\{[^}]*\bTakeDamage\s*\(\s*float\s+\w+\s*,\s*GameObject\b', text,
+                     re.S):
+            declares = True
+        if re.search(r'\bclass\s+\w+\s*:[^{]*\bIDamageable\b', text):
+            implements = True
+        if re.search(r'(?:\.|\?\.)\s*TakeDamage\s*\(', text):
+            calls = True
+    if not (health or hit_functions):
+        rep.note('contract', 'no combat (no health member, no hit function): the damage rule does not apply')
+    else:
+        if not declares:
+            rep.error('contract', 'combat without the IDamageable interface: declare `interface IDamageable { void '
+                      'TakeDamage(float amount, GameObject source); }`' + (
+                          f" (the game's own hit function {hit_functions[0][2]} at {hit_functions[0][0]}:"
+                          f'{hit_functions[0][1]} must be a step called from TakeDamage)' if hit_functions else ''))
+        if not implements:
+            rep.error('contract', 'combat without a component implementing IDamageable: what can be hurt implements it')
+        if not calls:
+            rep.error('contract', 'combat without a call of TakeDamage: everything that hurts calls IDamageable.TakeDamage')
+    for f, ln, name, why in statics[:20]:
+        rep.error('contract', f'{f}:{ln}: {name} ({why}) is a static field: keep it on a component instance, '
+                  'where prop: reads it')
+    if len(statics) > 20:
+        rep.error('contract', f'... {len(statics) - 20} more static key state members')
 
 
 def main():
@@ -1699,7 +1805,10 @@ def main():
     ap.add_argument('--quiet', action='store_true', help='print only errors and warnings')
     ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
     ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
+    ap.add_argument('--no-contract', action='store_true',
+                    help='skip the damage and key-state contract (a game begun before 2026-11-12)')
     a = ap.parse_args()
+    OPTS['no_contract'] = a.no_contract
     OPTS['hash'] = not a.no_hash
     OPTS['quick'] = a.quick
     if not a.repo and not a.dataset:

@@ -446,6 +446,14 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or an `actions_judge` alone.**
+- **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling) is
+  staged, never left out because "no fixed play guarantees the contact": a scenario start option the game has for it,
+  `teleport_to` the foe and the task's own attack keys, and the outcome read where the combat contract keeps it (a
+  `prop:` of the component holding health, state or phase; docs/game-format.md). A hit taken at a known moment (a
+  parry window, invulnerable frames) needs the probe to call `IDamageable.TakeDamage`, which the Unity task probe does
+  not do yet (Lab's Unreal grader has it as `damage`, 2026-11-11): until it does, word such an ask so a scenario or
+  the player's own action stages it, and say in your notes what stayed open. _(failure: the 500-task rework left every
+  contact ask unchecked, "no fixed play can guarantee the contact", and Lab's content review sent the tasks back)_
 - **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
   ship an ask nothing checks. The instruction stays plain prose, never fields.
 
