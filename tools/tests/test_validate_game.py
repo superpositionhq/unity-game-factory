@@ -191,8 +191,8 @@ def task(start, ref, **over):
                              'select': {'kind': 'text', 'rect': [0, 0, 0.3, 0.1]}},
                  'expect': {'op': '>=', 'value': 1}},
                 {'name': 'enemies_glow', 'kind': 'probe', 'needs': ['boots_clean'],
-                 'describe': 'The enemies give off light again.', 'play': 'drive',
-                 'measure': {'probe': 'objects', 'select': {'component': 'Enemy', 'has': {'lit': True}},
+                 'describe': 'The enemies give off light again.', 'play': 'drive',   # selected by what they do:
+                 'measure': {'probe': 'objects', 'select': {'has': {'lit': True}},  # Enemy is only the reference's
                              'field': 'glow', 'of': 'max'},
                  'expect': {'op': '>', 'calibrate': 0.5}}]},
             {'name': 'still_works', 'checks': [
@@ -545,6 +545,19 @@ class TaskRules(Base):
         tasks[f'{SLUG}-{TASKS[0]}']['difficulty'] = 'hard'
         set_tasks(self.repo, tasks)
         self.assertEqual(errors(self.check(), 'repo: Tasks'), [])   # the one that names none is the game's one medium
+
+    def test_reference_only_name(self):
+        ms = self.probe(2, probe='objects', select={'component': 'Enemy', 'has': {'lit': True}}, field='glow', of='max')
+        self.assertEqual(self.tasks(milestones=ms),
+                         [f'tasks:Tasks/{SLUG}-{TASKS[0]}.json: check enemies_glow names Enemy, which only the reference '
+                          'has: another fair build names it otherwise; select by what it does or where it is '
+                          '(unity-write-tasks section 5)'])
+        ms[2]['checks'][2]['measure']['select']['component'] = 'Kiln'   # the start has it: any build can match it
+        self.assertEqual(self.tasks(milestones=ms), [])
+        ms[2]['checks'][2]['measure']['select']['component'] = 'Enemy'
+        ms[2]['checks'][2]['required'] = False                          # an optional probe gates nothing
+        errs = self.tasks(milestones=ms)
+        self.assertFalse([e for e in errs if 'only the reference' in e], errs)
 
     def test_never_literal(self):
         ms = self.probe(2, probe='objects', select={'component': 'Enemy'}, field='spread', of='max')

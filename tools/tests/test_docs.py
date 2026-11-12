@@ -198,7 +198,7 @@ def expand(snippet):
 CHECKS = {'probe': 'Probe', 'build': 'Build', 'boot': 'Boot', 'log_absent': 'LogAbsent', 'file_exists': 'FileExists',
           'package': 'Package', 'judge': 'Judge', 'code_judge': 'CodeJudge', 'actions_judge': 'ActionsJudge'}
 INPUTS = (('key', 'Key'), ('widget', 'Click'), ('cursor', 'Cursor'), ('teleport_to', 'TeleportTo'),
-          ('teleport', 'Teleport'), ('wait', 'Wait'))
+          ('teleport', 'Teleport'), ('wait', 'Wait'), ('shot', 'Shot'), ('scene', 'SceneLoad'), ('view', 'View'))
 EXPECTS = (('value', 'Value'), ('calibrate', 'Calibrate'), ('start_times', 'StartTimes'), ('start_plus', 'StartPlus'))
 POINTS = (('xyz', 'AtXYZ'), ('player', 'AtPlayer'), ('camera', 'AtCamera'), ('object', 'AtObject'))
 SELECTS = ('Select', 'ComponentSelect', 'WidgetSelect', 'UiSelect', 'AudioSelect', 'PieceSelect', 'Has')
