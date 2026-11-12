@@ -108,7 +108,7 @@ with main: `Tasks/<game>-<kind>-<slug>.json` (one task each in the task format `
 leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main's history, or of the task's own start
 branch `starts/<task name>`.
 
-**Combat contract (games begun from 2026-11-12).** In a game where anything can be hurt, a `public interface
+**Combat contract (every game not yet submitted, from 2026-11-11).** In a game where anything can be hurt, a `public interface
 IDamageable { void TakeDamage(float amount, GameObject source); }` is declared, what can be hurt implements it, and
 every hit calls it; key gameplay state (a number or bool named with a word of health, hp, hitpoints, hull, poise,
 armor, shield, stamina, mana, lives, dead, alive, dying, stun, stagger, invulnerable, invincible, guard, blocking,
@@ -116,8 +116,9 @@ parry, alert, aggro, awake, asleep, dormant, roused or cooldown; a whole number 
 lives on component instances, never in a mutable static; a situation that takes more than a minute of play to reach has
 a scenario start option. Every sound the game plays is an imported AudioClip asset (a file, or a WAV a committed script
 made), never made at run time (no `AudioClip.Create`, no `OnAudioFilterRead` writing samples). The validator checks
-the first two (rule `contract`) and the last (rule `sound`); games begun earlier are not re-validated (`--no-contract`
-skips them).
+the first two (rule `contract`) and the last (rule `sound`) as errors, and `tools/package-dataset.py` refuses a game
+that fails them (`validate-game.py <repo> --rules-only` runs just these). A game in progress is brought up to them
+before it is packaged; games already approved in the Lab are not re-validated.
 
 No tool, vendor or owner names anywhere in the repo's text: Superposition, unity-game-factory and "game factory" in
 any other spelling (`gamefactory`, `game_factory`), Claude, Anthropic, OpenAI (the validator scans tracked text files;

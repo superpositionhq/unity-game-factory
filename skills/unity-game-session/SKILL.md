@@ -142,7 +142,10 @@ by hand under these rules, or ask.
   `parry(ing)`, `alert`, `aggro`, `awake`, `asleep`, `dormant`, `roused` or `cooldown`, and any whole-number or enum
   member with a word `phase` or `state`. A boss phase, an ending or any situation that takes more than a minute of
   play to reach gets a scenario start option (a scene and a command-line flag), listed in the README's QA section.
-  `tools/validate-game.py` checks the interface and the statics (rule `contract`, games begun from 2026-11-12).
+  `tools/validate-game.py` checks the interface and the statics (rule `contract`), and the packager refuses a game
+  that fails it. It applies to every game not yet submitted: a game in progress is brought up to it before it is
+  packaged (route its hits through `IDamageable.TakeDamage`, keep its key state on component instances; owner,
+  2026-11-11). Games already approved in the Lab are not re-validated.
   _(failure: combat asks could not be graded because damage and state lived in private sim code: a task's hit,
   stagger, parry, stun or boss phase could not be staged or read by the grader, so reworked tasks shipped those asks
   unchecked)_
@@ -199,7 +202,9 @@ by hand under these rules, or ask.
   is an imported AudioClip asset (a clip from the unity-sound skill, or a WAV a committed script made and Unity
   imported; user rule, 2026-11-11); none is made at run time: no `AudioClip.Create` (with or without a PCM reader
   callback), no `OnAudioFilterRead` writing samples, no procedural clip data, for a game sound. `tools/validate-game.py`
-  scans for them (rule `sound`, games begun from 2026-11-12). _(failure: 52 of 218 Unreal games synthesised their
+  scans for them (rule `sound`), and the packager refuses a game that fails it. A game in progress replaces each
+  sound it makes at run time with an imported asset (a WAV a committed script makes, then imports) before it is
+  packaged. _(failure: 52 of 218 Unreal games synthesised their
   sounds at run time, so a task asking "each gun has its own sound" had no asset name for the grader to tell sounds
   apart by)_
 - **UI (user rule):** matches the game's art style (its guide's UI and typography line): kit frames, icons, display

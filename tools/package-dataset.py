@@ -1676,6 +1676,10 @@ def package(args):
     repo = os.path.abspath(args.repo or os.path.join(ugfroot.root(), 'games', game))
     if not os.path.isdir(os.path.join(repo, '.git')):
         raise Refused(f'no game repo at {repo}')
+    rules = check_rules(repo)
+    if rules:
+        raise Refused('the game fails the game contract or the sound rule: bring it up to them before packaging\n  '
+                      + '\n  '.join(rules))
     recording = os.path.abspath(args.recording or os.path.join(ugfroot.root(), '.recording', game))
     out_root = os.path.abspath(args.out or repo)
     scratch = os.path.join(out_root, '.dataset')
@@ -2433,6 +2437,17 @@ def write_manifest(root, meta):
     m['totals'] = {'files': len(files), 'bytes': sum(f['bytes'] for f in files)}
     m['files'] = files
     write_text(os.path.join(root, 'manifest.json'), json.dumps(m, indent=1, ensure_ascii=False) + '\n')
+
+
+def check_rules(repo):
+    """The game contract and the sound rule on the repo's Assets/ (tools/validate-game.py check_rules; the owner's
+    decisions of 2026-11-11): their errors, each saying what to change; [] when it meets them."""
+    spec = importlib.util.spec_from_file_location('validate_game', os.path.join(HERE, 'validate-game.py'))
+    vg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vg)
+    rep = vg.Report()
+    vg.check_rules(rep, repo, vg.git_ls(repo))
+    return [f'{a}: {m}' for s, a, m in rep.items if s == 'error']
 
 
 def validate(path, repo_dataset=False):

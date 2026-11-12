@@ -470,7 +470,7 @@ def _check_dataset(rep, v, area):
 
 
 LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
-OPTS = {'hash': True, 'quick': False, 'no_contract': False}
+OPTS = {'hash': True, 'quick': False}
 
 
 def git_out(*args, input=None):
@@ -1684,14 +1684,14 @@ def check_repo(rep, repo):
         with open(os.path.join(repo, 'workflow.jsonl'), encoding='utf-8-sig', errors='replace') as f:
             check_workflow(rep, 'repo: workflow.jsonl', f)
     check_repo_tasks(rep, repo, files)
-    if OPTS['no_contract']:
-        rep.note('contract', 'skipped (--no-contract)')
-    elif contract_applies(repo):
-        check_contract(rep, repo, files)
-        check_sound(rep, repo, files)
-    else:
-        rep.note('contract', f'a game begun before {CONTRACT_FROM}: the damage, key-state and sound rules are not '
-                 'enforced')
+    check_rules(rep, repo, files)
+
+
+def check_rules(rep, repo, files):
+    """The game contract and the sound rule (the owner's decisions of 2026-11-11): every game not yet submitted, a
+    game in progress too, meets them before it is packaged; games already approved in the Lab are not re-validated."""
+    check_contract(rep, repo, files)
+    check_sound(rep, repo, files)
 
 
 # ---- the contract on a game with combat (Lab docs/planning/2026-11-11_game-contact-checks/spec.md section 11.2):
@@ -1726,12 +1726,14 @@ def check_sound(rep, repo, files):
             found.append((f, text.count('\n', 0, m.start()) + 1, what))
     for f, ln, what in found[:20]:
         rep.error('sound', f'{f}:{ln}: {what} makes a sound at run time: import every sound as an AudioClip asset (a '
-                  'clip, or a WAV a committed script made), so it has a name')
+                  'clip, or a WAV a committed script made and imported), so it has a name' + REQUIRED)
     if len(found) > 20:
-        rep.error('sound', f'... {len(found) - 20} more places that make a sound at run time')
+        rep.error('sound', f'... {len(found) - 20} more places that make a sound at run time' + REQUIRED)
 
 
-CONTRACT_FROM = '2026-11-12'  # games begun on or after this day (their first commit); older games are not re-validated
+# every finding of the contract and the sound rule ends with this: a game in progress is brought up to them first
+REQUIRED = (' (required before this game can be packaged: unity-game-session skill, "Combat through one interface" and'
+            ' "Sound")')
 
 
 def _cs_words(name):
@@ -1759,13 +1761,6 @@ def _strip_cs(text):
     text = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text, flags=re.S)
     text = re.sub(r'//[^\n]*', '', text)
     return re.sub(r'@?"(?:[^"\\\n]|\\.)*"', '""', text)
-
-
-def contract_applies(repo):
-    """Whether the contract binds this game: its first commit is on or after CONTRACT_FROM (UTC)."""
-    out = subprocess.run(['git', '-C', repo, 'log', '--reverse', '--format=%cs'], capture_output=True, text=True,
-                         env=dict(os.environ, TZ='UTC')).stdout.split()
-    return bool(out) and out[0] >= CONTRACT_FROM
 
 
 def check_contract(rep, repo, files):
@@ -1806,16 +1801,19 @@ def check_contract(rep, repo, files):
             rep.error('contract', 'combat without the IDamageable interface: declare `interface IDamageable { void '
                       'TakeDamage(float amount, GameObject source); }`' + (
                           f" (the game's own hit function {hit_functions[0][2]} at {hit_functions[0][0]}:"
-                          f'{hit_functions[0][1]} must be a step called from TakeDamage)' if hit_functions else ''))
+                          f'{hit_functions[0][1]} must be a step called from TakeDamage)' if hit_functions else '')
+                      + REQUIRED)
         if not implements:
-            rep.error('contract', 'combat without a component implementing IDamageable: what can be hurt implements it')
+            rep.error('contract', 'combat without a component implementing IDamageable: what can be hurt implements it'
+                      + REQUIRED)
         if not calls:
-            rep.error('contract', 'combat without a call of TakeDamage: everything that hurts calls IDamageable.TakeDamage')
+            rep.error('contract', 'combat without a call of TakeDamage: everything that hurts calls IDamageable.TakeDamage'
+                      + REQUIRED)
     for f, ln, name, why in statics[:20]:
         rep.error('contract', f'{f}:{ln}: {name} ({why}) is a static field: keep it on a component instance, '
-                  'where prop: reads it')
+                  'where prop: reads it' + REQUIRED)
     if len(statics) > 20:
-        rep.error('contract', f'... {len(statics) - 20} more static key state members')
+        rep.error('contract', f'... {len(statics) - 20} more static key state members' + REQUIRED)
 
 
 def main():
@@ -1831,10 +1829,18 @@ def main():
     ap.add_argument('--quiet', action='store_true', help='print only errors and warnings')
     ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
     ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
-    ap.add_argument('--no-contract', action='store_true',
-                    help='skip the damage, key-state and sound rules (a game begun before 2026-11-12)')
+    ap.add_argument('--rules-only', action='store_true',
+                    help="only the game contract and the sound rule on the repo's Assets/ (what the packager checks first)")
     a = ap.parse_args()
-    OPTS['no_contract'] = a.no_contract
+    if a.rules_only:
+        if not a.repo:
+            ap.error('--rules-only takes a game repo')
+        rep = Report()
+        check_rules(rep, os.path.abspath(a.repo), git_ls(os.path.abspath(a.repo)))
+        print(f'{"INVALID" if rep.count("error") else "VALID"}  {rep.count("error")} error(s)  [{a.repo}: contract, sound]')
+        for sev, area, msg in rep.items:
+            print(f'  {"x" if sev == "error" else "-"} {area}: {msg}')
+        sys.exit(2 if rep.count('error') else 0)
     OPTS['hash'] = not a.no_hash
     OPTS['quick'] = a.quick
     if not a.repo and not a.dataset:
