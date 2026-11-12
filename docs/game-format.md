@@ -188,11 +188,11 @@ git clone History/<game>.bundle <game>
 then copy `History/lfs` into `<game>/.git/lfs`, `git lfs install --local`, `git checkout <commit>`, `git lfs checkout`.
 
 **The sessions.** `History/sessions/` holds the creation sessions as the build machine's hooks recorded them, one JSON
-row per line, in two files. `messages.jsonl` has every prompt the person typed and every reply the model wrote: `time`,
-`project`, `session_id`, `agent`, `role` (`user` or `assistant`), `message_id`, `text`, and where they apply `model`,
+row per line, in two files. `messages.jsonl` has every prompt the person typed, every reply the model wrote and every reasoning summary the agent saved: `time`,
+`project`, `session_id`, `agent`, `role` (`user`, `assistant` or `thinking`), `message_id`, `text`, and where they apply `model`,
 `images` (pictures attached to a prompt), `mid_turn` (a prompt typed while the model was working), `phase`, `subagent`.
-`actions.jsonl` has every tool call with its input and the start of its result. Not in either: the model's reasoning,
-and text the agent tool put into a turn itself. The rows go up to the release commit; the sessions that packaged the
+`actions.jsonl` has every tool call with its input and its whole result (up to 1,000,000 characters, `response_chars` and `response_truncated` on a longer one; a picture or other binary payload as a short marker). In `messages.jsonl`, a `thinking` row is a reasoning summary the agent saved for a turn (`redacted` true and no text when the agent saved it without readable text). Not in either:
+text the agent tool put into a turn itself. A game recorded before 2026-11-12 has no `thinking` rows and only the start of each result. The rows go up to the release commit; the sessions that packaged the
 dataset and those named with `--exclude-sessions` are left out; each session is named `session_NN`, the same in both
 files, so `session_id` and `time` tie a reply to its tool calls; the text is scrubbed like every other text file of
 the delivery. `manifest.json` counts the rows (`history.sessions`: `messages` and `actions`, each with `file` and

@@ -2532,9 +2532,9 @@ def dataset_readme(c, repo):
                  '`History/lfs/objects/` (every Git LFS file of every commit). Authors are anonymised as dev_NN.')
         if c['sessions']:
             a.append('  `History/sessions/` — the creation sessions as recorded, one JSON row per line, oldest first within a session: ' +
-                     ('`messages.jsonl` holds every prompt the person typed (`role` "user") and every reply the model wrote (`role` "assistant"); '
+                     ('`messages.jsonl` holds every prompt the person typed (`role` "user") and every reply the model wrote (`role` "assistant") and, where the sessions were recorded with them, the reasoning summaries the agent saved (`role` "thinking"); '
                       if 'messages.jsonl' in c['sessions'] else '') +
-                     ('`actions.jsonl` holds every tool call with its input and the start of its result. ' if 'actions.jsonl' in c['sessions'] else '') +
+                     ('`actions.jsonl` holds every tool call with its input and its result. ' if 'actions.jsonl' in c['sessions'] else '') +
                      '`session_id` (session_NN) and `time` tie the rows of one session together.')
     a.append('- `Brief/` — the original brief the game was built from (`Brief/brief.md`) and its design doc with story bible and status (`Brief/design.md`).')
     if not repo:

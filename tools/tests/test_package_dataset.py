@@ -63,6 +63,10 @@ def make_inputs(tmp, recorded=True):
             text='Keep the hero on the ground. Ask jane.tester@corp.example if Superposition agrees.'),
         row(schema='agent-message/v0', time=before, project=SLUG, session_id=S1, agent='claude', role='assistant', message_id='m2',
             model='claude-opus-5-5', text='Done by Claude; OpenAI was not used.'),
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S1, agent='claude', role='thinking', message_id='m2:thinking',
+            model='claude-opus-5-5', text='Claude should mail jane.tester@corp.example about the hero.'),
+        row(schema='agent-message/v0', time=before, project=SLUG, session_id=S1, agent='claude', role='thinking', message_id='m2b:thinking',
+            redacted=True, text=''),
         row(schema='agent-message/v0', time=before, project=SLUG, session_id=S2, agent='codex', role='user', message_id='m3', text='Add the HUD.'),
         row(schema='agent-message/v0', time=before, project=SLUG, session_id=S3, agent='claude', role='user', message_id='m4', text='Package it.'),
         row(schema='agent-message/v0', time=after, project=SLUG, session_id=S1, agent='claude', role='user', message_id='m5', text='Later.')]) + '\n')
@@ -276,7 +280,11 @@ class Package(unittest.TestCase):
         acts = [json.loads(l) for l in mem['History/sessions/actions.jsonl'].decode().splitlines()]
         # rows after the release commit and the packaging session are left out; ids are numbered the same in both files
         self.assertEqual([(r['session_id'], r['role']) for r in msgs],
-                         [('session_01', 'user'), ('session_01', 'assistant'), ('session_02', 'user')])
+                         [('session_01', 'user'), ('session_01', 'assistant'), ('session_01', 'thinking'), ('session_01', 'thinking'),
+                          ('session_02', 'user')])
+        # a reasoning summary is scrubbed like a reply; one saved without text keeps its mark
+        self.assertEqual(msgs[2]['text'], 'Agent should mail <redacted-email> about the hero.')
+        self.assertEqual((msgs[3]['text'], msgs[3]['redacted']), ('', True))
         self.assertEqual([(r['session_id'], r['tool']) for r in acts], [('session_01', 'Bash'), ('session_02', 'apply_patch')])
         self.assertEqual(msgs[0]['text'], 'Keep the hero on the ground. Ask <redacted-email> if Studio agrees.')
         self.assertEqual(msgs[1]['text'], 'Done by Agent; Provider was not used.')
@@ -290,7 +298,7 @@ class Package(unittest.TestCase):
         delivered = json.loads(mem[f'Tasks/{SLUG}-fix-hero-hud/grader.json'])['seed']['reference']
         self.assertTrue(acts[0]['response'].startswith(delivered + '\n'))   # a commit id is the delivered history's
         self.assertNotEqual(delivered, self.inp['ref'])
-        self.assertEqual(m['history']['sessions'], {'messages': {'file': 'History/sessions/messages.jsonl', 'rows': 3},
+        self.assertEqual(m['history']['sessions'], {'messages': {'file': 'History/sessions/messages.jsonl', 'rows': 5},
                                                     'actions': {'file': 'History/sessions/actions.jsonl', 'rows': 2}})
         readme = mem['README.md'].decode()
         self.assertIn('History/sessions/', readme)

@@ -224,8 +224,8 @@
     "what": "History/sessions/: the creation sessions as the build machine's hooks recorded them, one JSON object per line. No new top-level entry: both files live inside History/ (full variant only)",
     "optional": "both files are optional: a game recorded before prompts and replies were kept has no messages.jsonl; tools/validate-game.py reports what it finds here as warnings and notes, never as errors",
     "files": {
-      "messages.jsonl": "every prompt the person typed and every reply the model wrote, one row each: time, project, session_id, agent, role (user | assistant), message_id, text; where they apply model, images, mid_turn, phase, subagent. Not in it: tool calls and results (actions.jsonl), the model's reasoning, text the agent tool put into a turn itself",
-      "actions.jsonl": "every tool call, one row each, with time, session_id, event, the tool, its input and the start of its result"
+      "messages.jsonl": "every prompt the person typed and every reply the model wrote, one row each: time, project, session_id, agent, role (user | assistant | thinking: a reasoning summary the agent saved, with redacted true and no text when it was saved without readable text), message_id, text; where they apply model, images, mid_turn, phase, subagent. Not in it: tool calls and results (actions.jsonl), text the agent tool put into a turn itself",
+      "actions.jsonl": "every tool call, one row each, with time, session_id, event, the tool, its input and its result (whole up to 1,000,000 characters; only its start in a game recorded before 2026-11-12)"
     },
     "session_id": "session_NN, the same session under the same name in both files (the build machine's session ids are not delivered)",
     "rows": "rows up to the release commit; the sessions that packaged the dataset and those the packager was told to exclude are left out; the text is scrubbed like every other text file of the delivery",

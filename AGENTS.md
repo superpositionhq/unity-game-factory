@@ -118,8 +118,9 @@ Both agents run the same skills, the same recording hooks and the same workflow;
 
 Under Codex, the shell tool is recorded as `Bash` whatever shell ran the command. Read a skill by opening its
 `SKILL.md` when the task matches, even if the agent did not offer it. Both agents' hooks also store every prompt the
-person typed and every reply the model wrote (`messages.jsonl`, read from the session's transcript), and a dataset
-carries them in `History/sessions/`. The person's directions are still `user.direction` rows that the session writes
+person typed, every reply the model wrote and every reasoning summary the agent saved (`messages.jsonl`, read from the
+session's transcript; `machine/bootstrap.ps1` turns the summaries on in both agents' settings), and each tool call with
+its whole result (`actions.jsonl`); a dataset carries them in `History/sessions/`. The person's directions are still `user.direction` rows that the session writes
 itself (unity-commit-always skill).
 
 Commands with Windows paths in these docs are written as PowerShell reads them. Typed in Git Bash (the shell of Claude
