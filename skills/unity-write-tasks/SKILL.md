@@ -446,14 +446,11 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or an `actions_judge` alone.**
-- **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling) is
-  staged, never left out because "no fixed play guarantees the contact": a scenario start option the game has for it,
-  `teleport_to` the foe and the task's own attack keys, and the outcome read where the combat contract keeps it (a
-  `prop:` of the component holding health, state or phase; docs/game-format.md). A hit taken at a known moment (a
-  parry window, invulnerable frames) needs the probe to call `IDamageable.TakeDamage`, which the Unity task probe does
-  not do yet (Lab's Unreal grader has it as `damage`, 2026-11-11): until it does, word such an ask so a scenario or
-  the player's own action stages it, and say in your notes what stayed open. _(failure: the 500-task rework left every
-  contact ask unchecked, "no fixed play can guarantee the contact", and Lab's content review sent the tasks back)_
+- **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling):
+  make the contact happen with what plays have today (a scenario start option the game has, `teleport_to` the foe,
+  the task's own keys) and read it where the start keeps it (a `prop:` of the component holding health, state or
+  phase). When no play can make it happen surely (a hit taken at a known moment, a parry window), word the ask out of
+  the instruction and list it in your notes; never use an input or measure that docs/task-probes.md doesn't list.
 - **Hints, never answers (owner, 2026-11-11).** An instruction may hint, in the ticket's own words, at what a player
   must see, hear or meet, or what must exist in the world, and may say that hits go through the game's damage
   interface. It never says how the build names or stores it: no class, field, method, tag, asset or file name, nothing
