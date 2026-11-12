@@ -158,8 +158,8 @@ builds and plays go through `unity-heavy.ps1` like every other heavy job. So is 
   session recorded before they were) and puts that session's rows back in the transcript's order. Run it once after
   updating a machine that has sessions under way. A transcript written while the agent's summary setting was off
   holds no summary text: those rows come out `redacted`.
-  The summary is what the agent shows: Claude Code's `thinking` blocks, Codex's `summary_text` (never its
-  `raw_content`, the reasoning itself where a model gives it). A long command output that Claude Code cut in the
+  The summary is what the agent saved: Claude Code's `thinking` blocks, Codex's `summary_text` and, where the rollout
+  holds it as plain text, its `raw_content`. A long command output that Claude Code cut in the
   result and saved to a file (`persistedOutputPath`) is read from that file while it is there.
 - Row schemas: `actions.jsonl` rows carry `"schema": "agent-action/v0"`, `messages.jsonl` rows
   `"schema": "agent-message/v0"`, `commits.jsonl` rows `"schema": "commit/v0"`.
