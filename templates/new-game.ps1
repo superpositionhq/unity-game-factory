@@ -183,10 +183,13 @@ if (-not $NoGitHub) {
     $ErrorActionPreference = 'Continue'
     # without gh the call below fails to start and leaves an earlier command's exit code: the repo read as existing
     $gh = [bool](Get-Command gh -ErrorAction SilentlyContinue)
-    if ($gh) { & gh repo view $full --json name 2>&1 | Out-Null }
-    $exists = ($gh -and $LASTEXITCODE -eq 0)
-    if (-not $gh) {
-        Write-Warning "gh (the GitHub CLI) is not installed: no repo made. Install it (machine\setup.ps1), then: gh repo create $full --private; git -C `"$Path`" remote add origin https://github.com/$full.git"
+    # a contractor has no GitHub sign-in and no rights in the org: the game stays on the PC and ships in the dataset zip
+    $signedIn = $false
+    if ($gh) { & gh auth status 2>&1 | Out-Null; $signedIn = ($LASTEXITCODE -eq 0) }
+    if ($signedIn) { & gh repo view $full --json name 2>&1 | Out-Null }
+    $exists = ($signedIn -and $LASTEXITCODE -eq 0)
+    if (-not $signedIn) {
+        Write-Host "  no GitHub repo made (not signed in to GitHub): expected for a contractor, whose game stays on this PC and ships in the dataset zip; do not ask for access to $Org. Staff: gh auth login --web, then gh repo create $full --private; git -C `"$Path`" remote add origin https://github.com/$full.git"
     } elseif ($exists) {
         # never linked unseen: it may be another game's (same slug) or public, and a push would ship store content there
         Write-Warning "$full already exists: not linked. Check that it is this game's and private, then: git remote add origin https://github.com/$full.git"
@@ -195,7 +198,7 @@ if (-not $NoGitHub) {
         if ($LASTEXITCODE -eq 0) {
             & git -C $Path remote add origin "https://github.com/$full.git"
             $remote = "https://github.com/$full (private; not pushed: push when the coordinator says)"
-        } else { Write-Warning "could not create $full; create it later: gh repo create $full --private" }
+        } else { Write-Host "  no GitHub repo made (this account cannot create $full): expected for a contractor, whose game stays on this PC and ships in the dataset zip; do not ask for access to $Org. Staff: ask an owner of $Org for the right to create repos, then gh repo create $full --private" }
     }
     $ErrorActionPreference = $old
 }

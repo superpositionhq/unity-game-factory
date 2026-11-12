@@ -123,7 +123,8 @@ Try-Check 'Git LFS' {
 Try-Check 'GitHub CLI' {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Add-Result FAIL 'GitHub CLI' 'gh not found' 'winget install GitHub.cli'; return }
     $login = Run gh @('api', 'user', '--jq', '.login')
-    if ($login.code -ne 0) { Add-Result FAIL 'GitHub CLI' 'not logged in' 'gh auth login (GitHub.com, HTTPS, browser)'; return }
+    # Not a FAIL: building and submitting a game needs no GitHub account (the game stays on the PC, in the dataset zip).
+    if ($login.code -ne 0) { Add-Result WARN 'GitHub CLI' 'not logged in' 'only staff who push game repos to the org need it: gh auth login (GitHub.com, HTTPS, browser)'; return }
     if (-not $Org) { Add-Result FAIL 'GitHub org' "logged in as $($login.out); no github_org in the config" 'machine/bootstrap.ps1 -Org <GitHub org or user that owns unity-game-factory and the game repos>'; return }
     $v = Run gh @('repo', 'view', "$Org/unity-game-factory", '--json', 'name,visibility', '--jq', '.visibility')
     if ($v.code -ne 0) { Add-Result FAIL "GitHub access to $Org" "logged in as $($login.out), but cannot see $Org/unity-game-factory" "ask an $Org owner to add the account (needs repo create rights for unity-game-<slug> repos)"; return }

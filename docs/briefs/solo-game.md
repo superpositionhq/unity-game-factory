@@ -63,7 +63,9 @@ and the unity-game-session, unity-commit-always and unity-sound skills
 - push only when I say; never run tools/unity-pipeline/enqueue.ps1 (recordings are queued by me, if at all).
 
 Game: {{GAME_TITLE}} ({{SLUG}} -> {{UGF_ROOT}}\games\{{SLUG}}, project {{PROJECT}}, private GitHub repo
-{{ORG}}/unity-game-{{SLUG}}). Design doc, story bible and status:
+{{ORG}}/unity-game-{{SLUG}} for staff only: as a contractor I have no GitHub repo for the game and no access to
+{{ORG}}, which is expected, so never ask me to sign in to GitHub or to request access). Design doc, story bible and
+status:
 {{UGF_ROOT}}\unity-game-factory\docs\games\{{SLUG}}.md (create it if missing).
 Mode {{MODE}}: NEW = your first tool call creates the project with
   powershell -ExecutionPolicy Bypass -File {{UGF_ROOT}}\unity-game-factory\templates\new-game.ps1 -Slug {{SLUG}} -Path {{UGF_ROOT}}\games\{{SLUG}} -Project {{PROJECT}} -Title "<title>" -Description "<one line>"

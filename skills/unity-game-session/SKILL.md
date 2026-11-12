@@ -41,7 +41,10 @@ by hand under these rules, or ask.
    root-anchored `.gitignore`), the first `workflow.jsonl` row, the post-commit hook (the commit recorder and the live
    creation replay), the first commit, the first editor open (packages, URP, Input System, TextMeshPro's
    essential resources, player settings; a second commit), and the private repo `<org>/unity-game-<slug>`
-   (`github_org` in the machine config; not pushed). When it says the first open failed (no licence, no network), run
+   (`github_org` in the machine config; not pushed). A contractor's PC has no GitHub sign-in and no rights in
+   `<org>`, so the script says no GitHub repo was made: that is expected, the game stays on the PC and ships in the
+   dataset zip. Carry on, and never tell the person to sign in to GitHub or to ask for access to `<org>`.
+   When it says the first open failed (no licence, no network), run
    `Scripts/unity.ps1 setup` once that is fixed, then commit.
 3. Write the design doc + story bible in unity-game-factory `docs/games/<slug>.md` before building: systems (the core loop and the further ones "Gameplay depth" below asks for), classes,
    ScriptableObjects, scenes, scenarios 1..n (start state + win/lose), art and audio direction, acceptance checklist.

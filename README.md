@@ -26,15 +26,16 @@ creation replay to its post-commit hook, and a game made before the AutoPlay dro
 ([docs/autoplay-contract.md](docs/autoplay-contract.md), "Getting the drop-in").
 
 On a fresh Windows 11 PC (8+ threads, 16 GB RAM or more, 200 GB free; an NVIDIA GPU only for recording), with a
-GitHub account in `<org>` (the organisation that owns this repo and the private `unity-game-<slug>` repos), a Unity ID
-with a licence (Unity Personal where its terms allow, otherwise the seat the org gives you) and an account for the
-coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key):
+Unity ID with a licence (Unity Personal where its terms allow, otherwise the seat the org gives you) and an account for the
+coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key). Contractors need no GitHub
+account: the game stays on the PC and ships in the dataset zip. Only staff who push the private `unity-game-<slug>`
+repos need a GitHub account in `<org>` (the organisation that owns this repo):
 
 1. Get `machine/setup.ps1` (Download ZIP on github.com, or `gh api`; [docs/new-machine.md](docs/new-machine.md)) and
    run the one command: `powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>` (add `-Agent codex` or
    `-Agent both`; it asks otherwise). It installs the toolchain (Unity Hub included, and the Codex CLI for Codex)
-   through winget, asks before changing Windows settings, signs in to GitHub (and Codex), clones this repo into the
-   root, runs `machine/bootstrap.ps1` (which asks before installing the recording hooks) and `machine/check.ps1`, and
+   through winget, asks before changing Windows settings, offers the GitHub sign-in (staff only) and signs in to
+   Codex, clones this repo into the root, runs `machine/bootstrap.ps1` (which asks before installing the recording hooks) and `machine/check.ps1`, and
    ends with a PASS / TODO list.
 2. Do the TODOs only you can do (sign in to Unity Hub and activate a licence, the Unity 6.3 LTS editor with Windows
    Build Support (IL2CPP), the NVIDIA driver, the Asset Store, and signing in to Claude Code or Codex) and run setup

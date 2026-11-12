@@ -230,13 +230,22 @@ $ghOk = $false
 if (Has gh) {
     $ghOk = (Quiet { gh auth status }).code -eq 0
     if (-not $ghOk -and -not $DryRun -and $interactive) {
-        Write-Host '  GitHub sign-in: a browser page opens; sign in with your own GitHub account. Contractors need no org membership: the skill pack is public and your game stays on your PC.'
-        & gh auth login --hostname github.com --git-protocol https --web
-        $ghOk = (Quiet { gh auth status }).code -eq 0
+        # Only staff who push the private game repos sign in: the skill pack is public and a contractor's game stays
+        # on the PC (it ships in the dataset zip). Asked once; the answer is kept in the state file.
+        $signIn = Get-State 'github_signin'
+        if ($null -eq $signIn) {
+            $signIn = Ask 'Sign in to GitHub? Only staff who push game repos to the org need it. Contractors: answer No (the skill pack is public and your game stays on your PC)' $false
+            Save-State 'github_signin' $signIn
+        }
+        if ($signIn) {
+            Write-Host '  GitHub sign-in: a browser page opens; sign in with the account that is a member of the org.'
+            & gh auth login --hostname github.com --git-protocol https --web
+            $ghOk = (Quiet { gh auth status }).code -eq 0
+        }
     }
     if ($ghOk) { if (-not $DryRun) { Quiet { gh auth setup-git } | Out-Null }; Item PASS 'GitHub sign-in' (Quiet { gh api user --jq .login }).out }
-    else { Item TODO 'GitHub sign-in' 'not signed in' 'gh auth login --web (then run setup again)' }
-} else { Item TODO 'GitHub sign-in' 'needs the GitHub CLI' 'install it (step 2), then run setup again' }
+    else { Item INFO 'GitHub sign-in' 'not signed in' 'not needed to build and submit a game; staff who push game repos: gh auth login --web' }
+} else { Item INFO 'GitHub sign-in' 'no GitHub CLI' 'not needed to build and submit a game; staff who push game repos: install it (step 2), then run setup again' }
 if (Has git) {
     foreach ($k in 'user.name', 'user.email') {
         $v = (Quiet { git config --global --get $k }).out
@@ -271,12 +280,12 @@ $inClone = (Test-Path (Join-Path $here 'machine\bootstrap.ps1')) -and (Test-Path
 $repo = if ($inClone) { $here } else { Join-Path $Root 'unity-game-factory' }
 if (-not (Test-Path (Join-Path $repo 'machine\bootstrap.ps1'))) {
     $src = if ($RepoUrl) { $RepoUrl } elseif ($Org) { "https://github.com/$Org/unity-game-factory.git" } else { $null }
-    if (-not $src -or -not (Has git) -or ($src -like 'https://github.com/*' -and -not $ghOk)) { Item TODO 'unity-game-factory clone' "not at $repo" 'needs git, GitHub sign-in and the org (steps above); then run setup again' }
+    if (-not $src -or -not (Has git)) { Item TODO 'unity-game-factory clone' "not at $repo" 'needs git and the org (steps above); then run setup again' }
     elseif ($DryRun -and -not $RepoUrl) { Item TODO 'unity-game-factory clone' "would clone $src into $repo (dry run)" '' }
     else {
         Write-Host "  cloning $src into $repo ..."
         $r = Quiet { git clone --quiet $src $repo }
-        if ($r.code -eq 0) { Item PASS 'unity-game-factory clone' $repo } else { Item TODO 'unity-game-factory clone' "git clone failed: $($r.out)" "git clone $src $repo" }
+        if ($r.code -eq 0) { Item PASS 'unity-game-factory clone' $repo } else { Item TODO 'unity-game-factory clone' "git clone failed: $($r.out)" "check that -Org is right and you are online, then: git clone $src $repo (a private copy of the repo needs gh auth login --web first)" }
     }
 } else { Item PASS 'unity-game-factory clone' $repo }
 $bootstrapOk = $false
@@ -289,7 +298,7 @@ elseif (Test-Path (Join-Path $repo 'machine\bootstrap.ps1')) {
     if (-not $clone) {
         $prev = Get-State 'clone_games'
         if ($null -ne $prev) { $clone = [bool]$prev }
-        elseif ($interactive -and -not $DryRun) {
+        elseif ($ghOk -and $interactive -and -not $DryRun) {
             $clone = Ask "Clone every $Org/unity-game-* repo into $Root\games now (each brings its store packs; several GB each)?" $false
             Save-State 'clone_games' $clone
         }

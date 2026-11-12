@@ -26,7 +26,7 @@ holds its GPU jobs back while the other factory records), so together they never
 |---|---|
 | Windows 11, 8+ logical cores, 16 GB RAM (32 GB recommended), 200 GB free (100 GB at the very least) on the drive that will hold the root, a DirectX 11/12 GPU | building Unity 6.3 games; setup checks these first |
 | An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC); without one, recording falls back to slower encoders (AMF, then the CPU) |
-| A GitHub account. Contractors need no membership of `<org>`: the skill pack is public, the game stays on your PC, and the agent saying it could not create a GitHub repo for the game is expected. Staff who push the private `unity-game-<slug>` repos need an account that is a member of `<org>` (the organisation, or user, that owns `unity-game-factory`), allowed to create private repos there | setup signs you in and clones the skill pack; for staff, an owner of `<org>` adds you |
+| Staff only: a GitHub account that is a member of `<org>` (the organisation, or user, that owns `unity-game-factory` and the private `unity-game-<slug>` repos), allowed to create private repos there. Contractors need no GitHub account: the skill pack is public, the game stays on your PC and ships in the dataset zip, and a note that no GitHub repo was made is expected | staff push the game repos (an owner of `<org>` adds you); setup asks whether to sign in, and contractors answer No |
 | A Unity ID with an active licence (Unity Personal is fine where its terms allow; otherwise the seat the org gives you) | Unity Hub and the editor need a signed-in, licensed account; the Asset Store uses the same account |
 | A coding-agent account: Claude, or OpenAI (a ChatGPT plan or an API key) | the agent that builds the game: Claude Code in a terminal or the Claude desktop app (Code tab), or the Codex CLI in a terminal (`setup.ps1 -Agent claude\|codex\|both`) |
 | Admin rights on the PC | a few UAC prompts (some of the installs, long paths) |
@@ -68,8 +68,9 @@ What it does, in order (log: `<root>\.setup\setup.log`; answers remembered in `<
    (`OpenAI.Codex`); with Claude Code the Claude desktop app is offered separately (optional).
 3. **Windows settings, each asked first**: long paths (one UAC prompt) and no sleep for the PC and the display while
    plugged in (long builds and overnight queues).
-4. **GitHub sign-in** (`gh auth login` in the browser) and your git `user.name` / `user.email`; checks that you can
-   see `<org>/unity-game-factory`. With Codex, **Codex sign-in** (`codex login` in the browser; `codex login status`
+4. **GitHub sign-in, asked first** (staff only, `gh auth login` in the browser; contractors answer No and nothing
+   is missing) and your git `user.name` / `user.email`; when signed in, checks that you can see
+   `<org>/unity-game-factory`. With Codex, **Codex sign-in** (`codex login` in the browser; `codex login status`
    tells).
 5. **unity-game-factory**: cloned into `<root>\unity-game-factory`, then `machine\bootstrap.ps1` (config with
    `github_org`, job slots, layout, tools, pinned ffmpeg, skills, root `CLAUDE.md` and/or `AGENTS.md`, and the
