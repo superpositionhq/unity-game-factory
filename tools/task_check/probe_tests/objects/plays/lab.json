@@ -371,6 +371,18 @@
    ]
   },
   {
+   "id": "c_sun_turn",
+   "kind": "components",
+   "select": {
+    "component": "Light",
+    "name": "Sun"
+   },
+   "fields": [
+    "world_yaw",
+    "world_pitch"
+   ]
+  },
+  {
    "id": "c_lights",
    "kind": "components",
    "select": {

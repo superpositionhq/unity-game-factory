@@ -393,8 +393,10 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
 Write probes from the game's own code at `seed.commit`: the real component types, tags, layers, scene paths and UI
 element names. **Never a name only the reference has** (a component type, tag, layer, object, scene or asset the
 thread itself created): another fair build names it otherwise and reads as absent. Select what the thread creates by
-what it does or where it is (`has`, `near`, `ui` with a `rect` or text, `drawn`, `lit`, `changed`); `validate-game.py`
-refuses a required probe that names something the start lacks and the reference has. **Test the outcome a player
+what it does or where it is (`has`, `near`, `ui` with a `rect` or text, `drawn`, `lit`, `changed`; a part's direction
+by `components` `world_yaw`/`world_pitch` with `near`, not `world_yaw:<Part>`); `validate-game.py` refuses a required
+probe that names something the start lacks and the reference has, a part in a field such as `world_yaw:<Part>`
+included. **Test the outcome a player
 sees, never the implementation**: another valid fix must
 pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor
 times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). Lighting and colour
@@ -539,6 +541,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a dense forest combined into 3 meshes read 3 pieces against a threshold set on hundreds | count the drawn geometry (`pieces` `visible_triangles`), calibrated or relative to the start, never a literal |
 | a count stopped at 200 rows and a threshold was set on it | counts and `of` read every match (`total` and `full`) |
 | a light's turn read relative to its own object | `world_yaw:`/`world_pitch:`/`forward:` read the Light's part in the world |
+| a part's direction read by a name only the reference had | `components` `world_yaw`/`world_pitch` of the part picked by `near`, `component` or `owner`, with `to_angle` |
 | a lamp switched off (Light disabled, its object inactive, intensity 0) read as lit | the `light` probe counts only Lights that are on; a lamp's `on` and `intensity` are `components` fields |
 | a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object) still counted as shown | `"visible": true` in a widget select counts only what the game shows (its state: a fully transparent widget still counts), `ui` only what is drawn on screen |
 | a sound judged by its AudioSource being enabled, not by what the player hears | `audio`: sources playing at their volume at the listener, and the mix's `level`; volumes and level calibrated or relative to the start |

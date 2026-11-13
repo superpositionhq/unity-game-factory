@@ -291,6 +291,9 @@ def lamps(t, play):
     t.near("world_yaw:Sun (a Part by its own name)", field(play, q, 1.0, "Sun", "world_yaw:Sun"), -30, 1e-3)
     t.near("forward:Light.y: the way its light travels", field(play, q, 1.0, "Sun", "forward:Light.y"), -math.sin(math.radians(50)), 1e-4)
     t.near("the sun's glow: intensity 1.5", field(play, q, 1.0, "Sun", "glow"), 1.5, FLOAT)
+    q = "c_sun_turn"
+    t.near("components world_pitch: the sun's Light without a Part name", field(play, q, 1.0, "Sun", "world_pitch"), 50, 1e-3)
+    t.near("components world_yaw: the same as world_yaw:Sun", field(play, q, 1.0, "Sun", "world_yaw"), -30, 1e-3)
 
     q = "c_lights"
     t.eq("Light components (one disabled on an active object counts)", sorted_names(play, q, before), ["LampLater", "LampLight", "LampOff", "Sun"])

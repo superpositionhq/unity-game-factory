@@ -318,7 +318,8 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or 
   every match's value from the probe's summary of them (the sample's `total` and `full`). Only `"of": "first"` and
   values read through `match`, `to_angle` or `to_axis` read the first 200 rows alone.
 - `to_angle` / `to_axis` (angle fields only: `yaw`, `pitch`, `roll`, `rel_yaw:<Part>`,
-  `world_yaw:`/`world_pitch:`/`world_roll:<Part>`, and a `prop:` that holds an angle): angles are normalised to
+  `world_yaw:`/`world_pitch:`/`world_roll:<Part>`, `components`' `world_yaw` and `world_pitch`, and a `prop:` that holds
+  an angle): angles are normalised to
   (-180, 180]. `"to_angle": -90` turns the field into its shortest absolute angular distance to that angle, 0-180 (so
   270 and -90 are the same). `"to_axis": 90` turns it into the distance to that axis, 0-90: a direction and its
   opposite are one axis (a straight road piece turned 90 or -90). One or the other, not both.
@@ -540,6 +541,12 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   angular velocity of a non-kinematic Rigidbody or a Dynamic Rigidbody2D on its object, else no value then. Any part
   near a point: select `Renderer` with `near`; each part of one object: select by `owner`. No name is needed. A turn
   drawn by bones (a skinned rotor) or by a material reads 0 here: `drawn`'s `motion` (section 2.19) sees it;
+- `world_yaw`, `world_pitch` (degrees, normalised to (-180, 180]): the component's transform's own rotation in the
+  world (Euler y and x, as an object's `world_yaw:<Part>` reads a part), whether its object or a parent turned, for a
+  component picked by where or what it is rather than by a name. Angles: `to_angle` / `to_axis` turn each component's
+  value into its distance to a bearing before `of` combines them, so `"of": "max"` is the one furthest off. A part
+  near a point turned to face -90: `{"probe": "components", "select": {"component": "MeshRenderer", "near": {"point":
+  {"xyz": [x, y, z]}, "radius": r}}, "field": "world_yaw", "to_angle": -90, "of": "max"}` with `<=` a tolerance;
 - `extent_x`, `extent_y`, `extent_z` (a Renderer's or Collider's world bounds half-size, m) and `simulating` (it is,
   or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D; a collider by the body it is attached to; 0 in a
   project with neither Physics module, and `query_errors` says so once: `components <id>: the project has no Physics

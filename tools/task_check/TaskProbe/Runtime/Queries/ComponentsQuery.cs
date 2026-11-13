@@ -29,7 +29,7 @@ namespace TaskProbe
         static readonly HashSet<string> Plain = new HashSet<string>(StringComparer.Ordinal)
         {
             "count", "active", "visible", "x", "y", "z", "speed", "spin", "extent_x", "extent_y", "extent_z", "simulating",
-            "changed", "bounds_change", "pose_change", "lit", "glow", "intensity", "on",
+            "changed", "bounds_change", "pose_change", "lit", "glow", "intensity", "on", "world_yaw", "world_pitch",
         };
 
         public override void Load()
@@ -177,6 +177,9 @@ namespace TaskProbe
                         v = speed;
                         break;
                     case "spin": v = spins.Of(c.transform); break;
+                    // its transform's own rotation in the world, as an object's world_yaw:<Part> reads a part, without a name
+                    case "world_yaw": v = Find.Angle(c.transform.eulerAngles.y); break;
+                    case "world_pitch": v = Find.Angle(c.transform.eulerAngles.x); break;
                     case "extent_x":
                     case "extent_y":
                     case "extent_z":

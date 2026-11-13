@@ -1270,6 +1270,9 @@ def check_repo_tasks(rep, repo, files=None):
 # reads as absent (unity-write-tasks section 5).
 NAMED_KEYS = ('component', 'tag', 'layer', 'name', 'mesh')
 PATH_KEYS = ('scene', 'asset', 'prefab')
+# a field that names a part: world_yaw:<Part>, forward:<Part>.x, bone:<Component>.<Bone>.y
+FIELD_PART = re.compile(r'(?:rel_yaw|world_yaw|world_pitch|world_roll):(.+)$|forward:(.+)\.[xyz]$'
+                        r'|bone:([^.]+)\..+\.[xyz]$')
 
 
 def probe_names(c):
@@ -1290,6 +1293,11 @@ def probe_names(c):
                 names.add(v)
 
     walk(c.get('measure'))
+    field = c['measure'].get('field') if isinstance(c.get('measure'), dict) else None
+    found = FIELD_PART.match(field) if isinstance(field, str) else None
+    part = next((g for g in found.groups() if g), None) if found else None
+    if part and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_ ]{2,120}', part):
+        names.add(part)
     play = c.get('play')
     if isinstance(play, dict):
         walk({'scene': play.get('scene')})

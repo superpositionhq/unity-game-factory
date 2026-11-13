@@ -1337,11 +1337,12 @@ class NamesTheStartHas(unittest.TestCase):
             git("config", "user.name", "t")
             (Path(d) / "Assets" / "Scripts").mkdir(parents=True)
             (Path(d) / "Assets" / "Scenes").mkdir(parents=True)
-            (Path(d) / "Assets" / "Scripts" / "Hero.cs").write_text("public class Hero : MonoBehaviour {}\n")
+            (Path(d) / "Assets" / "Scripts" / "Hero.cs").write_text('public class Hero : MonoBehaviour {} // "HeroMesh"\n')
             (Path(d) / "Assets" / "Scenes" / "Start.unity").write_text("%YAML 1.1\n")
             git("add", "-A")
             git("commit", "-qm", "start")
-            (Path(d) / "Assets" / "Scripts" / "Turret.cs").write_text('public class Turret : MonoBehaviour {} // "TurretTag"\n')
+            (Path(d) / "Assets" / "Scripts" / "Turret.cs").write_text('public class Turret : MonoBehaviour {} // "TurretTag" '
+                                                                       '"GunMount"\n')
             (Path(d) / "Assets" / "Scenes" / "Yard.unity").write_text("%YAML 1.1\n")
             git("add", "-A")
             git("commit", "-qm", "reference")
@@ -1356,11 +1357,54 @@ class NamesTheStartHas(unittest.TestCase):
                         check("hero", {"probe": "actors", "select": {"component": "Hero"}, "field": "count"}),
                         check("lights", {"probe": "components", "field": "count",
                                          "select": {"component": "Light", "owner": {"component": "Hero"}}}),
+                        check("trained", {"probe": "objects", "select": {"component": "Hero"},
+                                          "field": "world_yaw:GunMount", "to_angle": -90}),
+                        check("aimed", {"probe": "objects", "select": {"component": "Hero"}, "field": "forward:GunMount.z"}),
+                        check("hero turn", {"probe": "objects", "select": {"component": "Hero"},
+                                            "field": "world_pitch:HeroMesh"}),
+                        check("by place", {"probe": "components", "select": {
+                            "component": "MeshRenderer", "near": {"point": {"xyz": [0, 0, 0]}, "radius": 3}},
+                            "field": "world_yaw", "to_angle": -90, "of": "max"}),
                         check("pattern", {"probe": "actors", "select": {"component": "Tur*"}, "field": "count"}),
                         check("optional", {"probe": "actors", "select": {"component": "Turret"}, "field": "count"},
                               required=False)]}]}
             found = tasks.validator().reference_only_names(d, task)
-        self.assertEqual(found, [("turrets", "Turret"), ("tagged", "TurretTag"), ("yard", "Assets/Scenes/Yard.unity")])
+        self.assertEqual(found, [("turrets", "Turret"), ("tagged", "TurretTag"), ("yard", "Assets/Scenes/Yard.unity"),
+                                 ("trained", "GunMount"), ("aimed", "GunMount")])
+
+
+
+class ComponentWorldTurn(unittest.TestCase):
+    """docs/task-probes.md, section 2.5: components fields world_yaw and world_pitch read a part picked by where or what
+    it is, as angles; objects' world_yaw:<Part> reads as before."""
+
+    NEAR = {"point": {"xyz": [12, 3, 0]}, "radius": 4}
+
+    def comp(self, **data):
+        return m(probe="components", select={"component": "MeshRenderer", "near": self.NEAR}, **data)
+
+    def test_yaw_and_pitch_read_from_a_sample_and_wrap(self):
+        yaw = self.comp(field="world_yaw", of="first")
+        self.assertEqual(probes.needs(yaw)[0]["fields"], ["world_yaw"])
+        self.assertEqual(probes.reduce(yaw, objects_play(yaw, [[{"world_yaw": 87.5, "world_pitch": 12.0}]])), 87.5)
+        self.assertEqual(probes.reduce(yaw, objects_play(yaw, [[{"world_yaw": 270.0}]])), -90.0)
+        lift = self.comp(field="world_pitch", of="min")
+        self.assertEqual(probes.reduce(lift, objects_play(lift, [[{"world_pitch": 12.0}, {"world_pitch": 20.0}]])), 12.0)
+
+    def test_near_with_of_and_agg_reads_the_worst_part_against_a_bearing(self):
+        rows = [[{"world_yaw": 0.0}, {"world_yaw": 10.0}], [{"world_yaw": -95.0}, {"world_yaw": 265.0}],
+                [{"world_yaw": 179.0}, {"world_yaw": -84.0}]]
+        port = self.comp(field="world_yaw", to_angle=-90, of="max")
+        self.assertAlmostEqual(probes.reduce(facing, objects_play(facing, rows[:2])), 5.0)
+        self.assertAlmostEqual(probes.reduce(facing, objects_play(facing, rows)), 91.0)
+        held = self.comp(field="world_yaw", to_angle=-90, of="max", agg="min", window=[0, 0.5])
+        self.assertAlmostEqual(probes.reduce(held, objects_play(held, rows)), 5.0)
+        axis = self.comp(field="world_yaw", to_axis=90, of="first")
+        self.assertAlmostEqual(probes.reduce(axis, objects_play(axis, [[{"world_yaw": -84.0}]])), 6.0)
+
+    def test_the_named_objects_field_still_reads(self):
+        named = m(probe="objects", select={"tag": "Tank"}, field="world_yaw:Gun", to_angle=-90, of="first")
+        self.assertAlmostEqual(probes.reduce(named, objects_play(named, [[{"world_yaw:Gun": 275.0}]])), 5.0)
 
 
 class ToursInOneLaunch(unittest.TestCase):
