@@ -10,8 +10,9 @@ computes from the running game or from the project: `build`, `boot`, `log_absent
 decides pass/fail, and nothing is graded from pixel statistics of the game's frames except one: the frame's mean
 luminance (`screen`, section 2.15; the owner, 2026-11-06), whose threshold is always calibrated or relative to the
 start, so the same machine measures both sides. Judges (`judge`, `code_judge`) stay as **non-gating** quality checks
-(`"required": false`). The `actions_judge` kind is retired (the owner, 2026-11-13): no new task carries one, and one
-left in an older task is dropped by the Lab with a warning.
+(`"required": false`). Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome
+alone. Retired (the owner, 2026-11-13): `actions_judge` checks and `trace` probes; never add one, take them out of a
+task you edit.
 
 Words used here:
 - **the start**: the game at the task's `seed.commit`, as the agent receives it;
@@ -181,8 +182,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     2.16).
 - `"editor"`: one batchmode editor pass over the project as saved; takes only `asset` measures, and `asset` measures
   are taken only there.
-- `"trace"`: the agent's own trace; takes only `trace` measures, and `trace` measures are read only there. Trace
-  probes never gate (section 3).
+- `"trace"`: retired with the `trace` probe (section 2.12); never use it.
 
 Every play of the game, the checker's own (look, drive, a boot check's) and a task play alike:
 
@@ -277,7 +277,6 @@ Which measure answers which question (each section has its fields, defaults and 
 | how many objects appeared or went | `spawns` (2.9) |
 | a line in the player log | `log` (2.10) |
 | an asset, a material, a prefab or a scene as saved | `asset` (2.11) |
-| how the agent worked (never gating) | `trace` (2.12) |
 | how many meshes are placed, and their triangles | `pieces` (2.14) |
 | how bright the frame looks on screen | `screen` (2.15) |
 | what plays, and how loud at the listener | `audio` (2.16) |
@@ -889,12 +888,11 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
   and so does a pass that ends without its result ("the editor pass gave no result (exit <code>)", or "(exit <code>,
   timed out)" when it ran out of time).
 
-### 2.12 `trace`: the agent's own trace (`play: "trace"`, never gating)
+### 2.12 `trace`: retired
 
-`{"probe": "trace", "fact": "build_ok_at_end"}`, a fact of the agent's trace: `built_after_last_change` or
-`played_after_last_change` (a successful build / game run after the last change), `read_before_first_edit` (a read
-before the first edit), `build_ok_at_end` (the last build succeeded), `edits_outside_project` (edits refused for a
-path outside the project). Only as `"required": false` quality notes with a literal threshold.
+Retired (the owner, 2026-11-13): never add a `trace` probe, and take it out of a task you edit. A task that still
+carries one stays valid (`"required": false`, play `"trace"`, a literal threshold) and `validate-game.py` warns
+"retired: remove it".
 
 ### 2.13 Points
 
@@ -1246,7 +1244,6 @@ are the same with and without the measure, but for what a game sees of a render 
   already work there, or the probe itself is broken and would fail every correct solution. (A still-works probe the
   start has no samples for, because its play crashed or ended early on the very bug the task fixes, doesn't count
   against it; one that finds nothing to measure in a start that ran does.)
-- **Trace probes never gate**: `"required": false`, with a literal threshold.
 - **No samples, no pass.** When a play ends early or a measure has no samples in its window (the game quit, crashed or
   never reached that time), the probe fails with
   "no samples in the window (the play ended at X s)" or "no samples in the window (the play wrote no probe file)";

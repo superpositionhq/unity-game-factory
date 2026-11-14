@@ -556,6 +556,8 @@ def undocumented(text):
         if kind not in ks:
             out.append(('probe kind', kind, 'a section "### 2.N `%s`: ..."' % kind))
             continue
+        if kind == 'trace':     # retired: its section says so, and names none of its keys for anyone to write
+            continue
         num, props = ks[kind][0], DEFS[name]['properties']
         need(f'{kind} field', field_words(props.get('field') or props['fact']), num)
         need(f'{kind} key', set(props) - {'probe', 'field', 'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis'},

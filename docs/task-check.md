@@ -178,12 +178,11 @@ A task is **VALID** when all of this holds:
 - a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
   `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other check true of the
   start: a `log_absent` or `file_exists` check (nothing measures those at the start, so their weight is yours to set)
-  or a probe, a `"required": false` one too (the task check measures that). Judges and trace probes aren't measured
+  or a probe, a `"required": false` one too (the task check measures that). Judges and the retired trace probes aren't measured
   here, so their weights aren't covered by this rule.
 
-Never decided by the check: judges (`judge`, `code_judge`, and a retired `actions_judge` an older task still
-carries: no model is asked), trace probes
-(they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
+Never decided by the check: judges (`judge`, `code_judge`: no model is asked), `package` checks, and the
+retired `actions_judge` checks and `trace` probes an older task still carries. The reference's other failures (`log_absent`,
 `file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
 all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and
 a run counts as solved only when every required check passes, so a required one the reference itself fails is one no

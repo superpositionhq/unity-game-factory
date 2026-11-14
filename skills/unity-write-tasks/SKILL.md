@@ -273,16 +273,16 @@ docs/task-probes.md, "Words used here".
 
 ## 5. Milestones and checks: deterministic probes decide
 
-**Pass/fail is decided by checks the grader computes itself:** `build`, `boot`, `log_absent` and **`probe`** checks,
-and nothing is graded from pixel statistics of the game's frames except the frame's mean luminance (`screen`), whose
+**Pass/fail is decided by checks the grader computes itself:** `build`, `boot`, `log_absent` and **`probe`** checks, and
+nothing is graded from pixel statistics of the game's frames except the frame's mean luminance (`screen`), whose
 threshold is always calibrated or relative to the start. Two judges are required (the owner, 2026-11-11):
-`looks_as_asked`, whose rubric items are the brief's own look-and-feel asks, and one in `still_works` of what must
-still look as it did (below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a
-`"required": false` quality check. No check reviews how the agent worked: the `actions_judge` kind and its standard
-`worked_well` check are retired (the owner, 2026-11-13); never add one, and take it out of a task you edit (a task
-that still carries one stays valid; the Lab drops the check with a warning). A task still needs required probes the
-grader decides without a judge (section 6). The probe language, every play, measure and threshold with the rules that gate a
-task, is the task author's contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
+`looks_as_asked`, whose rubric items are the brief's own look-and-feel asks, and one in `still_works` of what must still
+look as it did (below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a `"required":
+false` quality check. Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome alone.
+Retired (the owner, 2026-11-13): `actions_judge` checks and `trace` probes; never add one, take them out of a task you
+edit. A task still needs required probes the grader decides without a judge (section 6). The probe language, every play,
+measure and threshold with the rules that gate a task, is the task author's contract
+[docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 [docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.
 
 Each milestone is a reward group; a run that gets part of the way earns part of the reward. A task holds 1 to 8
@@ -307,7 +307,7 @@ set. The usual order:
 4. `still_works`: probes that what must keep working still does (the player still moves, the HUD still shows, the
    scene still loads its scenario), and a required judge with `"before": true` for what must still look as it did.
 5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
-   readability of text over the scene), and a `code_judge` for code quality (or `trace` probes, `"required": false`). A
+   readability of text over the scene), and a `code_judge` for code quality. A
    judge is written
    `{"name": ..., "kind": "code_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
    `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set

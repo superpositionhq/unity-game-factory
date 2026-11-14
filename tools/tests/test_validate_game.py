@@ -877,17 +877,24 @@ class Units(unittest.TestCase):
         self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'code'])
 
     def test_retired_checks(self):
-        """An `actions_judge` check is retired: a task that still carries one matches the schema and is only warned
-        about, required or not; a task without one has nothing to warn of."""
+        """`actions_judge` checks and `trace` probes are retired: a task that still carries one matches the schema and
+        is only warned about; a task without one has nothing to warn of. A trace probe never counted as a required
+        or an outcome probe, so no floor moves."""
         def check(name, kind, **over):
             return {'name': name, 'kind': kind, 'question': 'q', 'rubric': [{'key': 'k', 'criterion': 'c'}], **over}
         old = {'milestones': [{'name': 'done', 'checks': [check('looks_as_asked', 'judge')]},
                               {'name': 'quality', 'checks': [check('worked_well', 'actions_judge', required=False),
                                                              check('worked', 'actions_judge')]}]}
-        self.assertEqual(vg.retired_checks(old), ['worked_well', 'worked'])
+        trace = {'name': 'built', 'kind': 'probe', 'required': False, 'describe': 'The last build worked.',
+                 'play': 'trace', 'measure': {'probe': 'trace', 'fact': 'build_ok_at_end'},
+                 'expect': {'op': '>=', 'value': 1}}
+        old['milestones'][1]['checks'].append(trace)
+        self.assertEqual(vg.retired_checks(old), ['worked_well', 'worked', 'built'])
+        self.assertEqual(list(vg.check_schema(trace, vg.SCHEMAS['game-task']['$defs']['Probe'], vg.SCHEMAS['game-task'])), [])
+        self.assertEqual(vg.probe_errors(trace, {'commit': 'a', 'reference': 'b'}, 'b', {}), [])
         self.assertEqual(vg.required_quality_judges(old), [])
         schema = vg.SCHEMAS['game-task']
-        for c in old['milestones'][1]['checks']:
+        for c in old['milestones'][1]['checks'][:2]:
             self.assertEqual(list(vg.check_schema(c, schema['$defs']['ActionsJudge'], schema)), [])
         new = {'milestones': [{'name': 'done', 'checks': [check('looks_as_asked', 'judge')]}]}
         self.assertEqual(vg.retired_checks(new), [])
@@ -1138,8 +1145,8 @@ class Units(unittest.TestCase):
         self.assertEqual(errors(rep), [])
 
     def test_retired_actions_judge(self):
-        """A task that still carries an `actions_judge` check passes as it did, with a warning to remove it; a task
-        without one is not warned."""
+        """A task that still carries an `actions_judge` check or a `trace` probe passes as it did, with a warning to
+        remove it; a task without one is not warned."""
         def warned(t):
             rep = vg.Report()
             self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
@@ -1150,8 +1157,11 @@ class Units(unittest.TestCase):
         t['milestones'].append({'name': 'quality', 'checks': [
             {'name': 'worked_well', 'kind': 'actions_judge', 'required': False, 'question': 'Did it test?',
              'rubric': [{'key': 'tested', 'criterion': 'It played the scenario after the fix.'}]}]})
-        self.assertEqual(warned(t), ["x: check(s) ['worked_well'] of kind `actions_judge`: retired: remove it (nothing "
-                                     'is graded from it; the Lab drops it when it reads the upload) '
+        t['milestones'][-1]['checks'].append(
+            {'name': 'built', 'kind': 'probe', 'required': False, 'describe': 'The last build worked.', 'play': 'trace',
+             'measure': {'probe': 'trace', 'fact': 'build_ok_at_end'}, 'expect': {'op': '>=', 'value': 1}})
+        self.assertEqual(warned(t), ["x: check(s) ['worked_well', 'built']: `actions_judge` checks and `trace` probes "
+                                     "are retired: remove it (nothing in a task reads the agent's tool calls) "
                                      '(unity-write-tasks section 5)'])
 
     def test_a_union_with_a_tag_reports_the_shape_its_tag_names(self):
