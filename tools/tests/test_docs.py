@@ -1084,7 +1084,7 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertTrue(self.bad('`{"teleport_to": {"has": {"shovable": true}}}`'))
         self.assertTrue(self.bad('`{"scenes": ["Assets/X.unity"], "exe": "Game.exe"}`'))     # not one of their files
         self.assertEqual(self.bad('`"name": "<wildcard>"` and `"window": [t0, t1]`'), [])    # members, as patterns
-        judge = '`{"name": ..., "kind": "actions_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}`'
+        judge = '`{"name": ..., "kind": "code_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}`'
         self.assertEqual(self.bad(judge), [])
         self.assertTrue(self.bad(judge.replace('criterion', 'criteria')))
         self.assertTrue(self.bad(judge.replace('"question"', '"ask"')))

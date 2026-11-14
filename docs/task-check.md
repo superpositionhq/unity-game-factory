@@ -181,7 +181,8 @@ A task is **VALID** when all of this holds:
   or a probe, a `"required": false` one too (the task check measures that). Judges and trace probes aren't measured
   here, so their weights aren't covered by this rule.
 
-Never decided by the check: judges (`judge`, `code_judge`, `actions_judge`: no model is asked), trace probes
+Never decided by the check: judges (`judge`, `code_judge`, and a retired `actions_judge` an older task still
+carries: no model is asked), trace probes
 (they read an agent's own tool calls), and `package` checks. The reference's other failures (`log_absent`,
 `file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
 all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and

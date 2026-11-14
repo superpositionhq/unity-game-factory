@@ -49,7 +49,7 @@ DRIVE = [{"t": 1.0, "key": "<Keyboard>/w", "press": True}, {"t": 6.0, "key": "<K
          {"t": 13.0, "key": "<Keyboard>/a", "press": True}, {"t": 15.0, "key": "<Keyboard>/a", "press": False},
          {"t": 15.0, "key": "<Keyboard>/w", "press": True}, {"t": 21.0, "key": "<Keyboard>/w", "press": False}]
 PLAYS = {"look": (20, 6, None), "drive": (22, 8, DRIVE)}  # seconds, screenshots, inputs
-JUDGES = ("judge", "code_judge", "actions_judge")
+JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
 NOT_JUDGED = "not asked: judges never decide a task check"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:

@@ -277,9 +277,11 @@ docs/task-probes.md, "Words used here".
 and nothing is graded from pixel statistics of the game's frames except the frame's mean luminance (`screen`), whose
 threshold is always calibrated or relative to the start. Two judges are required (the owner, 2026-11-11):
 `looks_as_asked`, whose rubric items are the brief's own look-and-feel asks, and one in `still_works` of what must
-still look as it did (below). Every other judge (`judge`, `code_judge`, `actions_judge`: taste, readability, code
-review, how the agent worked) stays a `"required": false` quality check. A task still needs required probes the grader
-decides without a judge (section 6). The probe language, every play, measure and threshold with the rules that gate a
+still look as it did (below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a
+`"required": false` quality check. No check reviews how the agent worked: the `actions_judge` kind and its standard
+`worked_well` check are retired (the owner, 2026-11-13); never add one, and take it out of a task you edit (a task
+that still carries one stays valid; the Lab drops the check with a warning). A task still needs required probes the
+grader decides without a judge (section 6). The probe language, every play, measure and threshold with the rules that gate a
 task, is the task author's contract [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 [docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.
 
@@ -305,14 +307,12 @@ set. The usual order:
 4. `still_works`: probes that what must keep working still does (the player still moves, the HUD still shows, the
    scene still loads its scenario), and a required judge with `"before": true` for what must still look as it did.
 5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
-   readability of text over the scene), a `code_judge` for code quality, and the standard `actions_judge`
-   `worked_well` (or `trace` probes, `"required": false`). A judge is written
-   `{"name": ..., "kind": "actions_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
+   readability of text over the scene), and a `code_judge` for code quality (or `trace` probes, `"required": false`). A
+   judge is written
+   `{"name": ..., "kind": "code_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
    `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set
    `"before": true` to be shown the start beside the result, and `route`, `reference`, `plays` and `shots` (the task
-   schema's `Judge` says what each does). The standard `worked_well` question and rubric are not in this repo yet:
-   leave that check out unless the coordinator gives you its text (one with words of your own is not the standard
-   one).
+   schema's `Judge` says what each does).
 
 **Every look-and-feel ask in the brief gets a required `looks_as_asked` rubric item** (a review of delivered tasks
 found the checks thinner than the briefs, look-and-feel asks most of all; the owner, 2026-11-11: such an ask gates the
@@ -459,7 +459,7 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   first; motion as a probe sampled every 0.1 s with `agg` `step`, or a required judge with a run of `shots`.
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
-- **Never cover an ask with an optional probe, a `build` or `boot` check, or an `actions_judge` alone.**
+- **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check alone.**
 - **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling):
   make the contact happen with what plays have today (a scenario start option the game has, `teleport_to` the foe,
   the task's own keys) and read it where the start keeps it (a `prop:` of the component holding health, state or

@@ -198,10 +198,7 @@ def task(start, ref, **over):
             {'name': 'still_works', 'checks': [
                 {'name': 'hero_moves', 'kind': 'probe', 'weight': 0, 'needs': ['boots_clean'],
                  'describe': 'The hero still moves.', 'play': 'drive',
-                 'measure': {'probe': 'player', 'field': 'moved', 'agg': 'max'}, 'expect': {'op': '>', 'value': 2}}]},
-            {'name': 'quality', 'checks': [
-                {'name': 'worked_well', 'kind': 'actions_judge', 'required': False, 'question': 'Did it test?',
-                 'rubric': [{'key': 'tested', 'criterion': 'It played the scenario after the fix.'}]}]}]}
+                 'measure': {'probe': 'player', 'field': 'moved', 'agg': 'max'}, 'expect': {'op': '>', 'value': 2}}]}]}
     t.update(over)
     return t
 
@@ -877,7 +874,23 @@ class Units(unittest.TestCase):
             {'name': 'done', 'checks': [judge('looks_as_asked'), judge('reads_well'), judge('optional', required=False),
                                         judge('looks_as_asked', 'code_judge'), judge('worked_well', 'actions_judge')]},
             {'name': 'still_works', 'checks': [judge('hud_unchanged'), judge('code', 'code_judge')]}]}
-        self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'worked_well', 'code'])
+        self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'code'])
+
+    def test_retired_checks(self):
+        """An `actions_judge` check is retired: a task that still carries one matches the schema and is only warned
+        about, required or not; a task without one has nothing to warn of."""
+        def check(name, kind, **over):
+            return {'name': name, 'kind': kind, 'question': 'q', 'rubric': [{'key': 'k', 'criterion': 'c'}], **over}
+        old = {'milestones': [{'name': 'done', 'checks': [check('looks_as_asked', 'judge')]},
+                              {'name': 'quality', 'checks': [check('worked_well', 'actions_judge', required=False),
+                                                             check('worked', 'actions_judge')]}]}
+        self.assertEqual(vg.retired_checks(old), ['worked_well', 'worked'])
+        self.assertEqual(vg.required_quality_judges(old), [])
+        schema = vg.SCHEMAS['game-task']
+        for c in old['milestones'][1]['checks']:
+            self.assertEqual(list(vg.check_schema(c, schema['$defs']['ActionsJudge'], schema)), [])
+        new = {'milestones': [{'name': 'done', 'checks': [check('looks_as_asked', 'judge')]}]}
+        self.assertEqual(vg.retired_checks(new), [])
 
     def test_schema_keywords(self):
         """Every keyword the schemas use is one check_schema reads, an annotation, or the if/then/else that
@@ -1124,6 +1137,22 @@ class Units(unittest.TestCase):
         self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', task('a' * 40, 'b' * 40), SLUG, None))
         self.assertEqual(errors(rep), [])
 
+    def test_retired_actions_judge(self):
+        """A task that still carries an `actions_judge` check passes as it did, with a warning to remove it; a task
+        without one is not warned."""
+        def warned(t):
+            rep = vg.Report()
+            self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
+            self.assertEqual(errors(rep), [])
+            return [m for s, a, m in rep.items if s == 'warning' and 'retired' in m]
+        t = task('a' * 40, 'b' * 40)
+        self.assertEqual(warned(t), [])
+        t['milestones'].append({'name': 'quality', 'checks': [
+            {'name': 'worked_well', 'kind': 'actions_judge', 'required': False, 'question': 'Did it test?',
+             'rubric': [{'key': 'tested', 'criterion': 'It played the scenario after the fix.'}]}]})
+        self.assertEqual(warned(t), ["x: check(s) ['worked_well'] of kind `actions_judge`: retired: remove it (nothing "
+                                     'is graded from it; the Lab drops it when it reads the upload) '
+                                     '(unity-write-tasks section 5)'])
 
     def test_a_union_with_a_tag_reports_the_shape_its_tag_names(self):
         """A check is told apart by its kind and a measure by its probe: a missing or unknown tag says so and lists
