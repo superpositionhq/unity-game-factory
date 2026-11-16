@@ -630,7 +630,9 @@ control <path>`, `inputs: no device for <path>`), never a stop.
     turned to face the player. An object of a 2D game (a SpriteRenderer, a Rigidbody2D or a Collider2D on it or
     under it) is never turned, and its `front` is along the player's facing in X (`transform.right`, the other way
     for a negative `lossyScale.x` or a flipped sprite) over the 2D ground (`Physics2D.RaycastAll`), its z kept. An
-    object that isn't within 0.1 m of its spot after the move is a miss, and isn't held. A second pin on an object
+    object that isn't within 0.1 m of its spot after the move is a miss, and isn't held. A NavMeshAgent that had a
+    path gets its destination back after the move (a warp clears it), and is held by its `nextPosition`, never
+    warped again, so the path its own logic gives it stands when the hold ends. A second pin on an object
     replaces the first. Then, for `hold` seconds of play, it is put back at that place and stilled after every
     script's Update and again after every LateUpdate, as a held player is (`Inputs.Place`, `Inputs.Still`), while its
     own scripts run on. `probe.log` says `pinned <name> at (...) for <hold> s`.

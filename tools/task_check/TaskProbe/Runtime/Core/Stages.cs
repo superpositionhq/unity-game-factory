@@ -90,7 +90,7 @@ namespace TaskProbe
                     var look = player.transform.position - spot.Value;
                     if (look.x * look.x + look.z * look.z > 1e-4f) yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
                 }
-                Inputs.Place(go, spot.Value, yaw);
+                Set(go, spot.Value, yaw);
                 var now = go.transform.position;
                 if ((now - spot.Value).magnitude > 0.1f)
                 {
@@ -185,6 +185,38 @@ namespace TaskProbe
 #endif
         }
 
+        /// <summary>An object set at a pin's spot, as a teleport sets the player (Inputs.Place). A NavMeshAgent's warp
+        /// clears its path: one that had a path gets its destination back, so it walks on when the hold ends.</summary>
+        static void Set(GameObject go, Vector3 spot, float? yaw)
+        {
+#if TASKPROBE_AI
+            var agent = go.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            var walking = agent != null && agent.enabled && agent.isOnNavMesh && (agent.hasPath || agent.pathPending);
+            var destination = walking ? agent.destination : Vector3.zero;
+            Inputs.Place(go, spot, yaw);
+            if (walking && agent.isOnNavMesh) agent.SetDestination(destination);
+#else
+            Inputs.Place(go, spot, yaw);
+#endif
+        }
+
+        /// <summary>A pinned NavMeshAgent held at its place without a warp (which would clear the path its own logic
+        /// gives it every frame): its simulated position and its transform set back, its velocity zero. False for an
+        /// object that is no agent on a NavMesh.</summary>
+        static bool Agent(GameObject go, Vector3 at)
+        {
+#if TASKPROBE_AI
+            var agent = go.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            if (agent == null || !agent.enabled || !agent.isOnNavMesh) return false;
+            agent.nextPosition = at;
+            agent.velocity = Vector3.zero;
+            go.transform.position = at;
+            return true;
+#else
+            return false;
+#endif
+        }
+
         /// <summary>After the frame's game logic: every pinned object back at its place, its movement stopped (its own
         /// logic, turning, animation and attacks run on).</summary>
         public void Hold(double elapsed)
@@ -193,6 +225,7 @@ namespace TaskProbe
             {
                 var p = pinned[i];
                 if (p.Object == null || elapsed >= p.Until) { pinned.RemoveAt(i); continue; }
+                if (Agent(p.Object, p.At)) continue;
                 if ((p.Object.transform.position - p.At).sqrMagnitude > 1e-6f) Inputs.Place(p.Object, p.At, null);
                 else Inputs.Still(p.Object);
             }

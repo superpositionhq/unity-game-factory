@@ -24,15 +24,15 @@
    "pin": {
     "name": "Foe2D"
    },
-   "hold": 1.2,
+   "hold": 2.0,
    "front": 2.0
   },
   {
-   "t": 2.0,
+   "t": 2.1,
    "pin": {
     "name": "Foe2D"
    },
-   "hold": 0.7,
+   "hold": 0.6,
    "at": {
     "xyz": [
      3.0,

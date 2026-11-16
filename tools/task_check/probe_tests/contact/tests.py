@@ -165,8 +165,8 @@ def flat(t, play):
     t.near("before the pin it walks", row(0.5)[0], 5.5, FRAME + FLOAT)
     for when in (1.5, 2.0):
         t.eq(f"pinned 2 m ahead of a player that faces -x, on the floor, at its depth, not turned ({when} s)", row(when), [-2.0, 0.5, 2.0, 0.0])
-    t.eq("a second pin takes the first's place: held at the new spot while the first would still hold", row(2.5), [3.0, 0.5, 2.0, 0.0])
-    t.near("released at 2.7 s it walks on from there", row(3.5)[0], 3.8, 2 * FRAME + FLOAT)
+    t.eq("a second pin (2.1 s) takes the first's place: held at the new spot", row(2.5), [3.0, 0.5, 2.0, 0.0])
+    t.near("released at 2.7 s, when the first would still hold it, it walks on from there", row(3.5)[0], 3.8, 2 * FRAME + FLOAT)
 
 
 PLAYS = {
