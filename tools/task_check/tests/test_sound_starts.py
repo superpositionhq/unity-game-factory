@@ -76,6 +76,30 @@ class Starts(unittest.TestCase):
             value, _ = probes.measured(measure, played(measure, {"level": 0.0, "listener": "Ears"}))
             self.assertIsNone(value, field)
 
+    def test_one_interval_that_could_not_be_counted_makes_the_sum_no_value(self):
+        # a sum over intervals with one missing would be an undercount: "plays once" would pass wrongly
+        for field in ("started", "started_audible"):
+            measure = measure_of(field)
+            value, why = probes.measured(measure, played(measure, heard("Clang"), {"level": 0.1, "listener": "Ears"},
+                                                         heard("Clang")))
+            self.assertIsNone(value, field)
+            self.assertIn("the sounds that started couldn't be counted", why)
+        level = measure_of("count")
+        self.assertEqual(probes.measured(level, played(level, {"count": 1.0}, {"listener": "Ears"}))[0], 1.0)
+
+    def test_names_take_no_agg(self):
+        with self.assertRaises(ValueError) as caught:
+            task_with(probe(measure=audio("sounds", agg="max"), expect={"op": ">=", "value": 2}))
+        self.assertIn("audio sounds is read from the names", str(caught.exception))
+        task_with(probe(measure=audio("sounds"), expect={"op": ">=", "value": 2}))
+
+    def test_an_upper_bound_on_starts_is_warned_about(self):
+        v = tasks.validator()
+        for op, warned in (("<=", True), ("==", True), ("<", True), (">=", False)):
+            task = task_with(probe(measure=audio("started_audible"), expect={"op": op, "value": 1}))
+            said = [w for w in v.task_warnings(task) if "counts no PlayOneShot on a source that is already playing" in w]
+            self.assertEqual(bool(said), warned, op)
+
     def test_a_volume_is_never_a_literal_and_a_start_count_may_be(self):
         task_with(probe(measure=audio("started_audible"), expect={"op": ">=", "value": 1}))
         with self.assertRaises(ValueError):

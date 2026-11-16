@@ -1,7 +1,9 @@
 // The contact family's scenes (probe_tests/contact): a duel to stage, and a scene whose time stops.
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
 namespace ProbeTests.Contact
@@ -15,6 +17,8 @@ namespace ProbeTests.Contact
             if (!AssetDatabase.IsValidFolder(Made)) AssetDatabase.CreateFolder("Assets/ProbeTests/contact", "Made");
             Duel();
             Stops();
+            Bodies();
+            Flat();
         }
 
         static Scene New() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -71,7 +75,77 @@ namespace ProbeTests.Contact
             pip.transform.localPosition = new Vector3(0f, -1f, 0f);
             stutter.pip = pip;
             new GameObject("Clock").AddComponent<ContactClock>();
+            Skinned();
             EditorSceneManager.SaveScene(scene, Made + "/Stops.unity");
+        }
+
+        // A skinned quad on two bones that stands still while one bone moves (ContactWiggle).
+        static void Skinned()
+        {
+            var owner = new GameObject("Skinned");
+            owner.transform.position = new Vector3(0f, 0f, 10f);
+            var bones = new[] { new GameObject("Root").transform, new GameObject("Tip").transform };
+            foreach (var b in bones) b.SetParent(owner.transform, false);
+            bones[1].localPosition = new Vector3(0f, 1f, 0f);
+            var mesh = new Mesh { name = "SkinnedQuad" };
+            mesh.SetVertices(new[] { new Vector3(-0.5f, 0f, 0f), new Vector3(0.5f, 0f, 0f), new Vector3(-0.5f, 1f, 0f), new Vector3(0.5f, 1f, 0f) });
+            mesh.SetTriangles(new[] { 0, 2, 1, 1, 2, 3 }, 0);
+            mesh.boneWeights = new[] { 0, 0, 1, 1 }.Select(i => new BoneWeight { boneIndex0 = i, weight0 = 1f }).ToArray();
+            mesh.bindposes = bones.Select(b => b.worldToLocalMatrix * owner.transform.localToWorldMatrix).ToArray();
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            AssetDatabase.CreateAsset(mesh, Made + "/SkinnedQuad.asset");
+            var skin = owner.AddComponent<SkinnedMeshRenderer>();
+            skin.sharedMesh = mesh;
+            skin.bones = bones;
+            skin.rootBone = bones[0];
+            skin.updateWhenOffscreen = true;
+            owner.AddComponent<ContactWiggle>().bone = bones[1];
+        }
+
+        // What a pin holds through its own body: a cube under gravity, and an agent walking a NavMesh it bakes over
+        // the ground (the ground alone is on the layer it bakes). And two damage entries that say nothing: one that
+        // throws, one that returns no number.
+        static void Bodies()
+        {
+            var scene = New();
+            Camera();
+            var ground = Cube("Ground", new Vector3(0f, -0.5f, 0f));
+            ground.transform.localScale = new Vector3(200f, 1f, 200f);
+            ground.layer = LayerMask.NameToLayer("Water");
+            Cube("Hero", new Vector3(0f, 0.5f, 0f), "Player");
+            Cube("Body", new Vector3(3f, 0.5f, 5f)).AddComponent<Rigidbody>();
+            var walker = Cube("Agent", new Vector3(-3f, 0.5f, 5f));
+            var agent = walker.AddComponent<NavMeshAgent>();
+            agent.enabled = false;  // on once its NavMesh is there (ContactAgent)
+            agent.baseOffset = 0.5f;
+            agent.radius = 0.5f;
+            agent.height = 1f;
+            agent.speed = 2f;
+            agent.acceleration = 100f;
+            walker.AddComponent<ContactAgent>();
+            Cube("Thrower", new Vector3(-30f, 0.5f, 0f)).AddComponent<ContactThrower>();
+            Cube("Mute", new Vector3(-40f, 0.5f, 0f)).AddComponent<ContactMute>();
+            EditorSceneManager.SaveScene(scene, Made + "/Bodies.unity");
+        }
+
+        // A 2D game: a hero that faces -x (its scale in x is -1) on a 2D floor, and a foe 2 m deep that walks along x.
+        static void Flat()
+        {
+            var scene = New();
+            Camera();
+            var floor = new GameObject("Floor");
+            floor.transform.position = new Vector3(0f, -0.5f, 0f);
+            floor.AddComponent<BoxCollider2D>().size = new Vector2(200f, 1f);
+            var hero = new GameObject("Hero") { tag = "Player" };
+            hero.transform.position = new Vector3(0f, 0.5f, 0f);
+            hero.transform.localScale = new Vector3(-1f, 1f, 1f);
+            hero.AddComponent<BoxCollider2D>();
+            var foe = new GameObject("Foe2D");
+            foe.transform.position = new Vector3(5f, 0.5f, 2f);
+            foe.AddComponent<BoxCollider2D>();
+            foe.AddComponent<ContactFoe>();
+            EditorSceneManager.SaveScene(scene, Made + "/Flat.unity");
         }
     }
 }

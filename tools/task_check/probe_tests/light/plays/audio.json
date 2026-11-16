@@ -168,6 +168,24 @@
    }
   },
   {
+   "id": "takes",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "Takes"
+    }
+   }
+  },
+  {
+   "id": "last",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "LastOne"
+    }
+   }
+  },
+  {
    "id": "ears",
    "kind": "objects",
    "select": {

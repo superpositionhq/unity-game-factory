@@ -739,8 +739,8 @@ def spec_problems(spec):
     whole = probes.query_file(queries, spec.get('every')) or {**probes.query_file([None], spec.get('every')), 'queries': []}
     if json.dumps(asked) != json.dumps(whole):
         out.append(f'its `queries` are not as probes.query_file writes them: {json.dumps({**whole, "queries": "..."})}')
-    if spec.get('sound') is not probes.hears(queries):
-        out.append(f'`sound` is {json.dumps(spec.get("sound"))}; probes.hears says {json.dumps(probes.hears(queries))}')
+    if spec.get('sound') is not probes.paced(queries):
+        out.append(f'`sound` is {json.dumps(spec.get("sound"))}; probes.paced says {json.dumps(probes.paced(queries))}')
     try:
         plan = probes.plan(task_of([m for q in queries for m in measures_of(q)], {'name': 'p', 'seconds': 1})).get('p', [])
         rows = tasks.inputs(spec.get('inputs'))

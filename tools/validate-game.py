@@ -1107,6 +1107,9 @@ def probe_errors(c, seed, ref, plays):
             re.compile(pattern) if isinstance(pattern, str) else None
         except re.error as e:
             errs.append(f"check {n}: {pattern!r} isn't a regular expression ({e})")
+    if probe == 'audio' and field in ('sounds', 'repeats') and measure.get('agg') is not None:
+        errs.append(f'check {n}: audio {field} is read from the names of the sounds that started over the window: it '
+                    'takes no `agg`')
     if probe == 'ui':
         if (field == 'text') != (measure.get('match') is not None):
             errs.append(f'check {n}: a ui measure takes `match` exactly when its field is text')
@@ -1264,11 +1267,15 @@ def object_points(o):
             yield from object_points(v)
 
 
+AUDIO_STARTS = ('started', 'started_audible', 'sounds', 'repeats')   # the sounds that start (docs/task-probes.md 2.16)
+
+
 def task_warnings(t):
     """Selects that take one object by a wildcard name alone (a warning, never an error): a teleport_to goes to the
     nearest match (Inputs.TeleportTo), an object point stands at the first match in hierarchy order (Find.Point), and
     "of": "first" reads the first row, in the same order. A spawner, a pool or a parent whose name fits is matched
-    too: the sample game's teleport_to {"name": "Coin*"} took CoinSpawner."""
+    too: the sample game's teleport_to {"name": "Coin*"} took CoinSpawner. And an upper bound or an exact count of
+    the sounds that started, which misses a one-shot on a source that is already playing."""
     out = []
     for m in t.get('milestones') or []:
         for c in (m.get('checks') or []) if isinstance(m, dict) else []:
@@ -1293,6 +1300,12 @@ def task_warnings(t):
                         'layer, near), or by its full name')
                 if said not in out:   # a play's inputs once, whichever checks use the play
                     out.append(said)
+            op = (c.get('expect') or {}).get('op') if isinstance(c.get('expect'), dict) else None
+            if measure.get('probe') == 'audio' and measure.get('field') in AUDIO_STARTS and op in ('<', '<=', '=='):
+                out.append(f"{check}: `{op}` against audio {measure['field']} counts no PlayOneShot on a source that is "
+                           'already playing (the engine shows none), so the game may play more sounds than the check '
+                           'reads: an upper bound or an exact count holds only where the start plays its sounds '
+                           'otherwise (docs/task-probes.md, section 2.16)')
     return out
 
 

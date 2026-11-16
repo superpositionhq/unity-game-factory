@@ -140,6 +140,8 @@ namespace TaskProbe
                 catch (Exception e)
                 {
                     probe.Failed("inputs: {0} sending an input", e);
+                    var kind = Kind(row);
+                    if (kind == "pin" || kind == "damage" || kind == "set") probe.Missed(sending, kind, "stage", "it threw " + e.GetType().Name);
                     Probe.Log("the input was " + Json.Write(row));
                 }
                 Sent++;

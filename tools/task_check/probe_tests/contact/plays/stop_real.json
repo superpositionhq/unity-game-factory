@@ -1,0 +1,38 @@
+{
+ "seconds": 6,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/contact/Made/Stops.unity",
+ "queries": [
+  {
+   "id": "time",
+   "kind": "world",
+   "fields": [
+    "time_scale",
+    "paused"
+   ]
+  },
+  {
+   "id": "stutter",
+   "kind": "objects",
+   "select": {
+    "name": "Stutter"
+   },
+   "fields": [
+    "frozen",
+    "x"
+   ]
+  },
+  {
+   "id": "skinned",
+   "kind": "objects",
+   "select": {
+    "name": "Skinned"
+   },
+   "fields": [
+    "frozen"
+   ]
+  }
+ ],
+ "inputs": []
+}

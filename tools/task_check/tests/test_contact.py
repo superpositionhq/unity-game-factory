@@ -95,6 +95,11 @@ class Readings(unittest.TestCase):
             value, why = probes.measured(measure, played)
             self.assertIsNone(value, kind)
             self.assertIn(f"a stage of the play did not land ({kind} select at 1.5 s: no object matches it)", why)
+        played["inputs_missed"] = [{"t": 2.0, "kind": "damage", "target": "stage", "why": "it threw NullReferenceException"}]
+        self.assertIn("it threw NullReferenceException", probes.measured(measure, played)[1])
+        clicks = [{"t": 1.0, "kind": "click", "target": "Start", "why": "no visible button matches it"}] * 400
+        played["inputs_missed"] = clicks + [{"t": 3.0, "kind": "set", "target": "Foe.health", "why": "no property health"}]
+        self.assertIsNone(probes.measured(measure, played)[0], "a stage's miss after 400 other rows")
         log = {"probe": "log", "pattern": "hit", "field": "count"}
         self.assertIsNone(probes.measured(log, played, "hit")[0], "the log of a play that staged nothing counts nothing")
 
@@ -105,6 +110,16 @@ class Readings(unittest.TestCase):
             task = task_with(probe(play=play(Stages.STAGED), measure=measure, expect={"op": ">=", "start_plus": 0.05}))
             self.assertEqual(probes.needs(tasks.checks(task)[0][1]["measure"]),
                              [{"kind": "objects", "select": FOE, "fields": [field]}])
+
+
+class Paced(unittest.TestCase):
+    def test_a_play_that_reads_a_hit_stop_is_paced_to_real_time(self):
+        from task_check import probes
+        self.assertTrue(probes.paced([{"kind": "world", "fields": ["time_scale"]}]))
+        self.assertTrue(probes.paced([{"kind": "objects", "select": FOE, "fields": ["x", "frozen"]}]))
+        self.assertTrue(probes.paced({"queries": [{"kind": "audio", "select": {}}]}))
+        self.assertFalse(probes.paced([{"kind": "objects", "select": FOE, "fields": ["x", "damage_taken"]}]))
+        self.assertFalse(probes.paced([]))
 
 
 class CodeJudgeFocus(unittest.TestCase):

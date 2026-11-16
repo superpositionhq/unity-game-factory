@@ -22,6 +22,16 @@
     "frozen",
     "x"
    ]
+  },
+  {
+   "id": "skinned",
+   "kind": "objects",
+   "select": {
+    "name": "Skinned"
+   },
+   "fields": [
+    "frozen"
+   ]
   }
  ],
  "inputs": []

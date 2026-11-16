@@ -3,7 +3,7 @@ and "player": false, an object's `damage_taken` and `frozen`, and the `world` me
 
 MADE = "Assets/ProbeTests/contact/Made/"
 SETUP = ["ProbeTests.Contact.ContactScenes.Build"]
-SCENES = [MADE + "Duel.unity", MADE + "Stops.unity"]
+SCENES = [MADE + "Duel.unity", MADE + "Stops.unity", MADE + "Bodies.unity", MADE + "Flat.unity"]
 FLOAT = 1e-5  # a float of the game widened to a double
 FRAME = 1 / 30
 
@@ -107,9 +107,73 @@ def stops(t, play):
     t.eq("paused", max(paused[at] for at in times if 4.1 < at < 5.1), 1.0)
     t.eq("and on again", (scale[times[-1]], paused[times[-1]]), (1.0, 0.0))
     t.near("the game's stop stopped the object too: two frames", max(frozen[at] for at in times if 4.1 < at < 5.1), 2 * FRAME, FLOAT)
+    pose = dict(play.series("skinned", "frozen", "Skinned"))
+    t.near("a skinned thing that stands where it is: the six frames its bone held still", max(pose[at] for at in times if 1.9 < at < 2.8), 6 * FRAME, FLOAT)
+    t.eq("its bone moves on through the game's stop: no stop of its own there", max(pose[at] for at in times if 4.1 < at < 5.1), 0.0)
+
+
+def stop_real(t, play):
+    """A hit stop timed as games time one, 0.1 s on the real-time clock with the game's time at 0: the play is paced to
+    real time (it reads `world` and `frozen`), so the stop lasts about 0.1 s of play, three or four frames, and reads
+    as a short stop. Unpaced it would last as many frames as the machine renders in 0.1 s, past the 0.5 s a stop may
+    last."""
+    scale = dict(play.series("time", "time_scale"))
+    frozen = dict(play.series("stutter", "frozen", "Stutter"))
+    window = [at for at in sorted(scale) if 4.0 < at <= 5.0 + 1e-6]
+    t.eq("the game's time stood still", min(scale[at] for at in window), 0.0)
+    held = max(frozen[at] or 0.0 for at in window)
+    t.ok("the object's stop is read at about its real length: 2 to 8 frames", 2 * FRAME - FLOAT <= held <= 8 * FRAME + FLOAT, held)
+    t.ok("the play ran at the pace of a clock: 6.5 s of play in at least 6 s", play.seconds >= 6.0, play.seconds)
+
+
+def bodies(t, play):
+    """A pin holds an object through the body that moves it: a cube under gravity hangs in the air, an agent stays
+    where it was set while its path pulls it. A damage entry that throws is a miss; one that returns no number is
+    called and leaves no damage_taken; a source no object matches is a miss; a whole-number member takes no fraction;
+    and a stage's miss is listed past the 400th row."""
+    def at(qid, when, name):
+        row = play.row(qid, when, name) or {}
+        return [row.get(k) for k in "xyz"]
+    for when in (1.5, 2.0):
+        t.eq(f"the cube hangs where it was pinned at {when} s", at("body", when, "Body"), [3.0, 3.0, 5.0])
+    t.ok("released, it falls to the ground", (at("body", 4.0, "Body")[1] or 9) < 0.6, at("body", 4.0, "Body"))
+    before = at("agent", 0.5, "Agent")
+    t.ok("the agent walks its NavMesh before the pin", before[2] is not None and before[2] > 5.2, before)
+    for when in (1.5, 2.0):
+        x, y, z = at("agent", when, "Agent")
+        t.ok(f"the agent stays 4 m ahead of the player at {when} s, at its height above the ground",
+             None not in (x, y, z) and abs(x) < 0.02 and abs(z - 4.0) < 0.02 and abs(y - before[1]) < 0.02, (x, y, z))
+    t.ok("released, it walks on", (at("agent", 4.0, "Agent")[2] or 0) > 5.0, at("agent", 4.0, "Agent"))
+    missed = play.probe.get("inputs_missed") or []
+    stages = [(m.get("t"), m.get("kind"), m.get("target")) for m in missed if m.get("kind") != "click"]
+    t.eq("the stages that missed", stages, [(2.6, "damage", "Thrower"), (2.8, "damage", "from"), (2.9, "set", "ContactMute.hits"), (4.2, "pin", "select")])
+    why = {m.get("target"): m.get("why") or "" for m in missed}
+    t.ok("an entry that throws", "TakeDamage threw InvalidOperationException" in why.get("Thrower", ""), why.get("Thrower"))
+    t.ok("a source no object matches", "no object matches it" in why.get("from", ""), why.get("from"))
+    t.ok("a fraction for a whole-number member", "it takes a whole number" in why.get("ContactMute.hits", ""), why.get("ContactMute.hits"))
+    mute = play.row("mute", 4.0, "Mute") or {}
+    t.eq("an entry that returns no number was called once, and leaves no damage_taken", [mute.get("prop:ContactMute.hits"), mute.get("damage_taken")], [1.0, None])
+    t.eq("the list keeps 400 rows, and a stage's miss after them", [len(missed), missed[-1].get("kind") if missed else None], [401, "pin"])
+
+
+def flat(t, play):
+    """In a 2D game a pin's `front` is along the player's facing in X (here -x: its scale is -1), the object is never
+    turned and keeps its depth; a second pin on the object takes the first's place."""
+    def row(when):
+        r = play.row("foe", when, "Foe2D") or {}
+        return [r.get(k) for k in ("x", "y", "z", "yaw")]
+    t.near("before the pin it walks", row(0.5)[0], 5.5, FRAME + FLOAT)
+    for when in (1.5, 2.0):
+        t.eq(f"pinned 2 m ahead of a player that faces -x, on the floor, at its depth, not turned ({when} s)", row(when), [-2.0, 0.5, 2.0, 0.0])
+    t.eq("a second pin takes the first's place: held at the new spot while the first would still hold", row(2.5), [3.0, 0.5, 2.0, 0.0])
+    t.near("released at 2.7 s it walks on from there", row(3.5)[0], 3.8, 2 * FRAME + FLOAT)
 
 
 PLAYS = {
     "stage": {"check": stage},
     "stops": {"check": stops},
+    # a stop timed on the real-time clock: how long it lasts in frames is the machine's
+    "stop_real": {"check": stop_real, "args": ["-contactreal"], "varies": True},
+    "bodies": {"check": bodies},
+    "flat": {"check": flat},
 }

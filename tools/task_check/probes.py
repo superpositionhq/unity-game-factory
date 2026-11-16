@@ -77,13 +77,17 @@ def needs(measure):
     return []  # log
 
 
-def hears(queries):
-    """Whether a play's queries (a list, or a query file) measure audio: the play spec's `sound`, which paces the play
-    to real time (sound plays in real time); every other play runs as fast as the machine renders. In every probe play
-    the probe's tap on every enabled AudioListener measures the mix and then silences it (only in a probe play: a tap
-    outside one lets the sound through)."""
+def paced(queries):
+    """Whether a play's queries (a list, or a query file) measure what runs on the wall clock: the play spec's `sound`,
+    which paces the play to real time. Audio (sound plays in real time), and a `world` measure or an objects `frozen`
+    field: a hit stop is timed in real time by its nature (nothing else advances while the game's time stands still),
+    so in a play that runs as fast as the machine renders it would last many times as long in play seconds. Every
+    other play runs as fast as the machine renders. In every probe play the probe's tap on every enabled AudioListener
+    measures the mix and then silences it (only in a probe play: a tap outside one lets the sound through)."""
     found = queries.get("queries") if isinstance(queries, dict) else queries
-    return any(isinstance(q, dict) and q.get("kind") == "audio" for q in found or [])
+    return any(isinstance(q, dict) and (q.get("kind") in ("audio", "world")
+                                        or (q.get("kind") == "objects" and "frozen" in (q.get("fields") or [])))
+               for q in found or [])
 
 
 def query_id(query):
@@ -552,6 +556,11 @@ def measured(measure, probe, log=""):
     picked = pick(series(measure, probe), measure)
     if not picked:
         return None, f"no samples in the window (the play ended at {fmt(ended(probe))} s)"
+    if measure["probe"] == "audio" and measure.get("field") in tasks.AUDIO_STARTED and any(v is None for _, v in picked):
+        # a count over intervals: one interval that couldn't be read (no listener, a place that didn't resolve, a
+        # one-shot the `sound` select couldn't name) would make the sum an undercount
+        return None, ("no value in the window: in a sample of it the sounds that started couldn't be counted (no "
+                      "audio listener, a near whose point didn't resolve, or a one-shot a sound select can't name)")
     value = aggregate([v for _, v in picked], default_agg(measure))
     if value is not None:
         return value, None

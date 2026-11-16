@@ -635,6 +635,14 @@ namespace ProbeTests.Lighting
             Listener("Player2", Vector3.zero, true);
             Source("Room", new Vector3(0f, 0f, 2f), "Room523", 0.6f, 1f, true);
             Keeper();
+            // after 20 s (LightAudioLate): the sounds that start
+            var late = new GameObject("LateDirector").AddComponent<LightAudioLate>();
+            late.takes = Source("Takes", Vector3.zero, "Main605", 0.4f, 0f, false);
+            late.takes.loop = false;
+            late.shots = Source("LateShots", Vector3.zero, null, 0.4f, 0f, false);
+            late.last = Source("LastOne", Vector3.zero, null, 0.4f, 0f, false);
+            late.second = clips["Near715"];
+            late.shot = clips["Shot880"];
             SaveScene("AudioLab2");
         }
 

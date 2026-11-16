@@ -341,7 +341,12 @@ namespace TaskProbe
                 case null: return false;
                 default: why = name + " can't be written (it has no setter, or is a constant)"; return false;
             }
-            if (!Convert(value, type, out var converted)) { why = name + " is a " + type.Name + ": it takes no " + Said(value); return false; }
+            if (!Convert(value, type, out var converted))
+            {
+                var whole = type.IsPrimitive && type != typeof(bool) && type != typeof(char) && !(value is bool) && !(value is string) && value != null;
+                why = name + " is a " + type.Name + (whole ? ": it takes a whole number" : ": it takes no " + Said(value));
+                return false;
+            }
             try
             {
                 if (member is FieldInfo f) f.SetValue(target, converted);
@@ -387,6 +392,9 @@ namespace TaskProbe
                 else if (type.IsPrimitive && type != typeof(char) && type != typeof(IntPtr) && type != typeof(UIntPtr))
                 {
                     if (value is bool || value is string || value == null) return false;
+                    // a whole-number member takes a whole number: 2.7 is never rounded into it
+                    var number = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
+                    if (type != typeof(float) && type != typeof(double) && Math.Floor(number) != number) return false;
                     converted = System.Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
                 }
                 else return false;

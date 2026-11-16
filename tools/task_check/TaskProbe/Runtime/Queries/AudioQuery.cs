@@ -8,7 +8,10 @@
 // "value": {"count", "audible", "volume", "max_volume", "loudest", "level", "peak", "listener", "started",
 // "started_audible", "starts": [{"t", "sound", "named"}] (the first 64), "starts_total"} | null without an
 // AudioListener (or without the audio module). With a `near` whose point doesn't resolve, what the select picks has
-// no value: count to loudest at that sample, the started keys when a sound began while it didn't.
+// no value: count to loudest at that sample, the started keys when a sound began while it didn't. Nor have the
+// started keys a value in an interval in which a `sound` select met a start without a name: it could be that sound.
+// `started` and `started_audible` count a start in the interval it began in (with a `sound` select: in the one its
+// name was told in); `starts` and `starts_total` are the starts whose names were told in the interval.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -62,8 +65,8 @@ namespace TaskProbe
         }
 
         // the starts this query's select took since the previous sample
-        int started, startedAudible;
-        bool blind;  // a sound started while the near's point didn't resolve: whether it was near can't be told
+        int started, startedAudible, named;
+        bool blind;  // a start the select couldn't judge: the near's point didn't resolve, or a `sound` select met a nameless one
         readonly List<object> starts = new List<object>();
         readonly HashSet<AudioStarts.Start> mine = new HashSet<AudioStarts.Start>();  // taken by where it began, name not settled yet
 
@@ -71,15 +74,38 @@ namespace TaskProbe
         {
             AudioStarts.Frame(Probe);
             // by what is true in the frame it began: its group, the objects it is on, its place (a source that is
-            // destroyed before its name settles is still taken)
+            // destroyed before its name settles is still taken). Without a `sound` select it counts at once; with
+            // one, when its name is told.
             foreach (var start in AudioStarts.Begun)
-                if (Places(start)) mine.Add(start);
-            foreach (var start in AudioStarts.Told)
+            {
+                if (!Places(start)) continue;
+                mine.Add(start);
+                if (sound == null) Count(start);
+            }
+            Name(AudioStarts.Told);
+        }
+
+        void Count(AudioStarts.Start start)
+        {
+            started++;
+            if (start.Loud) startedAudible++;
+        }
+
+        /// <summary>The starts whose names are settled: each of this query's gets its row, and with a `sound` select
+        /// is counted now when its name fits. One without a name could be the sound asked for (a PlayOneShot shows no
+        /// clip): the interval's count can't be told then.</summary>
+        void Name(List<AudioStarts.Start> told)
+        {
+            foreach (var start in told)
             {
                 if (!mine.Remove(start)) continue;
-                if (sound != null && !(start.Named && Find.Wild(sound, start.Sound))) continue;  // a one-shot has no name to match
-                started++;
-                if (start.Loud) startedAudible++;
+                if (sound != null)
+                {
+                    if (!start.Named) { blind = true; continue; }
+                    if (!Find.Wild(sound, start.Sound)) continue;
+                    Count(start);
+                }
+                named++;
                 if (starts.Count < StartsListed)
                     starts.Add(new Dictionary<string, object>(StringComparer.Ordinal) { ["t"] = start.T, ["sound"] = start.Named ? start.Sound : null, ["named"] = start.Named });
             }
@@ -105,6 +131,8 @@ namespace TaskProbe
 
         public override void Sample(double t, Dictionary<string, object> sample)
         {
+            // the play's last sample: what is still settling is told now, named or not
+            if (Probe.LastSample) Name(AudioStarts.Rest());
             Level(out var any, out var rms, out var peak);
             var listener = AudioTap.Listener();
             if (listener == null)
@@ -167,10 +195,10 @@ namespace TaskProbe
                 value["started"] = (double)started;
                 value["started_audible"] = (double)startedAudible;
                 value["starts"] = new List<object>(starts);
-                value["starts_total"] = (double)started;
+                value["starts_total"] = (double)named;
             }
             sample["value"] = value;
-            started = startedAudible = 0;
+            started = startedAudible = named = 0;
             blind = false;
             starts.Clear();
         }
@@ -221,7 +249,7 @@ namespace TaskProbe
     /// <summary>The sounds that start, seen once a frame for every audio query: an enabled AudioSource on an active
     /// object that plays and didn't the frame before (a new source, a source played again after it ended, a
     /// PlayClipAtPoint's own source), or a playing one whose clip went back to its beginning (played again while it
-    /// plays; a looping clip that comes round at its end is no start). A source that goes on where it stood
+    /// plays; a looping clip that comes round at its end is no start) or was changed for another. A source that goes on where it stood
     /// (unpaused, AudioListener.pause lifted) starts nothing. A start begins in the frame it is seen (what it is on,
     /// where, how loud at the listener: all as they are then) and is told once its name is settled: its source's clip
     /// when that clip is what plays (its position in the clip moved), within 5 frames; else it has no name the probe
@@ -256,6 +284,24 @@ namespace TaskProbe
         /// <summary>The starts that began this frame (of one frame: in hierarchy order), and those told this frame, in
         /// the order they began.</summary>
         public static readonly List<Start> Begun = new List<Start>(), Told = new List<Start>();
+        static readonly List<Start> rest = new List<Start>();
+
+        /// <summary>At the play's last sample: every start still settling, told as it is now (the same list for every
+        /// query of the sample).</summary>
+        public static List<Start> Rest()
+        {
+            foreach (var s in settling)
+            {
+                if (s.Source != null && s.Clip != null && s.Source.clip == s.Clip && s.Source.timeSamples != s.Samples)
+                {
+                    s.Named = true;
+                    s.Sound = s.Clip.name;
+                }
+                rest.Add(s);
+            }
+            settling.Clear();
+            return rest;
+        }
         static readonly Dictionary<int, Playing> playing = new Dictionary<int, Playing>();
         static readonly List<Start> settling = new List<Start>();
         static readonly List<AudioSource> fresh = new List<AudioSource>();
@@ -299,7 +345,8 @@ namespace TaskProbe
                     // it plays again: on from where it stood (a pause lifted) is no start
                     if (!(state.Samples > 0 && samples >= state.Samples && source.clip == state.Clip)) fresh.Add(source);
                 }
-                else if (samples < state.Samples && source.clip != null && source.clip == state.Clip && !CameRound(source, state.Samples))
+                else if (source.clip != state.Clip) fresh.Add(source);  // another clip on a source that still sounded
+                else if (samples < state.Samples && source.clip != null && !CameRound(source, state.Samples))
                     fresh.Add(source);  // played again while it plays
                 state.Samples = samples;
                 state.Clip = source.clip;

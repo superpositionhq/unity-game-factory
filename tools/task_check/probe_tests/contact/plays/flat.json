@@ -1,0 +1,45 @@
+{
+ "seconds": 4,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/contact/Made/Flat.unity",
+ "queries": [
+  {
+   "id": "foe",
+   "kind": "objects",
+   "select": {
+    "name": "Foe2D"
+   },
+   "fields": [
+    "x",
+    "y",
+    "z",
+    "yaw"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 1.0,
+   "pin": {
+    "name": "Foe2D"
+   },
+   "hold": 1.2,
+   "front": 2.0
+  },
+  {
+   "t": 2.0,
+   "pin": {
+    "name": "Foe2D"
+   },
+   "hold": 0.7,
+   "at": {
+    "xyz": [
+     3.0,
+     0.5,
+     2.0
+    ]
+   }
+  }
+ ]
+}

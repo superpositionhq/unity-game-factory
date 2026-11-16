@@ -381,13 +381,17 @@ namespace TaskProbe
             else errorsLeftOut++;
         }
 
+        /// <summary>Whether the sample being taken is the play's last: what a query still holds back goes into it.</summary>
+        public bool LastSample { get; private set; }
+
         /// <summary>An input that didn't land (a stage nothing took, a touch on a widget that isn't on screen): one row
         /// of probe.json "inputs_missed", {t, kind, target, why}, and a line of probe.log.</summary>
         public void Missed(double t, string kind, string target, string why)
         {
             target = target ?? "";
             why = why ?? "";
-            if (inputsMissed.Count < 400)
+            // a stage that missed is always listed: the checker reads it (the play staged no contact)
+            if (inputsMissed.Count < 400 || kind == "pin" || kind == "damage" || kind == "set")
                 inputsMissed.Add(new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["t"] = t, ["kind"] = kind, ["target"] = target.Length > 200 ? target.Substring(0, 200) : target,
@@ -549,6 +553,7 @@ namespace TaskProbe
             if (t >= nextSample - 1e-9)
             {
                 nextSample += every;
+                LastSample = nextSample > seconds + 0.5 + 1e-9;
                 TakeSample(t);
             }
             if (shots > 0 && shotsTaken < shots && t >= seconds * (shotsTaken + 0.5) / shots)

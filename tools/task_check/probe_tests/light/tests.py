@@ -476,7 +476,12 @@ def audio(t, play):
     t.eq("PlayOneShot on a silent source: a start, heard, without a name", [started("shooter", 6.0, 7.0), started("shooter", 6.0, 7.0, "started_audible"), starts("shooter", 6.0, 7.0)],
          [1, 1, [(None, False)]])
     t.eq("PlayOneShot on a source with a clip of its own: no name either", starts("shooter_clip", 7.0, 8.0), [(None, False)])
-    t.eq("a sound select never takes a one-shot's start", started("shot", 0, 21.0), 0)
+    # a one-shot shows no clip: it could be the sound a `sound` select asks for, so that interval's count has no value
+    blind = [s["t"] for s in play.samples("shot") if s.get("value") is not None and "started" not in s["value"]]
+    t.eq("a sound select has no started value in an interval a nameless start was told in: the one-shots of 6.4, 7.4, 13.33, 20.6 and 21.33 s",
+         [round(at * 2) / 2 for at in blind], [7.0, 8.0, 13.5, 21.0, 21.5])
+    t.eq("... and reads 0 where nothing nameless started", [(play.value("shot", at) or {}).get("started") for at in (1.0, 3.0, 9.0)], [0.0, 0.0, 0.0])
+    t.eq("... a select without `sound` counts it", [started("shooter", 6.0, 7.0), (play.value("shooter", 7.0) or {}).get("starts_total")], [1, 1.0])
     t.eq("PlayClipAtPoint: a start by its clip", starts("point", 8.0, 9.0), [("Point990", True)])
     t.eq("near: the sound that started at the place", [started("near_point", 0, 21.0), starts("near_point", 8.0, 9.0)], [1, [("Point990", True)]])
     t.eq("near: the 3D source playing there, at 8.5 s only", [v("near_point", 1.0, "count"), v("near_point", 8.5, "count")], [0.0, 1.0])
@@ -500,6 +505,12 @@ def audio(t, play):
     t.eq("the second listener alone", [v("all", 15.0, "listener"), v("all", 15.0, "count"), v("all", 15.0, "audible")], ["SecondCamera", 10.0, 7.0])
     t.near("... the volumes at it", v("all", 15.0, "volume"), second, FLOAT)
     t.eq("no listener: no value", [play.value("all", 16.5), play.value("all", 17.0)], [None, None])
+    t.eq("another clip on a source that still sounds: two starts, each by its clip", [started("takes", 20.0, 21.5), starts("takes", 20.0, 21.5)],
+         [2, [("Main605", True), ("Near715", True)]])
+    final = play.samples("last")[-1]
+    t.eq("a start four frames before the play ends is counted and told in the last sample, its name unsettled",
+         [final["t"] >= 21.5, (final.get("value") or {}).get("started"), [(r.get("sound"), r.get("named")) for r in (final.get("value") or {}).get("starts") or []]],
+         [True, 1.0, [(None, False)]])
     t.eq("after the scene load: its listener and source", [v("all", 19.0, "listener"), v("all", 19.0, "count"), v("all", 19.0, "loudest")],
          ["Player2Camera", 1.0, "Room523"])
     t.near("... the mix measured on the new listener", v("all", 20.0, "level"), LEVEL * 0.3, LEVEL * 0.3 * 0.01)

@@ -332,7 +332,11 @@ time the play knows, then reading what changed. Names come from the task's start
   "at": <Point>, "offset": [0, 0, 2]}`: the nearest match (never the player, nor anything under it) held at its place
   for `hold` seconds of play while its own scripts, animation and attacks run on; first set `front` metres ahead of
   the player along the player's facing (at its own height above the ground, plus `offset`), or `at` a point (plus
-  `offset`), turned to face the player. The player's own blow or shot, by the task's keys, then lands on it. A target
+  `offset`), turned to face the player. In a 2D game (the object has a sprite, a 2D body or a 2D collider) it is
+  never turned, `front` is along the player's facing in X (its right; the other way when its scale in X is negative
+  or its sprite is flipped) and it keeps its depth. A second pin on an object takes the first's place. While it is
+  held it takes no knock-back: read a knock-back after the hold ends. The player's own blow or shot, by the task's
+  keys, then lands on it. A target
   the build invents: `{"player": false, "has": {"simulating": true}, "near": {"point": {"player": true}, "radius":
   m}}`, the nearest thing a player can shove near the player; where that is not surely the target, the ask is not
   testable. The validator refuses a pin on the player and a pin with both
@@ -340,12 +344,14 @@ time the play knows, then reading what changed. Names come from the task's start
 - `{"t": 5.0, "damage": 10, "to": <object select>, "from": <object select>}`: the game's own damage entry, as its own
   attacks call it: `TakeDamage(points, source)` of the `IDamageable` on the nearest match (`{"player": true}`: the
   player; the component on the object, else on one above it, else on one under it). The source is `from`'s nearest
-  match; without `from` the player, or, when the player is struck, the nearest other object with an `IDamageable`.
+  match (one that matches nothing is a miss); without `from` the player, or, when the player is struck, the nearest
+  other object with an `IDamageable`.
   For a game under the game contract (docs/game-format.md), where every hit goes through that interface. A
   `TakeDamage` with more parameters is called when each one after the two is optional, with its own default.
 - `{"t": 0.5, "set": "Foe.health", "on": <object select>, "value": 1, "all": true}`: a member the start names (the
   path a `prop:` field reads, without an index; a field, or a property with a setter, public or not) written on the
-  nearest match, or on every match with `all`: a number, a boolean, an enum by value or name, a string. To set a
+  nearest match, or on every match with `all`: a number (a whole one for a whole-number member), a boolean, an enum
+  by value or name, a string. To set a
   fight up (a foe's health at 1 so one blow fells it through the game's own death, the player's own high so a staged
   fight can't end the play), never to decide what the check reads. The member is read back: one whose setter refused
   or clamped the value didn't take it.
@@ -355,9 +361,10 @@ time the play knows, then reading what changed. Names come from the task's start
   object. `set` and `where` only on members the task does not ask to change.
 
 A stage nothing took changes nothing and is listed in the play's `inputs_missed` (probe.json: `t`, `kind`, `target`,
-`why`; and a line of `probe.log`): a pin no object matches or whose point doesn't resolve, a damage with no target or
-a target without the interface (or whose `IDamageable` has no `TakeDamage(float, GameObject)`), a set no object or no
-member takes. **A play with such a row measured no staged contact: every probe that reads it has no value on that
+`why`; and a line of `probe.log`): a pin no object matches, whose point doesn't resolve or whose object didn't end
+at its spot (a body that refused the move), a damage with no target, no source for its `from`, a target without the
+interface (or whose `IDamageable` has no `TakeDamage(float, GameObject)`) or a `TakeDamage` that threw, a set no
+object or no member takes. **A play with such a row measured no staged contact: every probe that reads it has no value on that
 side, whatever its samples say** (`a stage of the play did not land (...)`), so "it took no damage" never passes
 because nothing was hit. On the reference that makes the task invalid: fix the play.
 
@@ -368,9 +375,11 @@ widget that isn't on screen. Read it when a play did not do what its inputs say.
 **Read it deterministically**, in a probe one sentence explains:
 
 - a thing gone or drawn (`drawn`, a count), a start-named state or member (`prop:`, an Animator's `anim:` or `clip`);
+- a sound started (`audio` `started_audible` near the place the hit lands or by its `owner`, section 2.16);
 - objects `damage_taken`: what the object's `TakeDamage` returned for the play's `damage` stages, summed. Under the
   game contract `TakeDamage` returns the damage actually applied (0 when the hit did nothing), so this is what a hit
-  did: a block, an invulnerable moment, a weak spot. An object no stage struck has no value, never 0;
+  did: a block, an invulnerable moment, a weak spot. An object no stage struck has no value, never 0, nor one whose
+  `TakeDamage` returns no number;
 - **a hit stop** (0.05 to 0.1 s: no screenshot shows it): `world` `time_scale` (section 2.21) where the stop slows
   the game's time; objects `frozen` where it is the object's own: the longest short stop that ended since the
   previous sample (frames in which the object moved under 1 mm, turned under 0.05 degrees and none of its skinned
@@ -378,7 +387,10 @@ widget that isn't on screen. Read it when a play did not do what its inputs say.
   when the play first read it, so a hit spark or a damage number made under it, moving or not, ends no stop, nor does
   a part destroyed), in a tight window right after
   the contact, never on an object a pin or a teleport holds, paired with `world` `paused` == 0; the start's play must
-  read 0;
+  read 0 (any rest of 0.5 s or less between two movements of a rigid object reads as a stop too: a patrol's turn, a
+  wind-up). It reads transforms: a stop that only a flipbook, a blend shape or a shader shows is not seen. A play
+  that reads `frozen` or `world` is paced to real time, as an audio play is, since a hit stop is timed on the real
+  clock;
 - **a stagger, a knock-back or an interrupted action** (behaviour, not looks): a start-named staggered state or
   Animator parameter in a short window after the hit and not before it; the object can't act (the move key held
   through the window: its `speed` near 0, then moving again after it); a knock-back as its place moving away from the
@@ -1136,18 +1148,25 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
   `volume` or `level`), `sounds` (how many differently named clips started) and `repeats` (how often a
   sound started right after itself: "never the same take twice"); the last two take no `agg`. A sound starts when a
   source plays that didn't the frame before (`Play` on a silent source, a new source, `PlayClipAtPoint`,
-  `PlayOneShot` on a silent source) or when a playing source is played again from its clip's beginning (a pooled
-  source reused; a looping clip coming round at its end is no start). A select takes a start by what is true in the
+  `PlayOneShot` on a silent source) or when a playing source is played again from its clip's beginning or with
+  another clip (a pooled source reused, the next take; a looping clip coming round at its end is no start). A select takes a start by what is true in the
   frame it begins (its `owner`, its place, its mixer group), so a sound on an object destroyed a moment later still
   counts. A source that goes on where it stood (unpaused, `AudioListener.pause` lifted, `timeScale` back from 0)
   starts nothing, and a sound that plays from the
-  scene's first frame started in the play's first interval. A start is counted in the interval in which its name was
-  settled, at most 5 frames (0.17 s) after it began, so give the window that much room. What a start can't tell:
+  scene's first frame started in the play's first interval. A start is counted in the interval it began in; with a
+  `sound` select, and for `sounds` and `repeats`, in the one in which its name was settled, at most 5 frames (0.17 s)
+  later, so give the window that much room. What a start can't tell:
   - its name, when the clip that plays isn't the source's own: a `PlayOneShot` clip is never named, nor what an
-    `AudioResource` that is no clip plays (a random container), and no `sound` select takes it. `sounds` and `repeats` then read nothing (the check fails and says why): they need sounds played
+    `AudioResource` that is no clip plays (a random container), and no `sound` select takes it. It could be the
+    sound asked for, so in an interval where such a start passed the select's `owner`, `near` and `sound_class`, a
+    select with `sound` has no started value at all, and a window that holds one such interval reads nothing: narrow
+    the select by `owner` or `near`. `sounds` and `repeats` then read nothing (the check fails and says why): they need sounds played
     as their source's own clip (`source.clip = take; source.Play()`) or with `PlayClipAtPoint`;
   - a `PlayOneShot` on a source that is already playing: the engine shows no new sound, so nothing is counted. Read
-    `level` there, or stage the event so that source is silent before it.
+    `level` there, or stage the event so that source is silent before it. So the count is a lower bound: an upper
+    bound or an exact count (`<`, `<=`, `==`: "plays once", "never twice") holds only where the start plays its
+    sounds otherwise, and the validator warns of such a check.
+  - a `PlayClipAtPoint` sound by `owner`: Unity plays it on an object of its own. Select it by `near`.
   A sound ask reads "a sound starts when the event happens": `started_audible` near the source (or by `owner`), in a
   window right after the event; what the sound is, how it sounds, is never checked.
 - Each source reads its **volume at the listener** (the first enabled AudioListener on an active object, in hierarchy
@@ -1180,7 +1199,7 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
   windows: teleport into each zone (section 1.1) and read the zone's sound there.
 - Every play runs with its sound on, and in every play the probe's tap on each enabled AudioListener measures the mix
   and then silences it, so nothing is heard on the machine. The tap is a component on the listener's object: hidden
-  from the game's `FindObjectsByType`, seen by its `GetComponents`. A play with an `audio` measure is paced to real time
+  from the game's `FindObjectsByType`, seen by its `GetComponents`. A play with an `audio` measure (and one that reads a hit stop: `world`, objects `frozen`) is paced to real time
   (still 30 fps), so a sound lasts as long in play time as on a clock. Every other play runs as fast as the machine
   renders, often many times faster than real time, and a sound, which plays in real time, then lasts many times longer
   in play time: read sound only in a play with an `audio` measure.
@@ -1414,8 +1433,12 @@ scene that leans on static batching draws more calls here than in the game's own
 
 `{"probe": "world", "field": "time_scale|paused"}`: `time_scale` is the lowest `Time.timeScale` over the frames since
 the previous sample, so a hit stop that slows the game for two frames shows even between samples (1 when the game ran
-at its pace); `paused` is 1 when it was 0 in any of them ("Escape pauses the game"). The play's clock runs on whatever
-the game sets, so a paused game is still sampled.
+at its pace); `paused` is 1 when `Time.timeScale` was 0 in any of them ("Escape pauses the game"): it reads neither
+`AudioListener.pause` nor a flag of the game's own, and a hit stop that sets the time scale to 0 for two frames reads
+`paused` 1 as well. The play's clock runs on whatever the game sets, so a paused game is still sampled. A play with a
+`world` measure (or an objects `frozen` field) is paced to real time, as an audio play is: a game times a hit stop on
+the real clock (`WaitForSecondsRealtime`, unscaled time: nothing else advances while its time stands still), and in a
+play that runs as fast as the machine renders that stop would last many times as long in play seconds.
 
 ```json
 {"probe": "world", "field": "time_scale", "window": [2.0, 2.5], "agg": "min"}

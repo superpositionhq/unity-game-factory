@@ -500,7 +500,9 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   when the ticket asks for distinct sounds ("each gun has its own sound", "never the same take twice"). What the
   sound is, how it sounds, is never checked. A `PlayOneShot` clip has no name the probe can tell, and one played on a
   source that is already playing is not seen at all (docs/task-probes.md, section 2.16): where the start plays its
-  sounds that way, read the mix's `level` rising in the window instead, and never write `sounds` or `repeats`.
+  sounds that way, read the mix's `level` rising in the window instead, and never write `sounds` or `repeats`. The
+  count of starts is a lower bound for the same reason: write "a sound starts" (`>=`), never "plays once" or "never
+  twice" (`<`, `<=`, `==`; the validator warns), unless the start plays that sound as a source's own clip.
 - **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
   ship an ask nothing checks. The instruction stays plain prose, never fields.
 

@@ -409,14 +409,18 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   and `AudioListener.volume` are left out. With `near`, only a source whose `spatialBlend` is above 0 at a place within
   it. The sounds that start (`AudioStarts`, one scan a frame for every audio query, in hierarchy order within a frame):
   a source enabled and playing that wasn't the frame before, unless it goes on from where it stood (same clip, its
-  `timeSamples` not behind where it was: a pause lifted), or a playing one whose `timeSamples` went back on the same
-  clip (unless it loops and was within half a second of the clip's end: it came round). A query takes a start in the
+  `timeSamples` not behind where it was: a pause lifted), or a playing one whose clip is another than the frame
+  before or whose `timeSamples` went back on the same clip (unless it loops and was within half a second of the
+  clip's end: it came round). A query takes a start in the
   frame it begins by its select but the name (`sound_class` the group, `owner` the source's object or one above it,
   `near` its place and only a 3D source), so a source destroyed since still counts. The start is told once its name
   is settled: its source's clip when `timeSamples` moved from where it was at the start, else after 5 frames, or when
-  the source stops, without a name (`named` false: a `PlayOneShot`, an `AudioResource` that is no clip). Then the
-  query counts it in `started` (with `sound`, only a named one whose name fits), and in `started_audible` when it read
-  0.001 or louder at the listener in the frame it began. With a `near` whose point doesn't resolve the value has no
+  the source stops, without a name (`named` false: a `PlayOneShot`, an `AudioResource` that is no clip); at the
+  play's last sample (`Probe.LastSample`) every start still settling is told as it is. A query without `sound` counts
+  a start in `started` in the frame it began, and in `started_audible` when it read 0.001 or louder at the listener
+  then; one with `sound` counts it when it is told, if its name fits, and when it has no name the interval's started
+  keys have no value (it could be that sound). `starts` and `starts_total` are the starts told in the interval. The
+  checker gives `started` and `started_audible` no value over a window in which a sample lacks the key. With a `near` whose point doesn't resolve the value has no
   `count`, `audible`, `volume`, `max_volume` or `loudest` at that sample, and no started keys when a sound began
   while it didn't. The value's `starts` lists the first 64 a sample took (`t`, `sound`, `named`) and
   `starts_total` how many; the checker reads `sounds` and `repeats` from them over the samples picked
@@ -623,7 +627,11 @@ control <path>`, `inputs: no device for <path>`), never a stop.
     facing on the level, plus the offset's x and z, at the height above the ground it had (the ground: the highest
     solid collider under a place that is neither the player's nor its own, `Physics.RaycastAll` from 5 m above over
     55 m; with none, the player's height), plus the offset's y; with `at`, at that point plus the offset; either way
-    turned to face the player. Then, for `hold` seconds of play, it is put back at that place and stilled after every
+    turned to face the player. An object of a 2D game (a SpriteRenderer, a Rigidbody2D or a Collider2D on it or
+    under it) is never turned, and its `front` is along the player's facing in X (`transform.right`, the other way
+    for a negative `lossyScale.x` or a flipped sprite) over the 2D ground (`Physics2D.RaycastAll`), its z kept. An
+    object that isn't within 0.1 m of its spot after the move is a miss, and isn't held. A second pin on an object
+    replaces the first. Then, for `hold` seconds of play, it is put back at that place and stilled after every
     script's Update and again after every LateUpdate, as a held player is (`Inputs.Place`, `Inputs.Still`), while its
     own scripts run on. `probe.log` says `pinned <name> at (...) for <hold> s`.
   - `{"t", "damage": points, "to": <select>, "from": <select>}` (`from` only when set): `TakeDamage(float, GameObject)`
@@ -631,13 +639,16 @@ control <path>`, `inputs: no device for <path>`), never a stop.
     it, else of one under it (parameters after those two must have defaults, and get them), called with the points
     and the source: `from`'s nearest match, by default the player,
     or, when the player is the target, the nearest other object with an `IDamageable` component. What it returned is
-    added to the target's `damage_taken`. `probe.log` says `<points> damage to <name> from <name>: it took <n>`.
+    added to the target's `damage_taken` when it is a number (the contract's float; anything else adds nothing, and
+    `probe.log` says so). A `from` that matches nothing is a miss. `probe.log` says `<points> damage to <name> from <name>: it took <n>`.
   - `{"t", "set": "<path>", "on": <select>, "value": v, "all": true}` (`all` only when set): `Reflect.Write` on the
     nearest match, or on every match: the path as a `prop:` field resolves it (a component by type name, else the
     GameObject, else its Transform), no index; a field that isn't readonly or constant, or a property with a setter,
-    public or not; a boolean for a bool, a number for a number or an enum, a string for a string or an enum's name.
+    public or not; a boolean for a bool, a number for a number or an enum (a whole number for a whole-number
+    member, never rounded), a string for a string or an enum's name.
     The member is read back, and one that doesn't read the value written (a setter that refuses or clamps) is a miss.
-  - A stage nothing took is a row of `inputs_missed` (section 5) and a `probe.log` line, and nothing is done: a pin no
+  - A stage nothing took is a row of `inputs_missed` (section 5, never left out by its cap of 400) and a `probe.log`
+    line, and nothing is done; so is one that threw (`it threw <type>`): a pin no
     object but the player matches, or whose `at` doesn't resolve; a damage with no target, a target without the
     interface, or a `TakeDamage` that threw; a set no object matches, or that some matches didn't take (no such
     member, one that can't be written, a member of a struct, a value of another kind, a value not read back). The
@@ -673,7 +684,8 @@ task play `scenario_two`, with its queries as `probes.plan` makes them (the ids 
 
 - What varies: `out` (the copy's), the play's `seconds`, `shots`, `every`, `scene` (null: the game's first build
   scene), the task's `player` select (null: the probe finds the player, section 1), its `inputs` with the checker's
-  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`), `keep_saves` (true, and only there,
+  defaults filled in (`tasks.inputs`), `sound` (true when the play is paced to real time: a query is `audio` or
+  `world`, or an `objects` query reads `frozen`; `probes.paced`), `keep_saves` (true, and only there,
   for a task play that names `after`) and the queries. A desktop game's spec says
   nothing of the window: the command line's `-screen-width 960 -screen-height 540` sets it, and the probe holds it
   there. A mobile game's (the copy has a `Platform.json`, read by `unity.Project.mobile` through the validator's

@@ -665,8 +665,8 @@ class MoreFairReadings(unittest.TestCase):
                           probe("quiet", play={"name": "quiet", "seconds": 10},
                                 measure={"probe": "player", "field": "y"}))
         plays = probes.plan(heard)
-        self.assertTrue(probes.hears(plays["look"]) and probes.hears(probes.query_file(plays["look"])))
-        self.assertFalse(probes.hears(plays["quiet"]) or probes.hears(None))
+        self.assertTrue(probes.paced(plays["look"]) and probes.paced(probes.query_file(plays["look"])))
+        self.assertFalse(probes.paced(plays["quiet"]) or probes.paced(None))
         specs = []
 
         def job(label, argv, cwd, timeout, gpu=False):

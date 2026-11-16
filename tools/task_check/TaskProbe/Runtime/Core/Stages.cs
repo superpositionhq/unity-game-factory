@@ -58,7 +58,9 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- pin
 
-        /// <summary>{"t", "pin": select, "hold": s, "front": m | "at": point, "offset": [x, y, z]}</summary>
+        /// <summary>{"t", "pin": select, "hold": s, "front": m | "at": point, "offset": [x, y, z]}. An object of a 2D
+        /// game (a sprite, a 2D body or collider on it or under it) is never turned, and `front` is along the player's
+        /// facing in X. A second pin on an object takes the first's place.</summary>
         public void Pin(Dictionary<string, object> row, double elapsed)
         {
             var t = Json.Num(row, "t", 0.0);
@@ -68,21 +70,50 @@ namespace TaskProbe
             var offset = Vector3.zero;
             if (row.TryGetValue("offset", out var o)) Json.TryVec3(o, out offset);
             var at = Json.Obj(row, "at");
-            var point = Vector3.zero;
-            if (at != null && !Find.Point(at, out point)) { probe.Missed(t, "pin", "at", "its point doesn't resolve (no object matches it, or no player)"); return; }
-            var front = Json.TryNum(row, "front", out var metres);
-            if ((front || at != null) && player != null)
+            var flat = Flat(go);
+            Vector3? spot = null;
+            if (at != null)
             {
-                var spot = at != null ? point + offset : Ahead(player, go, (float)metres, offset);
-                var look = player.transform.position - spot;
-                var yaw = look.x * look.x + look.z * look.z > 1e-4f ? Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg : go.transform.eulerAngles.y;
-                Inputs.Place(go, spot, yaw);
+                if (!Find.Point(at, out var point)) { probe.Missed(t, "pin", "at", "its point doesn't resolve (no object matches it, or no player)"); return; }
+                spot = point + offset;
             }
-            else if (front) { probe.Missed(t, "pin", "front", "no player to set it ahead of"); return; }
+            else if (Json.TryNum(row, "front", out var metres))
+            {
+                if (player == null) { probe.Missed(t, "pin", "front", "no player to set it ahead of"); return; }
+                spot = flat ? Ahead2D(player, go, (float)metres, offset) : Ahead(player, go, (float)metres, offset);
+            }
+            if (spot.HasValue)
+            {
+                float? yaw = null;
+                if (!flat && player != null)
+                {
+                    var look = player.transform.position - spot.Value;
+                    if (look.x * look.x + look.z * look.z > 1e-4f) yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+                }
+                Inputs.Place(go, spot.Value, yaw);
+                var now = go.transform.position;
+                if ((now - spot.Value).magnitude > 0.1f)
+                {
+                    probe.Missed(t, "pin", go.name, FormattableString.Invariant(
+                        $"it couldn't be set at ({spot.Value.x:F2}, {spot.Value.y:F2}, {spot.Value.z:F2}): it is at ({now.x:F2}, {now.y:F2}, {now.z:F2})"));
+                    return;
+                }
+            }
             var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 600.0);
             var here = go.transform.position;
+            pinned.RemoveAll(p => p.Object == go);
             pinned.Add(new Pinned { Object = go, At = here, Until = elapsed + hold });
             Probe.Log(FormattableString.Invariant($"pinned {go.name} at ({here.x:F2}, {here.y:F2}, {here.z:F2}) for {hold:F1} s"));
+        }
+
+        /// <summary>Whether an object is a 2D game's: a SpriteRenderer, a Rigidbody2D or a Collider2D on it or under it.</summary>
+        static bool Flat(GameObject go)
+        {
+            if (go.GetComponentInChildren<SpriteRenderer>(true) != null) return true;
+#if TASKPROBE_PHYSICS2D
+            if (go.GetComponentInChildren<Rigidbody2D>(true) != null || go.GetComponentInChildren<Collider2D>(true) != null) return true;
+#endif
+            return false;
         }
 
         /// <summary>Where a pin sets an object ahead of the player: `front` metres along the player's facing on the level
@@ -98,6 +129,41 @@ namespace TaskProbe
             var above = Ground(here, player, go, out var was) ? here.y - was : here.y - feet.y;
             var y = Ground(new Vector3(spot.x, feet.y, spot.z), player, go, out var now) ? now + above : feet.y + above;
             return new Vector3(spot.x, y + offset.y, spot.z);
+        }
+
+        /// <summary>The same in a 2D game: `front` metres along the player's facing in X (its right, the other way when
+        /// its scale in X is negative or its sprite is flipped), at the height above the ground below it that it had,
+        /// its own depth kept.</summary>
+        static Vector3 Ahead2D(GameObject player, GameObject go, float front, Vector3 offset)
+        {
+            var facing = player.transform.right.x >= 0f ? 1f : -1f;
+            if (player.transform.lossyScale.x < 0f) facing = -facing;
+            var sprite = player.GetComponentInChildren<SpriteRenderer>();
+            if (sprite != null && sprite.flipX) facing = -facing;
+            var feet = player.transform.position;
+            var x = feet.x + facing * front + offset.x;
+            var here = go.transform.position;
+            var above = Ground2D(here, player, go, out var was) ? here.y - was : here.y - feet.y;
+            var y = Ground2D(new Vector3(x, feet.y, here.z), player, go, out var now) ? now + above : feet.y + above;
+            return new Vector3(x, y + offset.y, here.z + offset.z);
+        }
+
+        static bool Ground2D(Vector3 at, GameObject player, GameObject go, out float height)
+        {
+            height = 0f;
+#if TASKPROBE_PHYSICS2D
+            var found = false;
+            foreach (var hit in Physics2D.RaycastAll(new Vector2(at.x, at.y + 5f), Vector2.down, 55f))
+            {
+                if (hit.collider == null || hit.collider.isTrigger) continue;
+                var t = hit.collider.transform;
+                if (t.IsChildOf(player.transform) || t.IsChildOf(go.transform)) continue;
+                if (!found || hit.point.y > height) { height = hit.point.y; found = true; }
+            }
+            return found;
+#else
+            return false;
+#endif
         }
 
         /// <summary>The height of the ground under a place: the nearest solid collider below 5 m above it that is neither
@@ -145,7 +211,11 @@ namespace TaskProbe
             if (target == null) { probe.Missed(t, "damage", "to", "no object matches it"); return; }
             var player = probe.Player;
             GameObject from;
-            if (Json.Obj(row, "from") is Dictionary<string, object> select) from = Nearest(select, "inputs: damage from");
+            if (Json.Obj(row, "from") is Dictionary<string, object> select)
+            {
+                from = Nearest(select, "inputs: damage from");
+                if (from == null) { probe.Missed(t, "damage", "from", "no object matches it"); return; }
+            }
             else if (target == player) from = Nearest(new Dictionary<string, object> { ["component"] = Damageable }, null);
             else from = player;
             var part = Entry(target, out var method, out var named);
@@ -170,11 +240,17 @@ namespace TaskProbe
                 Probe.Log((e.InnerException ?? e).ToString());
                 return;
             }
-            var took = returned is IConvertible ? Convert.ToDouble(returned, CultureInfo.InvariantCulture) : 0.0;
-            if (double.IsNaN(took) || double.IsInfinity(took)) took = 0.0;
+            // the contract's TakeDamage returns the damage applied, a number: one that returns none says nothing of
+            // what the hit did, so the object's damage_taken keeps no value for it
+            var numeric = returned != null && returned.GetType().IsPrimitive && !(returned is bool) && !(returned is char);
+            var took = numeric ? Convert.ToDouble(returned, CultureInfo.InvariantCulture) : double.NaN;
+            if (double.IsNaN(took) || double.IsInfinity(took))
+            {
+                Probe.Log(FormattableString.Invariant($"{amount:F1} damage to {target.name} from {(from != null ? from.name : "nothing")}: its {TakeDamage} returned no number, so its damage_taken has no value"));
+                return;
+            }
             Taken[target.GetInstanceID()] = (DamageTaken(target) ?? 0.0) + took;
-            Probe.Log(FormattableString.Invariant($"{amount:F1} damage to {target.name} from {(from != null ? from.name : "nothing")}: it took {took:F1}")
-                      + (returned is IConvertible ? "" : " (its " + TakeDamage + " returns no number)"));
+            Probe.Log(FormattableString.Invariant($"{amount:F1} damage to {target.name} from {(from != null ? from.name : "nothing")}: it took {took:F1}"));
         }
 
         /// <summary>The damage entry of `target`: a component whose type implements an interface named IDamageable that
