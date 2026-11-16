@@ -13,8 +13,8 @@ stopped.
 
 **Another factory on the same PC.** Both can live on one machine. This one has its own root
 (`%USERPROFILE%\UnityWork`), config (`%USERPROFILE%\.unity-game-factory\config.json`), hooks folder
-(`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-sound`,
-`unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
+(`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-desktop-game`,
+`unity-mobile-game`, `unity-sound`, `unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
 session is recorded by the factory whose `games\<slug>` folder one of its tool calls names. The two share one thing on
 purpose: the
 machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as that factory's `ue-heavy.ps1`, and also
@@ -87,8 +87,9 @@ Setup prints these as TODOs (as notes where a PC may not need them) and detects 
 | Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). Every editor run needs it, batchmode too. | the licence file Unity Hub writes (`%LOCALAPPDATA%\Unity\licenses\`) or a serial activation's (`%ProgramData%\Unity\Unity_lic.ulf`); a licence server's floating seat leaves neither, so `check.ps1` only warns |
 | Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
+| Android toolchain (mobile games' APKs only) | In Unity Hub: **Installs** > the 6.3 LTS editor's gear > **Add modules** > **Android Build Support** with **OpenJDK** and **Android SDK & NDK Tools**, and approve the Windows prompt ([Mobile games](#mobile-games)). Without it everything else works: a mobile game is built, played and recorded as its Windows player, and its release build skips the APK and says so. | `check.ps1` (WARN only) |
 | NVIDIA driver (if you have an NVIDIA GPU; for recording) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
-| Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window: Settings > System > Display | `check.ps1` |
+| Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window (a mobile game held upright, 1080x1920, is recorded on it too: in a window larger than the screen, captured as a window): Settings > System > Display | `check.ps1` |
 | Asset Store | only to download store packs for a **new** game: in the editor, **Window > Package Manager > My Assets** (signed in with the account that owns them) > Download. Downloads land in `%APPDATA%\Unity\Asset Store-5.x\`. Purchases and licence choices stay with their owner. | `check.ps1` counts the downloads |
 | Agent sign-in | Claude Code: run `claude` once (or open the desktop app) and sign in. Codex: `codex login` (setup runs it; `--device-auth` without a browser) | Claude: not detectable; Codex: `codex login status` |
 
@@ -133,11 +134,34 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
   with `-CloneGames` every `<org>/unity-game-*` repo.
 
 `machine/check.ps1` reports PASS / WARN / FAIL for the toolchain (Unity Hub, the 6.3 LTS editor new games use with
-IL2CPP support, the editors the games here name, C++ tools for IL2CPP), GitHub access, display and power, disk, the
+IL2CPP support and whether it has the Android toolchain for mobile games' APKs, the editors the games here name, C++
+tools for IL2CPP), GitHub access, display and power, disk, the
 pinned ffmpeg (NVENC test), config, job slots, layout,
 hooks, skills, game repo hooks and the asset library; its exit code is the number of FAILs; for each agent it also
 checks the install, the sign-in (Codex) and that the hooks are wired (and, for Codex, trusted). Details of every file:
 [../machine/README.md](../machine/README.md).
+
+## Mobile games
+
+A mobile game (an Android phone game, `templates/new-game.ps1 -Platform mobile`) is created, built, played, checked and
+recorded on this PC as its Windows player, with what every game needs. Only its Android APK, which the release build
+makes (`tools/unity-pipeline/build.ps1`), needs more: the editor's **Android Build Support** module with its
+**OpenJDK** and **Android SDK & NDK Tools**, about 3 GB to download and 10 GB installed, under the editor's own
+folder (`<editor>\Editor\Data\PlaybackEngines\AndroidPlayer\` with `OpenJDK\`, `SDK\` and `NDK\`).
+
+- At the PC: Unity Hub > **Installs** > the editor's gear > **Add modules**, tick the three, **Install**, and approve
+  the Windows prompt that follows.
+- From a shell: `"C:\Program Files\Unity Hub\Unity Hub.exe" -- --headless install-modules --version <6000.3.x> -m
+  android android-sdk-ndk-tools <the OpenJDK module's id> --childModules`. The OpenJDK module's id carries its version
+  (`android-open-jdk-17.0.18+8` for 6000.3.26f1): the editor's `modules.json`, beside its `Editor\` folder, lists the
+  ids, and the Hub names the right one when given `android-open-jdk`. The Hub downloads without a word, then asks
+  Windows for elevation with a prompt on the desktop: someone must be at the PC to approve it, also when the shell
+  itself is elevated. Unattended (over SSH, from a scheduled task) it ends with `The Windows elevation prompt was
+  cancelled or timed out` and installs nothing.
+
+`machine/check.ps1` says which of the three the editor has (`Android toolchain (mobile games)`, a WARN when one is
+missing). Without them `build.ps1` builds a mobile game's Windows player, skips the APK with a line that says so and
+records it in `build_info.json` (`apk.status` `skipped`); the dataset then ships without the APK, with a warning.
 
 ## Toolchain notes
 

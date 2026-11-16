@@ -436,6 +436,73 @@ class Complete(unittest.TestCase):
 
 
 @unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
+class Mobile(unittest.TestCase):
+    """A mobile game's release (the commit has a Platform.json): the manifest says the platform, Build/ holds the APK
+    of the pipeline's build beside the Windows player, and the README says what the game is made for."""
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='ugfm')
+        inp = cls.inp = make_inputs(cls.tmp, recorded=False)
+        base.make_mobile(inp['repo'], 'landscape')
+        head = cls.head = commit(inp['repo'], {}, 'Make it a phone game')
+        d = pipeline_build(inp, head)
+        apk = b'PK\x03\x04' + bytes(range(64))
+        base.write(d, 'Android/KilnRun.apk', apk)
+        info = json.loads(base.read(os.path.join(d, 'build_info.json')))
+        info.update(platform='mobile', orientation='landscape', window=[1920, 1080],
+                    apk={'status': 'ok', 'file': 'Android\\KilnRun.apk', 'bytes': len(apk), 'sha256': hashlib.sha256(apk).hexdigest(),
+                         'package': 'com.kilnrun.game', 'version_code': 1, 'version_name': '1.0', 'min_sdk': 26, 'target_sdk': 34,
+                         'abi': 'arm64-v8a'})
+        base.write(d, 'build_info.json', json.dumps(info))
+        cls.build_dir, cls.info = d, info
+        bundle(inp, head, 1, '20990101-000100')
+        cls.res = run(inp, build=False)
+        cls.zip = os.path.join(inp['repo'], 'Dataset.pending.zip')
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, onerror=base.onerror)
+
+    def test_the_manifest_says_the_platform_and_names_the_apk(self):
+        self.assertEqual(self.res.returncode, 0, self.res.stdout + self.res.stderr)
+        m = manifest_of(self.zip)
+        self.assertEqual(m['platform'], {'kind': 'mobile', 'orientation': 'landscape'})
+        self.assertEqual({k: m['build'][k] for k in ('exe', 'apk', 'package', 'version_code', 'version_name', 'min_sdk', 'target_sdk')},
+                         {'exe': 'Build/KilnRun.exe', 'apk': 'KilnRun.apk', 'package': 'com.kilnrun.game', 'version_code': 1,
+                          'version_name': '1.0', 'min_sdk': 26, 'target_sdk': 34})
+        with zipfile.ZipFile(self.zip) as z:
+            names = {n[len(SLUG) + 1:] for n in z.namelist()}
+            readme = z.read(f'{SLUG}/README.md').decode()
+            repo_manifest = json.loads(base.read(os.path.join(self.inp['repo'], 'Dataset', 'manifest.json')))
+        self.assertLessEqual({'Build/KilnRun.exe', 'Build/KilnRun.apk', 'UnityProject/Platform.json'}, names)
+        self.assertIn('the Android APK (`Build/KilnRun.apk`, arm64, package `com.kilnrun.game`)', readme)
+        self.assertIn('made for an Android phone held in landscape', readme)
+        self.assertEqual(repo_manifest['platform'], {'kind': 'mobile', 'orientation': 'landscape'})
+        rep = vg.Report()
+        vg.check_dataset(rep, self.zip, 'dataset')
+        self.assertEqual(base.errors(rep), [])
+
+    def test_a_build_without_the_android_toolchain_ships_the_player_alone(self):
+        info = dict(self.info, apk={'status': 'skipped', 'reason': 'this editor has no Android Build Support'})
+        base.write(self.build_dir, 'build_info.json', json.dumps(info))
+        self.addCleanup(base.write, self.build_dir, 'build_info.json', json.dumps(self.info))
+        out = os.path.join(self.tmp, 'elsewhere')   # the class's own zip stays as it is
+        res = run(self.inp, '--no-repo-dataset', '--out', out, build=False)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn('a mobile game without its APK: this editor has no Android Build Support', res.stdout + res.stderr)
+        made = os.path.join(out, 'Dataset.pending.zip')
+        m = manifest_of(made)
+        self.assertEqual(m['platform'], {'kind': 'mobile', 'orientation': 'landscape'})
+        self.assertNotIn('apk', m['build'])
+        with zipfile.ZipFile(made) as z:
+            self.assertNotIn(f'{SLUG}/Build/KilnRun.apk', z.namelist())
+
+    def test_a_desktop_games_manifest_has_no_platform(self):
+        self.assertNotIn('platform', json.dumps(PKG.LAYOUT_SPEC['manifest']['required_keys']))
+        self.assertEqual(PKG.probe_video.__defaults__, (None,))
+
+
+@unittest.skipUnless(base.HAS_LFS, 'git-lfs is not installed')
 class Products(unittest.TestCase):
     """What the release's build, recordings and replay decide, one case each."""
     def setUp(self):

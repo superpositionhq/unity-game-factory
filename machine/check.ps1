@@ -3,7 +3,8 @@
   Check that this machine can run unity-game-factory sessions; prints a PASS / WARN / FAIL report. Read-only.
 .DESCRIPTION
   Toolchain: Unity Hub and a Unity licence, the Unity 6.3 LTS editor new games use (the config's unity_version) with
-  Windows Build Support (IL2CPP), the editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN
+  Windows Build Support (IL2CPP) and whether it has the Android toolchain a mobile game's APK needs (WARN only), the
+  editors the games here name, Visual Studio's C++ tools for IL2CPP builds (WARN
   only: Mono builds need none), git + Git LFS, gh (logged in, can see the org's repos), Python. Recording (what
   tools/unity-pipeline/record.ps1 needs; WARN only: a machine that does not record needs none): NVIDIA driver (NVENC
   with the pinned ffmpeg), the primary display, refresh rate, display sleep off, the pinned ffmpeg (tools/sfx.py uses it
@@ -89,6 +90,12 @@ Try-Check 'Unity 6.3 LTS editor' {
     $il2cpp = (Test-Path $ws) -and @(Get-ChildItem (Join-Path $ws 'Variations') -Directory -ErrorAction SilentlyContinue | Where-Object Name -match 'il2cpp').Count -gt 0
     if ($il2cpp) { Add-Result PASS 'Windows Build Support (IL2CPP)' $ver }
     else { Add-Result WARN 'Windows Build Support (IL2CPP)' "not found for $ver (Mono player builds still work)" "Unity Hub > Installs > $ver > Add modules > Windows Build Support (IL2CPP)" }
+    # A mobile game's APK: Android Build Support with its OpenJDK and Android SDK & NDK tools under the same editor
+    # (lib\ugf-root.ps1 Get-UGFAndroidToolchain, what tools\unity-pipeline\build.ps1 asks before its APK step). A WARN,
+    # never a FAIL: only a mobile game's release needs it, and without it that step is skipped and says so.
+    $android = Get-UGFAndroidToolchain $exe
+    if ($android.Ok) { Add-Result PASS 'Android toolchain (mobile games)' "$ver has Android Build Support with OpenJDK, SDK and NDK" }
+    else { Add-Result WARN 'Android toolchain (mobile games)' "not found for $ver" "only for a mobile game's APK (its release build skips the APK without it): Unity Hub > Installs > $ver > Add modules > Android Build Support, with OpenJDK and Android SDK & NDK Tools (docs/new-machine.md, `"Mobile games`")" }
 }
 # A game builds, tests and plays only on the exact editor its ProjectSettings\ProjectVersion.txt names (Get-UGFUnity).
 Try-Check 'Unity editors of the games' {
@@ -158,7 +165,8 @@ Try-Check 'Primary display' {
     Add-Type -Namespace UgfCheck -Name Metrics -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int i); [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
     [void][UgfCheck.Metrics]::SetProcessDPIAware()   # physical pixels, as a desktop capture sees them
     $w = [UgfCheck.Metrics]::GetSystemMetrics(0); $h = [UgfCheck.Metrics]::GetSystemMetrics(1)
-    if ($w -ge 1920 -and $h -ge 1080) { Add-Result PASS 'Primary display' "${w}x${h} (holds a 1920x1080 player window)" }
+    if ($w -ge 1920 -and $h -ge 1920) { Add-Result PASS 'Primary display' "${w}x${h} (holds a 1920x1080 player window, and a mobile game's held upright, 1080x1920)" }
+    elseif ($w -ge 1920 -and $h -ge 1080) { Add-Result PASS 'Primary display' "${w}x${h} (holds a 1920x1080 player window; a mobile game held upright, 1080x1920, is recorded in a window larger than the screen, by a capture of the window itself)" }
     else { Add-Result WARN 'Primary display' "${w}x${h}" 'only for recording: record.ps1 centres a 1920x1080 player window on the primary display: use a display (and scaling) of at least 1920x1080' }
 }
 Try-Check 'Display refresh rate' {

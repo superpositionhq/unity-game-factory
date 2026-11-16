@@ -72,6 +72,7 @@ sys.path.insert(0, os.path.join(REPO, 'machine', 'lib'))
 import ugfroot  # noqa: E402
 
 LAYOUT = 'unity-dataset-layout/v1'
+PHONE_VIDEO = {'landscape': (1920, 1080), 'portrait': (1080, 1920)}   # a mobile game's gameplay videos, by how it is held
 with open(os.path.join(REPO, 'docs', 'dataset-layout-v1.json'), encoding='utf-8') as _f:
     LAYOUT_SPEC = json.load(_f)
 SECTIONS = ('Requirements', 'Package contents', 'Play the game', 'Replay the creation process',
@@ -1073,10 +1074,12 @@ def find_ffprobe():
     return next((c for c in cands if c and os.path.isfile(c)), None)
 
 
-def probe_video(ffprobe, path):
+def probe_video(ffprobe, path, size=None):
     """(why it is not the layout's gameplay video or None, seconds): an mp4 with one h264 1920x1080 stream and aac audio
-    (dataset-layout-v1.json gameplay_video)."""
-    want = LAYOUT_SPEC['gameplay_video']
+    (dataset-layout-v1.json gameplay_video); `size`: a mobile game's (width, height), the phone's for how it is held."""
+    want = dict(LAYOUT_SPEC['gameplay_video'])
+    if size:
+        want['width'], want['height'] = size
     try:
         r = subprocess.run([ffprobe, '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height:format=format_name,duration',
                             '-of', 'json', path], capture_output=True, timeout=300)
@@ -1101,7 +1104,7 @@ def probe_video(ffprobe, path):
     return None, seconds
 
 
-def gameplay_runs(root, game, sha, exclude, ffprobe):
+def gameplay_runs(root, game, sha, exclude, ffprobe, size=None):
     """Per scenario, the first valid recording of the release commit, by run id (<game>_S<n>_<yyyyMMdd-HHmmss>_s<seed>:
     the earliest first): <root>/recordings/<game>/<run id>/ with metadata.json (unity-autoplay-bundle/v1) build.commit =
     the release commit, validation.json status ok or warn (written last, so a run still being written is not taken),
@@ -1148,7 +1151,7 @@ def gameplay_runs(root, game, sha, exclude, ffprobe):
         gm = meta.get('gameplay_mp4') or {}
         seconds = ((val.get('checks') or {}).get('video') or {}).get('duration_s') or gm.get('duration_s')
         if ffprobe:
-            bad, probed = probe_video(ffprobe, lp(mp4))
+            bad, probed = probe_video(ffprobe, lp(mp4), size)
             if bad:
                 skipped.append((name, f'gameplay.mp4 is not the layout\'s video ({bad}): tools/unity-pipeline/gameplay-mp4.ps1 '
                                       f'{game} -RunId {name} -Force writes it again'))
@@ -1722,7 +1725,8 @@ def package(args):
         raise Refused(f'no game repo at {repo}')
     rules = check_rules(repo)
     if rules:
-        raise Refused('the game fails the game contract or the sound rule: bring it up to them before packaging\n  '
+        raise Refused('the game fails the game contract, the sound rule or, a mobile game, its project settings: bring '
+                      'it up to them before packaging\n  '
                       + '\n  '.join(rules))
     recording = os.path.abspath(args.recording or os.path.join(ugfroot.root(), '.recording', game))
     out_root = os.path.abspath(args.out or repo)
@@ -1756,6 +1760,15 @@ def package(args):
     if job:   # build.ps1 or record.ps1 is writing this game's player or a recording
         problems.append(f'error: the pipeline is working on {game} right now: {job}; package after it finishes')
     lineage = {c: i for i, c in enumerate(git_text(repo, 'rev-list', sha).split())}
+    # what the game is made for at the release commit: a desktop game, or an Android phone game (its Platform.json,
+    # read by the one reader of it, tools/validate-game.py)
+    orientation = None
+    said = blob_at(repo, sha, 'Platform.json')
+    if said is not None:
+        try:
+            orientation = tool('validate_game', 'validate-game.py').platform_said(said)
+        except ValueError as e:
+            problems.append(f'error: {e} (at the release commit)')
     build_info = None
     if args.build:   # a pipeline build folder (its player in Windows/, build_info.json beside it), or a player folder
         build = os.path.abspath(args.build)
@@ -1800,7 +1813,8 @@ def package(args):
                             f'{later[0][0][:8]} "{later[0][2][:60]}"): build the release commit before packaging')
     ffprobe = find_ffprobe()
     exclude_runs = {s.strip() for s in args.exclude_runs.split(',') if s.strip()}
-    runs, skipped_runs = gameplay_runs(root, game, sha, exclude_runs, ffprobe)
+    runs, skipped_runs = gameplay_runs(root, game, sha, exclude_runs, ffprobe,
+                                       PHONE_VIDEO[orientation] if orientation else None)
     for name, why in skipped_runs:
         warnings.append(f'recording {name} not taken: {why}')
     ready = ready_scenarios(repo, sha)
@@ -1992,6 +2006,24 @@ def package(args):
             full = os.path.join(d, f)
             copy_file(full, os.path.join(stage, 'Build', os.path.relpath(full, lp(build))))
             n_build += 1
+    # a mobile game's APK, from the pipeline build that made the player (build_info.json apk, read back there with
+    # aapt2); a build made on a machine without the Android toolchain has none, and the delivery says so
+    apk = None
+    if orientation:
+        made = (build_info or {}).get('apk') or {}
+        apk_src = (os.path.join(os.path.dirname(build), str(made.get('file') or '').replace('\\', os.sep))
+                   if made.get('status') == 'ok' else None)
+        if apk_src and os.path.isfile(lp(apk_src)):
+            if sha256_file(apk_src) != made.get('sha256'):
+                raise Refused(f'{apk_src} is not the APK build_info.json describes (its sha256 differs): build the release commit again')
+            apk = {'apk': os.path.basename(apk_src), **{k: made[k] for k in ('package', 'version_code', 'version_name', 'min_sdk', 'target_sdk')}}
+            copy_file(apk_src, os.path.join(stage, 'Build', apk['apk']))
+            n_build += 1
+            step(f'build: the APK {apk["apk"]} ({apk["package"]}, minSdk {apk["min_sdk"]}, targetSdk {apk["target_sdk"]})')
+        else:
+            warnings.append('a mobile game without its APK: ' + (str(made.get('reason')) if made.get('status') == 'skipped' else
+                            'the player is not a pipeline build that made one') + '. Build/ holds the Windows player alone; build the '
+                            'release commit on a machine with the Android toolchain (tools/unity-pipeline/build.ps1) and package again')
 
     # ---- Tasks ----
     step(f'tasks: {len(task_files)} from Tasks/ on {tasks_at[0]} ({tasks_at[1][:12]})')
@@ -2065,6 +2097,7 @@ def package(args):
         rv = replay_verification(delivered)
     ses_files = [n for n in ('messages.jsonl', 'actions.jsonl') if os.path.isfile(lp(os.path.join(hist, 'sessions', n)))]
     ctx = dict(game=game, title=title, version=args.version, head=head, exe=exe, shots=shots, task_rows=task_rows,
+               orientation=orientation, apk=apk,
                readme_src=readme_src, sessions=ses_files, engine=ugfroot.project_unity_version(project) or '6000.3',
                pending=pending, runs=runs, rv=rv)
     write_text(os.path.join(stage, 'README.md'), remap_text(apply_rules(dataset_readme(ctx, False), rules, False, False), cmap))
@@ -2156,10 +2189,13 @@ def package(args):
             'pending': list(pending), 'created': datetime.now().astimezone().isoformat(timespec='seconds'), 'replay_verification': rv,
             'scenarios': scenarios,
             'brief': {'brief': 'Brief/brief.md', 'design': 'Brief/design.md'}}
+    if orientation:   # a desktop game's manifest is as it always was
+        base['platform'] = {'kind': 'mobile', 'orientation': orientation}
     write_manifest(stage, dict(base, variant='full', history=history,
                                build={'config': 'Release', 'commit': cmap.get(build_commit, head), 'exe': f'Build/{exe}',
                                       'source': build_source.replace('{}', 'the release commit' if build_commit == sha else
-                                                                     f'commit {cmap.get(build_commit, head)[:12]}')},
+                                                                     f'commit {cmap.get(build_commit, head)[:12]}'),
+                                      **(apk or {})},
                                tasks={'count': len(task_rows), 'names': [r['name'] for r in task_rows], 'schema': 'game-task/1'}))
     mhits = [mm.group(0) for mm in enforced.finditer(read_bytes(os.path.join(stage, 'manifest.json')).decode('latin-1'))]
     if mhits:
@@ -2578,8 +2614,11 @@ def dataset_readme(c, repo):
         a += [intro, '']
     a += [f'Version {c["version"] or "(not numbered)"}, release commit `{c["head"]}`.', '',
           '## Requirements', '',
-          f'- Unity {c["engine"]} (Unity 6.3 LTS, with Windows Build Support) to open the project' + ('.' if repo else '; nothing to run the built player.'),
+          f'- Unity {c["engine"]} (Unity 6.3 LTS, with Windows Build Support' + (' and, to build the APK, Android Build Support' if c.get('orientation') else '')
+          + ') to open the project' + ('.' if repo else '; nothing to run the built player.'),
           '- 64-bit Windows 10/11 for the built player.', '- `git` and `git-lfs` to restore the history.']
+    if c.get('apk'):
+        a.insert(-1, f'- An Android phone (arm64, Android API level {c["apk"]["min_sdk"]} or later) for the APK.')
     if rv:
         a.append('- Python 3.10+ and the Unity editor of each commit to run the creation replay (`ReplayScripts/README.md`).')
     a += ['', '## Package contents', '']
@@ -2606,17 +2645,26 @@ def dataset_readme(c, repo):
         a.append(f'- `Tasks/` — {len(c["task_rows"])} task(s) on this game for a game-creation environment (`Tasks/README.md`).')
     if runs:
         a.append(f'- `Gameplay/` — {"a video of one scenario" if len(runs) == 1 else f"videos of {len(runs)} scenarios"} of this version, played '
-                 'through by the game\'s AutoPlay bot with the game audio (1920x1080, 60 fps, H.264 and AAC).')
+                 'through by the game\'s AutoPlay bot with the game audio ('
+                 + ('{}x{}'.format(*PHONE_VIDEO[c['orientation']]) if c.get('orientation') else '1920x1080') + ', 60 fps, H.264 and AAC).'
+                 + (' The game is an Android phone game: the videos are of its Windows player in a window of the phone\'s size, '
+                    'played by touch.' if c.get('orientation') else ''))
     else:
         a.append('- `Gameplay/` — videos of the recorded scenarios, played through with the game audio. *(pending)*')
     if not repo:
-        a.append(f'- `Build/` — the Windows release player (`Build/{c["exe"]}`).')
+        a.append(f'- `Build/` — the Windows release player (`Build/{c["exe"]}`)'
+                 + (f' and the Android APK (`Build/{c["apk"]["apk"]}`, arm64, package `{c["apk"]["package"]}`).' if c.get('apk') else
+                    '; the Android APK is not in this delivery (it was built on a machine without the Android toolchain).'
+                    if c.get('orientation') else '.'))
     a += ['- `Screenshots/` — the images in this README.', '- `manifest.json` — path, size and sha256 of every file, and the release metadata.', '',
           'Keep these files and folders together.', '', '## Play the game', '']
     if repo:
         a.append(f'Open the repository root as a project in Unity {c["engine"]} and press **Play**.')
     else:
-        a.append(f'Run `Build/{c["exe"]}` (no installation), or open `UnityProject/` in Unity {c["engine"]} and press **Play**.')
+        a.append(f'Run `Build/{c["exe"]}` (no installation), or open `UnityProject/` in Unity {c["engine"]} and press **Play**.'
+                 + (f' The game is made for an Android phone held in {c["orientation"]}: the Windows player opens in a window of '
+                    'the phone\'s size and the mouse is the finger' + (f'; `Build/{c["apk"]["apk"]}` installs on a phone '
+                    '(`adb install`).' if c.get('apk') else '.') if c.get('orientation') else ''))
     play = md_section(c['readme_src'], r'^(how to )?play|^controls')
     if play:
         a += ['', '\n'.join(l for l in play.splitlines() if not re.search(r'Build[/\\]', l)).strip()]

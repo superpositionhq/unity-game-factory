@@ -124,6 +124,44 @@ function Get-PlayerBuildInfo([string]$ProjectDir) {
     return [pscustomobject]@{ ProjectName = $Matches[1]; Method = "$ns.BuildPlayer.BuildWindows" }
 }
 
+# What a game folder (a game, or the pipeline's clone of one at a commit) is made for: {platform = 'desktop'}, or
+# {platform = 'mobile'; orientation; width; height} for an Android phone game, whose root has a Platform.json
+# (docs/game-format.md, "Platform"). The file is read in one place, tools\validate-game.py (read_platform): a game
+# without it is a desktop game and needs no Python here; one that says neither stops the job.
+function Get-GamePlatform([string]$ProjectDir) {
+    if (-not (Test-Path -LiteralPath (Join-Path $ProjectDir 'Platform.json'))) { return [pscustomobject]@{ platform = 'desktop' } }
+    $py = Get-Command python -ErrorAction SilentlyContinue | Where-Object { $_.Source -notmatch 'WindowsApps' } | Select-Object -First 1
+    if (-not $py) { throw "$ProjectDir has a Platform.json (a mobile game), and reading it needs Python (machine\check.ps1: Python)" }
+    $reader = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\validate-game.py'))
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $out = @(& $py.Source $reader --platform $ProjectDir 2>&1 | ForEach-Object { "$_" })
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $eap
+    if ($code -ne 0) { throw "Platform.json of ${ProjectDir}: $($out -join ' ')" }
+    return ($out | Select-Object -Last 1 | ConvertFrom-Json)
+}
+
+# The window every play and recording of a build runs in: 1920x1080, or the phone's size of a mobile game's build
+# (build_info.json platform / orientation, written by build.ps1 from the game's Platform.json).
+function Get-BuildWindow($BuildInfo) {
+    if ((Get-Prop $BuildInfo 'platform') -eq 'mobile' -and (Get-Prop $BuildInfo 'orientation') -eq 'portrait') { return @(1080, 1920) }
+    return @(1920, 1080)
+}
+
+# What an APK says of itself (aapt2 dump badging): package, version_code, version_name, min_sdk, target_sdk and its
+# ABIs (native-code). $null when aapt2 cannot read it.
+function Read-ApkBadging([string]$Aapt2, [string]$Apk) {
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $text = (& $Aapt2 dump badging $Apk 2>$null | ForEach-Object { "$_" }) -join "`n"
+    $ErrorActionPreference = $eap
+    if ($text -notmatch "package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'") { return $null }
+    $b = [ordered]@{ package = $Matches[1]; version_code = [int]$Matches[2]; version_name = $Matches[3]; min_sdk = $null; target_sdk = $null; abis = @() }
+    if ($text -match "(?m)^(?:sdkVersion|minSdkVersion):'(\d+)'") { $b.min_sdk = [int]$Matches[1] }
+    if ($text -match "(?m)^targetSdkVersion:'(\d+)'") { $b.target_sdk = [int]$Matches[1] }
+    if ($text -match "(?m)^native-code:(.*)$") { $b.abis = @([regex]::Matches($Matches[1], "'([^']+)'") | ForEach-Object { $_.Groups[1].Value }) }
+    return $b
+}
+
 # m_EditorVersion of a project's ProjectSettings\ProjectVersion.txt ("6000.3.28f1"); '' without one.
 function Get-ProjectUnityVersion([string]$ProjectDir) {
     $pv = Join-Path $ProjectDir 'ProjectSettings\ProjectVersion.txt'

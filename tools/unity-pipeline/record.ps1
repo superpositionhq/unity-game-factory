@@ -50,6 +50,8 @@ if ($Build -eq 'latest') {
 }
 $buildInfo = Read-JsonFile (Join-Path $Build 'build_info.json')
 if (-not $buildInfo -or $buildInfo.status -ne 'ok') { throw "$Build has no build_info.json with status ok (run build.ps1)" }
+# The window of every run: 1920x1080, or the phone's size of a mobile game's build held upright (1080x1920).
+$W, $H = Get-BuildWindow $buildInfo
 # The AutoPlay drop-in writes every file a run is checked on: a build without it cannot be recorded (its game would play
 # on without ever writing ready.json).
 $autoplayVersion = Get-Prop $buildInfo 'autoplay_version'
@@ -356,7 +358,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
         # The contract's flags (docs/autoplay-contract.md section 1), Unity style: one dash, the value as the next argument.
         $gameArgs = "-autoplay -scenario $Scenario -seed $runSeed -skill $($runSkill.ToString($Inv)) -outputDir `"$rawDir`" -maxSeconds $MaxSeconds " +
                     "-buildCommit $($buildInfo.commit) -runId $runId -goTimeout 300 " +
-                    "-screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -logFile `"$rawDir\game.log`" $ExtraArgs"
+                    "-screen-fullscreen 0 -screen-width $W -screen-height $H -logFile `"$rawDir\game.log`" $ExtraArgs"
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $exe; $psi.Arguments = $gameArgs.Trim(); $psi.UseShellExecute = $false
         $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true   # the player's log is raw\game.log (-logFile)
@@ -389,16 +391,22 @@ for ($i = 0; $i -lt $Runs; $i++) {
         if ($hwnd -eq [IntPtr]::Zero) { $hwnd = [UnityPipeline.Win]::FindWindowOfPid($readyPid, $null, $null) }
         if ($hwnd -eq [IntPtr]::Zero) { throw "no visible window for pid $readyPid" }
         $title = [UnityPipeline.Win]::Title($hwnd)
-        # Centre the 1920x1080 client on the primary screen ourselves (any screen size that holds it; the title bar may
-        # sit off-screen on an exactly-1080p display).
+        # Centre the client (1920x1080; a mobile game held upright: 1080x1920) on the primary screen ourselves (any
+        # screen size that holds it; the title bar may sit off-screen on a display of exactly its height).
         $screen = [UnityPipeline.Win]::PrimaryScreenSize()
-        if ($screen[0] -lt 1920 -or $screen[1] -lt 1080) { throw "primary screen is $($screen -join 'x'); recording needs room for a 1920x1080 client (check.ps1: Primary display)" }
-        [void][UnityPipeline.Win]::MoveClientTo($hwnd, [int][math]::Floor(($screen[0] - 1920) / 2), [int][math]::Floor(($screen[1] - 1080) / 2))
+        # A mobile game's window may be larger than the screen (a phone held upright, 1080x1920, on a lower display):
+        # the AutoPlay drop-in then sizes the window past the screen itself, and only a capture of the window
+        # (gfxcapture), never of a region of the screen, records all of it.
+        $oversized = ($screen[0] -lt $W -or $screen[1] -lt $H)
+        if ($oversized -and (Get-Prop $buildInfo 'platform') -ne 'mobile') { throw "primary screen is $($screen -join 'x'); recording needs room for a ${W}x${H} client (check.ps1: Primary display)" }
+        if ($oversized -and $Capture -notin @('auto', 'gfxcapture')) { throw "primary screen is $($screen -join 'x'), lower than the ${W}x${H} window: only -Capture gfxcapture (or auto) records a window larger than the screen" }
+        if ($oversized) { [void][UnityPipeline.Win]::MoveClientTo($hwnd, 0, 0) }
+        else { [void][UnityPipeline.Win]::MoveClientTo($hwnd, [int][math]::Floor(($screen[0] - $W) / 2), [int][math]::Floor(($screen[1] - $H) / 2)) }
         Start-Sleep -Milliseconds 300
         $rect = [UnityPipeline.Win]::ClientRectOnScreen($hwnd)
-        Write-Step "window '$title' client $($rect -join ',') on screen $($screen -join 'x')"
-        if ($rect[2] -ne 1920 -or $rect[3] -ne 1080) { throw "client area is $($rect[2])x$($rect[3]), expected 1920x1080" }
-        if ($rect[0] -lt 0 -or $rect[1] -lt 0 -or $rect[0] + 1920 -gt $screen[0] -or $rect[1] + 1080 -gt $screen[1]) { throw "window not fully on the primary screen: $($rect -join ',')" }
+        Write-Step "window '$title' client $($rect -join ',') on screen $($screen -join 'x')$(if ($oversized) { ' (larger than the screen: recorded as a window)' })"
+        if ($rect[2] -ne $W -or $rect[3] -ne $H) { throw "client area is $($rect[2])x$($rect[3]), expected ${W}x${H}" }
+        if (-not $oversized -and ($rect[0] -lt 0 -or $rect[1] -lt 0 -or $rect[0] + $W -gt $screen[0] -or $rect[1] + $H -gt $screen[1])) { throw "window not fully on the primary screen: $($rect -join ',')" }
 
         # ---- start capture (ddagrab, falling back to gfxcapture, then gdigrab) ----
         # ddagrab (topmost window + privacy guard) is the default. It is tried twice: a display that went off delivers
@@ -408,7 +416,8 @@ for ($i = 0; $i -lt $Runs; $i++) {
         # reaches ~38 fps) and delivers ~59 fps with the window topmost and in the foreground. Its pts are in 1/10^7 s
         # (Get-PtsUs). gdigrab-region is the last resort.
         $modes = if ($Capture -eq 'auto') { @('ddagrab', 'ddagrab-retry', 'gfxcapture', 'gdigrab-region') } else { @($Capture) }
-        if ($modes[0] -ne 'gfxcapture') {
+        if ($oversized) { $modes = @('gfxcapture') }   # the window itself: a region of the screen holds only part of it
+        if (-not $oversized -and $modes[0] -ne 'gfxcapture') {
             # A first-run Windows Firewall prompt (or anything else) on top of the game would trip the privacy guard:
             # wait for the client area to be clear (the game waits for 'go' up to -goTimeout 300).
             [void][UnityPipeline.Win]::SetTopmost($hwnd, $true)
@@ -486,7 +495,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
             if ($cap.Process.HasExited) { [void]$problems.Add('ffmpeg exited during the run'); break }
             if (((Get-Date) - $lastLow).TotalSeconds -ge 5) { Set-BackgroundUnityLow; $lastLow = Get-Date }   # jobs started meanwhile
             $now = [UnityPipeline.Win]::ClientRectOnScreen($hwnd)
-            if ($now -and ($now[2] -ne 1920 -or $now[3] -ne 1080)) { [void]$problems.Add("game window client area changed to $($now[2])x$($now[3])"); break }
+            if ($now -and ($now[2] -ne $W -or $now[3] -ne $H)) { [void]$problems.Add("game window client area changed to $($now[2])x$($now[3])"); break }
             if ([UnityPipeline.Win]::IsIconic($hwnd)) { [void]$problems.Add('game window was minimized (no frames)'); break }
             if ($now -and ($now[0] -ne $rect[0] -or $now[1] -ne $rect[1])) {
                 if (-not $windowMoved) {
@@ -716,7 +725,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
             capture_span_s = $capSpan; duration_diff_s = $durDiff; covers_scenario = $cover
         }
         if ($frames -eq 0) { [void]$problems.Add('video has no frames') }
-        if ($st.width -ne 1920 -or $st.height -ne 1080) { [void]$problems.Add("video is $($st.width)x$($st.height)") }
+        if ($st.width -ne $W -or $st.height -ne $H) { [void]$problems.Add("video is $($st.width)x$($st.height), not ${W}x${H}") }
         if ($dupPct -gt 5.0) { [void]$problems.Add("ffmpeg duplicated $dupPct % of output frames (no new image)") }
         elseif ($dupPct -gt 1.0) { [void]$warnings.Add("ffmpeg duplicated $dupPct % of output frames (no new image)") }
         if ($gaps -and $gaps.missed_pct -gt 2.0) { [void]$warnings.Add("capture input had gaps worth $($gaps.missed_pct) % of frames") }
@@ -772,7 +781,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
             samples = @($gameSamples + @($clock))
         }
         video = [ordered]@{
-            file = 'video.mkv'; codec = 'h264'; encoder = $Encoder; width = 1920; height = 1080; fps = $OutputFps; cfr = $true; audio = $false
+            file = 'video.mkv'; codec = 'h264'; encoder = $Encoder; width = $W; height = $H; fps = $OutputFps; cfr = $true; audio = $false
             capture = $captureMode; capture_rect = $rect; window_title = $title
             ffmpeg_command = $(if ($cap) { $cap.Command } else { $null }); ffmpeg_version = $ffmpegVersion
             start_estimate = $videoStart; cut = $endCut

@@ -12,6 +12,13 @@
   (Assets/Editor/Tools/BuildPlayer.cs, as Scripts/unity.ps1 build runs it), run through the machine's job limiter.
   Output: builds\<game>\<short-sha>\Windows\<Project>.exe, build_info.json, logs\. One row per run in
   .recording\<game>\builds.jsonl. Holds the game's pipeline lock (one build or recording of a game at a time).
+
+  A mobile game (the commit has a Platform.json) gets the same Windows player, which is what is played and recorded
+  on this PC at the phone's size, and its Android APK (arm64, IL2CPP, release) in Android\<Project>.apk, built by the
+  game's Assets/Editor/Tools/BuildAndroid.cs and read back with the SDK's aapt2. The APK step needs the editor's
+  Android Build Support with its OpenJDK and Android SDK & NDK tools (machine\check.ps1 says whether the machine has
+  them, docs\new-machine.md how to install them); without them the step is skipped, build_info.json says so
+  (apk.status "skipped") and the build is still ok.
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Game,
@@ -56,6 +63,9 @@ $unity = $null
 $projectName = $info.ProjectName
 $builtBackend = $null
 $playerBytes = $null
+$platform = $null
+$apk = $null
+$apkDir = Join-Path $outDir 'Android'
 $status = 'ok'
 $stamp = $start.ToString('yyyyMMdd-HHmmss')
 
@@ -121,6 +131,9 @@ try {
     Remove-Item Env:\GIT_LFS_SKIP_SMUDGE
     if ($missing.Count -gt 0) { throw "LFS objects missing from $lfsStore for: $($missing -join ', ') (git -C `"$($info.Dir)`" lfs fetch origin $sha)" }
     Write-Step "source at $short in $src ($($lfsList.Count) LFS files, $copied copied)"
+    # What the game is made for at this commit: a desktop game, or an Android phone game (its Platform.json).
+    $platform = Get-GamePlatform $src
+    if ($platform.platform -eq 'mobile') { Write-Step "a mobile game, held in $($platform.orientation): played and recorded as its Windows player at $($platform.width)x$($platform.height); its APK is built too" }
 
     # The player build as the commit has it: its BuildPlayer.cs names the method and the exe.
     $bp = Get-PlayerBuildInfo $src
@@ -136,6 +149,8 @@ try {
     # ---- the release player (a fresh folder: Unity refuses to build IL2CPP over a Mono build in one folder) ----
     if (Test-Path -LiteralPath $winDir) { Remove-Item -LiteralPath $winDir -Recurse -Force }
     $playerArgs = @('-projectPath', $src, '-executeMethod', $bp.Method, '-buildOut', $winDir)
+    # a mobile game's clone was last opened for its APK: the editor starts on the Windows target for this build
+    if ($platform.platform -eq 'mobile') { $playerArgs = @('-buildTarget', 'Win64') + $playerArgs }
     if ($Backend) { $playerArgs += @('-backend', $Backend) }
     $r = Invoke-Step 'player' $playerArgs
     # An editor that stopped with no word about the game (no compiler error, no failed build row; an IL post-processor
@@ -171,6 +186,47 @@ try {
     $leakScan = [ordered]@{ scanned = 'Windows\'; hits = @($leakHits | ForEach-Object { [ordered]@{ file = $_.file; pattern = $_.pattern; count = $_.count; example = $_.example } }) }
     if ($leakHits.Count) { Write-Step "WARNING: the player's files contain names that must not ship: $(($leakHits | ForEach-Object { "$($_.file) ($($_.pattern) x$($_.count))" }) -join '; ')" }
     else { Write-Step 'leak scan: no user name or forbidden names in the player''s files' }
+
+    # ---- a mobile game's Android APK (arm64, IL2CPP, release), when this machine can build one ----
+    if ($platform.platform -eq 'mobile') {
+        if (Test-Path -LiteralPath $apkDir) { Remove-Item -LiteralPath $apkDir -Recurse -Force }
+        $tool = Get-UGFAndroidToolchain $unity
+        if (-not (Test-Path -LiteralPath (Join-Path $src 'Assets\Editor\Tools\BuildAndroid.cs'))) {
+            throw 'a mobile game (Platform.json) without Assets\Editor\Tools\BuildAndroid.cs: the APK build of the mobile template is missing at this commit'
+        }
+        if (-not $tool.Ok) {
+            $apk = [ordered]@{ status = 'skipped'; reason = $tool.Why }
+            Write-Step "APK: skipped, $($tool.Why). The Windows player is built and can be recorded; build again on a machine with the Android toolchain for the APK"
+        } else {
+            $ns = $bp.Method -replace '\.BuildPlayer\.BuildWindows$', ''
+            $r = Invoke-Step 'apk' @('-buildTarget', 'Android', '-projectPath', $src, '-executeMethod', "$ns.BuildAndroid.Build", '-buildOut', $apkDir)
+            if ($r.exit_code -ne 0) { $failure = 'APK build failed'; throw $failure }
+            $apkPath = Join-Path $apkDir "$projectName.apk"
+            if (-not (Test-Path -LiteralPath $apkPath)) { throw "the APK build succeeded but $apkPath is missing" }
+            $said = if ($tool.Aapt2) { Read-ApkBadging $tool.Aapt2 $apkPath } else { $null }
+            if (-not $said) { throw "the APK cannot be read back (aapt2 dump badging $apkPath)" }
+            # what the APK itself says must be a phone game's: arm64 alone, the SDK levels, a package name of its own
+            $wrong = @()
+            if (($said.abis -join ',') -ne 'arm64-v8a') { $wrong += "ABIs '$($said.abis -join ', ')' (arm64-v8a alone)" }
+            if ($null -eq $said.min_sdk -or $said.min_sdk -lt 26) { $wrong += "minSdk $($said.min_sdk) (at least 26)" }
+            if ($null -eq $said.target_sdk -or $said.target_sdk -lt 34) { $wrong += "targetSdk $($said.target_sdk) (at least 34)" }
+            if ($said.package -notmatch '^com\.[a-z][a-z0-9]*\.game$') { $wrong += "package '$($said.package)' (com.<project>.game)" }
+            if ($wrong.Count) { throw "the APK is not what a mobile game ships: $($wrong -join '; ')" }
+            # the APK is a zip: its files are scanned unpacked, as the Windows player's are, then the copy is removed
+            $unpacked = Join-Path $outDir '_apk'
+            if (Test-Path -LiteralPath $unpacked) { Remove-Item -LiteralPath $unpacked -Recurse -Force }
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [IO.Compression.ZipFile]::ExtractToDirectory($apkPath, $unpacked)
+            $apkHits = @(Find-LeakedStrings $unpacked @($UserNamePatterns + $ForbiddenNamePatterns))
+            Remove-Item -LiteralPath $unpacked -Recurse -Force
+            $leakScan.scanned = 'Windows\, Android\'
+            $leakScan.hits = @($leakScan.hits) + @($apkHits | ForEach-Object { [ordered]@{ file = "Android\$projectName.apk!$($_.file)"; pattern = $_.pattern; count = $_.count; example = $_.example } })
+            if ($apkHits.Count) { Write-Step "WARNING: the APK's files contain names that must not ship: $(($apkHits | ForEach-Object { "$($_.file) ($($_.pattern) x$($_.count))" }) -join '; ')" }
+            $apk = [ordered]@{ status = 'ok'; file = "Android\$projectName.apk"; bytes = (Get-Item -LiteralPath $apkPath).Length; sha256 = (Get-FileSha256 $apkPath)
+                package = $said.package; version_code = $said.version_code; version_name = $said.version_name; min_sdk = $said.min_sdk; target_sdk = $said.target_sdk; abi = 'arm64-v8a' }
+            Write-Step "APK: $($apk.file), $([math]::Round($apk.bytes / 1MB, 1)) MB, $($said.package) $($said.version_name) ($($said.version_code)), minSdk $($said.min_sdk), targetSdk $($said.target_sdk), arm64-v8a"
+        }
+    }
 } catch {
     $status = 'failed'
     $failure = $_.Exception.Message
@@ -206,6 +262,10 @@ $row = [ordered]@{
     unity_version = $unityVersion
     editor = $unity
     steps = @($steps)
+}
+# a mobile game's build says what it is and what became of its APK; a desktop game's row is as it always was
+if ($platform -and $platform.platform -eq 'mobile') {
+    $row['platform'] = 'mobile'; $row['orientation'] = $platform.orientation; $row['window'] = @($platform.width, $platform.height); $row['apk'] = $apk
 }
 Add-JsonLine (Join-Path $info.LogDir 'builds.jsonl') $row
 if ($status -eq 'ok') { Write-JsonFile $buildInfoPath $row }   # describes a player that is there

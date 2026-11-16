@@ -51,7 +51,7 @@ builds' private clones and their temp folder, outside the user profile). See
   tasks\<slug>\                     a game's orphan tasks branch, checked out as a worktree
   tools\unity-heavy.ps1             the job limiter (+ ugf-root.ps1 beside it); its log .recording\_heavy-jobs.jsonl
   tools\ffmpeg-8.1.2\               the pinned ffmpeg (machine/get-ffmpeg.ps1)
-  builds\<slug>\<short-sha>\        release build: Windows\<Project>.exe, build_info.json, logs\
+  builds\<slug>\<short-sha>\        release build: Windows\<Project>.exe, build_info.json, logs\; a mobile game's APK in Android\
   builds\<slug>\_run\               the copy the recorder launches (a fixed path per game)
   builds\_pipeline-<slug>.lock      per-game build/record lock (holder in the .json beside it)
   builds\_queue\                    queued requests; done\ has results
@@ -82,7 +82,7 @@ matter (compile errors, exceptions, licence errors, `[workflow]` rows) and the e
 
 | Mode | Runs | GPU |
 |---|---|---|
-| `setup` | the first open, four runs, each needing what the one before installed: `ProjectSetup.AddPackages`, `Urp.UrpSetup.Apply`, `ProjectSetup.ImportTextEssentials`, `ProjectSetup.Configure` | no |
+| `setup` | the first open, four runs, each needing what the one before installed: `ProjectSetup.AddPackages`, `Urp.UrpSetup.Apply`, `ProjectSetup.ImportTextEssentials`, `ProjectSetup.Configure`; a mobile game's has a fifth, `Urp.MobileSetup.Apply` (the pipeline asset for a phone, one quality level, the Android player settings, the window at the phone's size) | no |
 | `compile` | open, import, compile, quit | no |
 | `step -Method <Ns.Class.Method> -Reason "..." [-Render] [-NoQuit]` | one editor step (`-executeMethod`); `-Render` for steps that need the GPU (lightmaps, screenshots, shader warm-up); `-NoQuit` for a step that exits the editor itself (a `.unitypackage` import finishes after the method returns) | only with `-Render` |
 | `test [-Platform EditMode\|PlayMode] [-Filter <name>]` | Unity Test Framework (`-runTests`, results XML summarized) | no |
@@ -215,13 +215,30 @@ Dynamic guards on top of the counts:
    times, so a clone under `C:\Users\<name>` ships the user name.
 5. The AutoPlay drop-in's version (the `Version` constant of the game's `AutoPlay.cs`, null without one) goes into the
    row: `record.ps1` refuses a build without it.
+6. **A mobile game** (the commit has a `Platform.json`; `common.ps1` `Get-GamePlatform` asks the one reader of it,
+   `tools\validate-game.py --platform <clone>`): the same Windows player is built (with `-buildTarget Win64`, since
+   the clone was last opened for Android), which is what is played and recorded on this PC at the phone's size; then
+   its Android APK, `Android\<Project>.apk`: `Unity.exe -batchmode -nographics -quit -buildTarget Android -projectPath
+   <clone> -executeMethod <Project>.EditorTools.BuildAndroid.Build -buildOut <out>\Android` (the mobile template's
+   `Assets/Editor/Tools/BuildAndroid.cs`: arm64, IL2CPP, release, signed with Unity's debug key). The APK is read
+   back with the SDK's `aapt2 dump badging` and the build fails when it is not a phone game's: arm64-v8a alone,
+   minSdk 26 or more, targetSdk 34 or more, a package name `com.<project>.game`. Its files are unpacked for the leak
+   scan (hits are named `Android\<Project>.apk!<file>`), then the copy is removed. The APK step needs the editor's
+   Android Build Support with its OpenJDK and Android SDK & NDK tools (`Get-UGFAndroidToolchain`;
+   `machine\check.ps1` reports them, [new-machine.md](new-machine.md) says how to install them): on a machine without
+   them the step is skipped with a line that says so, `build_info.json` holds `apk {status: "skipped", reason}` and
+   the build is ok, so the game can still be recorded; build the release commit again on a machine with the toolchain
+   for the APK.
 
 `builds.jsonl` row and `build_info.json` (next to the player, written only for an ok build; schema `unity-build/1`):
 `game`, `project`, `commit`, `short_sha`, `requested`, `commit_subject`, `commit_time`, `command`,
 `start`/`end`/`duration_s`, `status`, `exit_code`, `error_excerpt` (first matching error lines of the failing log),
 `log_path`, `output_path`, `exe_path`, `config` (`release`), `backend`, `player_bytes`, `autoplay_version`,
 `leak_scan {scanned, hits[] {file, pattern, count, example}}`, `unity_version`, `editor`, and `steps[]` (each with its
-exact command line, times, exit code, log, and `retried` for a first attempt that was tried again).
+exact command line, times, exit code, log, and `retried` for a first attempt that was tried again). A mobile game's
+adds `platform` (`mobile`), `orientation`, `window` (`[1920, 1080]` or `[1080, 1920]`) and `apk` (`{status: "ok",
+file, bytes, sha256, package, version_code, version_name, min_sdk, target_sdk, abi}`, or `{status: "skipped",
+reason}`); a desktop game's has none of them.
 
 Measured on this machine's 16 GB laptop beside other sessions' editors: the first IL2CPP build of a template game with
 one scene, from a fresh clone (a full import), took 614 s, a later commit's build in the same clone 184 s; the leak
@@ -251,7 +268,12 @@ prompts and needs no Firewall pre-flight. Per run (seed = `-Seed + i`, or random
    retires when the queue empties. The privacy guard and the display wake apply either way.
 1. Launch `_run\Windows\<Project>.exe` with the contract's flags (autoplay-contract.md section 1): `-autoplay
    -scenario <n> -seed <s> -skill <s> -outputDir <bundle>\raw -maxSeconds <n> -buildCommit <sha> -runId <id>
-   -goTimeout 300 -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -logFile <bundle>\raw\game.log`, plus
+   -goTimeout 300 -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -logFile <bundle>\raw\game.log` (a
+   mobile game's build held upright, `build_info.json` `orientation` `portrait`: `-screen-width 1080 -screen-height
+   1920`, and every 1920x1080 below is 1080x1920 for it: the window, the capture, the video and its check; where
+   the primary screen is lower than that window, the AutoPlay drop-in sizes it past the screen, the recorder puts
+   its top left corner at the screen's and records with `gfxcapture` alone, a capture of the window itself, since a
+   region of the screen would hold only part of it), plus
    `-ExtraArgs` (the drop-in's `-autoplayQuality <level>`, `-autoplayMute`). Background Unity work (batchmode editors,
    shader compilers, the build backend, IL2CPP) is lowered to below-normal for the run and put back after it. A Unity
    player saves the `-screen-*` window as its own setting before any script runs (the `Screenmanager` values under
@@ -347,6 +369,12 @@ recorded from the queue:
 | Game frame cadence | frame-code strip over 1202 frames: 0 repeated, 0 skipped game frames, at 144 Hz |
 | Audio | 1033 buffers, no stall, 15 ms at most from the median anchor; a sound sits 10 ms (4–30 ms) before its `t_ns` in `system_audio`, since the drop-in stamps a buffer with its arrival less its length, so in `gameplay.mp4` the sound leads the picture by about 18 ms |
 
+A mobile game held upright, on a 1920x1080 display (RTX 4080, NVENC), its 1080x1920 window larger than the screen and
+recorded with `gfxcapture`, not in the foreground (the desktop was in use): 1080x1920 H.264 Main, 60/1 CFR, the game
+at 60 fps. In one run the capture took 60 frames a second (0.17 % duplicated slots, 7 gaps over 25 ms); in the next,
+while the machine ran other jobs, 49.6 (16.8 % duplicated slots), which the run's own video check fails. A display at
+least 1920 pixels high records such a game with `ddagrab`, as it records every other.
+
 ### Bundle
 
 ```
@@ -400,7 +428,7 @@ run_id, time, reason, status_before, bundle}` rows.
 | inputs | no `inject` rows, unparseable lines, `t_ns` going backwards | |
 | telemetry | missing `run_start`/`scenario_start`/`scenario_end`/`run_end`, unparseable lines | |
 | audio | missing, or not aligned: `audio_clock.jsonl` drift over 250 ms or a WAV whose length differs from the span its rows cover by more than 0.25 s (without `audio_clock.jsonl`: anchored at the `audio_stop` sample, start lag outside −30…10000 ms) | silent (max < −60 dB), stalls filled with silence |
-| video | not 1920x1080, no frames, ffmpeg dup > 5 % of output frames, video longer than the capture span by ≥ 0.5 s or shorter by ≥ 2 s, doesn't cover the scenario (start..end), start time not estimable | dup > 1 %, capture gaps > 2 % of scenario frames, game < 55 fps (`frames` / `duration_s` of outcome.json), video ends 0.5–2 s early, display not a multiple of 60 Hz |
+| video | not 1920x1080 (a mobile game held upright: 1080x1920), no frames, ffmpeg dup > 5 % of output frames, video longer than the capture span by ≥ 0.5 s or shorter by ≥ 2 s, doesn't cover the scenario (start..end), start time not estimable | dup > 1 %, capture gaps > 2 % of scenario frames, game < 55 fps (`frames` / `duration_s` of outcome.json), video ends 0.5–2 s early, display not a multiple of 60 Hz |
 | process | game exit code ≠ 0, killed at timeout, window moved, covered or minimized, game gone before `outcome.json`, ffmpeg died | |
 | watchdog | `watchdog.json` with `reason` `run` | `watchdog.json` with `reason` `shutdown` after a complete run |
 
@@ -468,7 +496,9 @@ scripts run from the checkout, so a pull is enough for them.
 
 ### Machine notes and open items
 
-- Any display and scaling that holds a 1920x1080 window works: a Unity player is per-monitor DPI aware, so its
+- Any display and scaling that holds a 1920x1080 window works (a mobile game held upright, 1080x1920, is recorded
+  on a lower display too, in a window larger than the screen, by a capture of the window; `machine\check.ps1` says
+  which the primary display holds): a Unity player is per-monitor DPI aware, so its
   1920x1080 client is physical pixels at any scaling (measured at 125 %). Vsync off and a 60 fps cap in the game
   (the drop-in sets both) keep it at 60 fps whatever the refresh.
 - The game window sits topmost with its 1920x1080 client area centred on the primary screen for the run. Runs start
@@ -526,7 +556,9 @@ commit than `HEAD`, `--commit milestone` the newest `milestone/autoplay-<n>` tag
 
 - **The player.** The pipeline's release build ([Build](#build)): `builds\<slug>\<sha8>\Windows\` with its
   `build_info.json` (status `ok`, config `release`), the release commit's own or, without one, the nearest earlier
-  commit's (a warning names it). A build whose leak scan found anything (`build_info.json` `leak_scan.hits`), or one not
+  commit's (a warning names it). A mobile game's APK comes from the same build (`Android\<Project>.apk`, named by
+  `build_info.json` `apk`, its sha256 checked) and goes in as `Build/<Project>.apk`; a build that skipped it (no
+  Android toolchain) gives a delivery without the APK and a warning. A build whose leak scan found anything (`build_info.json` `leak_scan.hits`), or one not
   in the release commit's history, refuses the package. Without a pipeline build it takes `<repo>\Build\Windows`
   (`Scripts\unity.ps1 build`; a warning when a commit after the build changed `Assets/` or `Packages/`). `--build` names
   a pipeline build folder or a player folder. A development player, or a player of another product (its
@@ -534,7 +566,7 @@ commit than `HEAD`, `--commit milestone` the newest `milestone/autoplay-<n>` tag
 - **The videos.** Per scenario, the first valid recording of the release commit ([Bundle](#bundle)):
   `recordings\<slug>\<run>\` with `validation.json` `ok` or `warn`, no `FAILED` or `INVALID`, and `metadata.json`
   `build.commit` the release commit. Its `gameplay.mp4` goes in as `Gameplay/<slug>_S<n>.mp4`, checked with the
-  pipeline's ffprobe (H.264 1920x1080 and AAC) where one is found. The result (win, lose, timeout) is metadata, never a
+  pipeline's ffprobe (H.264 1920x1080, a mobile game's the phone's size, and AAC) where one is found. The result (win, lose, timeout) is metadata, never a
   reason to pick a run, and one video is enough. `manifest.json` `scenarios[]` take the scenario, its name, the result,
   the length, the audio offset and `capture_notes`; the README gets a table of the videos and a "Recording note" per
   capture note. `--exclude-runs` leaves runs out; the runs not taken are listed with the reason.
@@ -561,8 +593,8 @@ refuses to start. Without a player, a brief, a design doc or a task it refuses b
 | `Gameplay/<slug>_S<n>.mp4` | the videos above |
 | `ReplayScripts/` | the replay above |
 | `Screenshots/` | the images the game's `README.md` shows, else the project's `Docs/screenshots/`, else up to four stills of the recordings taken |
-| `Build/` | the player above, without `.pdb` files and Unity's "DoNotShip" and "BackUpThisFolder" folders |
-| `README.md`, `manifest.json` | written by the packager (`--version` gives the release version) |
+| `Build/` | the player above, without `.pdb` files and Unity's "DoNotShip" and "BackUpThisFolder" folders; a mobile game's APK beside it, when its build made one |
+| `README.md`, `manifest.json` | written by the packager (`--version` gives the release version); a mobile game's manifest says `"platform": {"kind": "mobile", "orientation": ...}` (from the release commit's `Platform.json`) and names the APK in `build` (`apk`, `package`, `version_code`, `version_name`, `min_sdk`, `target_sdk`), and its README says what the game is made for |
 
 Every text file of the delivery is scrubbed (the studio and tool names, agent, model and provider names, the account
 and machine name, e-mail addresses, git identities, the build machine's session folders and ids) and then scanned: a
