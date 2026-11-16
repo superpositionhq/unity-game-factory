@@ -135,6 +135,7 @@ namespace TaskProbe
             while (!Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
             {
                 var row = rows[next++];
+                sending = At(row);
                 try { SendOne(row, elapsed); }
                 catch (Exception e)
                 {
@@ -169,6 +170,11 @@ namespace TaskProbe
             else Still(player);
         }
 
+        double sending;  // the time of the input being sent
+
+        /// <summary>The input being sent didn't land: a row of probe.json "inputs_missed".</summary>
+        void Miss(string kind, string target, string why) => probe.Missed(sending, kind, target, why);
+
         void SendOne(Dictionary<string, object> row, double elapsed)
         {
             switch (Kind(row))
@@ -190,7 +196,12 @@ namespace TaskProbe
                 {
                     var widget = Json.Str(row, "widget");
                     var clicked = UiScan.Click(widget);
-                    Probe.Log(clicked != null ? "clicked " + clicked : $"no visible button matches '{widget}'");
+                    if (clicked != null) Probe.Log("clicked " + clicked);
+                    else
+                    {
+                        Probe.Log($"no visible button matches '{widget}'");
+                        Miss("click", widget, "no visible button matches it");
+                    }
                     break;
                 }
                 case "cursor":
@@ -203,7 +214,7 @@ namespace TaskProbe
                 case "teleport":
                 {
                     var player = probe.Player;
-                    if (player == null) { Probe.Log("teleport skipped (no player)"); break; }
+                    if (player == null) { Probe.Log("teleport skipped (no player)"); Miss("teleport", "player", "no player"); break; }
                     Json.TryVec3(row["teleport"], out var at);
                     Place(player, at, Json.TryNum(row, "yaw", out var yaw) ? (float?)yaw : null);
                     StartHold(row, player, elapsed);
@@ -291,13 +302,13 @@ namespace TaskProbe
         {
 #if TASKPROBE_INPUTSYSTEM
             var slash = path.IndexOf('/');
-            if (slash < 0) { probe.Error("inputs: no control " + path); return; }
+            if (slash < 0) { probe.Error("inputs: no control " + path); Miss("key", path, "no such control"); return; }
             var device = path.Substring(0, slash);
             var control = path.Substring(slash + 1);
             if (device == "<Keyboard>" && keyboard != null)
             {
                 var found = keyboard.TryGetChildControl(control) as KeyControl;
-                if (found == null) { probe.Error("inputs: the keyboard has no key " + control); return; }
+                if (found == null) { probe.Error("inputs: the keyboard has no key " + control); Miss("key", path, "the keyboard has no such key"); return; }
                 keys.Set(found.keyCode, value != 0f);
                 InputSystem.QueueStateEvent(keyboard, keys);
                 keyboard.MakeCurrent();
@@ -310,7 +321,7 @@ namespace TaskProbe
                 else if (control == "delta/y") pointer.delta = new Vector2(pointer.delta.x, value);
                 else if (control == "scroll/x") pointer.scroll = new Vector2(value, pointer.scroll.y);
                 else if (control == "scroll/y") pointer.scroll = new Vector2(pointer.scroll.x, value);
-                else { probe.Error("inputs: the mouse has no control " + control); return; }
+                else { probe.Error("inputs: the mouse has no control " + control); Miss("key", path, "the mouse has no such control"); return; }
                 QueueMouse();
                 return;
             }
@@ -323,12 +334,15 @@ namespace TaskProbe
                 else if (control == "rightStick/y") pad.rightStick = new Vector2(pad.rightStick.x, value);
                 else if (control == "leftTrigger") pad.leftTrigger = value;
                 else if (control == "rightTrigger") pad.rightTrigger = value;
-                else { probe.Error("inputs: the gamepad has no control " + control); return; }
+                else { probe.Error("inputs: the gamepad has no control " + control); Miss("key", path, "the gamepad has no such control"); return; }
                 InputSystem.QueueStateEvent(gamepad, pad);
                 gamepad.MakeCurrent();
                 return;
             }
             probe.Error("inputs: no device for " + path);
+            Miss("key", path, "no such device");
+#else
+            Miss("key", path, "the project has no Input System package");
 #endif
         }
 
@@ -387,14 +401,15 @@ namespace TaskProbe
                 Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 120.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 120.0),
             };
             var at = FormattableString.Invariant($"at {Json.Num(row, "t", 0.0):F2} s");
-            if (t.Finger < 0 || t.Finger > 9) { probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} (a finger is 0 to 9)"); return; }
+            if (t.Finger < 0 || t.Finger > 9) { probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} (a finger is 0 to 9)"); Miss(t.Kind, "finger " + t.Finger, "a finger is 0 to 9"); return; }
             var spots = drag ? Json.Arr(row, "drag") : new List<object> { row["tap"] };
-            if (spots == null || spots.Count < (drag ? 2 : 1) || spots.Count > 16) { probe.Error($"inputs: the {t.Kind} {at} missed: it names no spots"); return; }
+            if (spots == null || spots.Count < (drag ? 2 : 1) || spots.Count > 16) { probe.Error($"inputs: the {t.Kind} {at} missed: it names no spots"); Miss(t.Kind, "spots", "it names no spots"); return; }
             foreach (var spot in spots)
             {
                 if (!Spot(spot, out var point, out var named))
                 {
                     probe.Error($"inputs: the {t.Kind} {at} missed: no visible widget matches '{named}'");
+                    Miss(t.Kind, named, "no visible widget matches it");
                     return;
                 }
                 t.Points.Add(point);
@@ -402,10 +417,11 @@ namespace TaskProbe
             }
             if (!drag) t.Over = 0.0;
 #if TASKPROBE_INPUTSYSTEM
-            if (screen == null) { probe.Error($"inputs: the {t.Kind} {at} missed: no touch screen"); return; }
+            if (screen == null) { probe.Error($"inputs: the {t.Kind} {at} missed: no touch screen"); Miss(t.Kind, "finger " + t.Finger, "no touch screen"); return; }
             if (touching.Exists(other => other.Finger == t.Finger))
             {
                 probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} is still down from an earlier touch");
+                Miss(t.Kind, "finger " + t.Finger, "it is still down from an earlier touch");
                 return;
             }
             t.Last = t.Points[0];
@@ -467,7 +483,7 @@ namespace TaskProbe
         void TeleportTo(Dictionary<string, object> row, Dictionary<string, object> select, double elapsed)
         {
             var player = probe.Player;
-            if (player == null) { Probe.Log("teleport_to skipped (no player)"); return; }
+            if (player == null) { Probe.Log("teleport_to skipped (no player)"); Miss("teleport_to", "player", "no player"); return; }
             var here = player.transform.position;
             GameObject target = null;
             var best = float.MaxValue;
@@ -477,7 +493,12 @@ namespace TaskProbe
                 var d = (go.transform.position - here).sqrMagnitude;
                 if (d < best) { best = d; target = go; }
             }
-            if (target == null) { Probe.Log("teleport_to skipped (no object matches)"); return; }
+            if (target == null)
+            {
+                Probe.Log("teleport_to skipped (no object matches)");
+                Miss("teleport_to", "select", "no object but the player matches it");
+                return;
+            }
             var there = target.transform.position;
             var side = here - there;
             side.y = 0f;

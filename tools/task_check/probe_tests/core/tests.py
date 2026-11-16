@@ -94,6 +94,8 @@ def inputs(t, play):
     t.eq("the widget click clicked the button once", play.row("button", 6.0, "PushButton").get("prop:CoreButton.clicks"), 1)
     t.ok("the click is in probe.log, by the widget's name and type", "clicked PushButton (Button)" in play.probe_log)
     t.ok("a click on no button says so", "no visible button matches 'NoSuchButton'" in play.probe_log)
+    t.ok("and is a missed input", any(m.get("kind") == "click" and m.get("target") == "NoSuchButton"
+                                      for m in play.probe.get("inputs_missed") or []), play.probe.get("inputs_missed"))
     t.eq("inputs_sent counts every input", play.probe.get("inputs_sent"), 15)
     t.eq("the game counted itself focused in every frame", walker(play, 6.0, "unfocused"), 0)
     t.eq("and never lost the focus", walker(play, 6.0, "focusLost"), 0)
@@ -118,6 +120,8 @@ def teleport(t, play):
     t.near("teleport_to: facing the point", play.row("hero", 3.0, "Hero")["yaw"], 0.60309, 1e-3)
     t.eq("the camera follows", play.camera(3.5)[1:4], [7.0, 4.0, -1.0])
     t.ok("a select matching nothing is skipped and said", "teleport_to skipped (no object matches)" in play.probe_log)
+    t.ok("and is a missed input", any(m.get("kind") == "teleport_to" and m.get("target") == "select"
+                                      for m in play.probe.get("inputs_missed") or []), play.probe.get("inputs_missed"))
     t.eq("inputs_sent", play.probe.get("inputs_sent"), 4)
 
 

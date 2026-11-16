@@ -349,7 +349,10 @@ time the play knows, then reading what changed. Names come from the task's start
 
 A stage nothing took changes nothing and is listed in the play's `inputs_missed` (probe.json: `t`, `kind`, `target`,
 `why`; and a line of `probe.log`): a pin no object matches or whose point doesn't resolve, a damage with no target or
-a target without the interface, a set no object or no member takes. The check that reads the contact then fails on
+a target without the interface, a set no object or no member takes. Every other input that didn't land is listed
+there too: a click no visible button took, a teleport without a player or next to an object nothing matches, a key
+the probe has no control for, a touch on a widget that isn't on screen. Read it when a play did not do what its
+inputs say. The check that reads the contact then fails on
 the side that missed; when the reference misses too, the task is invalid.
 
 **Read it deterministically**, in a probe one sentence explains:

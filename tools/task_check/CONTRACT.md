@@ -710,8 +710,12 @@ first two track and camera rows (of 18) and the first sample of each query:
 - `ended`: `time` (the clock passed its seconds + 0.5) or `shutdown` (the game quit first: `Application.quitting`).
   `seconds`: the play time at the end, its seconds + 0.5 plus the frames (at most 5) a last sample that reads the drawn
   frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
-  `inputs_missed`: the stages nothing took, in the order sent, at most 400: each with its `t`, its `kind` (pin, damage, set), its
-  `target` (what missed: `select`, `at`, `to`, the object's name, the set's path) and `why`.
+  `inputs_missed`: every input that didn't land, in the order sent, at most 400: each with its `t`, its `kind`, its
+  `target` and `why`. A stage nothing took (kind pin, damage, set; target `select`, `at`, `to`, the object's name, the
+  set's path); a click no visible button took (click, the widget's name); a teleport without a player, or next to an
+  object no select matches (teleport, teleport_to); a key, button or axis the probe has no control for (key, the
+  control path); a touch that couldn't be made (tap, drag: the widget's name, or the finger). The key and touch
+  misses are `query_errors` lines as well.
   `screenshots`: 960x540 PNGs of the frame as displayed, UI included, without alpha, taken at the middle of each of
   `shots` equal parts of the play (none in a project without the ImageConversion module: a `query_errors` line says so).
 - Samples fall on frames: the first at 1/30 s (the clock's first frame), then every `every` s, on the frame that
