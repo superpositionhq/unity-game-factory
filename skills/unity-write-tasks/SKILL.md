@@ -105,8 +105,8 @@ A thread qualifies only when all of these hold (the validator enforces the numbe
    controllers (`.prefab`, `.uxml`, `.uss`, `.controller`), data (`.asset` ScriptableObjects, `.json`, `.csv`, `.txt`),
    other assets (models, clips, sounds, fonts). The validator counts them over the game files of item 1 (so an editor
    step is no system), by path and extension. A long thread confined to one method is a short task in disguise.
-3. **Several outcomes.** At least 3 required outcome probes, one per issue the thread settled, so partial work earns
-   partial credit (a compound ticket). A thread that settled only one observable thing is rarely long enough.
+3. **Several outcomes.** At least 3 required outcome probes of weight above 0, one per issue the thread settled, so
+   partial work earns partial credit (a compound ticket). A required probe of weight 0 is a guard, not an outcome. A thread that settled only one observable thing is rarely long enough.
 4. **The first attempt didn't hold, or the cause is far from the symptom.** The thread had a fix that was undone,
    complained about again ("still too low") or broke something else; or the symptom shows in one system and the cause
    sits in another (a HUD symptom from a ScriptableObject, a camera symptom from physics layers, a crash only in the

@@ -1251,7 +1251,7 @@ def task_warnings(t):
 
 # The bar every task meets (owner, 2026-11-02): only long threads of multiple edits qualify (unity-write-tasks sections
 # 1, 6)
-MIN_OUTCOME_PROBES = 3     # required probes outside still_works: one per issue the thread settled
+MIN_OUTCOME_PROBES = 3     # required probes of weight above 0 outside still_works: one per issue the thread settled
 MIN_THREAD_FILES = 5       # game files the reference changes against the start
 MIN_THREAD_COMMITS = 4     # commits from seed.commit to seed.reference that change the game (a seed on main)
 MIN_THREAD_CODE_LINES = 100   # code lines added plus removed from start to reference (owner, 2026-11-09; was 300)
@@ -1265,8 +1265,16 @@ GAME_FILE = re.compile(r'^(?!Assets/Editor/Steps/)(Assets|Packages|ProjectSettin
 GAME_PATHS = ('Assets', 'Packages', 'ProjectSettings', ':(exclude)Assets/Editor/Steps', ':(exclude)*.meta')
 
 
+def outcome_probes(t):
+    """The task's outcome probes: its required probes outside still_works whose weight is above 0. A required probe of
+    weight 0 is a guard, not an outcome: it must pass, and settles nothing a run earns."""
+    return [c for m in t.get('milestones') or [] if isinstance(m, dict) and m.get('name') != 'still_works'
+            for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe'
+            and c.get('required', True) and c.get('weight', 1) > 0]
+
+
 def thread_errors(t, outcomes):
-    """Why task `t` (with `outcomes` required probes outside still_works) is not a long thread, from the task alone."""
+    """Why task `t` (with `outcomes` outcome probes, `outcome_probes`) is not a long thread, from the task alone."""
     errs = []
     if t.get('difficulty') == 'easy':
         errs.append('difficulty \'easy\': a task is "hard" or "medium" (a game needs at least 4 "hard")')
@@ -1275,7 +1283,8 @@ def thread_errors(t, outcomes):
     if not (isinstance(t.get('seed'), dict) and t['seed'].get('reference')):
         errs.append("no seed.reference: every task ends at the game's own accepted fix of the thread")
     if outcomes < MIN_OUTCOME_PROBES:
-        errs.append(f'{outcomes} required outcome probe(s) outside still_works, fewer than {MIN_OUTCOME_PROBES}')
+        errs.append(f'{outcomes} required outcome probe(s) of weight above 0 outside still_works, fewer than '
+                    f'{MIN_OUTCOME_PROBES} (a required probe of weight 0 is a guard, not an outcome)')
     return errs + noop_errors(t)
 
 
@@ -1425,10 +1434,7 @@ def check_task(rep, a, label, t, game, has_commit):
                     f'(nothing in a task reads the agent\'s tool calls) (unity-write-tasks section 5)')
     if not gated:
         rep.error(a, f'{label}: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)')
-    outcomes = [c for m in t.get('milestones') or [] if isinstance(m, dict) and m.get('name') != 'still_works'
-                for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe'
-                and c.get('required', True)]
-    for e in thread_errors(t, len(outcomes)):
+    for e in thread_errors(t, len(outcome_probes(t))):
         rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)')
     if judged:
         rep.note(a, f'{label}: required judge check(s) {judged}: only a judge of the brief\'s looks is required '

@@ -961,6 +961,21 @@ class Units(unittest.TestCase):
             {'name': 'still_works', 'checks': [judge('hud_unchanged'), judge('code', 'code_judge')]}]}
         self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'code'])
 
+    def test_a_guard_is_no_outcome(self):
+        """The long-thread bar counts required probes of weight above 0 outside still_works: a required probe of
+        weight 0 is a guard, not an outcome."""
+        def probe(name, **over):
+            return {'name': name, 'kind': 'probe', **over}
+        t = {'milestones': [
+            {'name': 'done', 'checks': [probe('a'), probe('b', weight=2), probe('guard', weight=0),
+                                        probe('extra', required=False), {'name': 'j', 'kind': 'judge'}]},
+            {'name': 'still_works', 'checks': [probe('kept', weight=0), probe('kept_too')]}]}
+        self.assertEqual([c['name'] for c in vg.outcome_probes(t)], ['a', 'b'])
+        self.assertIn('2 required outcome probe(s) of weight above 0 outside still_works, fewer than 3 (a required '
+                      'probe of weight 0 is a guard, not an outcome)', vg.thread_errors(t, len(vg.outcome_probes(t))))
+        t['milestones'][0]['checks'].append(probe('c'))
+        self.assertFalse(any('fewer than 3' in e for e in vg.thread_errors(t, len(vg.outcome_probes(t)))))
+
     def test_retired_checks(self):
         """`actions_judge` checks and `trace` probes are retired: a task that still carries one matches the schema and
         is only warned about; a task without one has nothing to warn of. A trace probe never counted as a required
