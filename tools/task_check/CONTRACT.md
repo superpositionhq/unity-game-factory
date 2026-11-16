@@ -531,7 +531,10 @@ load's too (`speed`, `spin` and `spawns` count them). The game's `Time.time` run
 (measured by the probe's core tests: from play time 0.5 s to 3.5 s, `Time.unscaledTime` went 0.13 s, as
 `Time.realtimeSinceStartup` did). The probe asks for the play's `scene` at `BeforeSceneLoad`, before the game's first
 build scene has woken up: that scene's objects get `Awake` and `OnEnable`, then are destroyed before `Start` (a scene
-the build lacks: a `query_errors` line, and the game's own first scene plays). Every play starts from clean saved data:
+the build lacks: a `query_errors` line, and the game's own first scene plays). Every play starts from clean saved data
+but one whose spec says `keep_saves` (a task play that names `after`: `check.Side._task_play` plays the plays it names
+first, in `tasks.chain`'s order, again when another play ran since, and `probe.log` says `the saved data is kept: the
+play runs after the plays that left it`):
 the build gives the copy a company name of its own (`TaskProbe.<hash>`, section 5), the probe deletes PlayerPrefs and
 empties `persistentDataPath` when the play starts, read-only files too, leaving the folder itself (Unity makes it when
 the player starts, and a game writes into it without making it) (`Probe.ForgetSaves`: only when the company name is
@@ -662,7 +665,8 @@ task play `scenario_two`, with its queries as `probes.plan` makes them (the ids 
 
 - What varies: `out` (the copy's), the play's `seconds`, `shots`, `every`, `scene` (null: the game's first build
   scene), the task's `player` select (null: the probe finds the player, section 1), its `inputs` with the checker's
-  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries. A desktop game's spec says
+  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`), `keep_saves` (true, and only there,
+  for a task play that names `after`) and the queries. A desktop game's spec says
   nothing of the window: the command line's `-screen-width 960 -screen-height 540` sets it, and the probe holds it
   there. A mobile game's (the copy has a `Platform.json`, read by `unity.Project.mobile` through the validator's
   `read_platform`) adds `size`, `[1080, 1920]` (or `[1920, 1080]`, held on its side), and `touch`, true: the probe

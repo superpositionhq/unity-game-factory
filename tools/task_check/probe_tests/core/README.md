@@ -51,6 +51,7 @@ and what each play is for.
 | `shutdown` | The game quits by itself: `ended` is `shutdown`, with every sample and screenshot up to then. |
 | `refuse` | A game that refuses to quit (`Application.wantsToQuit`) still ends at the play's end, with exit code 0. |
 | `load_sync`, `load_async`, `load_parked` | A scene load in mid-play: no sample lost or late, the player and camera found anew; the clock holds while a scene loads, for at most 300 frames (a parked load never finishes). |
+| `saves_again`, `saves_kept` | A play whose spec says `keep_saves` starts on the saved data the play before it left |
 | `saves_a`, `saves_b` | Saved data is the build's own (company `TaskProbe.<hash>`, the name the checker deletes by) and is gone at the next play's start, the folder itself still there (the game writes its file without making the folder). The same player started without `-taskProbe`: no probe, no fixed frame rate, no virtual device, nothing wiped. A second player of the project built with a company name of its own (`CoreScenes.Foreign`, as a real project builds with the package in it) and started with `-taskProbe`: the play runs and its saved data is still there at the next play. |
 | `errors` | The checks of the queries list and their messages; an unknown kind samples null values; at most 256 queries. |
 | `errors_format`, `errors_array` | A queries object of another format, and one without a queries array: one error each in fixed words, no measures, the play whole. |

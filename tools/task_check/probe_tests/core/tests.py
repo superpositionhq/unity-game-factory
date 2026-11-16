@@ -275,6 +275,18 @@ def saves_b(t, play):
     _foreign(t)
 
 
+def saves_again(t, play):
+    """The game writes its saves once more, for the play after it."""
+    t.ok("it wrote its saves", "CORE wrote saves" in play.log)
+
+
+def saves_kept(t, play):
+    """A play whose spec says keep_saves (a task play that runs after others) starts on what the play before saved."""
+    prefs, file, _, _ = _saves(play.log)
+    t.eq("the saves of the play before are there", (prefs, file), ("True", "True"))
+    t.ok("probe.log says so", "the saved data is kept: the play runs after the plays that left it" in play.probe_log)
+
+
 FOREIGN = "ProbeTestsForeignCo"  # the company name CoreScenes.Foreign builds the second player with
 
 
@@ -427,6 +439,8 @@ PLAYS = {
     "load_parked": {"check": load_parked, "args": ["-coreload", "parked"]},
     "saves_a": {"check": saves_a, "args": ["-coresave"]},
     "saves_b": {"check": saves_b},
+    "saves_again": {"check": saves_again, "args": ["-coresave"]},
+    "saves_kept": {"check": saves_kept},
     "errors_format": {"check": no_queries, "errors": [r"^queries format 'x/1' is not game-probe-queries/1$"]},
     "errors_array": {"check": no_queries, "errors": [r"^the queries have no queries array$"]},
     "errors": {"check": errors, "errors": [

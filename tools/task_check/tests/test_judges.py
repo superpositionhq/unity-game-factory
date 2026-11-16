@@ -48,7 +48,8 @@ def judge(name="door_looks_open", plays=None, **extra):
 class Shooting(FakeProject):
     """A fake project whose plays also write their screenshots: shot_NN.png, and shot_<name>.png per `shot` input."""
 
-    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
+    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None,
+             keep_saves=False):
         self.plays.append({"seconds": seconds, "shots": shots, "scene": scene, "inputs": inputs, "queries": queries,
                            "args": list(args), "every": every, "player": player})
         named = [f"shot_{i['shot']}.png" for i in inputs or [] if "shot" in i]

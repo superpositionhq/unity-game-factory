@@ -375,11 +375,14 @@ class Project:
         return Result(code, cut(head + said + output), round(found.seconds + spent[0], 3), found.timed_out,
                       round(found.waited + spent[1], 3), report, cause, stopped)
 
-    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
+    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None,
+             keep_saves=False):
         """The built player for `seconds` of game time through the probe: windowed at 960x540 on its own desktop, a fixed
         30 fps, `shots` screenshots, `inputs` sent at their times, `queries` (probes.query_file) sampled every `every`
         s, `scene` opened (None: the project's first build scene), `player` (an object select, or None: the probe
-        finds the player) as the player, `args` after the spec on the command line; a Played."""
+        finds the player) as the player, `args` after the spec on the command line; a Played. With `keep_saves` the
+        play starts on the saved data the plays before it left (a task play that names `after`); every other play
+        starts with none."""
         logs = self.logs()
         out = logs / "play"
         seeds.remove(out)  # what an earlier play wrote is never this one's
@@ -391,6 +394,8 @@ class Project:
         spec = {"format": SPEC_FORMAT, "out": out.as_posix(), "seconds": seconds, "shots": shots, "every": every,
                 "scene": scene, "sound": probes.hears(queries), "player": player, "inputs": list(inputs or []),
                 "queries": queries or {"format": probes.QUERIES_FORMAT, "every": every, "queries": []}}
+        if keep_saves:
+            spec["keep_saves"] = True
         if mobile:  # a desktop game's spec is as it always was
             spec.update(size=[width, height], touch=True)
         asked = _fresh(logs / SPEC)  # beside the play's folder, so it isn't one of the files the play wrote

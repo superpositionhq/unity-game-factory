@@ -230,6 +230,7 @@ class Side:
         self.player = tasks.player(task)
         self._build = None
         self.played = {}  # play name -> unity.Played
+        self.saves = []  # the plays whose saved data the copy holds now: the last that started clean, and those after it
         self._editor = None
 
     # -- the build ---------------------------------------------------------------------------------------------------
@@ -291,14 +292,21 @@ class Side:
         for f, data in files.items():
             (folder / f).write_bytes(data)
 
-    def _play(self, name, seconds, shots, inputs=None, play=None, queries=None, every=None, waits=0.0):
+    def _play(self, name, seconds, shots, inputs=None, play=None, queries=None, every=None, waits=0.0, again=False):
         """A play, once per name, on the scene and args `play` (a task play, or None for the checker's own) opens;
-        `waits`: the real seconds its waits add (a task play's), which its timeout gets on top."""
-        if name not in self.played:
-            self.log(f"  {self.name}: playing {name} ({seconds} s" + (f", {waits:g} s waiting" if waits else "") + ")")
+        `waits`: the real seconds its waits add (a task play's), which its timeout gets on top. A task play that
+        names `after` starts on the saved data of the plays before it; every other play starts clean (the probe
+        clears the copy's saved data). `again`: played once more for the saved data it leaves, its result dropped."""
+        if name not in self.played or again:
+            keeps = bool(play and play.get("after"))
+            self.log(f"  {self.name}: playing {name} " + ("again " if again else "")
+                     + f"({seconds} s" + (f", {waits:g} s waiting" if waits else "") + ")")
             scene, args = tasks.place(self.task, play)
             found = self.project.play(seconds, shots, self.timeout + math.ceil(waits), scene=scene, inputs=inputs,
-                                      queries=queries, args=args, every=every, player=self.player)
+                                      queries=queries, args=args, every=every, player=self.player, keep_saves=keeps)
+            self.saves = self.saves + [name] if keeps else [name]
+            if again:
+                return found
             self.played[name] = found
             waited = getattr(found, "waited", 0.0)
             self.log(f"  {self.name}: played {name} in {found.seconds:.0f} s"
@@ -347,10 +355,9 @@ class Side:
     def probe_play(self, play):
         """The play a probe names ("look", "drive", a task play), played once with the queries of every probe it
         serves."""
-        name = play if isinstance(play, str) else play["name"]
-        every = None if isinstance(play, str) else play["every"]
-        queries = probes.query_file(self.plan.get(name, []), every)
         if isinstance(play, str):
+            name = play
+            queries = probes.query_file(self.plan.get(name, []), None)
             seconds, shots, inputs = own_play(play, self.project)
             booted = next((b for b in self.boots() if play == "look" and self.idle(b)
                            and f"boot_{b}s" in self.played), None)
@@ -359,9 +366,29 @@ class Side:
                 return unity.Played(p.exit_code, p.timed_out, p.output, p.seconds, first_seconds(p.probe, seconds),
                                     p.log, p.files)
             return self._play(name, seconds, shots, inputs, queries=queries)
+        return self._task_play(play)
+
+    def _task_play(self, play):
+        """A task play, after the plays its `after` names (docs/task-probes.md 1.1): each of them played on this copy
+        first, in order, and ended, a failed one too, so the copy's saved data is what they left and nothing else's.
+        When another play ran since (it cleared the saved data), they are played again for what they save, their
+        results dropped."""
+        name = f"play_{play['name']}"
+        if name in self.played:
+            return self.played[name]
+        named = tasks.task_plays(self.task)
+        before = tasks.chain(self.task, play["name"])
+        if before and self.saves != [f"play_{n}" for n in before]:
+            for n in before:  # from the first, which starts clean: each on what those before it left
+                self._run(named[n], again=f"play_{n}" in self.played)
+        return self._run(play)
+
+    def _run(self, play, again=False):
+        name = play["name"]
+        queries = probes.query_file(self.plan.get(name, []), play["every"])
         shots = judges.play_shots(self.task).get(name, 2)  # as the grader plays it: a judge showing it asks more
         return self._play(f"play_{name}", play["seconds"], shots, play["inputs"] or None, play=play, queries=queries,
-                          every=every, waits=tasks.waited(play))
+                          every=play["every"], waits=tasks.waited(play), again=again)
 
     def boots(self):
         """The boot plays this task's checks run (seconds): its boot checks, and 60 s for a log_absent check."""

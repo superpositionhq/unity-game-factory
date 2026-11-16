@@ -89,6 +89,16 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
   - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
+  - `after` (optional): the task plays that run, and end, before this one on each side:
+    `{"name": "reads_save", "seconds": 10, "after": ["writes_save"]}`. Names are task plays of the same task (a
+    probe's play or a judge's own `plays`), never `look`, `drive`, `editor` or `trace`, never the play itself, never a
+    cycle; `tools/validate-game.py` refuses each. **A play that reads what another play writes names it in `after`.
+    Never rely on the checker's order:** without `after`, a side's plays run in the order its checks first ask for
+    them, which is not the order the task lists them in and can change. A play that failed or was cut short still
+    counts as run: the plays after it run anyway and read whatever it left, so the failure shows in their own checks.
+    A play with `after` starts on the saved data the plays it names left, in the order named, and on nothing else's
+    (see "Saved data" below); when it names two, the second names the first in its own `after`, or the validator
+    refuses the task: a play without `after` clears the saved data when it starts.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
     one with a `.` or `..` part or an empty part (`//`, or a `/` at its end).
@@ -221,10 +231,13 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   `wait`. A game that sets `Time.captureFramerate`, `QualitySettings.vSyncCount` or `Application.targetFrameRate`
   itself doesn't change the play's time step: the probe sets the first two again before and after every frame's
   scripts, and the target frame rate before them.
-- **Saved data.** Every play starts from clean saved data. The checker's build gives the copy's player a company name
-  of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so its PlayerPrefs and
-  `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts
-  (every PlayerPrefs key deleted; the folder emptied, and still there for the game to write into).
+- **Saved data.** Every play starts from clean saved data, but a task play that names `after`: that one starts on
+  what the plays it names saved, and only that (when another play ran since they did, the checker plays them once
+  more first, for their saves alone; their checks keep reading their first play). The checker's build gives the
+  copy's player a company name of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so
+  its PlayerPrefs and `Application.persistentDataPath` are its own, never the real game's; the probe clears both when
+  a play starts clean (every PlayerPrefs key deleted; the folder emptied, and still there for the game to write
+  into). The two sides never share saved data.
 - **Focus.** The player runs windowed at 960x540 (a mobile game's at the phone's size) on a Windows desktop of its own ([task-check.md](task-check.md),
   "The plays"), where it counts itself focused for the whole play (`Application.isFocused` is true, no object gets
   `OnApplicationFocus(false)`): a game that pauses when it loses focus plays on.

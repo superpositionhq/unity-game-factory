@@ -80,9 +80,10 @@ class FakeProject:
         self.scenes.append(list(scenes))
         return unity.Result(self.build_exit, "error CS0103" if self.build_exit else "built", 1.0, report=self.report)
 
-    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None):
+    def play(self, seconds, shots, timeout, scene=None, inputs=None, queries=None, args=(), every=None, player=None,
+             keep_saves=False):
         self.plays.append({"seconds": seconds, "shots": shots, "scene": scene, "inputs": inputs, "queries": queries,
-                           "args": list(args), "every": every, "player": player})
+                           "args": list(args), "every": every, "player": player, "keep_saves": keep_saves})
         probe, log = self.answer(seconds, shots, queries) if self.answer else (None, "")
         files = {"probe.json": json.dumps(probe).encode()} if probe is not None else {}
         return unity.Played(0, False, "", 1.0, probe, log, files)

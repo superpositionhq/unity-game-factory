@@ -132,7 +132,9 @@ phone's size, 1920x1080 or 1080x1920, with a touch screen; task-probes.md, secti
 TaskProbe package sampling every 0.5 s (a task play's `every`). Each play is played once per side, with the measures of
 every probe that names it. A play with an `audio` measure is paced to real time and every other play runs as fast as
 the machine renders; the probe silences every play once it has measured the sound, so no play is ever heard
-(task-probes.md, section 2.16). What a play does to the game (its focus, its clock, the first build scene, saved data,
+(task-probes.md, section 2.16). Plays run in the order the task's checks first ask for them, except that a task play
+with `after` runs once every play it names has run on the same side, a failed one too, and starts on the saved data
+they left (task-probes.md, section 1.1). What a play does to the game (its focus, its clock, the first build scene, saved data,
 inputs) is in task-probes.md, section 1.1. Only a player you start by hand on your own desktop, to rerun a play of a
 kept copy, has its window moved off-screen and deactivated by the probe instead; that one does see itself lose focus.
 

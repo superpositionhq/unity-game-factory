@@ -826,7 +826,7 @@ DENIED_PLAY_ARGS = {'batchmode', 'nographics', 'quit', 'logfile', 'nolog', 'proj
                     'monitor', 'parenthwnd', 'single-instance', 'window-mode'}
 DENIED_PLAY_PREFIXES = ('screen-', 'force-', 'taskprobe')
 # a task play's `scene` and `args` take the task's place only when present, so they have no default here
-TASK_PLAY_DEFAULTS = {'inputs': [], 'every': None}
+TASK_PLAY_DEFAULTS = {'inputs': [], 'every': None, 'after': None}
 
 
 def denied_play_args(args):
@@ -1134,7 +1134,8 @@ def task_semantic_errors(t):
     bands; no `player` in the select that says which object the player is) and the probe rules (probe_errors);
     and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
     no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1); and a play that takes a render
-    measure makes no render of the probe's own (render_errors)."""
+    measure makes no render of the probe's own (render_errors); and a task play's `after` names task plays of the task,
+    never itself, in no cycle, each on the saved data of the one before (play_after_errors)."""
     errs, seen, plays = [], set(), {}
     seed = t.get('seed') if isinstance(t.get('seed'), dict) else None
     ref = seed.get('reference') if seed else None
@@ -1194,7 +1195,49 @@ def task_semantic_errors(t):
             if missing:
                 errs.append(f'check {n} needs {missing}, which come later or do not exist')
             seen.add(n)
-    return errs + render_errors(checks)
+    return errs + render_errors(checks) + play_after_errors(checks)
+
+
+def play_after_errors(checks):
+    """A task play's `after` (docs/task-probes.md 1.1): every name it lists is a task play of the task (a probe's play
+    or a judge's own plays; never look, drive, editor or trace), never the play itself, and the plays never wait on
+    each other in a cycle. A play that names none starts on no saved data and clears what was there, so of the plays
+    one `after` lists, each after the first runs after the one before it (itself or through the plays it names)."""
+    after = {}
+    for c in checks:
+        named = [c.get('play')] if c.get('kind') == 'probe' else (c.get('plays') or [] if c.get('kind') == 'judge' else [])
+        for p in named:
+            if isinstance(p, dict) and isinstance(p.get('name'), str):
+                found = p.get('after')
+                after.setdefault(p['name'], [x for x in found if isinstance(x, str)] if isinstance(found, list) else [])
+    errs = []
+    for name, before in after.items():
+        if name in before:
+            errs.append(f'task play {name} names itself in its after')
+        errs += [f'task play {name} runs after {other}, which is no task play of the task' for other in before
+                 if other not in after]
+    if errs:
+        return errs
+    done = set()
+    while len(done) < len(after):
+        free = next((x for x in after if x not in done and all(b in done for b in after[x])), None)
+        if free is None:
+            return [f"task plays {', '.join(x for x in after if x not in done)} can never start: their after names a "
+                    'cycle']
+        done.add(free)
+
+    def all_before(name):
+        found = set()
+        for b in after[name]:
+            found |= {b} | all_before(b)
+        return found
+    for name, before in after.items():
+        for first, then in zip(before, before[1:]):
+            if first not in all_before(then):
+                errs.append(f'task play {name} runs after {first} and {then}, but {then} does not run after {first}: '
+                            f'it starts on no saved data and clears what {first} saved (give {then} "after": '
+                            f'["{first}"])')
+    return errs
 
 
 def wild(sel):

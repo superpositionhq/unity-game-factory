@@ -260,18 +260,44 @@ def waited(p):
 
 
 def play(p):
-    """A check's play: "look", "drive", "editor", "trace", or a task play with its defaults (inputs, every). Its own
+    """A check's play: "look", "drive", "editor", "trace", or a task play with its defaults (inputs, every, after). Its own
     `scene` and `args` are kept only when the task play has the key: a key that is there takes the place of the
     task's play_scene / play_args (a `"scene": null` opens the project's first build scene), one that isn't leaves
     them (place)."""
     if isinstance(p, str):
         return p
     out = {"name": p["name"], "seconds": int(p["seconds"]), "inputs": inputs(p.get("inputs")),
-           "every": float(p["every"]) if p.get("every") is not None else None}
+           "every": float(p["every"]) if p.get("every") is not None else None, "after": list(p.get("after") or [])}
     if "scene" in p:
         out["scene"] = p["scene"]
     if "args" in p:
         out["args"] = list(p["args"] or [])
+    return out
+
+
+def task_plays(task):
+    """{name: task play, with its defaults} of every task play the task's checks name (a probe's play, a judge's own
+    plays), in the order first named."""
+    found = {}
+    for c in (c for m in task["milestones"] for c in m["checks"]):
+        named = [c["play"]] if c.get("kind") == "probe" else (c.get("plays") or [] if c.get("kind") == "judge" else [])
+        for p in named:
+            if isinstance(p, dict):
+                found.setdefault(p["name"], play(p))
+    return found
+
+
+def chain(task, name):
+    """The task plays that run, in order, before the task play `name` starts on saved data they left: the plays its
+    `after` names, each after its own (a play named twice runs once, where it is first needed)."""
+    plays, out = task_plays(task), []
+
+    def walk(n):
+        for before in plays[n]["after"]:
+            if before not in out:
+                walk(before)
+                out.append(before)
+    walk(name)
     return out
 
 

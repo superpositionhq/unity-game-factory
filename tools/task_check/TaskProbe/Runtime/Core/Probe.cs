@@ -131,7 +131,8 @@ namespace TaskProbe
             Active = this;
             spec = play;
             outDir = Json.Str(spec, "out") ?? Path.Combine(Application.persistentDataPath, "TaskProbe");
-            var kept = ForgetSaves();  // before anything is written: without `out` the play's folder is in the saved data
+            // before anything is written: without `out` the play's folder is in the saved data
+            var kept = Json.Bool(spec, "keep_saves") ? "the saved data is kept: the play runs after the plays that left it" : ForgetSaves();
             Directory.CreateDirectory(outDir);
             logFile = new StreamWriter(Path.Combine(outDir, "probe.log"), false, new UTF8Encoding(false)) { AutoFlush = true };
             if (kept != null) Log(kept);
@@ -177,8 +178,8 @@ namespace TaskProbe
                 + (Window.OnOwnDesktop() ? ", on its own desktop" : ", on the user's desktop (window moved off-screen)"));
         }
 
-        /// <summary>A fresh start every play: what an earlier play saved (PlayerPrefs, the persistent data folder) is
-        /// gone. Only ever in the checker's own build of a scratch copy: its company name is "TaskProbe." and 12 hex
+        /// <summary>A fresh start every play but one whose spec says `keep_saves` (a task play that runs after others):
+        /// what an earlier play saved (PlayerPrefs, the persistent data folder) is gone. Only ever in the checker's own build of a scratch copy: its company name is "TaskProbe." and 12 hex
         /// digits, so the registry key and the folder are that build's alone, never a game's own. Anything else (the
         /// package copied into a real project, a real game started with -taskProbe) keeps its saved data: the line
         /// for probe.log saying so, else null.</summary>

@@ -463,6 +463,11 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check alone.**
+- **A play that reads what another play writes names it in `after`. Never rely on the checker's order.** A task play
+  that reads a save (a level reached, a profile filled in) lists the plays that write it:
+  `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
+  left; every other play starts with none. A writer that failed still counts as run, so the failure shows in the
+  reader's checks. Of two writers, the second names the first in its own `after` (docs/task-probes.md, 1.1).
 - **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling) is
   staged, never left out because "no fixed play guarantees the contact": `pin` the foe or target ahead of the player
   (a target the build invents: the nearest thing a player can shove near the player) and press the task's own attack
@@ -581,6 +586,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script, when the start has it too); in a task that adds the thing no such component is sure, so count how often an `objects` `count` over a `has` select rises (docs/task-probes.md, section 2.9) |
 | `teleport_to` a hovering target left the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
+| a play that reads a save ran on clean saved data and read nothing (a later level not yet unlocked, an empty profile) | the reading play names its writers in `after`; every other play starts clean (docs/task-probes.md, 1.1) |
 | a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `started_audible` by `owner` or `near`, or `level` in an audio play |
 | a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |
 | an editor `shader:` value compared with `==` 0.2 read 0.19999995827674866 | floats come back as stored: `>=`/`<=` a little either side |

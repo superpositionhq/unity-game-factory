@@ -4031,8 +4031,26 @@
     },
     "TaskPlay": {
       "additionalProperties": false,
-      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits, touches) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5).",
+      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits, touches) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5). `after`: the task plays (probe or judge plays of the task) that run\nand end on the same side before it starts, for a play that reads what another writes (a save): it starts on the\nsaved data they left, where every other play starts with none; one that failed still counts as run.",
       "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z0-9_]{1,32}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "After"
+        },
         "args": {
           "items": {
             "pattern": "^-?[A-Za-z0-9_.:=,/-]{1,60}$",
