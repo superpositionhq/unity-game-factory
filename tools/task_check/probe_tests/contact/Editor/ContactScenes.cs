@@ -52,6 +52,10 @@ namespace ProbeTests.Contact
             fallen.dead = true;
             fallen.walk = 0f;
             Cube("Crate", new Vector3(-3f, 0.5f, 0f));
+            // far from the fight: an entry with optional parameters after the contract's two, and one that isn't the
+            // contract's
+            Cube("Armored", new Vector3(-30f, 0.5f, 0f)).AddComponent<ContactArmored>();
+            Cube("Odd", new Vector3(-40f, 0.5f, 0f)).AddComponent<ContactOdd>();
             EditorSceneManager.SaveScene(scene, Made + "/Duel.unity");
         }
 
@@ -61,7 +65,11 @@ namespace ProbeTests.Contact
             var scene = New();
             Camera();
             Cube("Hero", Vector3.zero, "Player");
-            Cube("Stutter", new Vector3(0f, 0f, 5f)).AddComponent<ContactStutter>();
+            var stutter = Cube("Stutter", new Vector3(0f, 0f, 5f)).AddComponent<ContactStutter>();
+            var pip = Cube("Pip", new Vector3(0f, 0f, 5f));
+            pip.transform.SetParent(stutter.transform, true);
+            pip.transform.localPosition = new Vector3(0f, -1f, 0f);
+            stutter.pip = pip;
             new GameObject("Clock").AddComponent<ContactClock>();
             EditorSceneManager.SaveScene(scene, Made + "/Stops.unity");
         }

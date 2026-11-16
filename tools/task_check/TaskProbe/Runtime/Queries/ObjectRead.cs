@@ -379,8 +379,10 @@ namespace TaskProbe
     }
 
     /// <summary>frozen: the longest short stop of each followed object that ended since the previous sample. An object
-    /// holds still in a frame when it moved under 1 mm, turned under 0.05 degrees and none of its points (the bones of
-    /// its skinned meshes and its parts' transforms, in its own space) moved 1 mm; a stop counts only between two
+    /// holds still in a frame when it moved under 1 mm, turned under 0.05 degrees and none of its points moved 1 mm in
+    /// its own space. Its points are the bones of its skinned meshes and its parts' transforms as they were when it was
+    /// first followed: one destroyed since is left out, and a child made since (a hit spark, a damage number) is none
+    /// of them, so neither one appearing or vanishing nor one that moves ends a stop. A stop counts only between two
     /// frames of motion and only up to 0.5 s: a hit stop, never an idle or a rest. Only what a sample read is followed
     /// until the next one.</summary>
     public sealed class Stills
@@ -393,7 +395,8 @@ namespace TaskProbe
             public GameObject Object;
             public Vector3 At;
             public Quaternion Facing;
-            public List<Vector3> Points = new List<Vector3>(), Now = new List<Vector3>();
+            public readonly List<Transform> Points = new List<Transform>();
+            public readonly List<Vector3> Was = new List<Vector3>();
             public bool Seen, MovedBefore;  // MovedBefore: it moved in a frame before the stop under way
             public double Run, Best, Time;  // Time: seconds followed since the last sample
         }
@@ -403,20 +406,19 @@ namespace TaskProbe
         readonly List<int> gone = new List<int>();
         readonly List<Renderer> renderers = new List<Renderer>();
 
-        /// <summary>The points of an object that a pose moves, in its own space, in order.</summary>
-        void PointsOf(GameObject go, List<Vector3> points)
+        /// <summary>The points of an object that a pose moves, as it is now.</summary>
+        void PointsOf(GameObject go, List<Transform> points)
         {
-            points.Clear();
             var root = go.transform;
-            go.GetComponentsInChildren(false, renderers);
+            go.GetComponentsInChildren(true, renderers);
             foreach (var r in renderers)
             {
                 if (r is SkinnedMeshRenderer skinned)
                 {
                     foreach (var bone in skinned.bones)
-                        if (bone != null) points.Add(root.InverseTransformPoint(bone.position));
+                        if (bone != null && bone != root && !points.Contains(bone)) points.Add(bone);
                 }
-                else if (r.transform != root && ObjectRead.IsPart(r)) points.Add(root.InverseTransformPoint(r.transform.position));
+                else if (r.transform != root && ObjectRead.IsPart(r) && !points.Contains(r.transform)) points.Add(r.transform);
             }
         }
 
@@ -428,13 +430,14 @@ namespace TaskProbe
                 var track = kv.Value;
                 if (track.Object == null) { gone.Add(kv.Key); continue; }
                 var t = track.Object.transform;
-                PointsOf(track.Object, track.Now);
-                var still = false;
-                if (track.Seen && track.Now.Count == track.Points.Count)
+                var still = track.Seen && (t.position - track.At).magnitude < Place && Quaternion.Angle(t.rotation, track.Facing) < Turn;
+                for (var i = 0; i < track.Points.Count; i++)
                 {
-                    still = (t.position - track.At).magnitude < Place && Quaternion.Angle(t.rotation, track.Facing) < Turn;
-                    for (var i = 0; still && i < track.Now.Count; i++)
-                        still = (track.Now[i] - track.Points[i]).magnitude < Place;
+                    var point = track.Points[i];
+                    if (point == null) continue;  // destroyed since: no motion of the object's
+                    var now = t.InverseTransformPoint(point.position);
+                    if (track.Seen && (now - track.Was[i]).magnitude >= Place) still = false;
+                    track.Was[i] = now;
                 }
                 if (still) track.Run += track.MovedBefore ? dt : 0.0;  // a stop that follows motion
                 else if (track.Seen)
@@ -447,9 +450,6 @@ namespace TaskProbe
                 track.Time += dt;
                 track.At = t.position;
                 track.Facing = t.rotation;
-                var swap = track.Points;
-                track.Points = track.Now;
-                track.Now = swap;
                 track.Seen = true;
             }
             foreach (var key in gone) tracks.Remove(key);
@@ -474,7 +474,12 @@ namespace TaskProbe
             foreach (var kv in read)
             {
                 if (kv.Value == null) continue;
-                if (!tracks.TryGetValue(kv.Key, out var track)) tracks[kv.Key] = track = new Track { Object = kv.Value };
+                if (!tracks.TryGetValue(kv.Key, out var track))
+                {
+                    tracks[kv.Key] = track = new Track { Object = kv.Value };
+                    PointsOf(kv.Value, track.Points);
+                    foreach (var point in track.Points) track.Was.Add(kv.Value.transform.InverseTransformPoint(point.position));
+                }
                 track.Best = 0.0;
                 track.Time = 0.0;
             }

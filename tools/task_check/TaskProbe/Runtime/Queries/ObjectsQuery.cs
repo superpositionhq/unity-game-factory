@@ -134,7 +134,7 @@ namespace TaskProbe
                 case "spin": return Spin(go);
                 case "clip": return ObjectRead.Clip(go);
                 case "frozen": return stills.Of(go);
-                case "damage_taken": return Stages.DamageTaken(go);
+                case "damage_taken": return Stages.DamageTaken(go);  // no value for an object no stage struck
             }
             var colon = f.IndexOf(':');
             if (colon > 0)

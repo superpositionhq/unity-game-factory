@@ -251,11 +251,12 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
     object out (its children stay);
   - `frozen` (`Stills`, s): the longest short stop of the object that ended since the previous sample. The objects a
     sample read are followed every frame until the next: one holds still in a frame when it moved under 1 mm, turned
-    under 0.05 degrees and none of its points (its skinned meshes' bones and its parts' transforms, in its own space)
+    under 0.05 degrees and none of its points (its skinned meshes' bones and its parts' transforms, in its own space,
+    as they were when it was first followed: one destroyed since is skipped, a child made since is none of them)
     moved 1 mm; a run of still frames counts when frames of motion came before and after it and it lasted 0.5 s at
     most, and is told in the sample after it ended. No value the first sample the object is seen in;
   - `damage_taken`: what the object's `TakeDamage` returned for the play's `damage` stages, summed (`Stages.DamageTaken`;
-    0 before any);
+    no value for an object no stage struck);
   - measured: a whole-scene sample of 3000 objects takes about 20 ms.
 - **components** (`ComponentsQuery`): with `component`, the components whose type, a base type or an interface has that
   name (`Find.Components`: `FindObjectsByType` of each type of that name, of each component type that implements an
@@ -623,17 +624,20 @@ control <path>`, `inputs: no device for <path>`), never a stop.
     own scripts run on. `probe.log` says `pinned <name> at (...) for <hold> s`.
   - `{"t", "damage": points, "to": <select>, "from": <select>}` (`from` only when set): `TakeDamage(float, GameObject)`
     of an interface named `IDamageable`, found by reflection on a component of the target, else of an object above
-    it, else of one under it, called with the points and the source: `from`'s nearest match, by default the player,
+    it, else of one under it (parameters after those two must have defaults, and get them), called with the points
+    and the source: `from`'s nearest match, by default the player,
     or, when the player is the target, the nearest other object with an `IDamageable` component. What it returned is
     added to the target's `damage_taken`. `probe.log` says `<points> damage to <name> from <name>: it took <n>`.
   - `{"t", "set": "<path>", "on": <select>, "value": v, "all": true}` (`all` only when set): `Reflect.Write` on the
     nearest match, or on every match: the path as a `prop:` field resolves it (a component by type name, else the
     GameObject, else its Transform), no index; a field that isn't readonly or constant, or a property with a setter,
     public or not; a boolean for a bool, a number for a number or an enum, a string for a string or an enum's name.
+    The member is read back, and one that doesn't read the value written (a setter that refuses or clamps) is a miss.
   - A stage nothing took is a row of `inputs_missed` (section 5) and a `probe.log` line, and nothing is done: a pin no
     object but the player matches, or whose `at` doesn't resolve; a damage with no target, a target without the
     interface, or a `TakeDamage` that threw; a set no object matches, or that some matches didn't take (no such
-    member, one that can't be written, a member of a struct, a value of another kind).
+    member, one that can't be written, a member of a struct, a value of another kind, a value not read back). The
+    checker gives no value to any probe of a play with such a row (`probes.stage_missed`): the play staged no contact.
 - wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
   real and game time have passed; the inputs after it wait for its end. The frame it starts in takes its sample first.
 

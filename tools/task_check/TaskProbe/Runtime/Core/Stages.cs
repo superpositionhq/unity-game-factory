@@ -32,8 +32,9 @@ namespace TaskProbe
             Taken.Clear();
         }
 
-        /// <summary>What an object's TakeDamage returned for the play's damage stages so far, summed (damage_taken).</summary>
-        public static double DamageTaken(GameObject go) => go != null && Taken.TryGetValue(go.GetInstanceID(), out var sum) ? sum : 0.0;
+        /// <summary>What an object's TakeDamage returned for the play's damage stages so far, summed (damage_taken); no
+        /// value for an object no stage struck.</summary>
+        public static double? DamageTaken(GameObject go) => go != null && Taken.TryGetValue(go.GetInstanceID(), out var sum) ? sum : (double?)null;
 
         /// <summary>The match of `select` nearest to the player: the player itself for {"player": true}, else never the
         /// player nor anything under it; without a player, the first match in hierarchy order. `all`: every match
@@ -147,15 +148,22 @@ namespace TaskProbe
             if (Json.Obj(row, "from") is Dictionary<string, object> select) from = Nearest(select, "inputs: damage from");
             else if (target == player) from = Nearest(new Dictionary<string, object> { ["component"] = Damageable }, null);
             else from = player;
-            var part = Entry(target, out var method);
+            var part = Entry(target, out var method, out var named);
             if (part == null)
             {
-                probe.Missed(t, "damage", target.name, "it has no component implementing " + Damageable + " with " + TakeDamage
-                                                         + "(float, GameObject): the game takes no damage through the game contract's entry");
+                probe.Missed(t, "damage", target.name, named
+                    ? "its " + Damageable + " has no " + TakeDamage + "(float, GameObject) (parameters after those two must be optional)"
+                    : "it has no component implementing " + Damageable + ": the game takes no damage through the game contract's entry");
                 return;
             }
+            // (amount, source), and its own default for every optional parameter after them
+            var parameters = method.GetParameters();
+            var arguments = new object[parameters.Length];
+            arguments[0] = (float)amount;
+            arguments[1] = from;
+            for (var i = 2; i < parameters.Length; i++) arguments[i] = parameters[i].DefaultValue;
             object returned;
-            try { returned = method.Invoke(part, new object[] { (float)amount, from }); }
+            try { returned = method.Invoke(part, arguments); }
             catch (Exception e)
             {
                 probe.Missed(t, "damage", target.name, TakeDamage + " threw " + (e.InnerException ?? e).GetType().Name);
@@ -164,16 +172,18 @@ namespace TaskProbe
             }
             var took = returned is IConvertible ? Convert.ToDouble(returned, CultureInfo.InvariantCulture) : 0.0;
             if (double.IsNaN(took) || double.IsInfinity(took)) took = 0.0;
-            Taken[target.GetInstanceID()] = DamageTaken(target) + took;
+            Taken[target.GetInstanceID()] = (DamageTaken(target) ?? 0.0) + took;
             Probe.Log(FormattableString.Invariant($"{amount:F1} damage to {target.name} from {(from != null ? from.name : "nothing")}: it took {took:F1}")
                       + (returned is IConvertible ? "" : " (its " + TakeDamage + " returns no number)"));
         }
 
         /// <summary>The damage entry of `target`: a component whose type implements an interface named IDamageable that
-        /// declares TakeDamage(float, GameObject), on the object, else above it, else under it.</summary>
-        static Component Entry(GameObject target, out MethodInfo method)
+        /// declares TakeDamage(float, GameObject), with nothing or only optional parameters after those two, on the
+        /// object, else above it, else under it. `named`: a component implements an IDamageable, whatever it declares.</summary>
+        static Component Entry(GameObject target, out MethodInfo method, out bool named)
         {
             method = null;
+            named = false;
             var candidates = new List<Component>();
             for (var t = target.transform; t != null; t = t.parent) candidates.AddRange(t.GetComponents<Component>());
             candidates.AddRange(target.GetComponentsInChildren<Component>(false));
@@ -183,10 +193,14 @@ namespace TaskProbe
                 foreach (var face in c.GetType().GetInterfaces())
                 {
                     if (face.Name != Damageable) continue;
+                    named = true;
                     foreach (var m in face.GetMethods())
                     {
                         var p = m.GetParameters();
-                        if (m.Name != TakeDamage || p.Length != 2 || p[0].ParameterType != typeof(float) || p[1].ParameterType != typeof(GameObject)) continue;
+                        if (m.Name != TakeDamage || p.Length < 2 || p[0].ParameterType != typeof(float) || p[1].ParameterType != typeof(GameObject)) continue;
+                        var optional = true;
+                        for (var i = 2; i < p.Length; i++) optional &= p[i].HasDefaultValue;
+                        if (!optional) continue;
                         method = m;
                         return c;
                     }

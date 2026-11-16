@@ -336,12 +336,14 @@ time the play knows, then reading what changed. Names come from the task's start
   attacks call it: `TakeDamage(points, source)` of the `IDamageable` on the nearest match (`{"player": true}`: the
   player; the component on the object, else on one above it, else on one under it). The source is `from`'s nearest
   match; without `from` the player, or, when the player is struck, the nearest other object with an `IDamageable`.
-  For a game under the game contract (docs/game-format.md), where every hit goes through that interface.
+  For a game under the game contract (docs/game-format.md), where every hit goes through that interface. A
+  `TakeDamage` with more parameters is called when each one after the two is optional, with its own default.
 - `{"t": 0.5, "set": "Foe.health", "on": <object select>, "value": 1, "all": true}`: a member the start names (the
   path a `prop:` field reads, without an index; a field, or a property with a setter, public or not) written on the
   nearest match, or on every match with `all`: a number, a boolean, an enum by value or name, a string. To set a
   fight up (a foe's health at 1 so one blow fells it through the game's own death, the player's own high so a staged
-  fight can't end the play), never to decide what the check reads.
+  fight can't end the play), never to decide what the check reads. The member is read back: one whose setter refused
+  or clamped the value didn't take it.
 - `where` in any object select: `[{"prop": "Foe.dead", "op": "==", "value": false}]` (1 to 4 conditions, all must
   hold; `>`, `>=`, `<`, `<=`, `==`, `!=`; a string compares by `==` and `!=` only): only the foes not dead, one bay's
   group. An object on which the member doesn't resolve never matches. `"player": false`: anything but the player
@@ -349,22 +351,27 @@ time the play knows, then reading what changed. Names come from the task's start
 
 A stage nothing took changes nothing and is listed in the play's `inputs_missed` (probe.json: `t`, `kind`, `target`,
 `why`; and a line of `probe.log`): a pin no object matches or whose point doesn't resolve, a damage with no target or
-a target without the interface, a set no object or no member takes. Every other input that didn't land is listed
-there too: a click no visible button took, a teleport without a player or next to an object nothing matches, a key
-the probe has no control for, a touch on a widget that isn't on screen. Read it when a play did not do what its
-inputs say. The check that reads the contact then fails on
-the side that missed; when the reference misses too, the task is invalid.
+a target without the interface (or whose `IDamageable` has no `TakeDamage(float, GameObject)`), a set no object or no
+member takes. **A play with such a row measured no staged contact: every probe that reads it has no value on that
+side, whatever its samples say** (`a stage of the play did not land (...)`), so "it took no damage" never passes
+because nothing was hit. On the reference that makes the task invalid: fix the play.
+
+Every other input that didn't land is listed there too, and fails nothing by itself: a click no visible button took,
+a teleport without a player or next to an object nothing matches, a key the probe has no control for, a touch on a
+widget that isn't on screen. Read it when a play did not do what its inputs say.
 
 **Read it deterministically**, in a probe one sentence explains:
 
 - a thing gone or drawn (`drawn`, a count), a start-named state or member (`prop:`, an Animator's `anim:` or `clip`);
 - objects `damage_taken`: what the object's `TakeDamage` returned for the play's `damage` stages, summed. Under the
   game contract `TakeDamage` returns the damage actually applied (0 when the hit did nothing), so this is what a hit
-  did: a block, an invulnerable moment, a weak spot;
+  did: a block, an invulnerable moment, a weak spot. An object no stage struck has no value, never 0;
 - **a hit stop** (0.05 to 0.1 s: no screenshot shows it): `world` `time_scale` (section 2.21) where the stop slows
   the game's time; objects `frozen` where it is the object's own: the longest short stop that ended since the
   previous sample (frames in which the object moved under 1 mm, turned under 0.05 degrees and none of its skinned
-  meshes' bones or its parts moved 1 mm, between two frames of motion, 0.5 s at most), in a tight window right after
+  meshes' bones or its parts moved 1 mm, between two frames of motion, 0.5 s at most; its parts are those it had
+  when the play first read it, so a hit spark or a damage number made under it, moving or not, ends no stop, nor does
+  a part destroyed), in a tight window right after
   the contact, never on an object a pin or a teleport holds, paired with `world` `paused` == 0; the start's play must
   read 0;
 - **a stagger, a knock-back or an interrupted action** (behaviour, not looks): a start-named staggered state or

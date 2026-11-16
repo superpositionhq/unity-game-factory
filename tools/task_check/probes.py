@@ -521,9 +521,28 @@ def ended(probe):
     return max(found, default=0.0)
 
 
+STAGES = ("pin", "damage", "set")  # the inputs that stage a contact (docs/task-probes.md 1.4)
+
+
+def stage_missed(probe):
+    """The first stage of the play nothing took (a row of probe.json `inputs_missed` of kind pin, damage or set), in
+    words, or None."""
+    rows = probe.get("inputs_missed") if isinstance(probe, dict) else None
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and row.get("kind") in STAGES:
+            at = fmt(row["t"]) if _count(row.get("t")) else "?"
+            return f"{row['kind']} {row.get('target')} at {at} s: {str(row.get('why'))[:300]}"
+    return None
+
+
 def measured(measure, probe, log=""):
     """(a runtime measure of one play as one number, or None; why none). A play that ended early (quit, crashed,
-    never reached the window) has no samples there: "no samples in the window (the play ended at X s)"."""
+    never reached the window) has no samples there: "no samples in the window (the play ended at X s)". A play one
+    of whose stages landed on nothing measured no staged contact: no value, whatever its samples read (a
+    damage_taken of 0 because nothing was hit is no pass)."""
+    missed = stage_missed(probe)
+    if missed:
+        return None, f"a stage of the play did not land ({missed}), so the play staged no contact to read"
     if measure["probe"] == "log":
         return float(sum(1 for line in (log or "").splitlines() if re.search(measure["pattern"], line))), None
     if probe is None:

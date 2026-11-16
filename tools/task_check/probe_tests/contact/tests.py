@@ -32,8 +32,9 @@ def stage(t, play):
     t.eq("where: the foes not dead", count(play, "live", 0.5), 2)
     t.eq("where on text: the marked ones", count(play, "marked", 0.5), 3)
     t.eq("two conditions: both hold (health 5 or more, a label)", count(play, "hale", 0.5), 2)
-    t.eq("everything that takes damage", count(play, "hurt", 0.5), 4)
-    t.eq("player false: but the player", count(play, "others", 0.5), 3)
+    t.eq("everything with an IDamageable, whichever namespace declares it", count(play, "hurt", 0.5), 6)
+    t.eq("player false: but the player", count(play, "others", 0.5), 5)
+    t.eq("a setter with bounds takes a value inside them", foe(play, 0.5, "FoeFar", "prop:ContactFoe.Morale"), 4.0)
     # pin, at 1 s for 2 s, 1.5 m ahead of the player
     t.near("before the pin it walks", foe(play, 0.5, "FoeNear", "x"), 0.5, FRAME + FLOAT)
     for at in (1.5, 2.0, 2.5):
@@ -53,7 +54,11 @@ def stage(t, play):
     t.eq("the player struck: what it took", hero.get("damage_taken"), 3.0)
     t.eq("its health", hero.get("prop:ContactHero.health"), 97.0)
     t.eq("from the nearest other object that takes damage", hero.get("prop:ContactHero.lastSource"), "FoeNear")
-    t.eq("before any damage: 0", foe(play, 1.0, "FoeFar", "damage_taken"), 0.0)
+    t.eq("an object no stage struck has no damage_taken, not 0", foe(play, 1.0, "FoeFar", "damage_taken"), None)
+    armored = play.row("armored", 3.5, "Armored") or {}
+    t.eq("an entry with optional parameters after the two: called with their defaults", [armored.get("damage_taken"),
+         armored.get("prop:ContactArmored.kind"), armored.get("prop:ContactArmored.combo"), armored.get("prop:ContactArmored.health")],
+         [3.0, "blunt", 2.0, 7.0])
     # at 2.2 s: damage to the nearest live foe from the crate; that foe pinned at a point
     t.eq("damage to the nearest match of a where", foe(play, 2.5, "FoeFar", "damage_taken"), 2.0)
     t.eq("from what `from` selects", foe(play, 2.5, "FoeFar", "prop:ContactFoe.lastSource"), "Crate")
@@ -67,7 +72,7 @@ def stage(t, play):
          [(4.0, "pin", "select"), (4.0, "pin", "at"), (4.1, "damage", "Crate"), (4.1, "damage", "to"),
           (4.2, "set", "ContactFoe.nothing"), (4.2, "set", "ContactFoe.Sealed"), (4.2, "set", "ContactFoe.born"),
           (4.3, "set", "ContactFoe.health"), (4.3, "set", "ContactFoe.gauge.level"), (4.3, "set", "ContactFoe.health"),
-          (4.4, "set", "ContactFoe.health")])
+          (4.4, "set", "ContactFoe.health"), (4.5, "damage", "Odd"), (4.6, "set", "ContactFoe.Morale")])
     why = [m.get("why") or "" for m in missed]
     t.ok("an object without the damage entry", len(why) > 2 and "no component implementing IDamageable" in why[2], why)
     t.ok("no such member", len(why) > 4 and "no property nothing" in why[4], why)
@@ -76,13 +81,17 @@ def stage(t, play):
     t.ok("text for a number", len(why) > 7 and "it takes no text" in why[7], why)
     t.ok("a member of a struct", len(why) > 8 and "member of a struct" in why[8], why)
     t.ok("with all: how many didn't take it", len(why) > 10 and why[10].startswith("3 of 3 objects didn't take it"), why)
+    t.ok("an IDamageable that isn't the contract's: a miss, never a call", len(why) > 11 and "has no TakeDamage(float, GameObject)" in why[11], why)
+    t.eq("... it was not called", (play.row("odd", 5.0, "Odd") or {}).get("prop:ContactOdd.hits"), 0.0)
+    t.ok("a setter that clamps the value didn't take it: read back", len(why) > 12 and "didn't take the value: it reads 5" in why[12], why)
     t.eq("a miss changes nothing", foe(play, 5.0, "FoeFar", "prop:ContactFoe.health"), 8.0)
-    t.eq("the crate took none", (play.row("crate", 5.0, "Crate") or {}).get("damage_taken"), 0.0)
+    t.eq("the crate took none: no value", (play.row("crate", 5.0, "Crate") or {}).get("damage_taken"), None)
 
 
 def stops(t, play):
     """A stop shorter than the 0.5 s between two samples is read: the object's own (six frames still between frames of
-    motion), the game's time slowed for three frames, and stopped for two."""
+    motion), the game's time slowed for three frames, and stopped for two. What a hit dresses the object with during
+    its stop is none of its motion: a child made and destroyed, one made that keeps moving, a part of it destroyed."""
     frozen = dict(play.series("stutter", "frozen", "Stutter"))
     times = sorted(frozen)
     t.eq("frozen has no value the first sample it is seen in", frozen[times[0]], None)

@@ -81,6 +81,23 @@ class Readings(unittest.TestCase):
                                      {"t": 2.1, "value": {"time_scale": 0.05, "paused": 0.0}}]}}
         self.assertEqual(probes.series(measure, played), [(2.0, 1.0), (2.1, 0.05)])
 
+    def test_a_stage_that_landed_on_nothing_gives_the_plays_probes_no_value(self):
+        from task_check import probes, tasks
+        task = task_with(probe(play=play(Stages.STAGED), measure=ALIVE, expect=RELATIVE))
+        measure = tasks.checks(task)[0][1]["measure"]
+        qid = probes.query_id(probes.needs(measure)[0])
+        played = {"seconds": 10.5, "measures": {qid: [{"t": 5.0, "rows": []}]}, "inputs_missed": []}
+        self.assertEqual(probes.measured(measure, played), (0.0, None))
+        played["inputs_missed"] = [{"t": 1.0, "kind": "click", "target": "Start", "why": "no visible button matches it"}]
+        self.assertEqual(probes.measured(measure, played), (0.0, None), "a click that missed is no stage")
+        for kind in ("pin", "damage", "set"):
+            played["inputs_missed"] = [{"t": 1.5, "kind": kind, "target": "select", "why": "no object matches it"}]
+            value, why = probes.measured(measure, played)
+            self.assertIsNone(value, kind)
+            self.assertIn(f"a stage of the play did not land ({kind} select at 1.5 s: no object matches it)", why)
+        log = {"probe": "log", "pattern": "hit", "field": "count"}
+        self.assertIsNone(probes.measured(log, played, "hit")[0], "the log of a play that staged nothing counts nothing")
+
     def test_an_objects_short_stop_and_the_damage_it_took_are_fields(self):
         from task_check import probes, tasks
         for field in ("frozen", "damage_taken"):

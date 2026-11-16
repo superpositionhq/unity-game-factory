@@ -25,6 +25,14 @@ namespace ProbeTests.Contact
         public readonly int born = 3;
         public int Armor { get; private set; }
         public int Sealed => 7;
+        float morale = 3f;
+
+        /// <summary>A setter that keeps its own bounds: 0 to 5.</summary>
+        public float Morale
+        {
+            get => morale;
+            set => morale = Mathf.Clamp(value, 0f, 5f);
+        }
 
         public float TakeDamage(float amount, GameObject source)
         {

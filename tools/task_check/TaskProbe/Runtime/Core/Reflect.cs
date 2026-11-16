@@ -305,8 +305,8 @@ namespace TaskProbe
         /// &lt;Component&gt;.&lt;member&gt;[.&lt;sub&gt;] on the component of that type name (on the object, else the first in its
         /// descendants), else the path on the GameObject, else on its Transform. Fields and properties with a setter,
         /// public or not; a bool, a number, an enum (by value or name) or a string. False with `why` when the path
-        /// doesn't resolve, the member can't be written (no setter, a constant, a member of a struct) or the value
-        /// isn't of its kind.</summary>
+        /// doesn't resolve, the member can't be written (no setter, a constant, a member of a struct), the value
+        /// isn't of its kind, or the member doesn't read the value back (a setter that refuses or clamps it).</summary>
         public static bool Write(GameObject go, string path, object value, out string why)
         {
             why = "no property " + path;
@@ -350,6 +350,12 @@ namespace TaskProbe
             catch (Exception e)
             {
                 why = "writing " + name + " threw " + (e.InnerException ?? e).GetType().Name;
+                return false;
+            }
+            // read back: a setter that refuses or clamps the value didn't take it
+            if (!ReadMember(target, name, out var now) || !Equals(now, converted))
+            {
+                why = name + " didn't take the value: it reads " + (now ?? "null") + " after the write";
                 return false;
             }
             return true;

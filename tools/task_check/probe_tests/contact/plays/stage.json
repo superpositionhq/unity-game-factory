@@ -21,7 +21,8 @@
     "prop:ContactFoe.state",
     "prop:ContactFoe.label",
     "prop:ContactFoe.lastSource",
-    "prop:ContactFoe.Armor"
+    "prop:ContactFoe.Armor",
+    "prop:ContactFoe.Morale"
    ]
   },
   {
@@ -110,6 +111,30 @@
    "fields": [
     "damage_taken"
    ]
+  },
+  {
+   "id": "armored",
+   "kind": "objects",
+   "select": {
+    "name": "Armored"
+   },
+   "fields": [
+    "damage_taken",
+    "prop:ContactArmored.kind",
+    "prop:ContactArmored.combo",
+    "prop:ContactArmored.health"
+   ]
+  },
+  {
+   "id": "odd",
+   "kind": "objects",
+   "select": {
+    "name": "Odd"
+   },
+   "fields": [
+    "damage_taken",
+    "prop:ContactOdd.hits"
+   ]
   }
  ],
  "inputs": [
@@ -148,6 +173,14 @@
   {
    "t": 0.2,
    "set": "ContactFoe.Armor",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 4
+  },
+  {
+   "t": 0.2,
+   "set": "ContactFoe.Morale",
    "on": {
     "name": "FoeFar"
    },
@@ -220,6 +253,13 @@
     0.0,
     2.0
    ]
+  },
+  {
+   "t": 3.2,
+   "damage": 6.0,
+   "to": {
+    "name": "Armored"
+   }
   },
   {
    "t": 4.0,
@@ -315,6 +355,21 @@
    },
    "value": true,
    "all": true
+  },
+  {
+   "t": 4.5,
+   "damage": 1.0,
+   "to": {
+    "name": "Odd"
+   }
+  },
+  {
+   "t": 4.6,
+   "set": "ContactFoe.Morale",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 9
   }
  ]
 }
