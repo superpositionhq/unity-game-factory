@@ -69,6 +69,13 @@ class Starts(unittest.TestCase):
             self.assertIsNone(value)
             self.assertIn("no audio listener", why)
 
+    def test_a_place_that_does_not_resolve_reads_nothing(self):
+        # the probe leaves the keys out when the near's point didn't resolve: no value, never 0
+        for field in ("started", "started_audible", "count", "sounds", "repeats"):
+            measure = measure_of(field)
+            value, _ = probes.measured(measure, played(measure, {"level": 0.0, "listener": "Ears"}))
+            self.assertIsNone(value, field)
+
     def test_a_volume_is_never_a_literal_and_a_start_count_may_be(self):
         task_with(probe(measure=audio("started_audible"), expect={"op": ">=", "value": 1}))
         with self.assertRaises(ValueError):

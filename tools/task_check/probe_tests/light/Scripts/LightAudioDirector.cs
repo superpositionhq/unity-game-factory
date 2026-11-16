@@ -25,6 +25,7 @@ namespace ProbeTests.Lighting
             switch (++frames)
             {
                 case 72: ender.Play(); break;                                     // 2.4 s
+                case 76: ender.Play(); break;                                     // 2.53 s: played again while it plays
                 case 120: late.Play(); break;                                     // 4 s
                 case 150: pausable.Pause(); break;                                // 5 s
                 case 192: shooter.PlayOneShot(shot); break;                       // 6.4 s: a source without a clip
@@ -35,6 +36,13 @@ namespace ProbeTests.Lighting
                 case 330: Time.timeScale = 0f; break;                             // 11 s
                 case 375: Time.timeScale = 1f; break;                             // 12.5 s
                 case 390: second.enabled = true; break;                           // 13 s: two listeners on
+                case 400:                                                         // 13.33 s: a one-shot on an object gone two frames later
+                {
+                    var burst = new GameObject("Burst");
+                    burst.AddComponent<AudioSource>().PlayOneShot(shot);
+                    Destroy(burst, 0.05f);
+                    break;
+                }
                 case 435:                                                         // 14.5 s: the second alone
                     first.enabled = false;
                     near.Play();

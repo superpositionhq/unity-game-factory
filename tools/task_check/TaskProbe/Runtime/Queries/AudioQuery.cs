@@ -7,7 +7,8 @@
 // short its sound, counted in the sample's interval in which it was told.
 // "value": {"count", "audible", "volume", "max_volume", "loudest", "level", "peak", "listener", "started",
 // "started_audible", "starts": [{"t", "sound", "named"}] (the first 64), "starts_total"} | null without an
-// AudioListener (or without the audio module).
+// AudioListener (or without the audio module). With a `near` whose point doesn't resolve, what the select picks has
+// no value: count to loudest at that sample, the started keys when a sound began while it didn't.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -62,38 +63,43 @@ namespace TaskProbe
 
         // the starts this query's select took since the previous sample
         int started, startedAudible;
+        bool blind;  // a sound started while the near's point didn't resolve: whether it was near can't be told
         readonly List<object> starts = new List<object>();
-        readonly HashSet<AudioStarts.Start> quiet = new HashSet<AudioStarts.Start>();  // taken, not audible yet
+        readonly HashSet<AudioStarts.Start> mine = new HashSet<AudioStarts.Start>();  // taken by where it began, name not settled yet
 
         public override void Frame(float dt)
         {
             AudioStarts.Frame(Probe);
+            // by what is true in the frame it began: its group, the objects it is on, its place (a source that is
+            // destroyed before its name settles is still taken)
+            foreach (var start in AudioStarts.Begun)
+                if (Places(start)) mine.Add(start);
             foreach (var start in AudioStarts.Told)
             {
-                if (!Takes(start)) continue;
+                if (!mine.Remove(start)) continue;
+                if (sound != null && !(start.Named && Find.Wild(sound, start.Sound))) continue;  // a one-shot has no name to match
                 started++;
+                if (start.Loud) startedAudible++;
                 if (starts.Count < StartsListed)
                     starts.Add(new Dictionary<string, object>(StringComparer.Ordinal) { ["t"] = start.T, ["sound"] = start.Named ? start.Sound : null, ["named"] = start.Named });
-                quiet.Add(start);
             }
-            foreach (var start in AudioStarts.Heard)
-                if (quiet.Remove(start)) startedAudible++;
-            quiet.RemoveWhere(s => s.Over);
         }
 
-        /// <summary>Whether the select takes a sound that started: by its clip's name (one without a name it can tell,
-        /// a one-shot's, matches no `sound`), its mixer group, the objects it was on and the place it started at (a 2D
-        /// sound is near nothing).</summary>
-        bool Takes(AudioStarts.Start start)
+        /// <summary>Whether the select takes a sound that begins this frame, but for its name: its mixer group, the
+        /// objects it is on and the place it starts at (a 2D sound is near nothing).</summary>
+        bool Places(AudioStarts.Start start)
         {
-            if (sound != null && !(start.Named && Find.Wild(sound, start.Sound))) return false;
             if (soundClass != null && (start.Group == null || !Find.Wild(soundClass, start.Group))) return false;
             if (owner != null)
             {
                 var owners = Find.Owners(owner);
                 if (!start.On.Exists(go => go != null && owners.Contains(go))) return false;
             }
-            if (near != null && !(start.Placed && near.Resolve(out var centre) && near.Contains(centre, start.At))) return false;
+            if (near != null)
+            {
+                if (!near.Resolve(out var centre)) { blind = true; return false; }
+                if (!(start.Placed && near.Contains(centre, start.At))) return false;
+            }
             return true;
         }
 
@@ -113,7 +119,8 @@ namespace TaskProbe
             double sum = 0.0, max = 0.0;
             string loudest = null;
             var centre = Vector3.zero;
-            var placed = near == null || near.Resolve(out centre);  // a near whose point doesn't resolve is near nothing
+            // a near whose point doesn't resolve can't say what is near: no value, never 0
+            var placed = near == null || near.Resolve(out centre);
             if (placed && (owners == null || owners.Count > 0))
             {
                 // in hierarchy order: the sum and a tie for the loudest come out the same in every play
@@ -143,14 +150,28 @@ namespace TaskProbe
                     }
                 }
             }
-            sample["value"] = new Dictionary<string, object>(StringComparer.Ordinal)
+            var value = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["count"] = (double)count, ["audible"] = (double)audible, ["volume"] = sum, ["max_volume"] = max,
-                ["loudest"] = loudest, ["level"] = any ? rms : (object)null, ["peak"] = any ? peak : (object)null,
-                ["listener"] = listener.name, ["started"] = (double)started, ["started_audible"] = (double)startedAudible,
-                ["starts"] = new List<object>(starts), ["starts_total"] = (double)started,
+                ["level"] = any ? rms : (object)null, ["peak"] = any ? peak : (object)null, ["listener"] = listener.name,
             };
+            if (placed)
+            {
+                value["count"] = (double)count;
+                value["audible"] = (double)audible;
+                value["volume"] = sum;
+                value["max_volume"] = max;
+                value["loudest"] = loudest;
+            }
+            if (placed && !blind)
+            {
+                value["started"] = (double)started;
+                value["started_audible"] = (double)startedAudible;
+                value["starts"] = new List<object>(starts);
+                value["starts_total"] = (double)started;
+            }
+            sample["value"] = value;
             started = startedAudible = 0;
+            blind = false;
             starts.Clear();
         }
 
@@ -199,12 +220,13 @@ namespace TaskProbe
 #if TASKPROBE_AUDIO
     /// <summary>The sounds that start, seen once a frame for every audio query: an enabled AudioSource on an active
     /// object that plays and didn't the frame before (a new source, a source played again after it ended, a
-    /// PlayClipAtPoint's own source), or one that isn't looping whose clip went back (played again while playing).
-    /// A source that goes on where it stood (unpaused, AudioListener.pause lifted) starts nothing.
-    /// A start is told once its name is settled: its source's clip when that clip is what plays (its position in the
-    /// clip moved), within 5 frames; else it has no name the probe can tell (a PlayOneShot plays a clip the source
-    /// doesn't show). A one-shot on a source that is already playing starts nothing the engine shows: not seen.
-    /// A start is heard once it reads 0.001 or louder at the listener, in the frame it started or a later one.</summary>
+    /// PlayClipAtPoint's own source), or a playing one whose clip went back to its beginning (played again while it
+    /// plays; a looping clip that comes round at its end is no start). A source that goes on where it stood
+    /// (unpaused, AudioListener.pause lifted) starts nothing. A start begins in the frame it is seen (what it is on,
+    /// where, how loud at the listener: all as they are then) and is told once its name is settled: its source's clip
+    /// when that clip is what plays (its position in the clip moved), within 5 frames; else it has no name the probe
+    /// can tell (a PlayOneShot plays a clip the source doesn't show; an AudioResource that is no clip has none). A
+    /// one-shot on a source that is already playing starts nothing the engine shows: not seen.</summary>
     public static class AudioStarts
     {
         const int SettleFrames = 5;
@@ -216,7 +238,7 @@ namespace TaskProbe
             public AudioClip Clip;
             public int Samples, Frames;
             public string Sound, Group;
-            public bool Named, Placed, Loud, Over;  // Loud: audible in the frame it started
+            public bool Named, Placed, Loud;  // Loud: 0.001 or louder at the listener in the frame it began
             public Vector3 At;
             public double T;
             public readonly List<GameObject> On = new List<GameObject>();  // its object and the objects above it
@@ -231,11 +253,11 @@ namespace TaskProbe
             public int Seen;
         }
 
-        /// <summary>The starts told this frame, in the order they started (of one frame: in hierarchy order), and those
-        /// of the told ones first heard this frame.</summary>
-        public static readonly List<Start> Told = new List<Start>(), Heard = new List<Start>();
+        /// <summary>The starts that began this frame (of one frame: in hierarchy order), and those told this frame, in
+        /// the order they began.</summary>
+        public static readonly List<Start> Begun = new List<Start>(), Told = new List<Start>();
         static readonly Dictionary<int, Playing> playing = new Dictionary<int, Playing>();
-        static readonly List<Start> settling = new List<Start>(), quiet = new List<Start>();
+        static readonly List<Start> settling = new List<Start>();
         static readonly List<AudioSource> fresh = new List<AudioSource>();
         static readonly List<int> gone = new List<int>();
         static int frame = -1;
@@ -244,8 +266,8 @@ namespace TaskProbe
         {
             if (frame == Time.frameCount) return;
             frame = Time.frameCount;
+            Begun.Clear();
             Told.Clear();
-            Heard.Clear();
             // the starts of the frames before, once their names are settled
             for (var i = 0; i < settling.Count; i++)
             {
@@ -259,9 +281,7 @@ namespace TaskProbe
                 else if (alive && ++s.Frames < SettleFrames) continue;
                 settling.RemoveAt(i--);
                 Told.Add(s);
-                quiet.Add(s);
             }
-            var listener = AudioTap.Listener();
             // what plays now
             fresh.Clear();
             foreach (var source in UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
@@ -279,7 +299,8 @@ namespace TaskProbe
                     // it plays again: on from where it stood (a pause lifted) is no start
                     if (!(state.Samples > 0 && samples >= state.Samples && source.clip == state.Clip)) fresh.Add(source);
                 }
-                else if (!source.loop && source.clip != null && samples < state.Samples) fresh.Add(source);
+                else if (samples < state.Samples && source.clip != null && source.clip == state.Clip && !CameRound(source, state.Samples))
+                    fresh.Add(source);  // played again while it plays
                 state.Samples = samples;
                 state.Clip = source.clip;
                 state.Idle = false;
@@ -294,6 +315,7 @@ namespace TaskProbe
             }
             foreach (var id in gone) playing.Remove(id);
             Find.SortByHierarchy(fresh);
+            var listener = AudioTap.Listener();
             foreach (var source in fresh)
             {
                 var start = new Start
@@ -305,17 +327,17 @@ namespace TaskProbe
                 start.Loud = listener != null && AudioQuery.AtListener(source, listener.transform.position) >= AudibleVolume;
                 for (var t = source.transform; t != null; t = t.parent) start.On.Add(t.gameObject);
                 settling.Add(start);
+                Begun.Add(start);
             }
-            // the told ones not heard yet
-            for (var i = 0; i < quiet.Count; i++)
-            {
-                var s = quiet[i];
-                if (s.Loud) Heard.Add(s);
-                else if (s.Source == null || !s.Source.isPlaying) s.Over = true;
-                else if (listener != null && AudioQuery.AtListener(s.Source, listener.transform.position) >= AudibleVolume) Heard.Add(s);
-                else continue;
-                quiet.RemoveAt(i--);
-            }
+        }
+
+        /// <summary>Whether a looping source whose position fell back from `before` only came round at its clip's end:
+        /// it was within half a second of the end (a play runs at 30 frames a second, a sound in real time).</summary>
+        static bool CameRound(AudioSource source, int before)
+        {
+            if (!source.loop) return false;
+            var clip = source.clip;
+            return before + clip.frequency / 2 >= clip.samples;
         }
     }
 #endif

@@ -409,13 +409,16 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   and `AudioListener.volume` are left out. With `near`, only a source whose `spatialBlend` is above 0 at a place within
   it. The sounds that start (`AudioStarts`, one scan a frame for every audio query, in hierarchy order within a frame):
   a source enabled and playing that wasn't the frame before, unless it goes on from where it stood (same clip, its
-  `timeSamples` not behind where it was: a pause lifted), or one that doesn't loop whose `timeSamples` went back. A
-  start is told to the queries once its name is settled: its source's clip when `timeSamples` moved from where it was
-  at the start, else after 5 frames, or when the source stops, without a name (`named` false: a `PlayOneShot`). A
-  query takes a start by its select at that frame (`sound` only a named one, `sound_class` the group at the start,
-  `owner` the source's object or one above it, `near` the place it started at and only a 3D source) and counts it in
-  `started`; in `started_audible` once it reads 0.001 or louder at the listener, in the frame it started or a later
-  one while it plays. The value's `starts` lists the first 64 a sample took (`t`, `sound`, `named`) and
+  `timeSamples` not behind where it was: a pause lifted), or a playing one whose `timeSamples` went back on the same
+  clip (unless it loops and was within half a second of the clip's end: it came round). A query takes a start in the
+  frame it begins by its select but the name (`sound_class` the group, `owner` the source's object or one above it,
+  `near` its place and only a 3D source), so a source destroyed since still counts. The start is told once its name
+  is settled: its source's clip when `timeSamples` moved from where it was at the start, else after 5 frames, or when
+  the source stops, without a name (`named` false: a `PlayOneShot`, an `AudioResource` that is no clip). Then the
+  query counts it in `started` (with `sound`, only a named one whose name fits), and in `started_audible` when it read
+  0.001 or louder at the listener in the frame it began. With a `near` whose point doesn't resolve the value has no
+  `count`, `audible`, `volume`, `max_volume` or `loudest` at that sample, and no started keys when a sound began
+  while it didn't. The value's `starts` lists the first 64 a sample took (`t`, `sound`, `named`) and
   `starts_total` how many; the checker reads `sounds` and `repeats` from them over the samples picked
   (`probes._heard_names`), and nothing when one has no name or more started than are listed. `level` is the RMS of the listener's mixed output since the previous sample,
   from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on every enabled listener (`AudioTap.Follow`, before

@@ -492,8 +492,10 @@ no check at all, naming the task and the sentence. Fix what you find in the task
     "Tag each generator Generator so QA can find it."
   _(failure: tasks were reworked by writing the check's read target into the ticket, which hands the solver the
   answer)_
-- **A sound ask** is checked by a sound starting when the event happens: `audio` `started_audible` near the source
-  (`select.near`) or by its `owner`, in a window right after the event (give it 0.2 s of room); `sounds` and `repeats`
+- **A sound ask** is checked by a sound starting when the event happens: `audio` `started_audible` by its `owner`, or
+  near the source (`select.near`) only when the ticket places the sound in the world (a 2D sound is near nothing), in
+  a window right after the event (give it 0.2 s of room); a sound that fades in, and music, by `audible`, `volume` or
+  `level`; `sounds` and `repeats`
   when the ticket asks for distinct sounds ("each gun has its own sound", "never the same take twice"). What the
   sound is, how it sounds, is never checked. A `PlayOneShot` clip has no name the probe can tell, and one played on a
   source that is already playing is not seen at all (docs/task-probes.md, section 2.16): where the start plays its

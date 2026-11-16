@@ -1122,18 +1122,24 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
   wildcard on the name of the AudioMixerGroup the source outputs to (that group's own name: a parent group's doesn't
   match), `owner` an object select: the source is on a matching object or on one of its descendants (as a
   components `owner`, section 2.5), `near` (a point and radius, section 2.13): only a 3D source (`spatialBlend` above
-  0) at a place within it, and for the started fields a sound that started there; a 2D source is near nothing.
+  0) at a place within it, and for the started fields a sound that started there; a 2D source is near nothing, so
+  `near` is for a sound the ticket places in the world, never for music or the UI's sounds. A `near` whose point
+  doesn't resolve (no object matches it, no player yet) reads no value, never 0.
 - **The sounds that start**, every one however short, seen once a frame: `started` and `started_audible` (how many
-  started, and how many of them were heard at the listener at 0.001 or louder, in each sample's interval; summed over
-  the samples picked by default), `sounds` (how many differently named clips started) and `repeats` (how often a
+  started, and how many of them were at 0.001 or louder at the listener in the frame they started, in each sample's
+  interval; summed over the samples picked by default; a sound that fades in, and music, are read by `audible`,
+  `volume` or `level`), `sounds` (how many differently named clips started) and `repeats` (how often a
   sound started right after itself: "never the same take twice"); the last two take no `agg`. A sound starts when a
   source plays that didn't the frame before (`Play` on a silent source, a new source, `PlayClipAtPoint`,
-  `PlayOneShot` on a silent source) or when a source that doesn't loop is played again while it plays. A source that
-  goes on where it stood (unpaused, `AudioListener.pause` lifted) starts nothing, and a sound that plays from the
+  `PlayOneShot` on a silent source) or when a playing source is played again from its clip's beginning (a pooled
+  source reused; a looping clip coming round at its end is no start). A select takes a start by what is true in the
+  frame it begins (its `owner`, its place, its mixer group), so a sound on an object destroyed a moment later still
+  counts. A source that goes on where it stood (unpaused, `AudioListener.pause` lifted, `timeScale` back from 0)
+  starts nothing, and a sound that plays from the
   scene's first frame started in the play's first interval. A start is counted in the interval in which its name was
   settled, at most 5 frames (0.17 s) after it began, so give the window that much room. What a start can't tell:
-  - its name, when the clip that plays isn't the source's own: a `PlayOneShot` clip is never named, and no `sound`
-    select takes it. `sounds` and `repeats` then read nothing (the check fails and says why): they need sounds played
+  - its name, when the clip that plays isn't the source's own: a `PlayOneShot` clip is never named, nor what an
+    `AudioResource` that is no clip plays (a random container), and no `sound` select takes it. `sounds` and `repeats` then read nothing (the check fails and says why): they need sounds played
     as their source's own clip (`source.clip = take; source.Play()`) or with `PlayClipAtPoint`;
   - a `PlayOneShot` on a source that is already playing: the engine shows no new sound, so nothing is counted. Read
     `level` there, or stage the event so that source is silent before it.

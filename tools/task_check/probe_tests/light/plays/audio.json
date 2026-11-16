@@ -124,6 +124,50 @@
    }
   },
   {
+   "id": "near_2d",
+   "kind": "audio",
+   "select": {
+    "near": {
+     "point": {
+      "xyz": [
+       30.0,
+       0.0,
+       30.0
+      ]
+     },
+     "radius": 1.0
+    }
+   }
+  },
+  {
+   "id": "near_nobody",
+   "kind": "audio",
+   "select": {
+    "near": {
+     "point": {
+      "object": {
+       "name": "Nobody"
+      },
+      "offset": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "radius": 5.0
+    }
+   }
+  },
+  {
+   "id": "burst",
+   "kind": "audio",
+   "select": {
+    "owner": {
+     "name": "Burst"
+    }
+   }
+  },
+  {
    "id": "ears",
    "kind": "objects",
    "select": {
