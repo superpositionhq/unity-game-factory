@@ -2,7 +2,8 @@
 // near, and the small readers every kind shares. An object is a GameObject; its parts are the components of itself and
 // of its descendants active in the hierarchy. Only objects active in the hierarchy match unless the select says
 // "inactive": true (then inactive objects and parts count too). Matches come in hierarchy order (HierarchyKey), so
-// "the first match" is the same object in every play of one build.
+// "the first match" is the same object in every play of one build. `where` keeps the objects whose properties compare
+// as it says; "player": false leaves the player object out.
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -61,11 +62,61 @@ namespace TaskProbe
         }
     }
 
+    /// <summary>One condition of a select's `where`: {"prop": path, "op", "value"}, the path read as a prop: field
+    /// reads it. A property that doesn't resolve on an object matches nothing, whatever the op.</summary>
+    public sealed class WhereSel
+    {
+        public string Prop, Op;
+        public object Value;  // a number (a bool as 1 or 0) or a string
+
+        public static List<WhereSel> Parse(object where)
+        {
+            if (!(where is List<object> rows) || rows.Count == 0) return null;
+            var found = new List<WhereSel>();
+            foreach (var row in rows)
+            {
+                var o = row as Dictionary<string, object>;
+                o = o ?? new Dictionary<string, object>();
+                o.TryGetValue("value", out var value);
+                if (value is bool b) value = b ? 1.0 : 0.0;
+                else if (value != null && !(value is string)) value = Json.Num(o, "value", double.NaN);
+                found.Add(new WhereSel { Prop = Json.Str(o, "prop", ""), Op = Json.Str(o, "op", "=="), Value = value });
+            }
+            return found;
+        }
+
+        public bool Holds(GameObject go)
+        {
+            var read = Reflect.Prop(go, Prop);
+            if (read == null || Value == null) return false;
+            if (read is string text || Value is string)
+            {
+                // text against text only, and only for equality
+                if (!(read is string) || !(Value is string want)) return false;
+                var same = string.Equals((string)read, want, StringComparison.Ordinal);
+                return Op == "==" ? same : Op == "!=" && !same;
+            }
+            double got = (double)read, value = (double)Value;
+            switch (Op)
+            {
+                case ">": return got > value;
+                case ">=": return got >= value;
+                case "<": return got < value;
+                case "<=": return got <= value;
+                case "==": return Math.Abs(got - value) <= 1e-6 * Math.Max(1.0, Math.Abs(value));
+                case "!=": return Math.Abs(got - value) > 1e-6 * Math.Max(1.0, Math.Abs(value));
+            }
+            return false;
+        }
+    }
+
     /// <summary>An object select: every key given must match.</summary>
     public sealed class Sel
     {
         public string Component, Tag, Layer, Name;
         public bool Player, Inactive;
+        public bool NotPlayer;  // "player": false: anything but the player object
+        public List<WhereSel> Where;
         public NearSel Near;
         public HasSel Has;
         internal int LayerAt = -1;  // the layer named Layer (-1: no layer has that name)
@@ -79,6 +130,8 @@ namespace TaskProbe
             s.Layer = Text(select, "layer");
             s.Name = Text(select, "name");
             s.Player = Json.Bool(select, "player");
+            s.NotPlayer = select.TryGetValue("player", out var player) && player is bool isPlayer && !isPlayer;
+            s.Where = select.TryGetValue("where", out var where) ? WhereSel.Parse(where) : null;
             s.Inactive = Json.Bool(select, "inactive");
             s.Near = NearSel.Parse(Json.Obj(select, "near"));
             s.Has = HasSel.Parse(Json.Obj(select, "has"));
@@ -236,7 +289,11 @@ namespace TaskProbe
             if (sel.Layer != null && go.layer != sel.LayerAt) return false;
             if (sel.Component != null && Reflect.ComponentNamed(go, sel.Component, false) == null) return false;
             if (sel.Near != null && !sel.Near.Contains(centre, go.transform.position)) return false;
+            if (sel.NotPlayer && Probe.Active != null && go == Probe.Active.Player) return false;
             if (sel.Has != null && !Carries(go, sel.Has, hasCentre, sel.Inactive)) return false;
+            if (sel.Where != null)
+                foreach (var w in sel.Where)
+                    if (!w.Holds(go)) return false;
             return true;
         }
 

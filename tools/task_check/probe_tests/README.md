@@ -121,6 +121,7 @@ ASSETS = {"measures": "measures.json", "check": saved}    # one editor pass: {"<
 |---|---|
 | `core` | the play itself: the clock, samples, inputs, teleports and holds, waits, scene loads, the player and the camera, screenshots, saved data, how a play ends, the queries list's errors |
 | `select` | object selects (every key), `prop:` paths, rows, the 200-row cap |
+| `contact` | the stages of a contact (`pin`, `damage`, `set`), `inputs_missed`, a select's `where` and `"player": false`, `damage_taken`, `frozen`, `world` |
 | `world` | `camera`, `spawns`, `pieces`, `ground` |
 | `objects` | `objects` and `components`: every field, `lit` and `glow`, change over time |
 | `ui` | `widgets`, `ui`, `screen`, clicks on widgets |

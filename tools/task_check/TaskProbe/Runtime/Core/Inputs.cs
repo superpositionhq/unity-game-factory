@@ -34,9 +34,13 @@ namespace TaskProbe
         /// <summary>A wait input holds the play's clock.</summary>
         public bool Waiting { get; private set; }
 
+        /// <summary>The stages of a contact: pins, damage, properties set.</summary>
+        public readonly Stages Stages;
+
         public Inputs(Probe probe, List<object> spec, bool touch = false)
         {
             this.probe = probe;
+            Stages = new Stages(probe);
             touchPlay = touch;
             if (spec != null)
                 foreach (var item in spec)
@@ -58,6 +62,9 @@ namespace TaskProbe
         /// left out).</summary>
         static string Kind(Dictionary<string, object> row)
         {
+            if (Json.Obj(row, "pin") != null) return "pin";
+            if (row.ContainsKey("damage") && Json.Obj(row, "to") != null) return "damage";
+            if (Json.Str(row, "set") != null && Json.Obj(row, "on") != null) return "set";
             if (row.ContainsKey("tap")) return "tap";
             if (row.ContainsKey("drag")) return "drag";
             if (!string.IsNullOrEmpty(Json.Str(row, "widget")) && Json.Bool(row, "click")) return "click";
@@ -154,6 +161,7 @@ namespace TaskProbe
         /// <summary>After the frame's game logic: a held player goes back to its spot, still.</summary>
         public void Hold(double elapsed)
         {
+            Stages.Hold(elapsed);
             if (elapsed >= holdUntil) return;
             var player = probe.Player;
             if (player == null) return;
@@ -165,6 +173,15 @@ namespace TaskProbe
         {
             switch (Kind(row))
             {
+                case "pin":
+                    Stages.Pin(row, elapsed);
+                    break;
+                case "damage":
+                    Stages.Damage(row);
+                    break;
+                case "set":
+                    Stages.Set(row);
+                    break;
                 case "tap":
                 case "drag":
                     StartTouch(row, elapsed);
@@ -483,7 +500,7 @@ namespace TaskProbe
 
         /// <summary>The player at `position`, facing `yaw` when given, standing still: through its CharacterController,
         /// NavMeshAgent or Rigidbody when it has one, so the game's own movement doesn't snap it back.</summary>
-        static void Place(GameObject player, Vector3 position, float? yaw)
+        internal static void Place(GameObject player, Vector3 position, float? yaw)
         {
             var t = player.transform;
             var rotation = yaw.HasValue ? Quaternion.Euler(t.eulerAngles.x, yaw.Value, t.eulerAngles.z) : t.rotation;
@@ -517,7 +534,7 @@ namespace TaskProbe
             Still(player);
         }
 
-        static void Still(GameObject player)
+        internal static void Still(GameObject player)
         {
 #if TASKPROBE_PHYSICS
             var body = player.GetComponent<Rigidbody>();

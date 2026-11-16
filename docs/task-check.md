@@ -257,7 +257,8 @@ without), so this is for drafts only.
   while the play has no player); in `camera` a row `[t, x, y, z, pitch, yaw, fov]`; in `measures` the samples of
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
   there are some). `inputs_sent` counts the play's input rows as they were sent (one whose control the probe doesn't
-  know counts too, and is a `query_errors` line). A key of `measures` is a query's id, `q` and ten hex digits made
+  know counts too, and is a `query_errors` line); `inputs_missed` lists the stages of a contact nothing took (a pin, a
+  damage or a set: docs/task-probes.md, section 1.4), each with its time, kind, target and why. A key of `measures` is a query's id, `q` and ten hex digits made
   from what the query selects (its kind with its select, point or rect), so a query has the same id in every play and
   on both sides, and probes that read other fields of one selection share one query. The file doesn't name the
   checks: `play_spec.json` beside it gives each id's kind and select, which you match with the check's measure in the

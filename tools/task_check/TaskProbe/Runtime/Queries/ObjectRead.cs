@@ -378,6 +378,110 @@ namespace TaskProbe
         }
     }
 
+    /// <summary>frozen: the longest short stop of each followed object that ended since the previous sample. An object
+    /// holds still in a frame when it moved under 1 mm, turned under 0.05 degrees and none of its points (the bones of
+    /// its skinned meshes and its parts' transforms, in its own space) moved 1 mm; a stop counts only between two
+    /// frames of motion and only up to 0.5 s: a hit stop, never an idle or a rest. Only what a sample read is followed
+    /// until the next one.</summary>
+    public sealed class Stills
+    {
+        const float Place = 0.001f, Turn = 0.05f;
+        const double Longest = 0.5;
+
+        sealed class Track
+        {
+            public GameObject Object;
+            public Vector3 At;
+            public Quaternion Facing;
+            public List<Vector3> Points = new List<Vector3>(), Now = new List<Vector3>();
+            public bool Seen, MovedBefore;  // MovedBefore: it moved in a frame before the stop under way
+            public double Run, Best, Time;  // Time: seconds followed since the last sample
+        }
+
+        readonly Dictionary<int, Track> tracks = new Dictionary<int, Track>();
+        readonly Dictionary<int, GameObject> read = new Dictionary<int, GameObject>();
+        readonly List<int> gone = new List<int>();
+        readonly List<Renderer> renderers = new List<Renderer>();
+
+        /// <summary>The points of an object that a pose moves, in its own space, in order.</summary>
+        void PointsOf(GameObject go, List<Vector3> points)
+        {
+            points.Clear();
+            var root = go.transform;
+            go.GetComponentsInChildren(false, renderers);
+            foreach (var r in renderers)
+            {
+                if (r is SkinnedMeshRenderer skinned)
+                {
+                    foreach (var bone in skinned.bones)
+                        if (bone != null) points.Add(root.InverseTransformPoint(bone.position));
+                }
+                else if (r.transform != root && ObjectRead.IsPart(r)) points.Add(root.InverseTransformPoint(r.transform.position));
+            }
+        }
+
+        public void Frame(float dt)
+        {
+            gone.Clear();
+            foreach (var kv in tracks)
+            {
+                var track = kv.Value;
+                if (track.Object == null) { gone.Add(kv.Key); continue; }
+                var t = track.Object.transform;
+                PointsOf(track.Object, track.Now);
+                var still = false;
+                if (track.Seen && track.Now.Count == track.Points.Count)
+                {
+                    still = (t.position - track.At).magnitude < Place && Quaternion.Angle(t.rotation, track.Facing) < Turn;
+                    for (var i = 0; still && i < track.Now.Count; i++)
+                        still = (track.Now[i] - track.Points[i]).magnitude < Place;
+                }
+                if (still) track.Run += track.MovedBefore ? dt : 0.0;  // a stop that follows motion
+                else if (track.Seen)
+                {
+                    // motion again: the stop just ended counts when it was short, a pause inside a movement
+                    if (track.Run > 0.0 && track.Run <= Longest + 1e-9) track.Best = Math.Max(track.Best, track.Run);
+                    track.Run = 0.0;
+                    track.MovedBefore = true;
+                }
+                track.Time += dt;
+                track.At = t.position;
+                track.Facing = t.rotation;
+                var swap = track.Points;
+                track.Points = track.Now;
+                track.Now = swap;
+                track.Seen = true;
+            }
+            foreach (var key in gone) tracks.Remove(key);
+        }
+
+        /// <summary>s: the longest short stop (moving, still, moving again) of `go` that ended since the previous
+        /// sample; no value the first sample it is seen in.</summary>
+        public double? Of(GameObject go)
+        {
+            var key = go.GetInstanceID();
+            read[key] = go;
+            return tracks.TryGetValue(key, out var track) && track.Time > 0.0 ? track.Best : (double?)null;
+        }
+
+        /// <summary>After a sample: keep following what it read; a stop under way is told in the interval it ends in.</summary>
+        public void EndSample()
+        {
+            gone.Clear();
+            foreach (var key in tracks.Keys)
+                if (!read.ContainsKey(key)) gone.Add(key);
+            foreach (var key in gone) tracks.Remove(key);
+            foreach (var kv in read)
+            {
+                if (kv.Value == null) continue;
+                if (!tracks.TryGetValue(kv.Key, out var track)) tracks[kv.Key] = track = new Track { Object = kv.Value };
+                track.Best = 0.0;
+                track.Time = 0.0;
+            }
+            read.Clear();
+        }
+    }
+
     /// <summary>changed, bounds_change, pose_change: each part against the first sample it was seen in. Kept for the
     /// query, its first states kept for the play; what was destroyed is forgotten after the sample
     /// (an instance id is never used again).</summary>

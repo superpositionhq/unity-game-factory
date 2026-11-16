@@ -904,7 +904,7 @@ def live(o, keys=('player', 'camera')):
     """Whether a select names the player or the camera anywhere in it (a `player` select, a point on either), which
     only a running game has."""
     if isinstance(o, dict):
-        return any(o.get(k) for k in keys) or any(live(v, keys) for v in o.values())
+        return any(o.get(k) is not None for k in keys) or any(live(v, keys) for v in o.values())
     if isinstance(o, list):
         return any(live(v, keys) for v in o)
     return False
@@ -926,7 +926,7 @@ def task_play_errors(n, play, plays):
     look/drive/editor/trace, no input at or after its end, no touch that ends after it or begins less than TOUCH_GAP
     after its finger lifts, no flag of the checker's own, a scene path without dotted segments, waits of at most 300 s
     in all, its named shots each named once (20 at most), a view's pitch within -89 to
-    89, scene loads without dotted segments, and identical to every other task play of its name in the task (`plays`:
+    89, scene loads without dotted segments, no pin on the player and none both `front` and `at`, and identical to every other task play of its name in the task (`plays`:
     those seen so far, by name)."""
     errs, pname = [], play.get('name')
     if pname in ('look', 'drive', 'editor', 'trace'):
@@ -955,6 +955,10 @@ def task_play_errors(n, play, plays):
                 -89 <= view[0] <= 89 and -360 <= view[1] <= 360):
             errs.append(f'check {n}: play {pname} has a view {view}: [pitch, yaw], pitch -89 to 89, yaw -360 to 360')
         errs += [f'check {n}: play {pname}: {e}' for e in dotted(i.get('scene'))]
+        if isinstance(i.get('pin'), dict) and i['pin'].get('player') is True:
+            errs.append(f'check {n}: play {pname} pins the player: a pin holds another object (a teleport holds the player)')
+        if 'pin' in i and i.get('front') is not None and i.get('at') is not None:
+            errs.append(f'check {n}: play {pname} pins an object `front` of the player or `at` a point, not both')
     down = {}   # finger -> when its last touch lifts
     touches = [i for i in play.get('inputs') or [] if isinstance(i, dict) and ('tap' in i or 'drag' in i)
                and isinstance(i.get('t'), (int, float))]
@@ -1565,7 +1569,8 @@ def probe_names(c):
         walk({'scene': play.get('scene')})
         for i in play.get('inputs') or []:
             if isinstance(i, dict):
-                walk(i.get('teleport_to'))
+                for k in ('teleport_to', 'pin', 'to', 'from', 'on'):  # the selects of a teleport and of a stage
+                    walk(i.get(k))
     return names, paths
 
 

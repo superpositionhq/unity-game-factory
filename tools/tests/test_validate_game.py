@@ -1279,7 +1279,7 @@ def probe_check(measure, play='look', expect=None):
 class Schema(unittest.TestCase):
     S = vg.SCHEMAS['game-task']
     KINDS = ('player', 'objects', 'components', 'widgets', 'camera', 'light', 'grading', 'spawns', 'log', 'asset',
-             'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn', 'render')   # the probe kinds (contract section 2)
+             'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn', 'render', 'world')   # the probe kinds (contract section 2)
     MEASURE = {kind: ref.split('/')[-1]
                for kind, ref in S['$defs']['Probe']['properties']['measure']['discriminator']['mapping'].items()}
     SHAPE = {kind: ref.split('/')[-1]   # the check kinds' definitions
@@ -1336,6 +1336,7 @@ class Schema(unittest.TestCase):
                       'material:shader', 'material:keyword:_EMISSION', 'mesh_collision',
                       'prop:MeshRenderer.receiveShadows'],
             'spawns': ['spawned', 'destroyed'], 'log': ['count'], 'render': ['draw_calls', 'triangles', 'texture_mb'],
+            'world': ['time_scale', 'paused'],
             'trace': ['built_after_last_change', 'played_after_last_change', 'read_before_first_edit',
                       'build_ok_at_end', 'edits_outside_project']}
         # names the contract doesn't use, another kind's fields, a value's other keys, and prefixes without their name
@@ -1349,7 +1350,8 @@ class Schema(unittest.TestCase):
                'audio': ['loudest', 'peak'], 'ground': ['points', 'z'], 'drawn': ['pixels', 'primitives'],
                'asset': ['shader:_BaseColor.q', 'shader:_BaseColor.rgb', 'material:_BaseMap.name.r', 'keyword:',
                          'import:', 'material:'],
-               'spawns': ['count'], 'log': ['lines'], 'render': ['batches', 'vertices'], 'trace': ['built']}
+               'spawns': ['count'], 'log': ['lines'], 'render': ['batches', 'vertices'], 'world': ['time_dilation', 'speed'],
+               'trace': ['built']}
         # every prefix that names a Part, bone or parameter takes every character the contract lists, up to 64; a
         # channel goes by either spelling wherever one is read
         for form in ('rel_yaw:{}', 'world_yaw:{}', 'world_pitch:{}', 'world_roll:{}', 'anim:{}', 'forward:{}.x',
@@ -1439,7 +1441,9 @@ class Schema(unittest.TestCase):
                                   'field': 'shader:_BaseColor.r'}),
                 ('AssetMeasure', {'probe': 'asset', 'scene': self.SCENE, 'select': {'name': 'Body'}, 'field': 'count'}),
                 ('AssetMeasure', {'probe': 'asset', 'prefab': 'Packages/com.game.kit-2/Prefabs/Hero_1 (Variant).prefab',
-                                  'select': {'name': 'Body'}, 'field': 'count'})):
+                                  'select': {'name': 'Body'}, 'field': 'count'}),
+                ('Select', {'player': False, 'where': [{'prop': 'Foe.dead', 'op': '==', 'value': False},
+                                                       {'prop': 'Foe.state', 'op': '!=', 'value': 'Down'}]})):
             self.assertEqual(self.ok(value, ref), [], (ref, value))
         for ref, value in (
                 ('Select', {'class': 'BP_Wall_C'}), ('Has', {'class': 'PointLightComponent'}), ('Has', {'movable': True}),
@@ -1453,7 +1457,9 @@ class Schema(unittest.TestCase):
                 ('AssetMeasure', {'probe': 'asset', 'asset': '/Game/Materials/M_Road', 'field': 'prop:two_sided'}),
                 ('AssetMeasure', {'probe': 'asset', 'asset': 'Assets/.hidden/M_Road.mat', 'field': 'shader:_Cull'}),
                 ('SpawnsMeasure', {'probe': 'spawns', 'class': 'BP_Coin_C', 'field': 'spawned'}),
-                ('Has', {}), ('Has', {'lit': False}), ('Select', {'player': False})):
+                ('Has', {}), ('Has', {'lit': False}), ('Select', {'player': 'no'}), ('Select', {'where': []}),
+                ('Select', {'where': [{'prop': 'Foe.dead', 'op': '=', 'value': 0}]}),
+                ('Select', {'inactive': False})):
             self.assertNotEqual(self.ok(value, ref), [], (ref, value))
         inputs = [{'t': 1, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'key': '<Keyboard>/leftShift', 'press': True},
                   {'t': 1, 'key': '<Keyboard>/f2', 'press': True}, {'t': 1, 'key': '<Mouse>/leftButton', 'press': True},

@@ -14,6 +14,7 @@ namespace TaskProbe
         readonly Places places = new Places();
         readonly Spins spins = new Spins();
         readonly Changes changes = new Changes();
+        readonly Stills stills = new Stills();
         readonly List<Renderer> parts = new List<Renderer>();
         bool change, glow, withParts;
 
@@ -21,7 +22,7 @@ namespace TaskProbe
         {
             "count", "x", "y", "z", "yaw", "pitch", "roll", "scale", "extent_x", "extent_y", "extent_z", "active", "hidden",
             "collision", "speed", "spin", "simulating", "spread", "changed", "bounds_change", "pose_change", "lit", "glow",
-            "facing_vs_velocity", "clip",
+            "facing_vs_velocity", "clip", "frozen", "damage_taken",
         };
         static readonly string[] Prefixes = { "prop:", "bone:", "anim:", "forward:", "rel_yaw:", "world_yaw:", "world_pitch:", "world_roll:" };
 
@@ -52,6 +53,7 @@ namespace TaskProbe
         {
             spins.Frame(dt);
             places.Frame(dt);
+            stills.Frame(dt);
         }
 
         public override void Sample(double t, Dictionary<string, object> sample)
@@ -62,6 +64,7 @@ namespace TaskProbe
                 rows.Add(Row(go));
             places.End();
             spins.EndSample();
+            stills.EndSample();
             if (change) changes.EndSample();
             rows.WriteTo(sample);
         }
@@ -130,6 +133,8 @@ namespace TaskProbe
                 case "spread": return ObjectRead.Spread(parts);
                 case "spin": return Spin(go);
                 case "clip": return ObjectRead.Clip(go);
+                case "frozen": return stills.Of(go);
+                case "damage_taken": return Stages.DamageTaken(go);
             }
             var colon = f.IndexOf(':');
             if (colon > 0)

@@ -73,8 +73,10 @@ Selects and points:
 - `component` in every select (object select, `has`, components, pieces, widgets) and in `spawns`: a C# type's name or
   full name, `^[A-Za-z_][A-Za-z0-9_]{0,120}(\.[A-Za-z_][A-Za-z0-9_]{0,120}){0,8}$` (what it matches: section 1).
 - Object select (`Select`): `component`, `tag`, `layer` (a layer, by name, `^[A-Za-z0-9_. -]{1,80}$`), `name` (a
-  wildcard on the GameObject's whole name), `near`, `has`, `player` (true), `inactive` (true lets inactive objects
-  match; by default only objects active in the hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating`
+  wildcard on the GameObject's whole name), `near`, `has`, `player` (true: the player object; false: anything but
+  it), `where` (1 to 4 conditions, `{"prop": "Foe.dead", "op": "==", "value": false}`: a `prop:` path, one of `>`, `>=`,
+  `<`, `<=`, `==`, `!=`, and a number, a boolean or a string; every one must hold), `inactive` (true lets inactive objects match; by default only objects active in the
+  hierarchy). `has`: `component`, `lit`, `visible`, `near`, `simulating`
   (at least one key; `lit`, `visible`, `simulating` only `true`). Whether a part can move is `simulating` (a
   non-kinematic Rigidbody can always move); a built player keeps no Static flag (`GameObject.isStatic` reads false
   there for an object saved static: measured).
@@ -92,8 +94,9 @@ Selects and points:
 Measures:
 
 - Probe kinds: `player`, `objects`, `camera`, `components`, `widgets`, `light`, `grading`, `spawns`, `log`, `asset`,
-  `trace`, `pieces`, `screen`, `audio`, `ground`, `ui`, `drawn`.
-- `objects` fields (the schema lists them) include `active`, `clip` and `anim:<Parameter>` (an Animator parameter).
+  `trace`, `pieces`, `screen`, `audio`, `ground`, `ui`, `drawn`, `render`, `world`.
+- `objects` fields (the schema lists them) include `active`, `clip`, `anim:<Parameter>` (an Animator parameter),
+  `frozen` and `damage_taken`.
   Bone, Part and Animator parameter names may hold spaces, dots, colons, parentheses and hyphens, as Unity and the tools
   that make models name them (`[A-Za-z0-9_][A-Za-z0-9_ .:()-]{0,63}`: `mixamorig:Hips`, `Lamp (1)`, Blender's `Cube.001`
   and `hand.L`); a `bone:`'s component is a plain type name, so `bone:Animator.hand.L.y` splits at its first and its
@@ -241,6 +244,17 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
     is enabled and has a controller, else no value (`ObjectRead.AnimParameter`, `ObjectRead.Clip`); `clip` is the
     heaviest clip on layer 0 (`GetCurrentAnimatorClipInfo(0)`). An AI's state is read with `anim:` or a `prop:` of the
     component that holds it;
+  - `where` (`WhereSel`): each path read as the `prop:` field of that path (`Reflect.Prop`); a number or a boolean (1
+    or 0) compared as numbers (`==` and `!=` within one millionth), a string with a string and only by `==` and `!=`;
+    an object on which the path doesn't resolve matches nothing, whatever the op. `"player": false` leaves the player
+    object out (its children stay);
+  - `frozen` (`Stills`, s): the longest short stop of the object that ended since the previous sample. The objects a
+    sample read are followed every frame until the next: one holds still in a frame when it moved under 1 mm, turned
+    under 0.05 degrees and none of its points (its skinned meshes' bones and its parts' transforms, in its own space)
+    moved 1 mm; a run of still frames counts when frames of motion came before and after it and it lasted 0.5 s at
+    most, and is told in the sample after it ended. No value the first sample the object is seen in;
+  - `damage_taken`: what the object's `TakeDamage` returned for the play's `damage` stages, summed (`Stages.DamageTaken`;
+    0 before any);
   - measured: a whole-scene sample of 3000 objects takes about 20 ms.
 - **components** (`ComponentsQuery`): with `component`, the components whose type, a base type or an interface has that
   name (`Find.Components`: `FindObjectsByType` of each type of that name, of each component type that implements an
@@ -451,6 +465,8 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   measure a play with no drawn, lit or glow reading (`render_errors`). Measured in a release (non-development) Mono
   player, on a scene of one cube under a skybox with a canvas of two images: 6 draw calls and 1,711 triangles in
   every sample after the first (0 and 0 at 1/30 s, before a frame was counted), 5.6 to 8.9 MiB of textures.
+- **world** (`WorldQuery`): `time_scale`, the lowest `Time.timeScale` of every frame since the previous sample, the
+  sample's own frame included; `paused`, 1 when that is 0. The play's clock runs on whatever the game sets (section 4).
 - **log**: the lines of the play's player log (`-logFile`, kept as `play.log`) that match, read by the checker.
 - **asset** (`play: "editor"`; `AssetPass`, `AssetValues`, `SceneRows`): one batchmode editor pass per side over the
   project as saved (section 5). An `asset` is loaded
@@ -522,8 +538,8 @@ since the window never has the focus. Real devices are not read, and the old Inp
 without the Input System package gets one `query_errors` line for its keys, axes and cursor moves). Each device's whole
 state is queued with every change, before the game's scripts (the probe runs at execution order -32000), and the Input
 System processes it at the next frame's start, so the game reads an input one frame after its time. A row is tried as a
-widget click (`click` true and a `widget`), a cursor move, a teleport_to, a teleport, a wait, then a key or axis, in
-that order; a row that is none of them is left out and not counted in `inputs_sent`, and a row without `t` is sent
+widget click (`click` true and a `widget`), a cursor move, a teleport_to, a teleport, a wait, a stage (`pin`, `damage`
+with `to`, `set` with `on`), a touch, then a key or axis, in that order; a row that is none of them is left out and not counted in `inputs_sent`, and a row without `t` is sent
 at 0. Inputs of one time go in the order the task wrote them. An unknown control is a `query_errors` line (`inputs: the
 keyboard has no key <x>`, `inputs: the mouse has no control <x>`, `inputs: the gamepad has no control <x>`, `inputs: no
 control <path>`, `inputs: no device for <path>`), never a stop.
@@ -579,6 +595,30 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   went down. Finger n is touch id n + 1 for the whole play. A miss (a finger outside 0-9, a widget not on screen, a
   finger still down, no Input System) is one `query_errors` line, `inputs: the tap at 2.00 s missed: ...`, and
   nothing is sent; `probe.log` names what each finger went down on and where it lifted.
+- pin, damage, set (`Stages`): the stages of a contact. Each takes the match of its select nearest to the player
+  (`Stages.Nearest`: the player itself for `{"player": true}`, else never the player nor an object under it; with no
+  player, the first match in hierarchy order).
+  - `{"t", "pin": <select>, "hold": s, "front": m, "at": <Point>, "offset": [0, 0, 2]}` (`front`, `at` and `offset`
+    only when set): with `front`, the object is first placed that many metres ahead of the player along the player's
+    facing on the level, plus the offset's x and z, at the height above the ground it had (the ground: the highest
+    solid collider under a place that is neither the player's nor its own, `Physics.RaycastAll` from 5 m above over
+    55 m; with none, the player's height), plus the offset's y; with `at`, at that point plus the offset; either way
+    turned to face the player. Then, for `hold` seconds of play, it is put back at that place and stilled after every
+    script's Update and again after every LateUpdate, as a held player is (`Inputs.Place`, `Inputs.Still`), while its
+    own scripts run on. `probe.log` says `pinned <name> at (...) for <hold> s`.
+  - `{"t", "damage": points, "to": <select>, "from": <select>}` (`from` only when set): `TakeDamage(float, GameObject)`
+    of an interface named `IDamageable`, found by reflection on a component of the target, else of an object above
+    it, else of one under it, called with the points and the source: `from`'s nearest match, by default the player,
+    or, when the player is the target, the nearest other object with an `IDamageable` component. What it returned is
+    added to the target's `damage_taken`. `probe.log` says `<points> damage to <name> from <name>: it took <n>`.
+  - `{"t", "set": "<path>", "on": <select>, "value": v, "all": true}` (`all` only when set): `Reflect.Write` on the
+    nearest match, or on every match: the path as a `prop:` field resolves it (a component by type name, else the
+    GameObject, else its Transform), no index; a field that isn't readonly or constant, or a property with a setter,
+    public or not; a boolean for a bool, a number for a number or an enum, a string for a string or an enum's name.
+  - A stage nothing took is a row of `inputs_missed` (section 5) and a `probe.log` line, and nothing is done: a pin no
+    object but the player matches, or whose `at` doesn't resolve; a damage with no target, a target without the
+    interface, or a `TakeDamage` that threw; a set no object matches, or that some matches didn't take (no such
+    member, one that can't be written, a member of a struct, a value of another kind).
 - wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
   real and game time have passed; the inputs after it wait for its end. The frame it starts in takes its sample first.
 
@@ -635,7 +675,7 @@ first two track and camera rows (of 18) and the first sample of each query:
 
 ```json
 {"format": "unity-probe/1", "ended": "time", "seconds": 8.5333333333333332, "scene": "Assets/Scenes/Yard.unity",
- "player": "Keeper", "inputs_sent": 3, "screenshots": ["shot_00.png", "shot_01.png"],
+ "player": "Keeper", "inputs_sent": 3, "inputs_missed": [], "screenshots": ["shot_00.png", "shot_01.png"],
  "track": [[0.033333333333333333, 3.7999999523162842, 0.079999983310699463, -14],
            [0.5, 3.7999999523162842, 0.079999983310699463, -14]],
  "camera": [[0.033333333333333333, 10.30000114440918, 3.2799999713897705, -13.999999046325684, 10.459908485412598,
@@ -654,6 +694,8 @@ first two track and camera rows (of 18) and the first sample of each query:
 - `ended`: `time` (the clock passed its seconds + 0.5) or `shutdown` (the game quit first: `Application.quitting`).
   `seconds`: the play time at the end, its seconds + 0.5 plus the frames (at most 5) a last sample that reads the drawn
   frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
+  `inputs_missed`: the stages nothing took, in the order sent, at most 400: each with its `t`, its `kind` (pin, damage, set), its
+  `target` (what missed: `select`, `at`, `to`, the object's name, the set's path) and `why`.
   `screenshots`: 960x540 PNGs of the frame as displayed, UI included, without alpha, taken at the middle of each of
   `shots` equal parts of the play (none in a project without the ImageConversion module: a `query_errors` line says so).
 - Samples fall on frames: the first at 1/30 s (the clock's first frame), then every `every` s, on the frame that
@@ -909,8 +951,9 @@ loop, and the editor's three files split one pass by concern:
 | `Runtime/Core/Probe.cs` | the play loop (`Probe`, order -32000) |
 | `Runtime/Core/ProbeLate.cs` | the loop's late half (`ProbeLate`, order 32000, a file of its own) |
 | `Runtime/Core/Inputs.cs` | the scripted inputs, touches among them |
-| `Runtime/Core/Find.cs` | selects, points, hierarchy order and the readers several kinds share |
-| `Runtime/Core/Reflect.cs` | types and members by name, `prop:` paths |
+| `Runtime/Core/Stages.cs` | the stages of a contact: pin, damage, set |
+| `Runtime/Core/Find.cs` | selects (`where` among their keys), points, hierarchy order and the readers several kinds share |
+| `Runtime/Core/Reflect.cs` | types and members by name, `prop:` paths, the write a set makes |
 | `Runtime/Core/Json.cs` | the files' JSON |
 | `Runtime/Core/Query.cs` | `Query`, its attribute, `RowSet`, `FrameImage` |
 | `Runtime/Core/Window.cs` | the user's-desktop fallback |
@@ -929,6 +972,7 @@ loop, and the editor's three files split one pass by concern:
 | `Runtime/Queries/UiOcr.cs` | the frame text reader |
 | `Runtime/Queries/ScreenQuery.cs` | `screen` |
 | `Runtime/Queries/RenderQuery.cs` | `render` |
+| `Runtime/Queries/WorldQuery.cs` | `world` |
 | `Runtime/Queries/LightQuery.cs` | `light` |
 | `Runtime/Queries/LightKit.cs` | what light and grading share |
 | `Runtime/Queries/GradingQuery.cs` | `grading` |

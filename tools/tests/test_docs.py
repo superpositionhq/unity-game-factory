@@ -197,7 +197,7 @@ def expand(snippet):
 
 CHECKS = {'probe': 'Probe', 'build': 'Build', 'boot': 'Boot', 'log_absent': 'LogAbsent', 'file_exists': 'FileExists',
           'package': 'Package', 'judge': 'Judge', 'code_judge': 'CodeJudge', 'actions_judge': 'ActionsJudge'}
-INPUTS = (('tap', 'Tap'), ('drag', 'Drag'), ('key', 'Key'), ('widget', 'Click'), ('cursor', 'Cursor'), ('teleport_to', 'TeleportTo'),
+INPUTS = (('pin', 'Pin'), ('damage', 'Damage'), ('set', 'SetProp'), ('tap', 'Tap'), ('drag', 'Drag'), ('key', 'Key'), ('widget', 'Click'), ('cursor', 'Cursor'), ('teleport_to', 'TeleportTo'),
           ('teleport', 'Teleport'), ('wait', 'Wait'), ('shot', 'Shot'), ('scene', 'SceneLoad'), ('view', 'View'))
 EXPECTS = (('value', 'Value'), ('calibrate', 'Calibrate'), ('start_times', 'StartTimes'), ('start_plus', 'StartPlus'))
 POINTS = (('xyz', 'AtXYZ'), ('player', 'AtPlayer'), ('camera', 'AtCamera'), ('object', 'AtObject'))
@@ -235,6 +235,8 @@ def classify(v):
     for k, d in INPUTS:         # an input shown without its time: {"teleport_to": {...}}
         if k in v and set(v) <= set(DEFS[d]['properties']):
             return d
+    if 'op' in v and 'prop' in v:
+        return 'Where'          # one condition of a select's `where`
     if 'op' in v:
         return next((d for k, d in EXPECTS if k in v), None)
     if 'point' in v and 'radius' in v:
@@ -1141,7 +1143,7 @@ class TheChecksCanFail(unittest.TestCase):
         self.assertTrue(spec_problems(but(spec, 'sound', to=True)))                                    # no audio query
 
         probe = {'format': 'unity-probe/1', 'ended': 'time', 'seconds': 8.5, 'scene': 'Assets/A.unity', 'player': 'Hero',
-                 'inputs_sent': 2, 'screenshots': [], 'track': [[0.5, 0, 1, 0], [1.0]],
+                 'inputs_sent': 2, 'inputs_missed': [], 'screenshots': [], 'track': [[0.5, 0, 1, 0], [1.0]],
                  'camera': [[0.5, 0, 1, 0, 10, -90, 55]],
                  'measures': {queries[0]['id']: [{'t': 0.5, 'rows': [{'name': 'Lamp', 'lit': 1, 'glow': 2.5}]}]}}
         sample = ('measures', queries[0]['id'], 0)

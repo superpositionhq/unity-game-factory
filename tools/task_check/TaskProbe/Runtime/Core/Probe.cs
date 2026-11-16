@@ -56,6 +56,7 @@ namespace TaskProbe
         readonly List<string> errors = new List<string>();
         readonly HashSet<string> errorsSeen = new HashSet<string>(StringComparer.Ordinal);
         readonly List<object> track = new List<object>(), cameraRows = new List<object>(), shotNames = new List<object>();
+        readonly List<object> inputsMissed = new List<object>();
 
         bool started, done, sceneAsked, sized;
         int sizeFrames;
@@ -379,6 +380,21 @@ namespace TaskProbe
             else errorsLeftOut++;
         }
 
+        /// <summary>An input that didn't land (a stage nothing took, a touch on a widget that isn't on screen): one row
+        /// of probe.json "inputs_missed", {t, kind, target, why}, and a line of probe.log.</summary>
+        public void Missed(double t, string kind, string target, string why)
+        {
+            target = target ?? "";
+            why = why ?? "";
+            if (inputsMissed.Count < 400)
+                inputsMissed.Add(new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["t"] = t, ["kind"] = kind, ["target"] = target.Length > 200 ? target.Substring(0, 200) : target,
+                    ["why"] = why.Length > 1000 ? why.Substring(0, 1000) : why,
+                });
+            Log(FormattableString.Invariant($"{kind} {target} at {t:F2} s did not land: {why}"));
+        }
+
         /// <summary>An exception out of a query or an input: an error that reads the same each time it happens (`what`
         /// with {0} for the exception's type), and the exception with its stack in probe.log.</summary>
         public void Failed(string what, Exception e)
@@ -672,6 +688,7 @@ namespace TaskProbe
                 ["scene"] = SceneManager.GetActiveScene().path,
                 ["player"] = who != null ? who.name : null,
                 ["inputs_sent"] = (double)(inputs != null ? inputs.Sent : 0),
+                ["inputs_missed"] = inputsMissed,
                 ["screenshots"] = shotNames,
                 ["track"] = track,
                 ["camera"] = cameraRows,

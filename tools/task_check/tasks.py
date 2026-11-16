@@ -16,9 +16,9 @@ TOOLS = os.path.dirname(HERE)
 REFS = ("tasks", "origin/tasks")  # where a game's tasks live (validate-game.py TASKS_REFS)
 STILL_WORKS = "still_works"  # the milestone of what a task must leave working (unity-write-tasks section 5)
 RUNTIME = ("player", "camera", "objects", "widgets", "components", "pieces", "screen", "light", "grading", "spawns",
-           "log", "audio", "ground", "ui", "drawn", "render")
+           "log", "audio", "ground", "ui", "drawn", "render", "world")
 SAMPLED = ("player", "camera", "objects", "widgets", "components", "pieces", "screen", "light", "grading", "spawns",
-           "audio", "ground", "ui", "drawn", "render")
+           "audio", "ground", "ui", "drawn", "render", "world")
 WHOLE_SCREEN = [0.0, 0.0, 1.0, 1.0]
 ANGLES = ("yaw", "pitch", "roll", "world_yaw", "world_pitch")  # world_yaw, world_pitch: components fields
 ANGLE_PREFIXES = ("rel_yaw:", "world_yaw:", "world_pitch:", "world_roll:")
@@ -193,7 +193,8 @@ def inputs(rows):
     teleports (`yaw` 0 when unset: a teleport always turns the player), teleports next to an object (`distance` 2 m and
     `offset` 0 when unset, `face` only when set), either with `hold` only when set, waits in real time, named shots,
     scene loads and view turns; and touches (`tap`, `drag`: docs/task-probes.md, section 1.3; `finger` 0 unless said,
-    `hold` and `over` only when set)."""
+    `hold` and `over` only when set); and the stages of a contact (`pin`, `damage`, `set`: section 1.4; a pin's `front`,
+    `at` and `offset`, a damage's `from` and a set's `all` only when set)."""
     out = []
     for r in rows or []:
         row = {"t": float(r["t"])}
@@ -212,6 +213,22 @@ def inputs(rows):
             row.update(scene=r["scene"])
         elif "view" in r:
             row.update(view=_floats(r["view"]))
+        elif "pin" in r:
+            row.update(pin=select(r["pin"]), hold=float(r["hold"]))
+            if r.get("front") is not None:
+                row["front"] = float(r["front"])
+            if r.get("at") is not None:
+                row["at"] = point(r["at"])
+            if r.get("offset") is not None:
+                row["offset"] = _floats(r["offset"])
+        elif "damage" in r:
+            row.update(damage=float(r["damage"]), to=select(r["to"]))
+            if r.get("from") is not None:
+                row["from"] = select(r["from"])
+        elif "set" in r:
+            row.update(set=r["set"], on=select(r["on"]), value=r["value"])
+            if r.get("all"):
+                row["all"] = True
         elif "tap" in r:
             row.update(tap=spot(r["tap"]), finger=int(r.get("finger") or 0))
             if r.get("hold") is not None:

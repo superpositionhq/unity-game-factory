@@ -1,0 +1,320 @@
+{
+ "seconds": 5,
+ "shots": 0,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/contact/Made/Duel.unity",
+ "queries": [
+  {
+   "id": "foes",
+   "kind": "objects",
+   "select": {
+    "component": "ContactFoe"
+   },
+   "fields": [
+    "x",
+    "y",
+    "z",
+    "yaw",
+    "damage_taken",
+    "prop:ContactFoe.health",
+    "prop:ContactFoe.dead",
+    "prop:ContactFoe.state",
+    "prop:ContactFoe.label",
+    "prop:ContactFoe.lastSource",
+    "prop:ContactFoe.Armor"
+   ]
+  },
+  {
+   "id": "hero",
+   "kind": "objects",
+   "select": {
+    "player": true
+   },
+   "fields": [
+    "damage_taken",
+    "prop:ContactHero.health",
+    "prop:ContactHero.lastSource"
+   ]
+  },
+  {
+   "id": "live",
+   "kind": "objects",
+   "select": {
+    "component": "ContactFoe",
+    "where": [
+     {
+      "prop": "ContactFoe.dead",
+      "op": "==",
+      "value": false
+     }
+    ]
+   },
+   "fields": []
+  },
+  {
+   "id": "hurt",
+   "kind": "objects",
+   "select": {
+    "component": "IDamageable"
+   },
+   "fields": []
+  },
+  {
+   "id": "others",
+   "kind": "objects",
+   "select": {
+    "component": "IDamageable",
+    "player": false
+   },
+   "fields": []
+  },
+  {
+   "id": "marked",
+   "kind": "objects",
+   "select": {
+    "where": [
+     {
+      "prop": "ContactFoe.label",
+      "op": "==",
+      "value": "marked"
+     }
+    ]
+   },
+   "fields": []
+  },
+  {
+   "id": "hale",
+   "kind": "objects",
+   "select": {
+    "where": [
+     {
+      "prop": "ContactFoe.health",
+      "op": ">=",
+      "value": 5
+     },
+     {
+      "prop": "ContactFoe.label",
+      "op": "!=",
+      "value": ""
+     }
+    ]
+   },
+   "fields": []
+  },
+  {
+   "id": "crate",
+   "kind": "objects",
+   "select": {
+    "name": "Crate"
+   },
+   "fields": [
+    "damage_taken"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.2,
+   "set": "ContactFoe.health",
+   "on": {
+    "component": "ContactFoe",
+    "where": [
+     {
+      "prop": "ContactFoe.dead",
+      "op": "==",
+      "value": false
+     }
+    ]
+   },
+   "value": 1
+  },
+  {
+   "t": 0.2,
+   "set": "ContactFoe.label",
+   "on": {
+    "component": "ContactFoe"
+   },
+   "value": "marked",
+   "all": true
+  },
+  {
+   "t": 0.2,
+   "set": "ContactFoe.state",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": "Stunned"
+  },
+  {
+   "t": 0.2,
+   "set": "ContactFoe.Armor",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 4
+  },
+  {
+   "t": 1.0,
+   "pin": {
+    "component": "ContactFoe",
+    "where": [
+     {
+      "prop": "ContactFoe.dead",
+      "op": "==",
+      "value": false
+     }
+    ]
+   },
+   "hold": 2.0,
+   "front": 1.5
+  },
+  {
+   "t": 1.2,
+   "damage": 5.0,
+   "to": {
+    "name": "FoeNear"
+   }
+  },
+  {
+   "t": 1.2,
+   "damage": 3.0,
+   "to": {
+    "player": true
+   }
+  },
+  {
+   "t": 2.2,
+   "damage": 2.0,
+   "to": {
+    "component": "ContactFoe",
+    "where": [
+     {
+      "prop": "ContactFoe.dead",
+      "op": "==",
+      "value": false
+     }
+    ]
+   },
+   "from": {
+    "name": "Crate"
+   }
+  },
+  {
+   "t": 2.2,
+   "pin": {
+    "name": "FoeFar"
+   },
+   "hold": 0.5,
+   "at": {
+    "object": {
+     "name": "Crate"
+    },
+    "offset": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "offset": [
+    0.0,
+    0.0,
+    2.0
+   ]
+  },
+  {
+   "t": 4.0,
+   "pin": {
+    "name": "Nobody"
+   },
+   "hold": 1.0
+  },
+  {
+   "t": 4.0,
+   "pin": {
+    "name": "FoeFar"
+   },
+   "hold": 1.0,
+   "at": {
+    "object": {
+     "name": "Nobody"
+    },
+    "offset": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "t": 4.1,
+   "damage": 1.0,
+   "to": {
+    "name": "Crate"
+   }
+  },
+  {
+   "t": 4.1,
+   "damage": 1.0,
+   "to": {
+    "name": "Nobody"
+   }
+  },
+  {
+   "t": 4.2,
+   "set": "ContactFoe.nothing",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 1
+  },
+  {
+   "t": 4.2,
+   "set": "ContactFoe.Sealed",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 1
+  },
+  {
+   "t": 4.2,
+   "set": "ContactFoe.born",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 1
+  },
+  {
+   "t": 4.3,
+   "set": "ContactFoe.health",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": "plenty"
+  },
+  {
+   "t": 4.3,
+   "set": "ContactFoe.gauge.level",
+   "on": {
+    "name": "FoeFar"
+   },
+   "value": 1
+  },
+  {
+   "t": 4.3,
+   "set": "ContactFoe.health",
+   "on": {
+    "name": "Nobody"
+   },
+   "value": 1
+  },
+  {
+   "t": 4.4,
+   "set": "ContactFoe.health",
+   "on": {
+    "component": "ContactFoe"
+   },
+   "value": true,
+   "all": true
+  }
+ ]
+}

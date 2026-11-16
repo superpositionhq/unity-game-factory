@@ -237,7 +237,7 @@ namespace TaskProbe
                 case bool b: return b ? 1.0 : 0.0;
                 case string s: return s;
                 case char c: return c.ToString();
-                case Enum e: return Convert.ToDouble(e, CultureInfo.InvariantCulture);
+                case Enum e: return System.Convert.ToDouble(e, CultureInfo.InvariantCulture);
                 case UnityEngine.Object o: return o != null ? 1.0 : 0.0;
                 case ICollection collection: return (double)collection.Count;
             }
@@ -245,7 +245,7 @@ namespace TaskProbe
             {
                 try
                 {
-                    var d = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+                    var d = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
                     return double.IsNaN(d) || double.IsInfinity(d) ? null : (object)d;
                 }
                 catch { return null; }
@@ -297,6 +297,96 @@ namespace TaskProbe
             if (component == null || string.IsNullOrEmpty(path)) return null;
             var read = ReadPath(component, path, out var ok);
             return ok ? Plain(read) : null;
+        }
+
+        // ---------------------------------------------------------------- writing a member (the set stage)
+
+        /// <summary>Writes `value` (a bool, a number or a string) to the member a prop: field of `path` reads on `go`:
+        /// &lt;Component&gt;.&lt;member&gt;[.&lt;sub&gt;] on the component of that type name (on the object, else the first in its
+        /// descendants), else the path on the GameObject, else on its Transform. Fields and properties with a setter,
+        /// public or not; a bool, a number, an enum (by value or name) or a string. False with `why` when the path
+        /// doesn't resolve, the member can't be written (no setter, a constant, a member of a struct) or the value
+        /// isn't of its kind.</summary>
+        public static bool Write(GameObject go, string path, object value, out string why)
+        {
+            why = "no property " + path;
+            if (go == null || string.IsNullOrEmpty(path) || path.IndexOf('[') >= 0 || path.Split('.').Length > MaxSteps) return false;
+            var dot = path.IndexOf('.');
+            if (dot > 0 && ComponentNamed(go, path.Substring(0, dot)) is Component component)
+                return WritePath(component, path.Substring(dot + 1), value, out why);
+            ReadPath(go, path, out var found);
+            if (found) return WritePath(go, path, value, out why);
+            ReadPath(go.transform, path, out found);
+            return found && WritePath(go.transform, path, value, out why);
+        }
+
+        static bool WritePath(object root, string path, object value, out string why)
+        {
+            why = "no property " + path;
+            var last = path.LastIndexOf('.');
+            var target = root;
+            if (last > 0)
+            {
+                target = ReadPath(root, path.Substring(0, last), out var ok);
+                if (!ok || target == null || IsDead(target)) return false;
+                if (target.GetType().IsValueType) { why = path + " is a member of a struct: write the member that holds the struct's value"; return false; }
+            }
+            var name = path.Substring(last + 1);
+            var member = Declared(target.GetType(), name, false);
+            Type type;
+            switch (member)
+            {
+                case FieldInfo field when !field.IsLiteral && !field.IsInitOnly: type = field.FieldType; break;
+                case PropertyInfo property when property.GetSetMethod(true) != null: type = property.PropertyType; break;
+                case null: return false;
+                default: why = name + " can't be written (it has no setter, or is a constant)"; return false;
+            }
+            if (!Convert(value, type, out var converted)) { why = name + " is a " + type.Name + ": it takes no " + Said(value); return false; }
+            try
+            {
+                if (member is FieldInfo f) f.SetValue(target, converted);
+                else ((PropertyInfo)member).SetValue(target, converted, null);
+            }
+            catch (Exception e)
+            {
+                why = "writing " + name + " threw " + (e.InnerException ?? e).GetType().Name;
+                return false;
+            }
+            return true;
+        }
+
+        static string Said(object value) => value is bool ? "true or false" : value is string ? "text" : "number";
+
+        static bool Convert(object value, Type type, out object converted)
+        {
+            converted = null;
+            try
+            {
+                if (type == typeof(bool))
+                {
+                    if (!(value is bool)) return false;
+                    converted = value;
+                }
+                else if (type == typeof(string))
+                {
+                    if (!(value is string)) return false;
+                    converted = value;
+                }
+                else if (type.IsEnum)
+                {
+                    if (value is string name) converted = Enum.Parse(type, name, false);
+                    else if (value is bool) return false;
+                    else converted = Enum.ToObject(type, System.Convert.ToInt64(value, CultureInfo.InvariantCulture));
+                }
+                else if (type.IsPrimitive && type != typeof(char) && type != typeof(IntPtr) && type != typeof(UIntPtr))
+                {
+                    if (value is bool || value is string || value == null) return false;
+                    converted = System.Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
+                }
+                else return false;
+            }
+            catch (Exception) { return false; }
+            return converted != null;
         }
 
         // ---------------------------------------------------------------- members of optional packages

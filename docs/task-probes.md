@@ -303,6 +303,63 @@ nothing is touched. Android's back button is the key `<Keyboard>/escape`. A desk
 reads them, so they are allowed in any task; a mobile game is played by touch, so its tasks' plays drive it with
 touches and the back button, never with another key, the mouse or a gamepad.
 
+### 1.4 Staging a contact, and reading it
+
+An ask that only shows after a blow, a shot, a hit taken or a foe falling is checked by making the contact happen at a
+time the play knows, then reading what changed. Names come from the task's start commit, never from the instruction.
+
+**Stage it.** Three inputs of a task play, each on the match of its select nearest to the player:
+
+- `{"t": 1.0, "pin": <object select>, "hold": 4, "front": 1.5}` or `{"t": 1.0, "pin": <object select>, "hold": 4,
+  "at": <Point>, "offset": [0, 0, 2]}`: the nearest match (never the player, nor anything under it) held at its place
+  for `hold` seconds of play while its own scripts, animation and attacks run on; first set `front` metres ahead of
+  the player along the player's facing (at its own height above the ground, plus `offset`), or `at` a point (plus
+  `offset`), turned to face the player. The player's own blow or shot, by the task's keys, then lands on it. A target
+  the build invents: `{"player": false, "has": {"simulating": true}, "near": {"point": {"player": true}, "radius":
+  m}}`, the nearest thing a player can shove near the player; where that is not surely the target, the ask is not
+  testable. The validator refuses a pin on the player and a pin with both
+  `front` and `at`.
+- `{"t": 5.0, "damage": 10, "to": <object select>, "from": <object select>}`: the game's own damage entry, as its own
+  attacks call it: `TakeDamage(points, source)` of the `IDamageable` on the nearest match (`{"player": true}`: the
+  player; the component on the object, else on one above it, else on one under it). The source is `from`'s nearest
+  match; without `from` the player, or, when the player is struck, the nearest other object with an `IDamageable`.
+  For a game under the game contract (docs/game-format.md), where every hit goes through that interface.
+- `{"t": 0.5, "set": "Foe.health", "on": <object select>, "value": 1, "all": true}`: a member the start names (the
+  path a `prop:` field reads, without an index; a field, or a property with a setter, public or not) written on the
+  nearest match, or on every match with `all`: a number, a boolean, an enum by value or name, a string. To set a
+  fight up (a foe's health at 1 so one blow fells it through the game's own death, the player's own high so a staged
+  fight can't end the play), never to decide what the check reads.
+- `where` in any object select: `[{"prop": "Foe.dead", "op": "==", "value": false}]` (1 to 4 conditions, all must
+  hold; `>`, `>=`, `<`, `<=`, `==`, `!=`; a string compares by `==` and `!=` only): only the foes not dead, one bay's
+  group. An object on which the member doesn't resolve never matches. `"player": false`: anything but the player
+  object. `set` and `where` only on members the task does not ask to change.
+
+A stage nothing took changes nothing and is listed in the play's `inputs_missed` (probe.json: `t`, `kind`, `target`,
+`why`; and a line of `probe.log`): a pin no object matches or whose point doesn't resolve, a damage with no target or
+a target without the interface, a set no object or no member takes. The check that reads the contact then fails on
+the side that missed; when the reference misses too, the task is invalid.
+
+**Read it deterministically**, in a probe one sentence explains:
+
+- a thing gone or drawn (`drawn`, a count), a start-named state or member (`prop:`, an Animator's `anim:` or `clip`);
+- objects `damage_taken`: what the object's `TakeDamage` returned for the play's `damage` stages, summed. Under the
+  game contract `TakeDamage` returns the damage actually applied (0 when the hit did nothing), so this is what a hit
+  did: a block, an invulnerable moment, a weak spot;
+- **a hit stop** (0.05 to 0.1 s: no screenshot shows it): `world` `time_scale` (section 2.21) where the stop slows
+  the game's time; objects `frozen` where it is the object's own: the longest short stop that ended since the
+  previous sample (frames in which the object moved under 1 mm, turned under 0.05 degrees and none of its skinned
+  meshes' bones or its parts moved 1 mm, between two frames of motion, 0.5 s at most), in a tight window right after
+  the contact, never on an object a pin or a teleport holds, paired with `world` `paused` == 0; the start's play must
+  read 0;
+- **a stagger, a knock-back or an interrupted action** (behaviour, not looks): a start-named staggered state or
+  Animator parameter in a short window after the hit and not before it; the object can't act (the move key held
+  through the window: its `speed` near 0, then moving again after it); a knock-back as its place moving away from the
+  attacker (`dist` rising).
+
+**What it looks like** (sparks, colours, glow, readability) goes to the required `looks_as_asked` judge with its own
+play staged the same way and named `shot` frames a few hundredths of a second apart across the contact. A pose may be
+an extra rubric item, never the only check of a behaviour.
+
 ## 2. Measures
 
 Which measure answers which question (each section has its fields, defaults and limits):
@@ -326,8 +383,10 @@ Which measure answers which question (each section has its fields, defaults and 
 | what the HUD or a menu shows, whatever draws it: text, a number, a clock, whether it updates | `ui` (2.18) |
 | what is drawn at a spot or along a line: motion, colour, a beam's reach | `drawn` (2.19) |
 | what the renderer drew, against a budget: draw calls, triangles, texture memory | `render` (2.20) |
+| the game's time: slowed for a hit stop, paused | `world` (2.21) |
 
-How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: section 1.3. Literal or calibrated: section 1.2. Points and
+How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: section 1.3; a staged contact (`pin`,
+`damage`, `set`): section 1.4. Literal or calibrated: section 1.2. Points and
 `near`: section 2.13. Why a probe has no value: section 3.
 
 ### 2.1 Common fields
@@ -446,8 +505,12 @@ renderers, else its position.
     inactive body simulates nothing) finds an object by what it can do: `{"teleport_to": {"has": {"simulating": true,
     "near": ...}}}` reaches the nearest object a player can shove, whichever component a build used.
   - `inactive: true`: inactive objects match too (they read `active` 0).
+  - `"player": false`: anything but the player object. `where`: members of the object compared with values, `[{"prop":
+    "Foe.dead", "op": "==", "value": false}]` (section 1.4): only the objects on which every condition holds.
 - `field`:
   - `count`: the selection's size (`of` ignored);
+  - `frozen` (s) and `damage_taken`: an object's short stop and the damage its `TakeDamage` returned for the play's
+    `damage` stages (section 1.4);
   - `x`, `y`, `z` (m), `yaw`, `pitch`, `roll` (degrees), `scale` (the mean of the absolute lossy scale's axes);
   - `extent_x`, `extent_y`, `extent_z`: **the object's drawn parts' world-aligned half-size** (m). Its parts are the
     renderers in the object and its descendants that draw a shape and have something to draw: a MeshRenderer whose
@@ -1295,6 +1358,17 @@ reading that makes the probe render: no `drawn` measure, no `lit` or `glow`, no 
 or in its inputs. The validator refuses a task with the two in one play. Give a budget check a play of its own. The
 checker's player is built without static batching (so each renderer keeps its own mesh for the other readings): a
 scene that leans on static batching draws more calls here than in the game's own build, never fewer.
+
+### 2.21 `world`: the game's time as a whole
+
+`{"probe": "world", "field": "time_scale|paused"}`: `time_scale` is the lowest `Time.timeScale` over the frames since
+the previous sample, so a hit stop that slows the game for two frames shows even between samples (1 when the game ran
+at its pace); `paused` is 1 when it was 0 in any of them ("Escape pauses the game"). The play's clock runs on whatever
+the game sets, so a paused game is still sampled.
+
+```json
+{"probe": "world", "field": "time_scale", "window": [2.0, 2.5], "agg": "min"}
+```
 
 ## 3. What gates, and how a probe fails
 
