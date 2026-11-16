@@ -29,6 +29,13 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
 - **unity-sound** ([skills/unity-sound/SKILL.md](skills/unity-sound/SKILL.md)): sessions that build a game, whenever it
   needs sound (the design doc's audio direction, every UI, player, combat, world or ambience sound): finding, choosing
   and importing sound effects through `tools/sfx.py`.
+- **unity-desktop-game** ([skills/unity-desktop-game/SKILL.md](skills/unity-desktop-game/SKILL.md)): sessions that
+  build a desktop game, with unity-game-session (the desktop quality bar and what to build in for hard tasks). Every
+  game is a desktop game unless it was made with `new-game.ps1 -Platform mobile`.
+- **unity-mobile-game** ([skills/unity-mobile-game/SKILL.md](skills/unity-mobile-game/SKILL.md)): sessions that build
+  or write tasks for a mobile game (an Android phone game: its root has a `Platform.json`), with unity-game-session, in
+  place of unity-desktop-game (one renderer and its budgets, touch controls, the back button, the bot's fingers, the
+  APK, touch task plays).
 - **unity-write-tasks** ([skills/unity-write-tasks/SKILL.md](skills/unity-write-tasks/SKILL.md)): sessions that write,
   move or review a game's tasks (the orphan `tasks` branch, never on main; at least 5 and up to about 10 per game,
   every one a long thread of multiple edits from the real history, never a single fix, at least 4 of them hard: the others
@@ -36,11 +43,12 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   probe checks).
 
 **Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory
-use the four skills above and no others. Never install, enable or invoke any other skill: not the person's own
+use the skills above (of unity-desktop-game and unity-mobile-game, the one of the game's platform, never both) and no
+others. Never install, enable or invoke any other skill: not the person's own
 personal or project skills, not a plugin's or a marketplace's skills, not the skills bundled with the agent (Claude
 Code's built-in skills and slash-command skills, Codex's system skills), and not another factory's skills
-(`commit-always`, `game-session`, `sound`, `write-tasks`) even when the machine has them installed. A skill the agent
-offers by name or description that is not one of the four is ignored. Work no skill here covers is done by hand under
+(`commit-always`, `game-session`, `desktop-game`, `mobile-game`, `sound`, `write-tasks`) even when the machine has
+them installed. A skill the agent offers by name or description that is not one of them is ignored. Work no skill here covers is done by hand under
 these rules, or asked about (the coordinator, or the person in a solo session). _(why: the recorded sessions are the
 dataset, so how a game gets made must follow these rules only; another skill brings instructions and habits nobody
 here reviewed into the creation record, and another factory's skills give answers for another engine to Unity
@@ -51,7 +59,8 @@ Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md). AutoPlay:
 [docs/autoplay-contract.md](docs/autoplay-contract.md). Creation replay: [docs/unity-replay.md](docs/unity-replay.md).
 
 **Priorities (user decision).** What ships is what matters, in this order: the game plays; the game builds (editor and
-the Windows release player); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
+the Windows release player; a mobile game is played and recorded as that player at the phone's size, and its APK is
+built at release where the machine has the Android toolchain); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
 like a human (human-like input, aim and camera), but bot work never blocks a release: one recorded scenario per game
 (one video) that shows the game running is enough, whatever the result (win/lose/timeout is metadata). No tuning for
 win rates, seed sweeps or "clean" runs, and no re-runs or re-recordings to improve how the bot plays. No retest loops:
@@ -91,7 +100,7 @@ changes.
 |---|---|
 | skills (`skills/`) | available |
 | machine setup, recording hooks, job limiter (`machine/`) | available |
-| game template + `new-game.ps1` (`templates/`) | available |
+| game template + `new-game.ps1` (`templates/`) | available: a desktop game, or with `-Platform mobile -Orientation landscape\|portrait` an Android phone game ([docs/game-format.md](docs/game-format.md), "Platform") |
 | sound tool, workflow scrub, thread counter (`tools/sfx.py`, `scrub-workflow-rows.py`, `thread-stats.py`) | available |
 | game format: the repo and dataset rules, their schemas, `validate-game.py`, `validate-dataset.ps1`, `split-tasks.py` | available: [docs/game-format.md](docs/game-format.md) |
 | task verifier: the task schema, the TaskProbe package, `task-check.py`, `task-try.py` (`tools/task_check/`) | available: [docs/task-check.md](docs/task-check.md), [docs/task-probes.md](docs/task-probes.md) |

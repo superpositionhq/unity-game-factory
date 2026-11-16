@@ -27,7 +27,7 @@ problems. The asset-scout session ({{ASSET_SCOUT_ID}}) keeps the asset library i
 each game its packs. Everything shares one Windows PC ({{MACHINE}}). I am the coordinator ({{COORDINATOR_ID}}): I own
 the recording queue and the GPU slots, review your commits and tell you when to push.
 
-Rules: follow the unity-game-session, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\ or
+Rules: follow the unity-game-session, unity-desktop-game, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\ or
 ~\.agents\skills\, source unity-game-factory/skills/), and no other skill: never install, enable or invoke a personal,
 project, plugin, marketplace or agent built-in skill, nor another factory's skills. In short: every heavy or
 GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for you), one Unity process
@@ -135,3 +135,13 @@ Steps:
 Shared notes folder for this group of sessions (outside the repo; read siblings' notes there, leave hand-over notes
 or large findings there instead of pasting them into messages): {{NOTES_DIR}}
 ```
+
+## A mobile game
+
+The text above starts a desktop game as it is. For a mobile game (an Android phone game, landscape or portrait,
+chosen with the person before the session starts), change three things in the filled text before sending it:
+
+1. Add ` -Platform mobile -Orientation landscape` (or `portrait`) to the `new-game.ps1` line.
+2. Replace `the Windows release player` with `the Windows release player at the phone's size (the APK is built at release)`.
+3. Add this line after the paragraph that names the skills to follow:
+   `This is a mobile game (Android phone, <orientation>, touch only): follow the unity-mobile-game skill with unity-game-session, in place of unity-desktop-game.`

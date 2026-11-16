@@ -2,7 +2,9 @@
 
 Game-**creation** data: how a game gets made, step by step, with the finished project as ground truth.
 
-We build new 3D games in Unity 6.3 LTS (Universal Render Pipeline) and record the creation as it happens: real
+We build new 3D games in Unity 6.3 LTS (Universal Render Pipeline), for the desktop (Windows) or for an Android phone
+(a mobile game: `templates/new-game.ps1 -Platform mobile`, [docs/game-format.md](docs/game-format.md), "Platform"),
+and record the creation as it happens: real
 editor operations with timestamps, code commits, every tool call, prompt and reply of the sessions that build the game,
 and recorded playtests of each scenario by an in-game bot (screen video, game audio and inputs). Every part of that is
 here ([AGENTS.md](AGENTS.md), "What is here and what is coming").
@@ -91,6 +93,7 @@ videos, README screenshots and the built player:
   Gameplay/<game>_S<n>.mp4       one video per recorded scenario of the release version (one is enough), game audio muxed
   Screenshots/                   the README's hero and gallery
   Build/                         the Windows release player, no .pdb; not in the repo Dataset/
+                                 (a mobile game: also its Android APK, when the release was built with the Android toolchain)
   manifest.json
 ```
 
@@ -122,7 +125,8 @@ packager's first run.
 - [docs/unity-pipeline.md, Dataset packager](docs/unity-pipeline.md#dataset-packager): the per-game dataset
   (`tools/package-dataset.py`) and its scrub.
 - [AGENTS.md](AGENTS.md): what every session reads first (Claude Code through [CLAUDE.md](CLAUDE.md), Codex
-  directly): the skills in `skills/` (unity-commit-always, unity-game-session, unity-sound, unity-write-tasks), the
+  directly): the skills in `skills/` (unity-commit-always, unity-game-session, unity-desktop-game or unity-mobile-game,
+  unity-sound, unity-write-tasks), the
   priorities, how the two agents differ, and the rules for agents working here (each with the failure behind it).
 - [docs/new-machine.md](docs/new-machine.md): setting up another Windows machine (`machine/setup.ps1`, which runs
   `machine/bootstrap.ps1` and `machine/check.ps1`).
@@ -138,8 +142,8 @@ tools/task-check.py, task-try.py   a task checked on the engine; tried with a co
 tools/thread-stats.py              a thread's own commits counted against the task floors (git only)
 tools/sfx.py                       sound effects for a game: search Freesound, fetch into the repo, measure (unity-sound skill)
 machine/                           machine setup: setup (entry point), bootstrap/check, unity-heavy limiter, recording hooks, ffmpeg
-templates/                         Unity 6.3 LTS game skeleton + new-game.ps1
-skills/                            unity-commit-always, unity-game-session, unity-sound, unity-write-tasks (agent-neutral; bootstrap installs them for each agent)
+templates/                         Unity 6.3 LTS game skeleton + new-game.ps1 (a desktop game, or -Platform mobile: an Android phone game)
+skills/                            unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks (agent-neutral; bootstrap installs them for each agent)
 docs/                              everything learned so far; docs/briefs/ = session prompts
 ```
 

@@ -12,8 +12,9 @@ every prompt the person types and every reply you write) and becomes a game-crea
 every game. `%UGF_ROOT%` = the machine root (`machine/README.md`); the coordinator is the session that started you.
 Use the **unity-commit-always** skill for every commit and the **unity-sound** skill for every sound.
 
-**Only the unity-game-factory skills (owner's rule).** Use unity-commit-always, unity-game-session, unity-sound and
-unity-write-tasks and no other skill: never install, enable or invoke a personal, project, plugin, marketplace or agent
+**Only the unity-game-factory skills (owner's rule).** Use unity-commit-always, unity-game-session, unity-sound,
+unity-write-tasks and your game's platform skill (unity-desktop-game, or unity-mobile-game for an Android phone game)
+and no other skill: never install, enable or invoke a personal, project, plugin, marketplace or agent
 built-in skill, even when the agent offers one, and that includes another factory's skills (commit-always,
 game-session, sound, write-tasks) if this machine has them (AGENTS.md, "Only these skills"). Do what they don't cover
 by hand under these rules, or ask.
@@ -30,7 +31,8 @@ by hand under these rules, or ask.
    whose path its first such call names). Create the project with it:
    `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\templates\new-game.ps1 -Slug <slug> -Path <UGF_ROOT>\games\<slug> -Title "<Title>" -Description "<one line>"`
    with `<UGF_ROOT>` written out as the absolute path (e.g. `C:\Users\<you>\UnityWork`), never `%UGF_ROOT%` or
-   `$env:UGF_ROOT`: the hooks match the command text. new-game.ps1 refuses any other -Path (typed in Git Bash, put
+   `$env:UGF_ROOT`: the hooks match the command text. An Android phone game adds `-Platform mobile -Orientation
+   landscape` (or `portrait`) and follows the unity-mobile-game skill; without them the game is a desktop game. new-game.ps1 refuses any other -Path (typed in Git Bash, put
    each Windows path in single quotes: bash drops unquoted backslashes). Calls made before this one (reading docs,
    drafting the design) are imported from your transcript when the session is mapped (status `from_transcript`). It
    stops before it creates anything when no Unity 6.3 LTS editor is installed (or not the version the machine config
@@ -230,9 +232,6 @@ by hand under these rules, or ask.
 - **Camera (user rule):** gentle; the user gets motion sick. Third person: character in the lower third, never filling
   the screen, never at hip height or jammed into the body (Cinemachine's Deoccluder or Decollider in narrow spaces,
   crouching).
-- **Quality bar:** main menu, settings (volume, resolution, mouse sensitivity), pause, save/load where it fits, HUD,
-  sound, clear win/lose, a Windows x64 release player build (non-development, IL2CPP where the toolchain has it, else
-  Mono, noted in the design doc). Recorded and TTS voices are allowed.
 - **Gameplay depth (user rule, 2026-11-11):** a game is never only its genre's bare loop. On top of the core loop
   the design doc names several further systems the player uses, each changing how a session goes, of the kind a
   player of that genre expects from a full game: a technique to master, things to pick up or use during play,
@@ -251,12 +250,9 @@ by hand under these rules, or ask.
   question: when the person is away, go on with your best proposal, say so, and bring it up when they are back.
   _(failure: agents chose every loop themselves, so games came out thin and the record held little of the person's
   judgement)_
-- **Room for hard tasks.** A game's tasks come from its own history (unity-write-tasks skill), and strong agents miss
-  what only shows when the game runs. So build these in, and work them over several rounds rather than in one commit:
-  feedback for every gameplay event (a HUD readout, marker, sound or effect); visible state changes (materials,
-  colours, lights, dressing); a pause menu with settings and back navigation on Escape; tuned numbers a player feels
-  (ranges, detection, damage, timers). Fix each playtest issue in its own commit whose message says what the player
-  saw, so the thread can be found and checked later.
+- **Quality bar and room for hard tasks:** in the skill of your game's platform: **unity-desktop-game**, or
+  **unity-mobile-game** for a game made with `new-game.ps1 -Platform mobile` (its `Platform.json` says so). Read that
+  one, never both.
 - **Review views stay out of the game.** To look at your work from many places in one launch, keep the list of
   stops (scenes, places, views) outside the repository (your notes, or a git-ignored folder such as `Logs/`), never
   committed: the grader takes its own pictures from places it chooses by what the build made, and a committed list of
@@ -343,13 +339,14 @@ before it gets it, and every game a new version of it, with one run of
 `Assets/AutoPlay/`. What this section asks is also the release gate: the release starts with it ("Dataset", release
 step 1, "Ensure AutoPlay"), and no game is released without it.
 
-- Once the first scenario is playable end to end, implement `docs/autoplay-contract.md` (Unity contract v1, section
+- Once the first scenario is playable end to end, implement `docs/autoplay-contract.md` (Unity contract v2, section
   6): every scenario starts from the command line with `-scenario <n>` (1-based, the design doc's numbers: what
   `Scripts/unity.ps1 play -Scenario <n>` and `autoplay -Scenario <n>` pass and what a task's `play_args` use) and from
   AutoPlay's `StartScenario` (a template game fills in `Scenes` and `Names` in `Scenarios.cs`; an older game hands its
   own scenario start to `AutoPlay.StartScenario`, contract section 6); all input is read through the Input System; the
   game never pauses or mutes on focus loss (`Application.runInBackground`, which the template sets); every action is
-  reachable by input (hotkeys for what is otherwise UI-only). The game calls `ScenarioStarted(name)`
+  reachable by input (hotkeys for what is otherwise UI-only; in a mobile game by touch: unity-mobile-game skill,
+  "AutoPlay on a mobile game"). The game calls `ScenarioStarted(name)`
   (`Scenarios.Started()`) when gameplay begins and `FinishRun(result, score)` when it ends, and has a bot that acts
   **only** through the drop-in's input calls (Input System injection), Skill-scaled and human-like (no snapping
   camera, no jump spam). The design doc lists scenarios 1..n (start state, win/lose).

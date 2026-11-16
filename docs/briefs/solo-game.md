@@ -40,9 +40,10 @@ skills say to send to "the coordinator" (recording requests, push requests, asse
 here and wait for my answer.
 
 Read first: {{UGF_ROOT}}\unity-game-factory\AGENTS.md, README.md, docs/autoplay-contract.md, docs/unity-pipeline.md,
-and the unity-game-session, unity-commit-always and unity-sound skills
+and the unity-game-session, unity-desktop-game, unity-commit-always and unity-sound skills
 ({{UGF_ROOT}}\unity-game-factory\skills\<name>\SKILL.md; installed for your agent too). They hold the rules; in short:
-- use only the unity-game-factory skills (unity-commit-always, unity-game-session, unity-sound, unity-write-tasks):
+- use only the unity-game-factory skills (unity-commit-always, unity-game-session, unity-desktop-game, unity-sound,
+  unity-write-tasks):
   never install, enable or invoke any other skill (personal, project, plugin, marketplace, built into the agent, or
   another factory's), even when one is offered;
 - every editor, build or GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for
@@ -108,3 +109,13 @@ recording (no other commit until it is packaged), run unity_replay.py release wi
 say the recording is done, package-dataset.py; commit the Dataset/ it writes. Report each milestone here with the
 commit sha.
 ```
+
+## A mobile game
+
+The text above starts a desktop game as it is. For a mobile game (an Android phone game, landscape or portrait,
+chosen with the person before the session starts), change three things in the filled text before sending it:
+
+1. Add ` -Platform mobile -Orientation landscape` (or `portrait`) to the `new-game.ps1` line.
+2. Replace `the Windows release player` with `the Windows release player at the phone's size (the APK is built at release)`.
+3. Add this line after the paragraph that names the skills to follow:
+   `This is a mobile game (Android phone, <orientation>, touch only): follow the unity-mobile-game skill with unity-game-session, in place of unity-desktop-game.`
