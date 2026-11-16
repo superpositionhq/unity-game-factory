@@ -4,6 +4,10 @@
 // nothing to do here. Started by hand on the user's own desktop (a developer trying a play), the window is moved off
 // every screen and never activated instead, the best that can be done there: it renders the same, but the game sees
 // itself lose focus at its first frame. Windows standalone only; elsewhere this does nothing.
+//
+// A mobile game's play runs in a window of the phone's size, and a phone held upright (1080x1920) is taller than most
+// displays. Unity holds a window to the size of the display, so there the probe sizes the window itself (Oversize): a
+// window without a frame may be larger than the screen it is on, and the player draws its whole picture into it.
 using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -28,6 +32,9 @@ namespace TaskProbe
 
         [StructLayout(LayoutKind.Sequential)] struct Rect { public int Left, Top, Right, Bottom; }
 
+        const int GwlStyle = -16;
+        const long WsPopup = 0x80000000L, WsVisible = 0x10000000L, WsClipSiblings = 0x04000000L, WsClipChildren = 0x02000000L;
+        const uint SwpFrameChanged = 0x0020;
         const int GwlExStyle = -20;
         const long WsExToolWindow = 0x00000080L, WsExAppWindow = 0x00040000L, WsExNoActivate = 0x08000000L;
         const int SwHide = 0, SwShowNoActivate = 4;
@@ -68,6 +75,24 @@ namespace TaskProbe
                 ownDesktop = known && !string.Equals(name.ToString(), "Default", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             }
             return ownDesktop == 1;
+#else
+            return false;
+#endif
+        }
+
+        /// <summary>The window's picture at `width` x `height` on a display that is smaller: the window loses its frame
+        /// and is sized past the screen, where it is (a window with a frame is held to the display's size, by Windows
+        /// and by Unity's own windowed mode). The player follows its window, so the frame it draws, and
+        /// Screen.width and Screen.height, are that size from the next frame. False when it couldn't be done.</summary>
+        public static bool Oversize(int width, int height)
+        {
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (!Play || Application.isBatchMode) return false;
+            var hwnd = Main();
+            if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var rect)) return false;
+            var shown = GetWindowLongPtr(hwnd, GwlStyle).ToInt64() & WsVisible;
+            SetWindowLongPtr(hwnd, GwlStyle, new IntPtr(WsPopup | WsClipSiblings | WsClipChildren | shown));
+            return SetWindowPos(hwnd, IntPtr.Zero, rect.Left, rect.Top, width, height, SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
 #else
             return false;
 #endif

@@ -3,7 +3,9 @@
 // real ones deliver nothing to a window without focus), widget clicks, cursor moves, teleports of the player (held
 // there for a while when asked), waits in real time, named screenshots, scene loads and view turns: one launch can
 // visit several places and scenes and picture each. Each device's whole state is sent with every change, so two
-// inputs in one frame never undo each other.
+// inputs in one frame never undo each other. And touches, as a phone's screen sends them (a tap, a long press, a drag,
+// several fingers at once: docs/task-probes.md, section 1.3), through the probe's own virtual Touchscreen: the Input
+// System's UI module, its on-screen controls and a game's own touch code read it as they read a phone's.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -32,9 +34,10 @@ namespace TaskProbe
         /// <summary>A wait input holds the play's clock.</summary>
         public bool Waiting { get; private set; }
 
-        public Inputs(Probe probe, List<object> spec)
+        public Inputs(Probe probe, List<object> spec, bool touch = false)
         {
             this.probe = probe;
+            touchPlay = touch;
             if (spec != null)
                 foreach (var item in spec)
                     if (item is Dictionary<string, object> row && Kind(row) != null) rows.Add(row);
@@ -55,6 +58,8 @@ namespace TaskProbe
         /// left out).</summary>
         static string Kind(Dictionary<string, object> row)
         {
+            if (row.ContainsKey("tap")) return "tap";
+            if (row.ContainsKey("drag")) return "drag";
             if (!string.IsNullOrEmpty(Json.Str(row, "widget")) && Json.Bool(row, "click")) return "click";
             if (row.TryGetValue("cursor", out var cursor) && Json.TryNumbers(cursor, 2, out _)) return "cursor";
             if (Json.Obj(row, "teleport_to") != null) return "teleport_to";
@@ -76,7 +81,9 @@ namespace TaskProbe
         MouseState pointer;
         GamepadState pad;
         bool padUsed;
+        Touchscreen screen;
 #endif
+        readonly bool touchPlay;  // the play's spec says `touch` (a mobile game's): the touch screen is there from the start
 
         /// <summary>The virtual devices, added before the game's first frame so its input code sees them from the start.</summary>
         public void Start()
@@ -93,15 +100,20 @@ namespace TaskProbe
                 foreach (var row in rows)
                     if (Json.Str(row, "key", "").StartsWith("<Gamepad>", StringComparison.Ordinal)) padUsed = true;
                 if (padUsed) gamepad = InputSystem.AddDevice<Gamepad>("TaskProbeGamepad");  // only when asked: a gamepad switches many games' prompts
+                var touches = touchPlay;
+                foreach (var row in rows)
+                    if (row.ContainsKey("tap") || row.ContainsKey("drag")) touches = true;
+                // only when asked too: a game may show its touch controls when it finds a touch screen
+                if (touches) screen = InputSystem.AddDevice<Touchscreen>("TaskProbeTouchscreen");
                 keyboard.MakeCurrent();
                 mouse.MakeCurrent();
             }
             catch (Exception e) { probe.Failed("inputs: {0} adding the Input System's devices, so keys, axes and the cursor can't be sent", e); }
 #else
             foreach (var row in rows)
-                if (row.ContainsKey("key") || row.ContainsKey("cursor"))
+                if (row.ContainsKey("key") || row.ContainsKey("cursor") || row.ContainsKey("tap") || row.ContainsKey("drag"))
                 {
-                    probe.Error("inputs: the project has no Input System package, so keys, axes and the cursor can't be sent");
+                    probe.Error("inputs: the project has no Input System package, so keys, axes, the cursor and touches can't be sent");
                     break;
                 }
 #endif
@@ -112,6 +124,7 @@ namespace TaskProbe
         /// <summary>Sends every input due at play time `elapsed`; stops at a wait (the inputs after it wait for its end).</summary>
         public void Send(double elapsed)
         {
+            MoveTouches(elapsed);  // the fingers already down: the part of each due by now
             while (!Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
             {
                 var row = rows[next++];
@@ -152,6 +165,10 @@ namespace TaskProbe
         {
             switch (Kind(row))
             {
+                case "tap":
+                case "drag":
+                    StartTouch(row, elapsed);
+                    break;
                 case "click":
                 {
                     var widget = Json.Str(row, "widget");
@@ -297,6 +314,127 @@ namespace TaskProbe
             probe.Error("inputs: no device for " + path);
 #endif
         }
+
+        // ---------------------------------------------------------------- touches
+
+        /// <summary>A finger on the screen: sent a part each frame of the play's clock until it lifts.</summary>
+        sealed class Touching
+        {
+            public string Kind;  // tap, drag: what a miss is said as
+            public int Finger;
+            public double Start, Over, Hold;
+            public readonly List<Vector2> Points = new List<Vector2>();  // its path in screen pixels, resolved when it went down
+            public Vector2 Last;
+        }
+
+        readonly List<Touching> touching = new List<Touching>();
+
+        /// <summary>Where a spot is on the screen, in pixels from the bottom left: a viewport point [fx, fy] (fractions,
+        /// y down from the top), or {"widget": name}: the centre of the first visible widget of that name (a wildcard)
+        /// or type, whatever its kind, as it is laid out now. False for a widget that isn't on screen.</summary>
+        static bool Spot(object spot, out Vector2 at, out string named)
+        {
+            at = default;
+            if (Json.TryNumbers(spot, 2, out var xy))
+            {
+                var fx = Math.Min(Math.Max(xy[0], 0.0), 1.0);
+                var fy = Math.Min(Math.Max(xy[1], 0.0), 1.0);
+                named = FormattableString.Invariant($"({fx:F3}, {fy:F3})");
+                at = new Vector2((float)(fx * Screen.width), (float)((1.0 - fy) * Screen.height));
+                return true;
+            }
+            named = spot is Dictionary<string, object> o ? Json.Str(o, "widget") : null;
+            if (string.IsNullOrEmpty(named)) { named = "(no spot)"; return false; }
+            // by name first, any object of a canvas or any element; then by type
+            foreach (var byType in new[] { false, true })
+                foreach (var w in UiScan.Widgets(byType ? named : null, byType ? null : named, null, true))
+                {
+                    if (!(w.Field("x") is double x) || !(w.Field("y") is double y) || !(w.Field("w") is double width)
+                        || !(w.Field("h") is double height) || width <= 0.0 || height <= 0.0) continue;  // never laid out: nothing a finger could touch
+                    at = new Vector2((float)((x + width / 2) * Screen.width), (float)((1.0 - (y + height / 2)) * Screen.height));
+                    named = w.Name + " (" + w.Class + ")";
+                    return true;
+                }
+            return false;
+        }
+
+        /// <summary>A finger goes down: its spots are resolved now, its first part is sent, and MoveTouches sends the
+        /// rest. A touch that can't be made (a widget that isn't on screen, a finger still down, no touch screen) is a
+        /// miss: one line of the play's query_errors, and nothing is touched.</summary>
+        void StartTouch(Dictionary<string, object> row, double elapsed)
+        {
+            var drag = row.ContainsKey("drag");
+            var t = new Touching
+            {
+                Kind = drag ? "drag" : "tap", Finger = (int)Math.Round(Json.Num(row, "finger", 0.0)), Start = elapsed,
+                Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 120.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 120.0),
+            };
+            var at = FormattableString.Invariant($"at {Json.Num(row, "t", 0.0):F2} s");
+            if (t.Finger < 0 || t.Finger > 9) { probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} (a finger is 0 to 9)"); return; }
+            var spots = drag ? Json.Arr(row, "drag") : new List<object> { row["tap"] };
+            if (spots == null || spots.Count < (drag ? 2 : 1) || spots.Count > 16) { probe.Error($"inputs: the {t.Kind} {at} missed: it names no spots"); return; }
+            foreach (var spot in spots)
+            {
+                if (!Spot(spot, out var point, out var named))
+                {
+                    probe.Error($"inputs: the {t.Kind} {at} missed: no visible widget matches '{named}'");
+                    return;
+                }
+                t.Points.Add(point);
+                if (t.Points.Count == 1) Probe.Log($"{t.Kind}: finger {t.Finger} goes down on {named}");
+            }
+            if (!drag) t.Over = 0.0;
+#if TASKPROBE_INPUTSYSTEM
+            if (screen == null) { probe.Error($"inputs: the {t.Kind} {at} missed: no touch screen"); return; }
+            if (touching.Exists(other => other.Finger == t.Finger))
+            {
+                probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} is still down from an earlier touch");
+                return;
+            }
+            t.Last = t.Points[0];
+            QueueTouch(t, UnityEngine.InputSystem.TouchPhase.Began);
+            touching.Add(t);
+#endif
+        }
+
+        /// <summary>Every finger's part due by play time `elapsed`: a move when its place changed, and its lift once its
+        /// path and its hold are over, never in the frame it went down (a tap is a press in one frame and a release in
+        /// the next).</summary>
+        void MoveTouches(double elapsed)
+        {
+#if TASKPROBE_INPUTSYSTEM
+            for (var i = touching.Count - 1; i >= 0; i--)
+            {
+                var t = touching[i];
+                var since = elapsed - t.Start;
+                if (since <= 1e-9) continue;
+                var to = t.Points[t.Points.Count - 1];
+                if (t.Points.Count > 1 && t.Over > 0.0 && since < t.Over)
+                {
+                    var along = since / t.Over * (t.Points.Count - 1);
+                    var k = Math.Min((int)Math.Floor(along), t.Points.Count - 2);
+                    to = Vector2.Lerp(t.Points[k], t.Points[k + 1], (float)(along - k));
+                }
+                if ((to - t.Last).sqrMagnitude > 1e-4f)
+                {
+                    t.Last = to;
+                    QueueTouch(t, UnityEngine.InputSystem.TouchPhase.Moved);
+                }
+                if (since < t.Over + t.Hold - 1e-9) continue;
+                QueueTouch(t, UnityEngine.InputSystem.TouchPhase.Ended);
+                touching.RemoveAt(i);
+                Probe.Log(FormattableString.Invariant($"{t.Kind}: finger {t.Finger} lifts at pixel ({t.Last.x:F0}, {t.Last.y:F0}) after {since:F2} s"));
+            }
+#endif
+        }
+
+#if TASKPROBE_INPUTSYSTEM
+        void QueueTouch(Touching t, UnityEngine.InputSystem.TouchPhase phase)
+        {
+            // a touch's id is never 0 (the Touchscreen reads 0 as no touch): finger n is touch n + 1 for the whole play
+            InputSystem.QueueStateEvent(screen, new TouchState { touchId = t.Finger + 1, phase = phase, position = t.Last, pressure = 1f });
+        }
+#endif
 
         // ---------------------------------------------------------------- teleports
 

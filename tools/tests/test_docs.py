@@ -197,7 +197,7 @@ def expand(snippet):
 
 CHECKS = {'probe': 'Probe', 'build': 'Build', 'boot': 'Boot', 'log_absent': 'LogAbsent', 'file_exists': 'FileExists',
           'package': 'Package', 'judge': 'Judge', 'code_judge': 'CodeJudge', 'actions_judge': 'ActionsJudge'}
-INPUTS = (('key', 'Key'), ('widget', 'Click'), ('cursor', 'Cursor'), ('teleport_to', 'TeleportTo'),
+INPUTS = (('tap', 'Tap'), ('drag', 'Drag'), ('key', 'Key'), ('widget', 'Click'), ('cursor', 'Cursor'), ('teleport_to', 'TeleportTo'),
           ('teleport', 'Teleport'), ('wait', 'Wait'), ('shot', 'Shot'), ('scene', 'SceneLoad'), ('view', 'View'))
 EXPECTS = (('value', 'Value'), ('calibrate', 'Calibrate'), ('start_times', 'StartTimes'), ('start_plus', 'StartPlus'))
 POINTS = (('xyz', 'AtXYZ'), ('player', 'AtPlayer'), ('camera', 'AtCamera'), ('object', 'AtObject'))
@@ -216,6 +216,10 @@ def classify(v):
         return 'task'
     if v.get('schema') == 'assets-manifest/v1':
         return 'assets-manifest'
+    if set(v) == {'platform', 'orientation'}:
+        return 'platform'       # a game's Platform.json
+    if set(v) == {'widget'}:
+        return 'OnWidget'       # a touch's spot on a widget
     if v.get('format') in EXCHANGED or 'nonce' in v or {'out', 'result'} <= set(v) or {'ok', 'exe'} <= set(v):
         return 'exchange'       # a play spec, probe.json, the editor pass's files, the build's request and result
     if v.get('kind') in CHECKS and 'name' in v:
@@ -305,6 +309,12 @@ def value_problems(v):
         return task_problems(v)
     if kind == 'assets-manifest':
         return list(vg.check_schema(v, vg.SCHEMAS['assets-manifest']))
+    if kind == 'platform':
+        try:
+            vg.platform_said(json.dumps(v))
+        except ValueError as e:
+            return [str(e)]
+        return []
     if kind == 'select':
         fits = [schema_problems(v, d) for d in SELECTS]
         return [] if any(not f for f in fits) else [f'no select takes it ({min(fits, key=len)[0]})']

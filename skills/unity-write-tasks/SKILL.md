@@ -113,8 +113,10 @@ A thread qualifies only when all of these hold (the validator enforces the numbe
    player build, an intermittent or timing bug, a regression from an earlier change).
 5. **Checkable by the grader.** Every required outcome is measurable in the grader's own plays: a scenario
    (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted inputs reach it
-   (Input System control paths, mouse buttons, mouse axes and the cursor included, widget clicks and teleports). The
-   plays drive the Input System only: a game that reads the old Input Manager (`Input.GetKey`) takes no keys in them.
+   (Input System control paths, mouse buttons, mouse axes and the cursor included, widget clicks, teleports, and
+   touches: `tap` and `drag`, docs/task-probes.md section 1.3). The plays drive the Input System only: a game that
+   reads the old Input Manager (`Input.GetKey`) takes no keys in them. A mobile game (its root has a `Platform.json`)
+   is played at the phone's size and driven by touch: the unity-mobile-game skill, "Tasks on a mobile game".
    A thread no probe can measure is not a task. One issue of a compound thread that no probe can measure fairly
    stays in the brief and gets a required `looks_as_asked` rubric item (section 5), never one of the required probes.
 
@@ -377,7 +379,8 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   motion, base colour, a beam's reach), `pieces` (placed mesh pieces and their triangles), `light` (illuminance,
   exposure, brightness at a point), `grading` (the URP volume result: cast, warmth, tint, saturation, contrast, grey,
   `post:<Component>.<parameter>`), `screen` (the frame's luminance, never a literal threshold), `audio` (what plays
-  and how loud the listener hears it), `ground` (height and relief), `spawns`, `log`, `asset` (editor: a material's
+  and how loud the listener hears it), `ground` (height and relief), `render` (what the renderer drew, against a
+  budget: draw calls, triangles, texture memory; a literal threshold, in a play of its own), `spawns`, `log`, `asset` (editor: a material's
   `shader:` and `keyword:` values, `import:` settings, a ScriptableObject's `prop:`, and in a scene or prefab
   `material_default`, `material:<property>`, `mesh_collision`).
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or

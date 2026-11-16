@@ -16,9 +16,9 @@ TOOLS = os.path.dirname(HERE)
 REFS = ("tasks", "origin/tasks")  # where a game's tasks live (validate-game.py TASKS_REFS)
 STILL_WORKS = "still_works"  # the milestone of what a task must leave working (unity-write-tasks section 5)
 RUNTIME = ("player", "camera", "objects", "widgets", "components", "pieces", "screen", "light", "grading", "spawns",
-           "log", "audio", "ground", "ui", "drawn")
+           "log", "audio", "ground", "ui", "drawn", "render")
 SAMPLED = ("player", "camera", "objects", "widgets", "components", "pieces", "screen", "light", "grading", "spawns",
-           "audio", "ground", "ui", "drawn")
+           "audio", "ground", "ui", "drawn", "render")
 WHOLE_SCREEN = [0.0, 0.0, 1.0, 1.0]
 ANGLES = ("yaw", "pitch", "roll", "world_yaw", "world_pitch")  # world_yaw, world_pitch: components fields
 ANGLE_PREFIXES = ("rel_yaw:", "world_yaw:", "world_pitch:", "world_roll:")
@@ -183,11 +183,17 @@ def measure(m):
     return out
 
 
+def spot(value):
+    """A touch's place as the probe reads it: a point of the screen [fx, fy], or {"widget": name}."""
+    return {"widget": value["widget"]} if isinstance(value, dict) else _floats(value)
+
+
 def inputs(rows):
     """A task play's inputs as the probe reads them: keys (Input System control paths), axes, clicks, cursor moves,
     teleports (`yaw` 0 when unset: a teleport always turns the player), teleports next to an object (`distance` 2 m and
     `offset` 0 when unset, `face` only when set), either with `hold` only when set, waits in real time, named shots,
-    scene loads and view turns."""
+    scene loads and view turns; and touches (`tap`, `drag`: docs/task-probes.md, section 1.3; `finger` 0 unless said,
+    `hold` and `over` only when set)."""
     out = []
     for r in rows or []:
         row = {"t": float(r["t"])}
@@ -206,6 +212,15 @@ def inputs(rows):
             row.update(scene=r["scene"])
         elif "view" in r:
             row.update(view=_floats(r["view"]))
+        elif "tap" in r:
+            row.update(tap=spot(r["tap"]), finger=int(r.get("finger") or 0))
+            if r.get("hold") is not None:
+                row["hold"] = float(r["hold"])
+        elif "drag" in r:
+            row.update(drag=[spot(x) for x in r["drag"]], finger=int(r.get("finger") or 0))
+            for k in ("over", "hold"):
+                if r.get(k) is not None:
+                    row[k] = float(r[k])
         elif "cursor" in r:
             row.update(cursor=_floats(r["cursor"]))
         elif "widget" in r:

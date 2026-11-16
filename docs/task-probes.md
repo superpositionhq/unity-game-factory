@@ -61,7 +61,16 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
 - `"look"`: the checker's idle play of the task's `play_scene`: 20 s, no input, sampled every 0.5 s.
 - `"drive"`: the checker's scripted drive of `play_scene`: 22 s, `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s,
   `<Keyboard>/w` 8-13 s with a jump (`<Keyboard>/space`) at 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s;
-  sampled every 0.5 s.
+  sampled every 0.5 s. On a mobile game (its `Platform.json`) the same route by touch: a left thumb down at the lower
+  left of the screen (`[0.15, 0.75]`) pushed up, right, up, left, up at those times and held there, and a tap at the
+  lower right (`[0.85, 0.75]`) at 9 s.
+- **A mobile game's plays** (every one: the checker's own and a task's) run at the phone's size, 1920x1080 for a game
+  held in landscape and 1080x1920 for one held upright, with a touch screen there from the first frame, drawn with
+  the game's own quality level and render pipeline. The checker reads that from the copy's `Platform.json`
+  ([game-format.md](game-format.md), "Platform"); a desktop game's plays are 960x540, as always. Nothing in a task
+  says or changes it. The size holds on any display: where the display is lower than the phone (a phone held upright
+  is 1920 pixels high), the probe sizes the window past the screen, and the play's clock starts once the window is
+  the phone's size (measured on a 1920x1080 display: 1080x1920 frames, the clock 0.7 s later than a desktop play's).
 - A **task play**, when the outcome needs other input or another start:
   ```json
   {"name": "aim_left", "seconds": 12, "every": 0.5,
@@ -120,6 +129,8 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
       when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
       matches '<widget>'`);
+    - a touch: `{"t": 1.0, "tap": [0.5, 0.6]}` or `{"t": 2.0, "drag": [{"widget": "MoveStick"}, [0.2, 0.6]], "over":
+      0.3, "hold": 2.0}`, a finger on the probe's own virtual Touchscreen (section 1.3);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
       from the top; it starts at the centre); a following `<Mouse>/leftButton` press and release clicks there: uGUI
       through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit through that module or, when the scene has
@@ -214,7 +225,7 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so its PlayerPrefs and
   `Application.persistentDataPath` are its own, never the real game's; the probe clears both when the play starts
   (every PlayerPrefs key deleted; the folder emptied, and still there for the game to write into).
-- **Focus.** The player runs windowed at 960x540 on a Windows desktop of its own ([task-check.md](task-check.md),
+- **Focus.** The player runs windowed at 960x540 (a mobile game's at the phone's size) on a Windows desktop of its own ([task-check.md](task-check.md),
   "The plays"), where it counts itself focused for the whole play (`Application.isFocused` is true, no object gets
   `OnApplicationFocus(false)`): a game that pauses when it loses focus plays on.
 - **The build.** The player is the checker's own build of the commit (task-check.md, "What it does", step 3): without
@@ -261,6 +272,37 @@ can't be measured, or the start of a `start_times`/`start_plus` check can't, the
 it is required. A probe left without a threshold, this way or by a start and fix that measure the same, fails as
 `uncalibrated` on every side; one that isn't required is only a note (section 4).
 
+### 1.3 Touches
+
+A task play may touch the screen as a phone's player does. Two inputs, each with a `finger` (the touch index, 0 to 9,
+0 unless said):
+
+- a tap, `{"t": 1.0, "tap": [0.5, 0.6], "hold": 0.5, "finger": 1}`: the finger goes down at the spot `tap` and lifts
+  the next frame, or after `hold` seconds (a long press, a button kept down).
+- a drag, `{"t": 2.0, "drag": [{"widget": "MoveStick"}, [0.2, 0.6]], "over": 0.3, "hold": 2.0, "finger": 0}` (2 to 16
+  spots): the finger goes down at the first spot, moves through the others evenly over `over` seconds (at once
+  without it), stays at the last for `hold` seconds, then lifts: a swipe, a slider, a virtual stick pushed over and
+  held there.
+
+A spot is a point of the screen `[fx, fy]` in fractions 0-1 from its top left, or `{"widget": "MoveStick"}`: the centre
+of the first visible, laid-out widget of that name (a wildcard) or type, whatever its kind (a button, a stick, a
+panel): a uGUI object of a canvas or a UI Toolkit element, found as a `widgets` select finds one (section 2.6), by
+name first. Name the widget where you can: its place differs between landscape and portrait, its name does not. A
+widget's spot is where it is when the finger goes down.
+
+Touches of different fingers may overlap in time (a stick held while a button is tapped, two fingers pinching). One
+finger's touches are at least 0.1 s apart, from one's lift to the next one's start, and every touch is over by the
+play's end: the validator refuses a task that asks otherwise. They are state events on the probe's own virtual
+`Touchscreen` of the Input System, added when the play has a touch (in a mobile game's play: always), so the game
+reads them as it reads a phone's: the UI module's pointer events (a uGUI Button, an `OnScreenStick`, an
+`IPointerDownHandler` of the game's own; UI Toolkit through the same module), and `Touchscreen.current` or
+EnhancedTouch for touches on the world. Like a key, a touch sent at `t` reaches the game one frame later. A touch that
+can't be made is a miss: a line in the play's `query_errors` (`inputs: the tap at 2.00 s missed: no visible widget
+matches 'FireButton'`; a finger still down from an earlier touch; a project without the Input System package), and
+nothing is touched. Android's back button is the key `<Keyboard>/escape`. A desktop game takes touches too when it
+reads them, so they are allowed in any task; a mobile game is played by touch, so its tasks' plays drive it with
+touches and the back button, never with another key, the mouse or a gamepad.
+
 ## 2. Measures
 
 Which measure answers which question (each section has its fields, defaults and limits):
@@ -283,8 +325,9 @@ Which measure answers which question (each section has its fields, defaults and 
 | the height of the ground, its relief | `ground` (2.17) |
 | what the HUD or a menu shows, whatever draws it: text, a number, a clock, whether it updates | `ui` (2.18) |
 | what is drawn at a spot or along a line: motion, colour, a beam's reach | `drawn` (2.19) |
+| what the renderer drew, against a budget: draw calls, triangles, texture memory | `render` (2.20) |
 
-How a play gets there (keys, clicks, teleports, waits): section 1.1. Literal or calibrated: section 1.2. Points and
+How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: section 1.3. Literal or calibrated: section 1.2. Points and
 `near`: section 2.13. Why a probe has no value: section 3.
 
 ### 2.1 Common fields
@@ -1233,6 +1276,25 @@ are the same with and without the measure, but for what a game sees of a render 
 - Cost, measured: about 5 to 8 ms a sample near a point (the `base_` fields add a third render of each view), 4 ms
   along a line, 2.5 ms a glow render; in a scene of 4,000 renderers about 11 ms near a point and 4 to 5 ms a glow
   render, and 17 ms for a place holding 1,024 renderers.
+
+### 2.20 `render`: what the renderer drew
+
+`{"probe": "render", "field": "draw_calls|triangles|texture_mb"}`: the readings a budget is checked by.
+`draw_calls` and `triangles` are the engine's own counts of a frame (its `Draw Calls Count` and `Triangles Count`
+counters, what the Profiler's Rendering module and the Game view's Stats show; the UI's draws among them), the highest
+over the frames since the previous sample, so a heavy frame between two samples is read too; `texture_mb` is the
+texture memory in use at the sample (`Texture.currentTextureMemory`), in MiB. A literal threshold is allowed, since a
+budget is a number of its own: `{"op": "<=", "value": 700}`.
+
+```json
+{"probe": "render", "field": "draw_calls", "agg": "max"}
+```
+
+The counts hold whatever the probe itself rendered in those frames. So a play that takes a `render` measure takes no
+reading that makes the probe render: no `drawn` measure, no `lit` or `glow`, no select with `has.lit`, in its measures
+or in its inputs. The validator refuses a task with the two in one play. Give a budget check a play of its own. The
+checker's player is built without static batching (so each renderer keeps its own mesh for the other readings): a
+scene that leans on static batching draws more calls here than in the game's own build, never fewer.
 
 ## 3. What gates, and how a probe fails
 

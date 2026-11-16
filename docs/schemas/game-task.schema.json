@@ -1,5 +1,5 @@
 {
-  "$comment": "unity-game-factory's task format, GameTask (game-task/1: Unity 6.3 LTS, metres, Y up): one task a game ships with, on its orphan tasks branch (Tasks/<name>.json) and, split into the agent's and the grader's parts, in its dataset. The deterministic `probe` check kind is described for task authors in docs/task-probes.md, and every task is seeded; a build check's `fails_at_start` marks a start that doesn't compile. tools/validate-game.py checks every task in a game repo's tasks branch and in a dataset against this schema and the rules it cannot express.",
+  "$comment": "unity-game-factory's task format, GameTask (game-task/1: Unity 6.3 LTS, metres, Y up): one task a game ships with, on its orphan tasks branch (Tasks/<name>.json) and, split into the agent's and the grader's parts, in its dataset. The deterministic `probe` check kind is described for task authors in docs/task-probes.md, and every task is seeded; a build check's `fails_at_start` marks a start that doesn't compile. tools/validate-game.py checks every task in a game repo's tasks branch and in a dataset against this schema and the rules it cannot express. Since 2026-11-16 a task play may send touches (`tap`, `drag`: a finger down at a point of the screen or a widget's centre, held, moved, several fingers at once), and a probe may read what the renderer drew (`render`: draw calls, triangles, texture memory).",
   "$defs": {
     "ActionsJudge": {
       "additionalProperties": false,
@@ -1111,6 +1111,89 @@
         "cursor"
       ],
       "title": "Cursor",
+      "type": "object"
+    },
+    "Drag": {
+      "additionalProperties": false,
+      "description": "A finger put down at the first spot of `drag`, moved through the others evenly over `over` seconds (at once\nwithout it), kept at the last for `hold` seconds, then lifted: a swipe, a slider, a virtual stick pushed over and\nheld there. `finger` as a tap's; two drags of different fingers at the same time are a pinch. One finger's touches\nare at least 0.1 s apart, from one's lift to the next one's start. A drag with a spot whose widget isn't on screen\nis a miss the play reports.",
+      "properties": {
+        "drag": {
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "$ref": "#/$defs/OnWidget"
+              }
+            ]
+          },
+          "maxItems": 16,
+          "minItems": 2,
+          "title": "Drag",
+          "type": "array"
+        },
+        "finger": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 10,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finger"
+        },
+        "hold": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 120,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hold"
+        },
+        "over": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 120,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Over"
+        },
+        "t": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t",
+        "drag"
+      ],
+      "title": "Drag",
       "type": "object"
     },
     "DrawnMeasure": {
@@ -2430,6 +2513,22 @@
       "title": "ObjectsMeasure",
       "type": "object"
     },
+    "OnWidget": {
+      "additionalProperties": false,
+      "description": "The centre of the first visible widget of that name (a wildcard) or type, whatever its kind: a uGUI object of a\ncanvas (a button, a stick, a panel) or a UI Toolkit element, as a widgets select finds one.",
+      "properties": {
+        "widget": {
+          "pattern": "^[A-Za-z0-9_.*?() -]{1,120}$",
+          "title": "Widget",
+          "type": "string"
+        }
+      },
+      "required": [
+        "widget"
+      ],
+      "title": "OnWidget",
+      "type": "object"
+    },
     "Package": {
       "additionalProperties": false,
       "description": "A Windows player builds from the project's own build settings (its enabled build scenes, as a release would), and\nthe built player boots.",
@@ -2864,6 +2963,7 @@
               "objects": "#/$defs/ObjectsMeasure",
               "pieces": "#/$defs/PiecesMeasure",
               "player": "#/$defs/PlayerMeasure",
+              "render": "#/$defs/RenderMeasure",
               "screen": "#/$defs/ScreenMeasure",
               "spawns": "#/$defs/SpawnsMeasure",
               "trace": "#/$defs/TraceMeasure",
@@ -2923,6 +3023,9 @@
             },
             {
               "$ref": "#/$defs/DrawnMeasure"
+            },
+            {
+              "$ref": "#/$defs/RenderMeasure"
             }
           ],
           "title": "Measure"
@@ -2978,6 +3081,130 @@
         "expect"
       ],
       "title": "Probe",
+      "type": "object"
+    },
+    "RenderMeasure": {
+      "additionalProperties": false,
+      "description": "What the renderer drew (docs/task-probes.md, section 2.20): `draw_calls` and `triangles`, the engine's own counts of\na frame (the UI's draws among them), the highest over the frames since the previous sample; `texture_mb`, the\ntexture memory in use at the sample (MiB). A budget's readings: a literal threshold is allowed, since a budget is a\nnumber of its own (a mobile game's 700 draw calls). The counts hold whatever the probe itself rendered in those\nframes, so a play that takes a render measure may take no reading that renders (drawn, lit, glow, a select with\nhas.lit): the validator refuses the two together.",
+      "properties": {
+        "agg": {
+          "anyOf": [
+            {
+              "enum": [
+                "min",
+                "max",
+                "mean",
+                "first",
+                "last",
+                "delta",
+                "any",
+                "all",
+                "count",
+                "sum",
+                "range",
+                "std",
+                "changes",
+                "rises",
+                "falls",
+                "step"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agg"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 120,
+                "minimum": 0,
+                "type": "number"
+              },
+              "maxItems": 40,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "const": "end",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "field": {
+          "enum": [
+            "draw_calls",
+            "triangles",
+            "texture_mb"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "probe": {
+          "const": "render",
+          "title": "Probe",
+          "type": "string"
+        },
+        "to_angle": {
+          "anyOf": [
+            {
+              "maximum": 360,
+              "minimum": -360,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Angle"
+        },
+        "to_axis": {
+          "anyOf": [
+            {
+              "maximum": 360,
+              "minimum": -360,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Axis"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        }
+      },
+      "required": [
+        "probe",
+        "field"
+      ],
+      "title": "RenderMeasure",
       "type": "object"
     },
     "RubricItem": {
@@ -3544,9 +3771,73 @@
       "title": "StartTimes",
       "type": "object"
     },
+    "Tap": {
+      "additionalProperties": false,
+      "description": "A finger put down at `tap` (a viewport point in fractions, y down from the top, or `{\"widget\": name}`: that\nwidget's centre) and lifted: the next frame, or after `hold` seconds (a long press, a button held). `finger`: which\nfinger (0-9, 0 unless said); taps and drags of different fingers may overlap in time (two thumbs). A tap whose\nwidget isn't on screen is a miss the play reports.",
+      "properties": {
+        "finger": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 10,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finger"
+        },
+        "hold": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 120,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hold"
+        },
+        "t": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "T",
+          "type": "number"
+        },
+        "tap": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "$ref": "#/$defs/OnWidget"
+            }
+          ],
+          "title": "Tap"
+        }
+      },
+      "required": [
+        "t",
+        "tap"
+      ],
+      "title": "Tap",
+      "type": "object"
+    },
     "TaskPlay": {
       "additionalProperties": false,
-      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5).",
+      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits, touches) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5).",
       "properties": {
         "args": {
           "items": {
@@ -3603,6 +3894,12 @@
               },
               {
                 "$ref": "#/$defs/View"
+              },
+              {
+                "$ref": "#/$defs/Tap"
+              },
+              {
+                "$ref": "#/$defs/Drag"
               }
             ]
           },

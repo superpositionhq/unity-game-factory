@@ -72,6 +72,8 @@ def needs(measure):
         return [{"kind": "grading", "fields": [field] if field.startswith("post:") else []}]
     if probe == "spawns":
         return [{"kind": "spawns", "component": measure["component"]}]
+    if probe == "render":
+        return [{"kind": "render", "fields": [field]}]
     return []  # log
 
 
@@ -456,7 +458,7 @@ def series(measure, probe):
                                              for r in rows], measure["of"])))
         return out
     values = [(s["t"], s.get("value") if isinstance(s.get("value"), dict) else {}) for s in samples]
-    if probe_kind in ("camera", "light", "pieces", "screen", "audio", "ground", "drawn"):
+    if probe_kind in ("camera", "light", "pieces", "screen", "audio", "ground", "drawn", "render"):
         return [(t, number(v.get(field))) for t, v in values]
     if probe_kind == "grading":
         if field.startswith("post:"):

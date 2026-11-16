@@ -76,6 +76,7 @@ Everything needed to rebuild the game from the repo alone, tracked in git (binar
 | `ProjectSettings/ProjectVersion.txt` | `m_EditorVersion: 6000.3.x` (Unity 6.3 LTS) |
 | `ProjectSettings/EditorSettings.asset`, `ProjectSettings/VersionControlSettings.asset` | `m_SerializationMode: 2` (Force Text) in the first; `m_Mode: Visible Meta Files` in the second, where Unity keeps the mode since 2020.1 (`m_ExternalVersionControlSupport` in EditorSettings is the obsolete place and isn't read) |
 | `ProjectSettings/ProjectSettings.asset` | the player settings (the template sets `companyName` to the game's title) |
+| `Platform.json` | a mobile game only ([Platform](#platform)): `{"platform": "mobile", "orientation": "landscape"}` or `"portrait"`; a desktop game has no such file |
 | `Scripts/unity.ps1` | from the template |
 | `workflow.jsonl` | the creation record, one row per operation, written when it happened (`unity-workflow/v0` rows: ids unique, `seq` strictly increasing, every `"direction"` naming an earlier `user.direction` row) |
 | `README.md` | hero image + captioned gallery of 5-7 real gameplay stills, every image committed (no gameplay image is an error; fewer or more than 5-7 is a warning) |
@@ -152,6 +153,29 @@ from inside the studio) instead of a url.
 Each must be committed (repo check) and be inside `UnityProject/` of `Dataset.zip` (dataset check). Registry packages
 (`com.unity.*` in `Packages/manifest.json`) and content made by the game's own code or editor steps are not listed.
 
+## Platform
+
+A game is a desktop (Windows) game unless its root has `Platform.json`, written by `templates/new-game.ps1 -Platform
+mobile -Orientation landscape|portrait` when the project is created and never edited after. That file makes it a mobile
+game: an Android phone game held one way, played by touch (the unity-mobile-game skill). Every tool reads the platform
+from it through one reader, `tools/validate-game.py` (`read_platform`; `python tools/validate-game.py --platform
+<folder>` prints it as one JSON line for the PowerShell tools):
+
+- **the validator**, rule `mobile`: the project settings agree with it (`ProjectSettings/ProjectSettings.asset`: the
+  orientation, the package name `com.<project in lower case>.game`, minSdk 26 or more, targetSdk 34 or more, arm64
+  alone, IL2CPP, Vulkan alone, the Windows player's window at the phone's size) and nothing of a desktop game is left
+  (`QualitySettings.asset`: one quality level, `Mobile`, drawn with the project's default render pipeline). No task
+  play of any game may choose a window size, a quality level or a graphics API in its arguments.
+- **the task check** plays a mobile game at the phone's size (1920x1080 landscape, 1080x1920 portrait) with a touch
+  screen, and its own drive is by touch ([task-probes.md](task-probes.md), section 1.1).
+- **the pipeline** builds the Windows player, which is what is played and recorded on the PC at the phone's size, and
+  the Android APK (arm64, IL2CPP) where the machine has the Android toolchain; the recorder's window and video are
+  the phone's size ([unity-pipeline.md](unity-pipeline.md)).
+- **the packager** writes `"platform": {"kind": "mobile", "orientation": ...}` in the dataset's manifest, takes
+  videos of the phone's size and puts the APK in `Build/` when the build made one.
+
+A file that says anything else is an error, never read as a desktop game. Nothing here changes for a desktop game.
+
 ## The dataset (`unity-dataset-layout/v1`)
 
 `<repo>\Dataset.zip`, one top folder `<game>/`, made by the packager ([Package](#package);
@@ -168,10 +192,10 @@ while the creation replay is missing, see "Complete vs pending" below):
 | `Tasks/` | no | the game's tasks, each split: `Tasks/<name>/task.json` (the agent's part) and `Tasks/<name>/grader.json` (milestones, `seed.reference`), plus a generated `README.md` (`tools/split-tasks.py`) |
 | `UnityProject/` | no | the project at the release commit (`Assets/` with every `.meta`, `Packages/`, `ProjectSettings/` on 6000.3; no `Library/`), store content included |
 | `ReplayScripts/` | yes | the creation replayed headless, with `Verification/report.json` (required for complete; its verdict PASS or FAIL is metadata) |
-| `Gameplay/<game>_S<n>.mp4` | yes | at least one scenario video of the release version (one recorded scenario is enough; videos of other scenarios already recorded may be included), 1920x1080 h264 + aac |
+| `Gameplay/<game>_S<n>.mp4` | yes | at least one scenario video of the release version (one recorded scenario is enough; videos of other scenarios already recorded may be included), 1920x1080 h264 + aac (a mobile game held upright: 1080x1920) |
 | `Screenshots/` | yes | the README's images |
-| `Build/` | no | the Windows release player (x64, non-development), no `.pdb` |
-| `manifest.json` | yes | metadata, `history`, `brief`, `tasks`, `build`, and path / bytes / sha256 of every file except the content-addressed `History/lfs/objects/` |
+| `Build/` | no | the Windows release player (x64, non-development), no `.pdb`; a mobile game's also holds its Android APK (`<Game>.apk`, arm64) when the machine that built the release had the Android toolchain |
+| `manifest.json` | yes | metadata, `history`, `brief`, `tasks`, `build`, a mobile game's `platform`, and path / bytes / sha256 of every file except the content-addressed `History/lfs/objects/` |
 
 **The history is rewritten for delivery** (the game repos are not changed): authors and committers become `dev_NN`,
 agent trailer lines go, the scrub rules apply to every message and text blob. Commit ids therefore differ from the
@@ -261,7 +285,8 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
    recording of the release commit the packager refuses.
 
 Your agent sessions use only the unity-game-factory skills (`unity-commit-always`, `unity-game-session`,
-`unity-sound`, `unity-write-tasks`, installed by `machine/setup.ps1`): never install, enable or invoke any other
+`unity-sound`, `unity-write-tasks` and, by the game's platform, `unity-desktop-game` or `unity-mobile-game`, installed by
+`machine/setup.ps1`): never install, enable or invoke any other
 skill, whether your own personal or project skills, a plugin's or marketplace's, or one bundled with the agent
 (AGENTS.md, "Only these skills"). The recorded sessions are the dataset (every tool call, every prompt you type and
 every reply the model writes is recorded and delivered in `History/sessions/`), so the game is made under these rules

@@ -443,6 +443,14 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
     always computed; the base colour only when a `base_` field is asked for).
   - Measured: about 5 to 8 ms a sample near a point (the `base_` fields cost a third render of each view), 4 ms along a
     line; in a scene of 4,000 renderers about 11 ms near a point, and 17 ms for a place holding 1,024 renderers.
+- **render** (`RenderQuery`): the engine's own counts of a frame through its profiler counters `Draw Calls Count` and
+  `Triangles Count` (`ProfilerRecorder`, the Render category: counted in a release player too), read every frame of
+  the play for the last frame the renderer finished, the highest since the previous sample (null before any was
+  counted); `texture_mb` is `Texture.currentTextureMemory` at the sample, in MiB. The counts are the whole frame's,
+  the UI's draws and the probe's own renders (`DrawnRender`) among them, which is why the validator gives a render
+  measure a play with no drawn, lit or glow reading (`render_errors`). Measured in a release (non-development) Mono
+  player, on a scene of one cube under a skybox with a canvas of two images: 6 draw calls and 1,711 triangles in
+  every sample after the first (0 and 0 at 1/30 s, before a frame was counted), 5.6 to 8.9 MiB of textures.
 - **log**: the lines of the play's player log (`-logFile`, kept as `play.log`) that match, read by the checker.
 - **asset** (`play: "editor"`; `AssetPass`, `AssetValues`, `SceneRows`): one batchmode editor pass per side over the
   project as saved (section 5). An `asset` is loaded
@@ -472,7 +480,8 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
 
 The checker's plays (`check.PLAYS`, `check.DRIVE`): `look`, 20 s idle, 6 screenshots; `drive`, 22 s, 8 screenshots:
 `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s, `<Keyboard>/w` 8-13 s with `<Keyboard>/space` 9-9.3 s, `<Keyboard>/a`
-13-15 s, `<Keyboard>/w` 15-21 s. A task play: 2 screenshots. A boot check: `seconds` idle, 2 screenshots. A boot of
+13-15 s, `<Keyboard>/w` 15-21 s; on a mobile game the drive is `check.MOBILE_DRIVE`, the same route by touch (a left
+thumb's drags from `[0.15, 0.75]`, a tap at `[0.85, 0.75]` at 9 s; `check.own_play`). A task play: 2 screenshots. A boot check: `seconds` idle, 2 screenshots. A boot of
 20 s or more also serves `look` when no look probe reads the play's log (`check.Side.idle`): it then takes 6
 screenshots and look's queries, and look reads its first 20.5 s, as far as a look of its own samples
 (`check.first_seconds`); a `log_absent` check reads the 60 s boot. Samples
@@ -559,6 +568,17 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   loads.
   `probe.log` says where each went (`teleported next to <name>: asked (...) yaw ..., now at (...)`, `teleport_to skipped
   (no object matches)`).
+- tap, drag: `{"t": 2.0, "tap": [0.5, 0.25], "finger": 1, "hold": 0.5}`, `{"t": 3.0, "drag": [{"widget":
+  "MoveStick"}, [0.2, 0.6]], "finger": 0, "over": 0.3, "hold": 2.0}` (the checker writes `finger`, 0 when unset;
+  `hold` and `over` only when set); a spot is a point `[fx, fy]` or a widget by its name. `Inputs.StartTouch` resolves every spot when the finger goes down (a point: fractions of
+  `Screen.width` and `Screen.height`, y down; a widget: the centre of the first visible widget with a laid-out rect
+  that `UiScan.Widgets` finds by that name, else by that type), queues `TouchPhase.Began` on the probe's virtual
+  `Touchscreen` (`TaskProbeTouchscreen`, added at the play's start when the spec says `touch` or an input is a touch)
+  and `Inputs.MoveTouches` sends the rest on every frame of the play's clock: `Moved` when the finger's place
+  changed (its path covered evenly over `over`), `Ended` once `over` plus `hold` have passed, never in the frame it
+  went down. Finger n is touch id n + 1 for the whole play. A miss (a finger outside 0-9, a widget not on screen, a
+  finger still down, no Input System) is one `query_errors` line, `inputs: the tap at 2.00 s missed: ...`, and
+  nothing is sent; `probe.log` names what each finger went down on and where it lifted.
 - wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
   real and game time have passed; the inputs after it wait for its end. The frame it starts in takes its sample first.
 
@@ -590,10 +610,15 @@ task play `scenario_two`, with its queries as `probes.plan` makes them (the ids 
 
 - What varies: `out` (the copy's), the play's `seconds`, `shots`, `every`, `scene` (null: the game's first build
   scene), the task's `player` select (null: the probe finds the player, section 1), its `inputs` with the checker's
-  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries. The window's size is
-  not the spec's: the command line's `-screen-width 960 -screen-height 540` and the build's settings set it (below).
+  defaults filled in (`tasks.inputs`), `sound` (true when a query is `audio`) and the queries. A desktop game's spec says
+  nothing of the window: the command line's `-screen-width 960 -screen-height 540` sets it, and the probe holds it
+  there. A mobile game's (the copy has a `Platform.json`, read by `unity.Project.mobile` through the validator's
+  `read_platform`) adds `size`, `[1080, 1920]` (or `[1920, 1080]`, held on its side), and `touch`, true: the probe
+  holds the window at that size (`Probe.Width`, `Probe.Height`; `Probe.HoldWindow`, below) and adds its Touchscreen
+  before the game's first frame.
 - The probe reads `out` (default: `persistentDataPath/TaskProbe`), `seconds` (clamped to 1-600; default 20), `every`
-  (0.1-1.0; 0.5), `shots` (0-64; 4), `scene`, `sound`, `player` (its own `player` key ignored), `inputs` and
+  (0.1-1.0; 0.5), `shots` (0-64; 4), `scene`, `sound`, `player` (its own `player` key ignored), `size` (two numbers,
+  each 320-4096; else 960x540), `touch`, `inputs` and
   `queries.queries`; the queries' `format` and `every` ride along unread. A play without queries has an empty list.
 - A query holds `id`, `kind`, its kind's keys and `fields`: `objects`, `components`, `widgets`, `ui` take `select` and
   `fields`; `camera` `fields`; `light` `point`; `grading` `fields` (the `post:` names asked for); `spawns`
@@ -692,6 +717,15 @@ python tools\task_check\desk.py <copy>\Build\TaskProbe\Game.exe -screen-fullscre
     <play args...>
 ```
 
+A mobile game's play asks for the phone's size instead (`-screen-width 1080 -screen-height 1920`, or 1920 and 1080).
+Unity holds a window to the display's size, so on a display lower than the phone the player starts smaller (measured:
+1080x1080 on a 1920x1080 display); the probe, which has the size in its spec, then takes the window's frame away and
+sizes it past the screen (`Window.Oversize`: `WS_POPUP`, `SetWindowPos`; a window without a frame may be larger than
+its screen, and the player draws its whole picture into it), and holds the play's clock until `Screen.width` and
+`Screen.height` are the phone's (5 s of real time at most, then a `query_errors` line and the play goes on at the
+size it has). Measured there: frames and screenshots of 1080x1920, the clock started 0.7 s after the player's first
+frame.
+
 It runs with the checker's own Python and the player `Build/TaskProbe/Game.exe`, where the build was asked to put it
 (never a path the build's result names: the game's own editor code runs during the build and could write any), through
 `unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
@@ -774,7 +808,7 @@ the order the build writes):
   the Mono backend; no static batching (a batched renderer's mesh would hide its own mesh name and triangle count:
   `PlayerSettings.SetStaticBatchingForPlatform`); no managed code stripping (the probe reads by reflection engine
   members the game never calls, which the linker removes: measured at High). Then a Windows x64 player,
-  `BuildOptions.None`, not a development build (no watermark on the frame). The window (windowed, 960x540) and the
+  `BuildOptions.None`, not a development build (no watermark on the frame). The window (windowed, 960x540; a mobile game's: the phone's size, without a frame) and the
   player log come from the play's command line alone (`-screen-fullscreen 0 -screen-width 960 -screen-height 540`,
   `-logFile`), and the probe sets `Application.runInBackground`. The game's assets and code are untouched by the probe;
   Unity itself rewrites some of a project's assets in any player build (URP saves its pipeline assets' prefiltering
@@ -874,7 +908,7 @@ loop, and the editor's three files split one pass by concern:
 | `Runtime/AssemblyInfo.cs` | keeps the assembly whole through managed stripping |
 | `Runtime/Core/Probe.cs` | the play loop (`Probe`, order -32000) |
 | `Runtime/Core/ProbeLate.cs` | the loop's late half (`ProbeLate`, order 32000, a file of its own) |
-| `Runtime/Core/Inputs.cs` | the scripted inputs |
+| `Runtime/Core/Inputs.cs` | the scripted inputs, touches among them |
 | `Runtime/Core/Find.cs` | selects, points, hierarchy order and the readers several kinds share |
 | `Runtime/Core/Reflect.cs` | types and members by name, `prop:` paths |
 | `Runtime/Core/Json.cs` | the files' JSON |
@@ -894,6 +928,7 @@ loop, and the editor's three files split one pass by concern:
 | `Runtime/Queries/UiScan.cs` | the UI as widgets and ui read it; the widget click |
 | `Runtime/Queries/UiOcr.cs` | the frame text reader |
 | `Runtime/Queries/ScreenQuery.cs` | `screen` |
+| `Runtime/Queries/RenderQuery.cs` | `render` |
 | `Runtime/Queries/LightQuery.cs` | `light` |
 | `Runtime/Queries/LightKit.cs` | what light and grading share |
 | `Runtime/Queries/GradingQuery.cs` | `grading` |

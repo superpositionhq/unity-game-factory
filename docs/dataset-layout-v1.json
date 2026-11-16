@@ -1,7 +1,7 @@
 {
   "schema": "unity-dataset-layout/v1",
   "approved": "2026-11-10",
-  "changes": "v1: the first layout.",
+  "changes": "v1: the first layout. 2026-11-16: a mobile game (manifest platform, UnityProject/Platform.json, the phone's video size, the APK in Build/); nothing changes for a desktop game.",
   "description": "Our standard delivery layout for every Unity game: the creation record (git.log, workflow.jsonl, ReplayScripts/, the full git history in History/, the brief and design doc in Brief/), the game's tasks in Tasks/, the project, per-scenario gameplay videos, README screenshots and the built player. docs/game-format.md is the prose version of this file; tools/validate-dataset.ps1 checks against this file.",
   "names": {
     "zip": "Dataset.zip",
@@ -69,7 +69,7 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": false,
-      "what": "the project at the release commit (Assets/ with every .meta, Packages/, ProjectSettings/; store content included; no Library/); in the repo the repository itself is the project",
+      "what": "the project at the release commit (Assets/ with every .meta, Packages/, ProjectSettings/; store content included; no Library/); in the repo the repository itself is the project; a mobile game's has Platform.json at its root",
       "must_contain": [
         "ProjectVersion.txt"
       ]
@@ -87,7 +87,7 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": true,
-      "what": "the release version's scenario videos: at least one (user rule 2026-10-19: one recorded scenario is enough; videos of other scenarios already recorded may be included), named by their scenario number; a game without a gameplay video is rejected at upload: a delivered dataset (variant full) never lists Gameplay/ as pending; only a repo's Dataset/ folder may (listed in manifest pending, status pending)",
+      "what": "the release version's scenario videos: at least one (user rule 2026-10-19: one recorded scenario is enough; videos of other scenarios already recorded may be included), named by their scenario number; a game without a gameplay video is rejected at upload: a delivered dataset (variant full) never lists Gameplay/ as pending; only a repo's Dataset/ folder may (listed in manifest pending, status pending); a mobile game's are recorded from its Windows player at the phone's size",
       "only_files_matching": "^<game>_S([0-9]+)\\.mp4$",
       "scenario_numbers": "distinct, 1 or more; a dataset may hold a subset of the game's scenarios",
       "pending_allowed": true
@@ -105,12 +105,15 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": false,
-      "what": "the Windows release player (x64, non-development): <Game>.exe, <Game>_Data/, UnityPlayer.dll; no .pdb",
+      "what": "the Windows release player (x64, non-development): <Game>.exe, <Game>_Data/, UnityPlayer.dll; no .pdb; a mobile game's (manifest platform.kind mobile) also holds its Android APK (arm64, IL2CPP, release), <Game>.apk, when the machine that built the release had the Android toolchain",
       "must_contain": [
         "*.exe"
       ],
       "forbid": [
         "*.pdb"
+      ],
+      "may_contain_mobile": [
+        "*.apk"
       ]
     },
     {
@@ -130,7 +133,17 @@
     "width": 1920,
     "height": 1080,
     "audio_codec": "aac",
-    "audio_required": true
+    "audio_required": true,
+    "mobile": {
+      "landscape": {
+        "width": 1920,
+        "height": 1080
+      },
+      "portrait": {
+        "width": 1080,
+        "height": 1920
+      }
+    }
   },
   "manifest": {
     "required_keys": [
@@ -180,7 +193,8 @@
     ],
     "history_rule": "full variant: history is an object (head = commit, the bundle holds every commit, every LFS object of every commit is under History/lfs/objects); repo-dataset: history is null (the repo is its own history)",
     "brief_rule": "brief lists the Brief/ files: {\"brief\": \"Brief/brief.md\", \"design\": \"Brief/design.md\"}",
-    "tasks_rule": "tasks: {\"count\": n >= 1, \"names\": [the task names], \"schema\": \"game-task/1\"} (full variant); null in a repo Dataset/"
+    "tasks_rule": "tasks: {\"count\": n >= 1, \"names\": [the task names], \"schema\": \"game-task/1\"} (full variant); null in a repo Dataset/",
+    "platform_rule": "platform is optional: absent or {\"kind\": \"desktop\"} is a desktop game; {\"kind\": \"mobile\", \"orientation\": \"landscape\" | \"portrait\"} an Android phone game, whose gameplay videos are 1920x1080 (landscape) or 1080x1920 (portrait), whose UnityProject/Platform.json says the same, and whose build may name its apk with package, version_code, version_name, min_sdk and target_sdk (then Build/ holds that .apk, arm64-v8a, beside the Windows player)"
   },
   "readme": {
     "sections_in_order": [
@@ -240,5 +254,11 @@
     },
     "seed_rules": "seed.game = the dataset's game; seed.commit and seed.reference are commits of History/<game>.bundle",
     "harness_rule": "An agent given a task starts from a history-less snapshot of the game at seed.commit with Tasks/, History/ and Dataset/ removed (they hold every task's rubrics and references): only the brief and that snapshot. The grader's half (milestones: rubrics, judge and code-judge questions, log_absent patterns; and seed.reference) never reaches the agent."
+  },
+  "mobile": {
+    "platform_file": "UnityProject/Platform.json",
+    "abi": "arm64-v8a",
+    "min_sdk_at_least": 26,
+    "target_sdk_at_least": 34
   }
 }

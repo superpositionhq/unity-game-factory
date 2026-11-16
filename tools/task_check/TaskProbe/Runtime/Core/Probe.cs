@@ -2,7 +2,8 @@
 // check. The player is started with -taskProbe <spec file> (contract section 5): `shots` screenshots evenly over
 // `seconds` of play time, the scripted inputs at their times, the player's position and the camera every `every`
 // seconds, the spec's queries sampled with them, then probe.json in `out` and a clean exit. Without -taskProbe it
-// does nothing.
+// does nothing. The window is 960x540, or the spec's `size` (a mobile game's play: the phone's size, also on a
+// display too small to hold it: Window.Oversize; its clock starts once the window is that size).
 //
 // The play's clock is a fixed 30 fps (Time.captureFramerate): every frame is 1/30 s of play, however fast the machine
 // renders, and it counts whether or not the game pauses itself (timeScale 0). It starts once the play's scene has
@@ -27,7 +28,9 @@ namespace TaskProbe
     public sealed class Probe : MonoBehaviour
     {
         public const int Fps = 30;
-        public const int Width = 960, Height = 540;
+        /// <summary>The play's window: 960x540, or the spec's `size` (a mobile game's play, at the phone's size).</summary>
+        public static int Width { get; private set; } = 960;
+        public static int Height { get; private set; } = 540;
         const int MaxQueries = 256, MaxErrors = 50;
         const int MaxLoadFrames = 10 * Fps;  // the clock holds this long for one load at most
         const string SpecFormat = "unity-probe-play/1", QueriesFormat = "game-probe-queries/1";
@@ -54,7 +57,9 @@ namespace TaskProbe
         readonly HashSet<string> errorsSeen = new HashSet<string>(StringComparer.Ordinal);
         readonly List<object> track = new List<object>(), cameraRows = new List<object>(), shotNames = new List<object>();
 
-        bool started, done, sceneAsked;
+        bool started, done, sceneAsked, sized;
+        int sizeFrames;
+        float sizeSince = -1f;
         bool counted;  // this frame is one of the play's clock (not one of a wait or of a scene loading)
         int frames, framesWaited, shotsTaken, startFrames, loadFrames, errorsLeftOut;
         double nextSample;
@@ -134,6 +139,13 @@ namespace TaskProbe
             shots = (int)Math.Min(Math.Max(Json.Num(spec, "shots", 4.0), 0.0), 64.0);
             scene = Json.Str(spec, "scene");
             sound = Json.Bool(spec, "sound");
+            if (spec.TryGetValue("size", out var size) && Json.TryNumbers(size, 2, out var wh) && wh[0] >= 320 && wh[0] <= 4096
+                && wh[1] >= 320 && wh[1] <= 4096)
+            {
+                Width = (int)wh[0];
+                Height = (int)wh[1];
+                sized = true;
+            }
             if (Json.Obj(spec, "player") is Dictionary<string, object> select)
             {
                 playerSel = Sel.Parse(select, "the play's player select");
@@ -147,7 +159,7 @@ namespace TaskProbe
             Window.MoveAway();
 
             LoadQueries();
-            inputs = new Inputs(this, Json.Arr(spec, "inputs"));
+            inputs = new Inputs(this, Json.Arr(spec, "inputs"), Json.Bool(spec, "touch"));
             inputs.Start();
             Application.quitting += OnQuitting;
             StartCoroutine(AfterUpdates());
@@ -160,7 +172,7 @@ namespace TaskProbe
                 if (SceneUtility.GetBuildIndexByScenePath(scene) < 0) Error("the play's scene " + scene + " isn't in the build: the game's own first scene is played");
                 else SceneManager.LoadScene(scene, LoadSceneMode.Single);
             }
-            Log(FormattableString.Invariant($"play: {seconds:F1} s, every {every:F2} s, {shots} shot(s), {queries.Count} query(ies), scene {scene ?? "(the game's own)"}")
+            Log(FormattableString.Invariant($"play: {seconds:F1} s, every {every:F2} s, {shots} shot(s), {queries.Count} query(ies), {Width}x{Height}, scene {scene ?? "(the game's own)"}")
                 + (Window.OnOwnDesktop() ? ", on its own desktop" : ", on the user's desktop (window moved off-screen)"));
         }
 
@@ -430,6 +442,19 @@ namespace TaskProbe
                     Error("the play's scene " + scene + " didn't become the active scene: playing " + SceneManager.GetActiveScene().path);
                 }
                 if (loading) return;
+                // a play at a size of its own (a mobile game's) starts once its window is that size: the player was
+                // started at the display's size where the phone's is larger
+                if (sized && !WindowRight())
+                {
+                    if (sizeSince < 0f) sizeSince = Time.realtimeSinceStartup;
+                    if (Time.realtimeSinceStartup - sizeSince < 5f)   // real time: these frames come as fast as they render
+                    {
+                        if ((sizeFrames++ & 7) == 0) HoldWindow();
+                        return;
+                    }
+                }
+                if (sized && !WindowRight())
+                    Error(FormattableString.Invariant($"the window is {Screen.width}x{Screen.height}, not {Width}x{Height}: the play goes on at that size"));
                 started = true;
                 Log("the play's clock starts in " + SceneManager.GetActiveScene().path);
             }
@@ -498,7 +523,7 @@ namespace TaskProbe
             if (!started) return;
             if ((Time.frameCount & 15) == 0)
             {
-                if (Screen.fullScreen || Screen.width != Width || Screen.height != Height) Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+                if (!WindowRight()) HoldWindow();
                 Window.KeepAway();
             }
             var t = Elapsed;
@@ -526,6 +551,17 @@ namespace TaskProbe
                 if ((pendingFrames.Count > 0 || pendingShots.Count > 0) && framesWaited++ < 5) return;
                 Finish("time");
             }
+        }
+
+        static bool WindowRight() => !Screen.fullScreen && Screen.width == Width && Screen.height == Height;
+
+        /// <summary>The window back at the play's size: Unity's own windowed mode, or, for a size the display can't
+        /// hold (a phone held upright), the window sized past the screen (Window.Oversize).</summary>
+        void HoldWindow()
+        {
+            var display = Screen.currentResolution;
+            if (sized && !Screen.fullScreen && (display.width < Width || display.height < Height) && Window.Oversize(Width, Height)) return;
+            Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
         }
 
         void TakeSample(double t)

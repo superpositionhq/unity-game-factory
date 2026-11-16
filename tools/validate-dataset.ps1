@@ -187,8 +187,12 @@ else {
         if (-not $j -or -not (Get-Prop $j 'format')) { E "$v cannot be read as a video"; if ($isZip) { Remove-Item -Force $p }; continue }
         $vs = @($j.streams | Where-Object codec_type -eq 'video'); $as = @($j.streams | Where-Object codec_type -eq 'audio')
         $g = $L.gameplay_video
+        # a mobile game's videos are the phone's size, by how it is held (manifest platform)
+        $gw = $g.width; $gh = $g.height
+        $plat = if ($man) { Get-Prop $man 'platform' } else { $null }
+        if ((Get-Prop $plat 'kind') -eq 'mobile') { $phone = Get-Prop (Get-Prop $g 'mobile') "$(Get-Prop $plat 'orientation')"; if ($phone) { $gw = $phone.width; $gh = $phone.height } }
         if ($j.format.format_name -notmatch 'mp4') { E "$v is not an mp4 ($($j.format.format_name))" }
-        if ($vs.Count -ne 1 -or $vs[0].codec_name -ne $g.video_codec -or [int]$vs[0].width -ne $g.width -or [int]$vs[0].height -ne $g.height) { E "$v video is not $($g.video_codec) $($g.width)x$($g.height): $(@($vs | ForEach-Object { "$($_.codec_name) $($_.width)x$($_.height)" }) -join ', ')" }
+        if ($vs.Count -ne 1 -or $vs[0].codec_name -ne $g.video_codec -or [int]$vs[0].width -ne $gw -or [int]$vs[0].height -ne $gh) { E "$v video is not $($g.video_codec) ${gw}x${gh}: $(@($vs | ForEach-Object { "$($_.codec_name) $($_.width)x$($_.height)" }) -join ', ')" }
         if ($g.audio_required -and ($as.Count -lt 1 -or $as[0].codec_name -ne $g.audio_codec)) { E "$v has no $($g.audio_codec) audio" }
         N ("{0}: {1:N1} s, {2} {3}x{4} + {5}" -f $v, [double]$j.format.duration, $vs[0].codec_name, $vs[0].width, $vs[0].height, $(if ($as.Count) { $as[0].codec_name } else { 'no audio' }))
         if ($isZip) { Remove-Item -Force $p }

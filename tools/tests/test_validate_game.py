@@ -216,6 +216,91 @@ def game_tasks(start, ref, **over):
     return tasks
 
 
+def mobile_settings(orientation='landscape', product='Kiln Run', package='com.kilnrun.game'):
+    """(ProjectSettings.asset, QualitySettings.asset, GraphicsSettings.asset): the lines rule `mobile` reads, as Unity
+    6000.3.26f1 wrote them for a game made with new-game.ps1 -Platform mobile -Orientation <orientation>."""
+    portrait = orientation == 'portrait'
+    width, height = (1080, 1920) if portrait else (1920, 1080)
+    project = f"""%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 28
+  defaultScreenOrientation: {0 if portrait else 4}
+  companyName: {product}
+  productName: {product}
+  defaultScreenWidth: {width}
+  defaultScreenHeight: {height}
+  defaultScreenWidthWeb: 960
+  defaultScreenHeightWeb: 600
+  allowedAutorotateToPortrait: 0
+  allowedAutorotateToPortraitUpsideDown: 0
+  allowedAutorotateToLandscapeRight: {0 if portrait else 1}
+  allowedAutorotateToLandscapeLeft: {0 if portrait else 1}
+  resizableWindow: 0
+  fullscreenMode: 3
+  bundleVersion: 1.0
+  applicationIdentifier:
+    Android: {package}
+  buildNumber:
+    Standalone: 0
+  AndroidBundleVersionCode: 1
+  AndroidMinSdkVersion: 26
+  AndroidTargetSdkVersion: 34
+  AndroidTargetArchitectures: 2
+  m_BuildTargetGraphicsAPIs:
+  - m_BuildTarget: AndroidPlayer
+    m_APIs: 15000000
+    m_Automatic: 0
+  m_BuildTargetVRSettings: []
+  scriptingBackend:
+    Android: 1
+    Standalone: 0
+  il2cppCompilerConfiguration: {{}}
+"""
+    quality = """%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!47 &1
+QualitySettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 5
+  m_CurrentQuality: 0
+  m_QualitySettings:
+  - serializedVersion: 5
+    name: Mobile
+    pixelLightCount: 1
+    skinWeights: 4
+    antiAliasing: 0
+    vSyncCount: 1
+    lodBias: 1
+    customRenderPipeline: {fileID: 11400000, guid: 389207dfd0a67cf4b9cba2d88b7c4666, type: 2}
+    excludedTargetPlatforms: []
+  m_TextureMipmapLimitGroupNames: []
+  m_PerPlatformDefaultQuality:
+    Android: 0
+    Standalone: 0
+"""
+    graphics = """%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!30 &1
+GraphicsSettings:
+  m_ObjectHideFlags: 0
+  m_CustomRenderPipeline: {fileID: 11400000, guid: 389207dfd0a67cf4b9cba2d88b7c4666, type: 2}
+"""
+    return project, quality, graphics
+
+
+def make_mobile(repo, orientation='landscape'):
+    """Turns the fixture game in `repo` into a mobile game held in `orientation`: Platform.json and the project
+    settings the mobile setup leaves. Not committed."""
+    project, quality, graphics = mobile_settings(orientation)
+    write(repo, 'Platform.json', json.dumps({'platform': 'mobile', 'orientation': orientation}) + '\n')
+    write(repo, 'ProjectSettings/ProjectSettings.asset', project)
+    write(repo, 'ProjectSettings/QualitySettings.asset', quality)
+    write(repo, 'ProjectSettings/GraphicsSettings.asset', graphics)
+
+
 def errors(rep, area=None):
     return [m for s, a, m in rep.items if s == 'error' and (area is None or a.startswith(area))]
 
@@ -1194,7 +1279,7 @@ def probe_check(measure, play='look', expect=None):
 class Schema(unittest.TestCase):
     S = vg.SCHEMAS['game-task']
     KINDS = ('player', 'objects', 'components', 'widgets', 'camera', 'light', 'grading', 'spawns', 'log', 'asset',
-             'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn')   # the probe kinds (contract section 2)
+             'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn', 'render')   # the probe kinds (contract section 2)
     MEASURE = {kind: ref.split('/')[-1]
                for kind, ref in S['$defs']['Probe']['properties']['measure']['discriminator']['mapping'].items()}
     SHAPE = {kind: ref.split('/')[-1]   # the check kinds' definitions
@@ -1250,7 +1335,7 @@ class Schema(unittest.TestCase):
                       'material_default', 'material:_BaseColor', 'material:_BaseColor.g', 'material:_BaseMap.name',
                       'material:shader', 'material:keyword:_EMISSION', 'mesh_collision',
                       'prop:MeshRenderer.receiveShadows'],
-            'spawns': ['spawned', 'destroyed'], 'log': ['count'],
+            'spawns': ['spawned', 'destroyed'], 'log': ['count'], 'render': ['draw_calls', 'triangles', 'texture_mb'],
             'trace': ['built_after_last_change', 'played_after_last_change', 'read_before_first_edit',
                       'build_ok_at_end', 'edits_outside_project']}
         # names the contract doesn't use, another kind's fields, a value's other keys, and prefixes without their name
@@ -1264,7 +1349,7 @@ class Schema(unittest.TestCase):
                'audio': ['loudest', 'peak'], 'ground': ['points', 'z'], 'drawn': ['pixels', 'primitives'],
                'asset': ['shader:_BaseColor.q', 'shader:_BaseColor.rgb', 'material:_BaseMap.name.r', 'keyword:',
                          'import:', 'material:'],
-               'spawns': ['count'], 'log': ['lines'], 'trace': ['built']}
+               'spawns': ['count'], 'log': ['lines'], 'render': ['batches', 'vertices'], 'trace': ['built']}
         # every prefix that names a Part, bone or parameter takes every character the contract lists, up to 64; a
         # channel goes by either spelling wherever one is read
         for form in ('rel_yaw:{}', 'world_yaw:{}', 'world_pitch:{}', 'world_roll:{}', 'anim:{}', 'forward:{}.x',
@@ -1670,6 +1755,208 @@ class Dataset(Base):
         r = subprocess.run([sys.executable, os.path.join(TOOLS, 'validate-game.py'), self.repo, '--no-layout'],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+class Mobile(unittest.TestCase):
+    """A game's platform (docs/game-format.md, "Platform"): the one reader of Platform.json, rule `mobile` on a mobile
+    game's project settings, a mobile dataset's manifest, and the mobile template; a desktop game is not looked at."""
+
+    def game(self, platform=None, settings=None):
+        d = tempfile.mkdtemp(prefix='ugfm')
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        if platform is not None:
+            write(d, 'Platform.json', platform if isinstance(platform, str) else json.dumps(platform))
+        for rel, text in zip((vg.PROJECT_SETTINGS, vg.QUALITY_SETTINGS, vg.GRAPHICS_SETTINGS), settings or ()):
+            write(d, rel, text)
+        return d
+
+    def said(self, d, files=('Platform.json',)):
+        rep = vg.Report()
+        vg.check_mobile(rep, d, list(files))
+        return errors(rep, 'mobile')
+
+    def test_the_reader(self):
+        self.assertIsNone(vg.read_platform(self.game()))
+        self.assertEqual(vg.platform_of(self.game()), {'platform': 'desktop'})
+        d = self.game({'platform': 'mobile', 'orientation': 'portrait'})
+        self.assertEqual(vg.read_platform(d), 'portrait')
+        self.assertEqual(vg.platform_of(d), {'platform': 'mobile', 'orientation': 'portrait', 'width': 1080, 'height': 1920})
+        self.assertEqual(vg.platform_of(self.game('﻿{"platform": "mobile", "orientation": "landscape"}')),
+                         {'platform': 'mobile', 'orientation': 'landscape', 'width': 1920, 'height': 1080})
+        for bad in ('{"platform": "desktop"}', '{"platform": "mobile"}', 'not json', '["mobile", "portrait"]',
+                    '{"platform": "mobile", "orientation": "sideways"}',
+                    '{"platform": "mobile", "orientation": "portrait", "tablet": true}'):
+            with self.assertRaises(ValueError, msg=bad):
+                vg.read_platform(self.game(bad))
+            with self.assertRaises(ValueError, msg=bad):
+                vg.platform_said(bad)
+
+    def test_the_reader_from_the_command_line(self):
+        tool = os.path.join(TOOLS, 'validate-game.py')
+        r = subprocess.run([sys.executable, tool, '--platform', self.game()], capture_output=True, text=True)
+        self.assertEqual((r.returncode, json.loads(r.stdout)), (0, {'platform': 'desktop'}))
+        r = subprocess.run([sys.executable, tool, '--platform', self.game({'platform': 'mobile', 'orientation': 'landscape'})],
+                           capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout), {'platform': 'mobile', 'orientation': 'landscape', 'width': 1920, 'height': 1080})
+        r = subprocess.run([sys.executable, tool, '--platform', self.game('{"platform": "mobile"}')], capture_output=True, text=True)
+        self.assertEqual((r.returncode, r.stdout), (2, ''))
+        self.assertIn('Platform.json must be', r.stderr)
+
+    def test_a_desktop_game_is_not_looked_at(self):
+        self.assertEqual(self.said(self.game(), files=()), [])
+        self.assertEqual(self.said(self.game(settings=mobile_settings('portrait')), files=()), [])
+
+    def test_a_mobile_game_as_the_setup_leaves_it_passes(self):
+        for orientation in vg.ORIENTATIONS:
+            self.assertEqual(vg.mobile_project_errors(orientation, *mobile_settings(orientation)), [])
+            d = self.game({'platform': 'mobile', 'orientation': orientation}, mobile_settings(orientation))
+            self.assertEqual(self.said(d), [])
+        # held on its side, one fixed side is as good as either
+        project, quality, graphics = mobile_settings('landscape')
+        fixed = project.replace('defaultScreenOrientation: 4', 'defaultScreenOrientation: 3')
+        self.assertEqual(vg.mobile_project_errors('landscape', fixed, quality, graphics), [])
+
+    def test_each_setting_that_disagrees_is_named(self):
+        project, quality, graphics = mobile_settings('portrait')
+
+        def errs(old, new, orientation='portrait', text='project'):
+            texts = {'project': project, 'quality': quality, 'graphics': graphics}
+            self.assertIn(old, texts[text])
+            texts[text] = texts[text].replace(old, new)
+            return vg.mobile_project_errors(orientation, texts['project'], texts['quality'], texts['graphics'])
+        self.assertIn('but Platform.json says landscape', errs('m_ObjectHideFlags', 'm_ObjectHideFlags', 'landscape')[0])
+        self.assertIn('defaultScreenOrientation is 4', errs('defaultScreenOrientation: 0', 'defaultScreenOrientation: 4')[0])
+        self.assertEqual(errs('defaultScreenOrientation: 0', 'defaultScreenOrientation: 4\n  allowedAutorotateToPortrait: 1'), [])
+        self.assertIn('with allowedAutorotateToLandscapeLeft on', errs(
+            'defaultScreenOrientation: 0', 'defaultScreenOrientation: 4\n  allowedAutorotateToPortrait: 1\n'
+            '  allowedAutorotateToLandscapeLeft: 1')[0])
+        self.assertIn("package name is 'com.Company.Product'", errs('Android: com.kilnrun.game', 'Android: com.Company.Product')[0])
+        self.assertIn('AndroidMinSdkVersion is 25: at least 26', errs('AndroidMinSdkVersion: 26', 'AndroidMinSdkVersion: 25')[0])
+        self.assertIn('AndroidTargetSdkVersion is 0: at least 34', errs('AndroidTargetSdkVersion: 34', 'AndroidTargetSdkVersion: 0')[0])
+        self.assertIn('arm64 alone', errs('AndroidTargetArchitectures: 2', 'AndroidTargetArchitectures: 3')[0])
+        self.assertIn('not IL2CPP', errs('    Android: 1\n', '    Android: 0\n')[0])
+        self.assertIn('not Vulkan alone', errs('m_APIs: 15000000', 'm_APIs: 150000000b000000')[0])
+        self.assertIn('not Vulkan alone', errs('m_Automatic: 0', 'm_Automatic: 1')[0])
+        self.assertIn('opens at 1920x1080', errs('defaultScreenWidth: 1080\n  defaultScreenHeight: 1920',
+                                                 'defaultScreenWidth: 1920\n  defaultScreenHeight: 1080')[0])
+        self.assertIn('quality levels are Mobile, Ultra', errs(
+            '  m_TextureMipmapLimitGroupNames', '  - serializedVersion: 5\n    name: Ultra\n  m_TextureMipmapLimitGroupNames',
+            text='quality')[0])
+        self.assertIn("is not the project's default one", errs('389207dfd0a67cf4b9cba2d88b7c4666', 'a' * 32, text='graphics')[0])
+
+    def test_a_platform_file_that_says_neither_is_an_error_never_desktop(self):
+        for bad in ('{"platform": "desktop"}', '{"platform": "mobile"}', 'not json'):
+            self.assertEqual(len(self.said(self.game(bad, mobile_settings()))), 1, bad)
+
+    def test_an_uncommitted_platform_file_and_missing_settings_are_named(self):
+        d = self.game({'platform': 'mobile', 'orientation': 'portrait'}, mobile_settings('portrait'))
+        self.assertIn('not committed', self.said(d, files=())[0])
+        self.assertIn('no ProjectSettings/ProjectSettings.asset', self.said(self.game({'platform': 'mobile', 'orientation': 'portrait'}))[0])
+
+    def test_the_rule_is_one_of_the_games_rules(self):
+        d = self.game({'platform': 'mobile', 'orientation': 'portrait'}, mobile_settings('landscape'))
+        rep = vg.Report()
+        vg.check_rules(rep, d, ['Platform.json'])
+        self.assertTrue(errors(rep, 'mobile'))
+
+    # ---- the mobile template -------------------------------------------------------------------------------------------
+    OVERLAY = os.path.join(REPO, 'templates', 'unity-game-mobile')
+    PLACEHOLDERS = {'__PROJECT__', '__SLUG__', '__TITLE__', '__DESCRIPTION__', '__UNITY_VERSION__', '__ORIENTATION__',
+                    '__PORTRAIT__', '__PHONE_WIDTH__', '__PHONE_HEIGHT__', '__ANDROID_NAME__'}
+
+    def test_the_overlay_uses_only_the_placeholders_new_game_fills(self):
+        new_game = read(os.path.join(REPO, 'templates', 'new-game.ps1'))
+        for d, _, files in os.walk(self.OVERLAY):
+            for f in files:
+                used = set(re.findall(r'__[A-Z_]+?__', read(os.path.join(d, f)) + f))
+                self.assertFalse(used - self.PLACEHOLDERS, f)
+        for name in self.PLACEHOLDERS:
+            self.assertIn(f"'{name}'", new_game)
+        self.assertIn("[ValidateSet('desktop', 'mobile')][string]$Platform = 'desktop'", new_game)
+        self.assertIn("[ValidateSet('landscape', 'portrait')][string]$Orientation", new_game)
+
+    def test_the_overlay_adds_files_and_replaces_only_the_readme(self):
+        over = {os.path.relpath(os.path.join(d, f), self.OVERLAY).replace('\\', '/')
+                for d, _, files in os.walk(self.OVERLAY) for f in files}
+        base = {os.path.relpath(os.path.join(d, f), TEMPLATE).replace('\\', '/') for d, _, files in os.walk(TEMPLATE) for f in files}
+        self.assertEqual(over & base, {'README.md'})
+        self.assertEqual(over - base, {'Assets/Editor/Tools/BuildAndroid.cs', 'Assets/Editor/Tools/Urp/MobileSetup.cs',
+                                       'Assets/Scripts/Phone.cs'})
+
+    def test_the_mobile_setup_is_a_fifth_run_the_replay_reads(self):
+        """templates/new-game.ps1 adds it to the game's own setup table (machine/lib/ugf-root.ps1
+        Add-UGFMobileSetupStep), where the creation replay reads the first open's runs."""
+        unity_ps1 = read(os.path.join(TEMPLATE, 'Scripts', 'unity.ps1'))
+        lib = read(os.path.join(REPO, 'machine', 'lib', 'ugf-root.ps1'))
+        last = "@('configure', @('-executeMethod', '__PROJECT__.EditorTools.ProjectSetup.Configure'), $true)"
+        self.assertEqual(unity_ps1.count(last), 1)
+        self.assertIn("""$last = "@('configure', @('-executeMethod', '$Project.EditorTools.ProjectSetup.Configure'), `$true)\"""", lib)
+        added = "@('mobile', @('-executeMethod', '__PROJECT__.EditorTools.Urp.MobileSetup.Apply'), $true)"
+        sys.path.insert(0, os.path.join(TOOLS, 'unity-replay'))   # ledger.py imports its neighbours
+        self.addCleanup(sys.path.remove, os.path.join(TOOLS, 'unity-replay'))
+        ledger = load('ledger', os.path.join('unity-replay', 'ledger.py'))
+        steps, _ = ledger.setup_table(unity_ps1.replace(last, last + ',\n      ' + added))
+        self.assertEqual([(name, method.split('.')[-2]) for name, method, _ in steps],
+                         [('packages', 'ProjectSetup'), ('urp', 'UrpSetup'), ('text', 'ProjectSetup'),
+                          ('configure', 'ProjectSetup'), ('mobile', 'MobileSetup')])
+
+    def test_the_setup_writes_what_the_rule_holds_it_to(self):
+        setup = read(os.path.join(self.OVERLAY, 'Assets', 'Editor', 'Tools', 'Urp', 'MobileSetup.cs'))
+        self.assertIn(f'MinSdk = {vg.MOBILE_MIN_SDK}, TargetSdk = {vg.MOBILE_TARGET_SDK}', setup)
+        self.assertIn(f'Quality = "{vg.MOBILE_QUALITY}"', setup)
+        self.assertIn('Package = "com.__ANDROID_NAME__.game"', setup)
+        self.assertIn('AndroidArchitecture.ARM64', setup)
+        self.assertIn('GraphicsDeviceType.Vulkan', setup)
+
+    # ---- a mobile dataset's manifest ---------------------------------------------------------------------------------
+    class View:
+        def __init__(self, platform_json=None):
+            self.text = platform_json
+
+        def open_text(self, rel):
+            if self.text is None:
+                raise KeyError(rel)
+            return io.StringIO(self.text)
+
+    APK = {'apk': 'KilnRun.apk', 'package': 'com.kilnrun.game', 'version_code': 1, 'version_name': '1.0', 'min_sdk': 26,
+           'target_sdk': 34}
+
+    def platform(self, manifest, platform_json=None, files=('Build/KilnRun.apk',)):
+        rep = vg.Report()
+        m = dict({'variant': 'full', 'build': {'config': 'Release', 'exe': 'Build/KilnRun.exe'}}, **manifest)
+        vg.check_dataset_platform(rep, 'dataset', self.View(platform_json), m, set(files))
+        return errors(rep), [msg for sev, _, msg in rep.items if sev == 'warning']
+
+    def test_a_desktop_dataset_says_nothing_of_a_platform(self):
+        self.assertEqual(self.platform({}), ([], []))
+        self.assertEqual(self.platform({'platform': {'kind': 'desktop'}}), ([], []))
+        self.assertIn('desktop game', self.platform({'build': dict(self.APK, exe='Build/KilnRun.exe')})[0][0])
+        self.assertIn('says mobile, portrait', self.platform({}, '{"platform": "mobile", "orientation": "portrait"}')[0][0])
+
+    def test_a_mobile_dataset_agrees_with_its_project_and_names_its_apk(self):
+        mobile = {'platform': {'kind': 'mobile', 'orientation': 'portrait'}}
+        held = '{"platform": "mobile", "orientation": "portrait"}'
+        self.assertEqual(self.platform(dict(mobile, build=dict(self.APK, exe='Build/KilnRun.exe')), held), ([], []))
+        found, warned = self.platform(mobile, held)
+        self.assertEqual(found, [])
+        self.assertIn('without its APK', warned[0])
+        self.assertIn('there is no UnityProject/Platform.json', self.platform(mobile)[0][0])
+        self.assertIn('says mobile, landscape', self.platform(mobile, held.replace('portrait', 'landscape'))[0][0])
+        self.assertIn('says its orientation', self.platform({'platform': {'kind': 'mobile'}}, held)[0][0])
+        for change, why in (({'min_sdk': 24}, 'minSdk 24'), ({'package': 'com.Company.Product'}, 'package name'),
+                            ({'apk': 'Other.apk'}, 'not in files[]')):
+            build = dict(self.APK, exe='Build/KilnRun.exe', **change)
+            self.assertIn(why, self.platform(dict(mobile, build=build), held)[0][0], change)
+        del build['target_sdk']
+        self.assertIn('without target_sdk', self.platform(dict(mobile, build=dict(build, apk='KilnRun.apk')), held)[0][0])
+
+    def test_the_manifest_schema_takes_a_platform_and_an_apk(self):
+        schema = vg.SCHEMAS['dataset-manifest']['properties']
+        self.assertEqual(list(vg.check_schema({'kind': 'mobile', 'orientation': 'portrait'}, schema['platform'])), [])
+        self.assertTrue(list(vg.check_schema({'kind': 'phone'}, schema['platform'])))
+        build = dict(self.APK, config='Release', commit='a' * 40, exe='Build/KilnRun.exe')
+        self.assertEqual(list(vg.check_schema(build, schema['build'], vg.SCHEMAS['dataset-manifest'])), [])
+        self.assertTrue(list(vg.check_schema(dict(build, apk='Build/KilnRun.apk'), schema['build'], vg.SCHEMAS['dataset-manifest'])))
 
 
 if __name__ == '__main__':

@@ -14,7 +14,10 @@ Unity locks a project while it has it open, so a scratch copy runs one job at a 
   -logFile <copy>/Logs/TaskProbe/play.log -taskProbe <spec> <play args>, run in the build folder in one of the
   limiter's GPU slots: one spec file (unity-probe-play/1) says everything about the play (seconds, screenshots,
   sampling, scene, sound, player, inputs, queries). desk.py starts the player on a Windows desktop of its own, so the
-  play shows nothing on the user's screen and never takes the keyboard or the mouse cursor;
+  play shows nothing on the user's screen and never takes the keyboard or the mouse cursor. A mobile game (the copy
+  has a Platform.json) is played at the phone's size instead, by how it is held (MOBILE_SIZE), its spec saying `size`
+  and `touch`: the probe holds the window at that size, also on a display too small for it, and the game's own mobile
+  quality level and render pipeline draw it, as they draw every play of it;
 - editor_assets: Unity.exe -batchmode -nographics -quit -projectPath <copy> -logFile ... -executeMethod
   TaskProbe.EditorTools.AssetPass.Run -taskProbeAssets <request>: every asset measure of a side, on the project as
   saved."""
@@ -36,6 +39,10 @@ sys.path.insert(0, str(HERE.parent.parent / "machine" / "lib"))
 import ugfroot  # noqa: E402  (unity-game-factory's machine root and Unity resolver)
 
 SHOT_SIZE = (960, 540)
+# a mobile game's play (docs/task-probes.md, section 1.1): the phone's size, by how the game is held. The command line
+# asks for it and the play's spec says it (`size`): Unity holds a window to the display's size, and the probe then
+# sizes the window itself (TaskProbe Window.Oversize)
+MOBILE_SIZE = {"landscape": (1920, 1080), "portrait": (1080, 1920)}
 OUTPUT_CHARS = 30_000
 CAUSE_CHARS = 200  # a failed build's cause, as its reason quotes it
 WRAPPER_GRACE = 60  # seconds unity-heavy.ps1 gets to release its slot once the job it runs is killed
@@ -308,6 +315,13 @@ class Project:
         names (the game's own editor code runs during the build and could write any)."""
         return self.folder / BUILD_DIR / PLAYER
 
+    def mobile(self):
+        """How the copy's game is held when it is a mobile game ("landscape", "portrait"), or None for a desktop game:
+        the copy's own Platform.json, as the game had it at this commit (tools/validate-game.py read_platform)."""
+        from . import tasks
+
+        return tasks.validator().read_platform(self.folder)
+
     def _batch(self, log):
         return [self.machine.editor, "-batchmode", "-nographics", "-quit", "-projectPath", self.folder, "-logFile",
                 log]
@@ -372,16 +386,20 @@ class Project:
         out.mkdir(parents=True)
         log_path = _fresh(logs / "play.log")
         every = every or probes.EVERY
+        mobile = self.mobile()
+        width, height = MOBILE_SIZE[mobile] if mobile else SHOT_SIZE
         spec = {"format": SPEC_FORMAT, "out": out.as_posix(), "seconds": seconds, "shots": shots, "every": every,
                 "scene": scene, "sound": probes.hears(queries), "player": player, "inputs": list(inputs or []),
                 "queries": queries or {"format": probes.QUERIES_FORMAT, "every": every, "queries": []}}
+        if mobile:  # a desktop game's spec is as it always was
+            spec.update(size=[width, height], touch=True)
         asked = _fresh(logs / SPEC)  # beside the play's folder, so it isn't one of the files the play wrote
         asked.write_text(json.dumps(spec, indent=2), encoding="utf-8")
         exe = self.player()
         if not exe.is_file():
             return Played(1, False, f"[task-check] no built player at {exe}", 0.0, None, "", {})
-        argv = [sys.executable, DESK, exe, "-screen-fullscreen", "0", "-screen-width", str(SHOT_SIZE[0]),
-                "-screen-height", str(SHOT_SIZE[1]), "-logFile", log_path, "-taskProbe", asked, *args]
+        argv = [sys.executable, DESK, exe, "-screen-fullscreen", "0", "-screen-width", str(width),
+                "-screen-height", str(height), "-logFile", log_path, "-taskProbe", asked, *args]
         found = self.machine.job(f"task-check play {self.label}", argv, exe.parent, timeout, gpu=True)
         files = {p.name: p.read_bytes() for p in out.iterdir() if p.is_file()} if out.is_dir() else {}
         probe = None

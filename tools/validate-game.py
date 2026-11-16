@@ -8,7 +8,8 @@
 Checks the repo (required files, Unity 6000.3, Force Text and Visible Meta Files, .gitignore, Git LFS for binaries and
 Unity YAML out of it, every asset with its .meta and no orphan .meta, README images, banned names,
 assets.manifest.json in the one unified format with every listed file committed under Assets/, Packages/ or
-RawAssets/, workflow.jsonl rows, the tasks on the orphan tasks branch) and the dataset contents (manifest.json,
+RawAssets/, workflow.jsonl rows, the tasks on the orphan tasks branch, and a mobile game's project settings against its
+Platform.json) and the dataset contents (manifest.json,
 workflow.jsonl, git.log, ReplayScripts/Verification/report.json against docs/schemas/, cross-file rules, and in
 Dataset.zip every asset file inside UnityProject/). The dataset layout (entries, video format, hashes, README sections)
 is tools/validate-dataset.ps1, which this script runs too on Windows unless --no-layout.
@@ -376,6 +377,7 @@ def _check_dataset(rep, v, area):
         rep.error(a, 'variant full needs a build object')
     if m['variant'] == 'repo-dataset' and m.get('build') is not None:
         rep.error(a, 'variant repo-dataset has build null')
+    check_dataset_platform(rep, area, v, m, listed)
     # workflow.jsonl
     directions = set()
     if v.has('workflow.jsonl'):
@@ -467,6 +469,56 @@ def _check_dataset(rep, v, area):
         else:
             rep.error(area, f'no {am}')
     rep.note(area, f'{m["game"]} {m["variant"]} {m["status"]}: {len(m["files"])} files, {len(m["scenarios"])} scenario video(s)')
+
+
+def check_dataset_platform(rep, area, v, m, listed):
+    """A dataset's platform (docs/game-format.md, "Platform"): the manifest's `platform` (absent or kind desktop: a
+    desktop game; kind mobile with its orientation: an Android phone game) says what UnityProject/Platform.json says
+    (full variant); a mobile game's build may name its APK, then with what the APK says of itself, at the SDK levels
+    and package name of a mobile game, the file in Build/; a desktop game's names none. A mobile game delivered without
+    its APK (built on a machine without the Android toolchain) is a warning."""
+    a = f'{area}: manifest.json'
+    p = m.get('platform') if isinstance(m.get('platform'), dict) else {}
+    mobile = p.get('kind') == 'mobile'
+    if mobile != (p.get('orientation') in ORIENTATIONS):
+        rep.error(a, 'platform: a mobile game says its orientation (landscape or portrait), a desktop game has none')
+        return
+    if m['variant'] == 'full':
+        rel = 'UnityProject/' + PLATFORM_FILE
+        try:
+            with v.open_text(rel) as f:
+                held = platform_said(f.read())
+        except KeyError:
+            held = None
+        except ValueError as e:
+            rep.error(area, f'UnityProject/{e}')
+            return
+        if held != (p.get('orientation') if mobile else None):
+            rep.error(a, f'platform says {"mobile, " + str(p.get("orientation")) if mobile else "a desktop game"}, but '
+                         + (f'{rel} says mobile, {held}' if held else f'there is no {rel} (a desktop game)'))
+    b = m.get('build') if isinstance(m.get('build'), dict) else {}
+    keys = ('apk', 'package', 'version_code', 'version_name', 'min_sdk', 'target_sdk')
+    if not mobile:
+        named = [k for k in keys if k in b]
+        if named:
+            rep.error(a, f'build names {", ".join(named)}, but the game is a desktop game (no platform of kind mobile)')
+        return
+    if 'apk' not in b:
+        if m['variant'] == 'full':
+            rep.warn(a, 'a mobile game without its APK in Build/: built on a machine without the Android toolchain '
+                        '(docs/new-machine.md, "Mobile games"); build the release commit on one that has it and package again')
+        return
+    missing = [k for k in keys if k not in b]
+    if missing:
+        rep.error(a, f'build names its apk without {", ".join(missing)} (what the APK says of itself)')
+        return
+    if 'Build/' + b['apk'] not in listed:
+        rep.error(a, f'build.apk Build/{b["apk"]} is not in files[]')
+    if b['min_sdk'] < MOBILE_MIN_SDK or b['target_sdk'] < MOBILE_TARGET_SDK:
+        rep.error(a, f'the APK is for minSdk {b["min_sdk"]} and targetSdk {b["target_sdk"]}: at least {MOBILE_MIN_SDK} and '
+                     f'{MOBILE_TARGET_SDK}')
+    if not re.fullmatch(r'com\.[a-z][a-z0-9]*\.game', b['package']):
+        rep.error(a, f'the APK\'s package name is {b["package"]!r}: com.<project in lower case>.game')
 
 
 LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
@@ -618,6 +670,151 @@ def check_history(rep, area, v, m):
             rep.error(a, f'cannot read the bundle: {e}')
 
 
+# A game's platform (docs/game-format.md, "Platform"): a mobile (Android phone) game has Platform.json at its root,
+# written by templates/new-game.ps1 -Platform mobile when the project is created; a game without the file is a desktop
+# game. read_platform is the one reader of it: the validator, the task check, the pipeline and the packager all ask
+# here (the PowerShell tools through `validate-game.py --platform <folder>`).
+PLATFORM_FILE = 'Platform.json'
+ORIENTATIONS = ('landscape', 'portrait')
+PHONE_SIZE = {'landscape': (1920, 1080), 'portrait': (1080, 1920)}   # every play, still and recording of a mobile game
+
+
+def platform_said(text):
+    """What a Platform.json's text says: how the game is held ('landscape' or 'portrait'). ValueError, saying why, for
+    one that says anything else: never read as desktop. For a game read out of git or a zip; a folder is read with
+    read_platform."""
+    try:
+        said = json.loads(text.decode('utf-8-sig') if isinstance(text, bytes) else text.lstrip('\ufeff'))
+    except ValueError as e:
+        raise ValueError(f'{PLATFORM_FILE} cannot be read ({type(e).__name__})') from e
+    if (not isinstance(said, dict) or set(said) != {'platform', 'orientation'} or said['platform'] != 'mobile'
+            or said['orientation'] not in ORIENTATIONS):
+        raise ValueError(f'{PLATFORM_FILE} must be {{"platform": "mobile", "orientation": "landscape" or "portrait"}}')
+    return said['orientation']
+
+
+def read_platform(folder):
+    """How the game in `folder` (a game repo, a copy of one at a commit, a dataset's UnityProject/) is held when it is
+    a mobile game ('landscape' or 'portrait'), or None: a desktop game, which has no Platform.json. ValueError, saying
+    why, for a file that is there and says neither: never read as desktop."""
+    path = os.path.join(str(folder), PLATFORM_FILE)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, 'rb') as f:
+            return platform_said(f.read())
+    except OSError as e:
+        raise ValueError(f'{PLATFORM_FILE} cannot be read ({type(e).__name__})') from e
+
+
+def platform_of(folder):
+    """read_platform's answer as the tools pass it on: {"platform": "desktop"}, or {"platform": "mobile",
+    "orientation", "width", "height"} with the phone's size for that orientation."""
+    orientation = read_platform(folder)
+    if orientation is None:
+        return {'platform': 'desktop'}
+    width, height = PHONE_SIZE[orientation]
+    return {'platform': 'mobile', 'orientation': orientation, 'width': width, 'height': height}
+
+
+# ---- a mobile game's own rules (rule `mobile`; unity-mobile-game skill) ----------------------------------------------
+# The values ProjectSettings/ProjectSettings.asset holds for them (Unity 6.3 writes every one of these keys).
+MOBILE_MIN_SDK, MOBILE_TARGET_SDK = 26, 34
+ANDROID_ARM64 = 2            # AndroidTargetArchitectures: a bit mask, ARMv7 1, ARM64 2, x86 4, x86-64 8
+SCRIPTING_IL2CPP = 1         # scriptingBackend: Mono 0, IL2CPP 1
+GRAPHICS_VULKAN = '15000000'   # m_APIs of a build target: one little-endian int per API, Vulkan is 21
+# defaultScreenOrientation: Portrait 0, PortraitUpsideDown 1, LandscapeRight 2, LandscapeLeft 3, AutoRotation 4
+ORIENTATION_FIXED = {'portrait': ('0',), 'landscape': ('2', '3')}
+ORIENTATION_AUTO = '4'
+AUTOROTATE = {'portrait': ('allowedAutorotateToPortrait', 'allowedAutorotateToPortraitUpsideDown'),
+              'landscape': ('allowedAutorotateToLandscapeRight', 'allowedAutorotateToLandscapeLeft')}
+MOBILE_QUALITY = 'Mobile'    # the one quality level of a mobile game, on every platform
+PROJECT_SETTINGS = 'ProjectSettings/ProjectSettings.asset'
+QUALITY_SETTINGS = 'ProjectSettings/QualitySettings.asset'
+GRAPHICS_SETTINGS = 'ProjectSettings/GraphicsSettings.asset'
+
+
+def yaml_map(text, key):
+    """The entries of a one-level map under `key:` in a Unity YAML settings file ({name: value}; {} when absent or
+    written `key: {}`)."""
+    found = re.search(r'^([ \t]*)' + re.escape(key) + r':[ \t]*\r?\n((?:\1[ \t]+\S.*\r?\n?)*)', text or '', re.M)
+    return dict(re.findall(r'^[ \t]+([^:\s][^:]*):[ \t]*(.*?)\s*$', found.group(2), re.M)) if found else {}
+
+
+def mobile_project_errors(orientation, project, quality, graphics):
+    """What a mobile game's project settings break (the texts of ProjectSettings.asset, QualitySettings.asset and
+    GraphicsSettings.asset): the Android settings as Platform.json says (`orientation`), the package name, the SDK
+    levels, arm64 alone, IL2CPP, Vulkan alone; the Windows player's window at the phone's size; and nothing of a
+    desktop game's left: one quality level, Mobile, on every platform, drawn with the project's one render pipeline."""
+    errs = []
+    held = setting(project, 'defaultScreenOrientation')
+    other = 'landscape' if orientation == 'portrait' else 'portrait'
+    turns = [k for k in AUTOROTATE[other] if setting(project, k) == '1']
+    stays = [k for k in AUTOROTATE[orientation] if setting(project, k) == '1']
+    if not (held in ORIENTATION_FIXED[orientation] or (held == ORIENTATION_AUTO and stays and not turns)):
+        errs.append(f'defaultScreenOrientation is {held}' + (f' with {turns[0]} on' if held == ORIENTATION_AUTO and turns else '')
+                    + f', but {PLATFORM_FILE} says {orientation}')
+    package = yaml_map(project, 'applicationIdentifier').get('Android', '')
+    if not re.fullmatch(r'com\.[a-z][a-z0-9]*\.game', package):
+        errs.append(f'the Android package name is {package or "(none)"!r}: com.<project in lower case>.game')
+    for key, least in (('AndroidMinSdkVersion', MOBILE_MIN_SDK), ('AndroidTargetSdkVersion', MOBILE_TARGET_SDK)):
+        got = setting(project, key) or ''
+        if not got.isdigit() or int(got) < least:
+            errs.append(f'{key} is {got or "(none)"}: at least {least}')
+    if setting(project, 'AndroidTargetArchitectures') != str(ANDROID_ARM64):
+        errs.append(f'AndroidTargetArchitectures is {setting(project, "AndroidTargetArchitectures")}: a mobile game is '
+                    f'built for arm64 alone ({ANDROID_ARM64})')
+    if yaml_map(project, 'scriptingBackend').get('Android') != str(SCRIPTING_IL2CPP):
+        errs.append('the Android scripting backend is not IL2CPP (arm64 needs it)')
+    apis = re.search(r'-[ \t]*m_BuildTarget:[ \t]*AndroidPlayer[ \t]*\r?\n[ \t]*m_APIs:[ \t]*(\S*)[ \t]*\r?\n[ \t]*m_Automatic:[ \t]*(\d)',
+                     project or '')
+    if not apis or apis.group(1) != GRAPHICS_VULKAN or apis.group(2) != '0':
+        errs.append('the Android graphics API is not Vulkan alone (Auto Graphics API off, Vulkan the only one listed)')
+    width, height = PHONE_SIZE[orientation]
+    size = (setting(project, 'defaultScreenWidth'), setting(project, 'defaultScreenHeight'))
+    if size != (str(width), str(height)):
+        errs.append(f'the Windows player opens at {size[0]}x{size[1]}: a mobile game held in {orientation} is played at '
+                    f'the phone\'s size, {width}x{height}')
+    levels = re.findall(r'^[ \t]*-[ \t]*serializedVersion:.*\r?\n[ \t]*name:[ \t]*(.*?)\s*$', quality or '', re.M)
+    if levels != [MOBILE_QUALITY]:
+        errs.append(f'the quality levels are {", ".join(levels) or "(none)"}: a mobile game has one, {MOBILE_QUALITY}, so '
+                    'the Windows player draws what the phone draws')
+    pipeline = re.search(r'customRenderPipeline:[ \t]*\{[^}]*guid:[ \t]*([0-9a-f]{32})', quality or '')
+    default = re.search(r'm_CustomRenderPipeline:[ \t]*\{[^}]*guid:[ \t]*([0-9a-f]{32})', graphics or '')
+    if not pipeline or not default or pipeline.group(1) != default.group(1):
+        errs.append(f"the {MOBILE_QUALITY} quality level's render pipeline is not the project's default one: a mobile "
+                    'game is drawn with one pipeline asset everywhere')
+    return errs
+
+
+def check_mobile(rep, repo, files):
+    """Rule `mobile`: nothing for a desktop game (no Platform.json); a mobile game's project settings
+    (mobile_project_errors). A Platform.json that says neither is an error, never read as desktop."""
+    try:
+        orientation = read_platform(repo)
+    except ValueError as e:
+        rep.error('mobile', str(e))
+        return
+    if orientation is None:
+        return
+    if PLATFORM_FILE not in files:
+        rep.error('mobile', f'{PLATFORM_FILE} is not committed')
+    texts = {}
+    for path in (PROJECT_SETTINGS, QUALITY_SETTINGS, GRAPHICS_SETTINGS):
+        try:
+            with open(os.path.join(repo, path), encoding='utf-8-sig', errors='replace') as f:
+                texts[path] = f.read()
+        except OSError:
+            rep.error('mobile', f'no {path} (the first editor open and the mobile setup write it: Scripts/unity.ps1 setup, '
+                                'then the step the unity-mobile-game skill names)')
+            return
+    found = mobile_project_errors(orientation, texts[PROJECT_SETTINGS], texts[QUALITY_SETTINGS], texts[GRAPHICS_SETTINGS])
+    for e in found:
+        rep.error('mobile', e + ' (unity-mobile-game skill, "Start": the project settings stay as the mobile setup made them)')
+    if not found:
+        rep.note('mobile', f'an Android phone game held in {orientation}: the project settings agree with {PLATFORM_FILE}')
+
+
 TASK_NAME = re.compile(r'^[a-z0-9][a-z0-9-]{1,62}\Z')
 GRADER_KEYS = ('milestones',)          # the grader's half of a task, with seed.reference
 
@@ -659,6 +856,9 @@ DRAWN_LINE = ('drawn', 'reach', 'length')    # a drawn measure along a line
 ASSET_ONLY = ('import:', 'shader:', 'keyword:')    # fields of one asset (with prop:)
 SCENE_ONLY = ('count', 'material_default', 'mesh_collision', 'material:')   # fields of a scene's or prefab's objects
 WAITS = 300   # seconds of real time a task play's waits add at most
+# seconds a finger stays up before it goes down again (docs/task-probes.md, section 1.3): the probe lifts a finger a
+# frame after its touch is over, so a touch that began sooner would find its finger still down and miss on every run
+TOUCH_GAP = 0.1
 JUDGE_PLAY_SHOTS = 5   # the screenshots a judge check is shown of each of its own plays, unless its `shots` says
 JUDGE_SHOTS = 20       # the screenshots a judge check is shown at most: its plays times its shots
 
@@ -723,8 +923,9 @@ def named_shots(play):
 
 def task_play_errors(n, play, plays):
     """A task play's rules beyond the schema, for check `n` (a probe's `play`, a judge's `plays`): not named
-    look/drive/editor/trace, no input at or after its end, no flag of the checker's own, a scene path without dotted
-    segments, waits of at most 300 s in all, its named shots each named once (20 at most), a view's pitch within -89 to
+    look/drive/editor/trace, no input at or after its end, no touch that ends after it or begins less than TOUCH_GAP
+    after its finger lifts, no flag of the checker's own, a scene path without dotted segments, waits of at most 300 s
+    in all, its named shots each named once (20 at most), a view's pitch within -89 to
     89, scene loads without dotted segments, and identical to every other task play of its name in the task (`plays`:
     those seen so far, by name)."""
     errs, pname = [], play.get('name')
@@ -754,10 +955,55 @@ def task_play_errors(n, play, plays):
                 -89 <= view[0] <= 89 and -360 <= view[1] <= 360):
             errs.append(f'check {n}: play {pname} has a view {view}: [pitch, yaw], pitch -89 to 89, yaw -360 to 360')
         errs += [f'check {n}: play {pname}: {e}' for e in dotted(i.get('scene'))]
+    down = {}   # finger -> when its last touch lifts
+    touches = [i for i in play.get('inputs') or [] if isinstance(i, dict) and ('tap' in i or 'drag' in i)
+               and isinstance(i.get('t'), (int, float))]
+    for i in sorted(touches, key=lambda i: i['t']):
+        lasts = sum(i[k] for k in (('over', 'hold') if 'drag' in i else ('hold',))
+                    if isinstance(i.get(k), (int, float)) and not isinstance(i.get(k), bool))
+        finger = i.get('finger') if isinstance(i.get('finger'), int) else 0
+        if isinstance(secs, (int, float)) and i['t'] + lasts > secs:
+            errs.append(f'check {n}: play {pname} has a touch that ends after the play ({secs} s)')
+        if finger in down and i['t'] < down[finger] + TOUCH_GAP - 1e-9:
+            errs.append(f"check {n}: play {pname} puts finger {finger} down at {i['t']:g} s, less than {TOUCH_GAP:g} s "
+                        f"after it lifts ({down[finger]:g} s): give the second touch another finger, or start it later")
+        down[finger] = i['t'] + lasts
     whole = dict(TASK_PLAY_DEFAULTS, **play)
     if plays.setdefault(pname, whole) != whole:
         errs.append(f'check {n}: task play {pname} differs from another play of that name')
     return errs
+
+
+def captures(value):
+    """Whether a measure or a play's inputs make the probe render a view of its own: a `drawn` measure, an objects or
+    components measure of `lit` or `glow` (read as rendered), or a select anywhere in it with `has.lit`."""
+    if isinstance(value, dict):
+        if value.get('probe') == 'drawn' or (value.get('probe') in ('objects', 'components')
+                                             and value.get('field') in ('lit', 'glow')):
+            return True
+        if isinstance(value.get('has'), dict) and value['has'].get('lit') is True:
+            return True
+        return any(captures(v) for v in value.values())
+    return isinstance(value, list) and any(captures(v) for v in value)
+
+
+def render_errors(checks):
+    """A play that takes a render measure (draw calls, triangles) takes no reading that makes the probe render
+    (`captures`): the counts would hold the probe's own renders, and a budget a correct game keeps could read as
+    broken. A budget check gets a play of its own (docs/task-probes.md, section 2.20)."""
+    reads, capturing = set(), {}
+    for c in checks:
+        if c.get('kind') != 'probe' or not isinstance(c.get('measure'), dict):
+            continue
+        play = c.get('play')
+        name = play if isinstance(play, str) else (play.get('name') if isinstance(play, dict) else None)
+        if c['measure'].get('probe') == 'render':
+            reads.add(name)
+        if captures(c['measure']) or (isinstance(play, dict) and captures(play.get('inputs'))):
+            capturing.setdefault(name, c.get('name'))
+    return [f'play {name} takes a render measure and also makes the probe render (check {capturing[name]}: a drawn, '
+            'lit or glow reading, or a select with has.lit): give the render measure a play with none of them'
+            for name in sorted(x for x in reads & set(capturing) if x)]
 
 
 def probe_errors(c, seed, ref, plays):
@@ -883,7 +1129,8 @@ def task_semantic_errors(t):
     with plays of its own and its plays times its shots 20 at most, a log_absent pattern that compiles, the task's play_args and player select (no flag of the checker's own; near
     bands; no `player` in the select that says which object the player is) and the probe rules (probe_errors);
     and a task whose start doesn't build (a build check's `fails_at_start`) has nothing that needs the start played:
-    no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1)."""
+    no start-relative threshold, no before/after judge (docs/task-probes.md, 3.1); and a play that takes a render
+    measure makes no render of the probe's own (render_errors)."""
     errs, seen, plays = [], set(), {}
     seed = t.get('seed') if isinstance(t.get('seed'), dict) else None
     ref = seed.get('reference') if seed else None
@@ -943,7 +1190,7 @@ def task_semantic_errors(t):
             if missing:
                 errs.append(f'check {n} needs {missing}, which come later or do not exist')
             seen.add(n)
-    return errs
+    return errs + render_errors(checks)
 
 
 def wild(sel):
@@ -1714,9 +1961,12 @@ def check_repo(rep, repo):
 
 def check_rules(rep, repo, files):
     """The game contract and the sound rule (the owner's decisions of 2026-11-11): every game not yet submitted, a
-    game in progress too, meets them before it is packaged; games already approved in the Lab are not re-validated."""
+    game in progress too, meets them before it is packaged; games already approved in the Lab are not re-validated.
+    And a mobile game's own rule (its project settings as its Platform.json says), which says nothing of a desktop
+    game."""
     check_contract(rep, repo, files)
     check_sound(rep, repo, files)
+    check_mobile(rep, repo, files)
 
 
 # ---- the contract on a game with combat (Lab docs/planning/2026-11-11_game-contact-checks/spec.md section 11.2):
@@ -1855,14 +2105,25 @@ def main():
     ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
     ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
     ap.add_argument('--rules-only', action='store_true',
-                    help="only the game contract and the sound rule on the repo's Assets/ (what the packager checks first)")
+                    help="only the game contract and the sound rule on the repo's Assets/ and a mobile game's project settings "
+                         '(what the packager checks first)')
+    ap.add_argument('--platform', metavar='FOLDER',
+                    help="print what a game folder's Platform.json says, as one JSON line, and exit: "
+                         '{"platform": "desktop"}, or {"platform": "mobile", "orientation", "width", "height"}')
     a = ap.parse_args()
+    if a.platform:   # the one reader of Platform.json, for the PowerShell tools (tools/unity-pipeline/common.ps1)
+        try:
+            print(json.dumps(platform_of(a.platform)))
+        except ValueError as e:
+            print(f'{a.platform}: {e}', file=sys.stderr)
+            sys.exit(2)
+        sys.exit(0)
     if a.rules_only:
         if not a.repo:
             ap.error('--rules-only takes a game repo')
         rep = Report()
         check_rules(rep, os.path.abspath(a.repo), git_ls(os.path.abspath(a.repo)))
-        print(f'{"INVALID" if rep.count("error") else "VALID"}  {rep.count("error")} error(s)  [{a.repo}: contract, sound]')
+        print(f'{"INVALID" if rep.count("error") else "VALID"}  {rep.count("error")} error(s)  [{a.repo}: contract, sound, mobile]')
         for sev, area, msg in rep.items:
             print(f'  {"x" if sev == "error" else "-"} {area}: {msg}')
         sys.exit(2 if rep.count('error') else 0)

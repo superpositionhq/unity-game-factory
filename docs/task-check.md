@@ -108,8 +108,8 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
    of these settings back when it is done (the player settings file, `ProjectSettings/ProjectSettings.asset`, gets
    back the bytes it had before the build), and the game's assets and code are untouched but for what Unity itself
    rewrites in any player build (URP saves its pipeline assets' prefiltering fields and adds entries to its global
-   settings, as in a build of the game's own). The window (960x540, not full screen) comes from each play's command
-   line. The build passes when Unity exits 0 and the probe's build result says ok. A start that doesn't build makes
+   settings, as in a build of the game's own). The window (960x540, not full screen; a mobile game's: the phone's
+   size) comes from each play's command line. The build passes when Unity exits 0 and the probe's build result says ok. A start that doesn't build makes
    the task INVALID, unless its build check says so (`"fails_at_start": true`: making it build is the task); then the
    start failing to build is the start failing the task, and it is never played.
 4. Checks the reference as if it were a solution: the task's checks in order (a check whose `needs` failed doesn't run
@@ -125,7 +125,8 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
 
 ### The plays
 
-Each play is the built player started windowed at 960x540 **on a Windows desktop of its own**
+Each play is the built player started windowed at 960x540 (a mobile game, whose copy has a `Platform.json`: at the
+phone's size, 1920x1080 or 1080x1920, with a touch screen; task-probes.md, section 1.1) **on a Windows desktop of its own**
 (`tools/task_check/desk.py`: nothing shows on your screen, and the play can't take your keyboard or mouse) on a fixed
 30 fps clock, on the task's `play_scene` with its `play_args` (or the task play's own `scene` and `args`), with the
 TaskProbe package sampling every 0.5 s (a task play's `every`). Each play is played once per side, with the measures of
@@ -244,7 +245,7 @@ without), so this is for drafts only.
   kinds and selects or places; a `look` that a boot served has its queries in the boot's), `probe.log` (the probe's
   own lines: where each teleport put the player, each click, wait and error, and every 10 samples what a `drawn`
   measure cost, `drawn <id>: N ms this sample ...`; each line `<play time> [<real time> s] ...`), the screenshots
-  `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, UI included, evenly over the play), `play.log` (the game's own
+  `shot_00.png`, `shot_01.png`, ... (960x540 PNGs, a mobile game's the phone's size; UI included, evenly over the play), `play.log` (the game's own
   player log) and `output.txt` (what the play's job printed, the machine slot's waits among it; empty when it
   printed nothing, as under `--direct`). `editor\output.txt` is the editor pass's log, and `build\build.log` Unity's
   log of a build that failed. Read these when a value surprises you. Checking a task again replaces its folder.
