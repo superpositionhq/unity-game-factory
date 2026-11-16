@@ -331,7 +331,7 @@ def _play(project, spec, queries, args, timeout):
     waits = sum(float(i.get("wait") or 0) for i in spec.get("inputs") or [] if isinstance(i, dict))
     return project.play(spec.get("seconds", 20), spec.get("shots", 0), timeout + int(waits) + int(spec.get("seconds", 20)),
                         scene=spec.get("scene"), inputs=spec.get("inputs"), queries=queries, args=args,
-                        every=spec.get("every"), player=spec.get("player"))
+                        every=spec.get("every"), player=spec.get("player"), keep_saves=bool(spec.get("keep_saves")))
 
 
 def run_play(project, family, name, entry, earlier, once):
