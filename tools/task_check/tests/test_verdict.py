@@ -235,6 +235,20 @@ class Verdict(unittest.TestCase):
         feature = task_with(milestones=task["milestones"], seed={**NO_FIX})
         self.assertEqual(verdict.verdict(feature, None, start), (True, [], []), "start-only")
 
+    def test_a_weight_0_required_guard_outside_still_works_may_pass_at_the_start(self):
+        task = task_with(milestones=[{"name": "fixed", "checks": [probe("hud"), probe("camera", weight=0)]}])
+        ref = record(checked("hud", "probe", True), checked("camera", "probe", True))
+        start = record(checked("hud", "probe", False), checked("camera", "probe", True))
+        self.assertEqual(verdict.verdict(task, ref, start), (True, [], []))
+        start["checks"][0] = checked("hud", "probe", True)
+        self.assertEqual(verdict.verdict(task, ref, start)[1], ["start already passes every required probe"],
+                         "guards alone never make a task: one weighted outcome must still fail at the start")
+        weighted = task_with(milestones=[{"name": "fixed", "checks": [probe("hud"), probe("camera"), probe("door")]}])
+        ref = record(*(checked(n, "probe", True) for n in ("hud", "camera", "door")))
+        start = record(checked("hud", "probe", False), checked("camera", "probe", True), checked("door", "probe", False))
+        self.assertIn("start already passes required probe camera", verdict.verdict(weighted, ref, start)[1],
+                      "a weighted outcome the start passes is refused as before")
+
     def test_a_task_whose_start_doesnt_build_never_plays_it(self):
         for check, said in [({**probe("roofs"), "expect": {"op": ">=", "calibrate": 0.5}}, "relative to the start"),
                             ({**probe("roofs"), "expect": {"op": ">=", "start_plus": 1}}, "relative to the start")]:
