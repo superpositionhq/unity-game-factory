@@ -124,11 +124,29 @@ class Saved(unittest.TestCase):
                          "| lit | no | 2 | The room is lit. |", "Keep the hero on the ground.", "blind/key.json",
                          "start fails every required rubric item", "the start as BEFORE"):
                 self.assertIn(text, ask)
+            self.assertNotIn("picture(s)", ask, "a blind ask never tells a side's picture count")
+            self.assertIn("`start/`: 6 picture(s)", (base / "sides.md").read_text())
             record = records["door_looks_open"]
             self.assertEqual(record["status"], "shots saved for start/reference, answer needed")
             self.assertEqual(record["folder"], "probe-task/judge-shots/door_looks_open/")
             self.assertEqual(judges.line("door_looks_open", record),
                              "judge door_looks_open: shots saved for start/reference, answer needed")
+
+    def test_the_blind_copy_holds_only_pictures_both_sides_have(self):
+        task = task_with(probe(), judge(before=True))
+        chk = next(iter(judges.judges(task)))
+        shots = lambda n: {f"shot_{i:02d}.png": f"{i}".encode() for i in range(n)}  # noqa: E731
+        played = {"start": {"look": (None, shots(6)), "drive": (None, shots(5))},
+                  "reference": {"look": (None, shots(6)), "drive": (None, shots(8))}}
+        with tempfile.TemporaryDirectory() as tmp:
+            record = judges.save(task, chk, played, tmp, blind=True, rng=random.Random(1))
+            base = Path(tmp) / chk["name"]
+            a, b = (sorted(p.name for p in (base / "blind" / x).iterdir()) for x in "AB")
+            self.assertEqual(a, b, "both blind folders hold the same picture names")
+            self.assertEqual(len(a), 6 + 5)
+            self.assertTrue(any("left out of the blind copy" in n for n in record["notes"]))
+            self.assertNotIn("left out", (base / "ask.md").read_text(), "side notes stay out of the blind ask")
+            self.assertIn("left out of the blind copy", (base / "sides.md").read_text())
 
     def test_the_shared_plays_are_played_whole_not_cut_from_the_boot(self):
         task = task_with({"kind": "boot", "name": "boots", "seconds": 60}, probe(), judge())

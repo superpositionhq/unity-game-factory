@@ -195,11 +195,14 @@ A `judge` check is looked at by you instead. The check plays its plays on the st
 judge showing it asks) and saves the screenshots the cloud's judge would be shown ([task-probes.md](task-probes.md)
 section 3.2) under `<task>\judge-shots\<check>\`: `start\` and `reference\` (`<play>_<nn>.png`, in the order
 taken), `ask.md` (the brief, the question, the rubric and what each picture is) and a blind copy, `blind\A\` and
-`blind\B\`, whose sides are in `blind\key.json`. The task's notes in the result and its lines in `progress.txt` say
+`blind\B\`, whose sides are in `blind\key.json`, with `sides.md` (each side's own pictures and notes, which the ask
+of a blind copy leaves out). The task's notes in the result and its lines in `progress.txt` say
 `judge <check>: shots saved for start/reference, answer needed`. Before you call a task with a required judge VALID:
 
 1. Open `ask.md`, then look at `blind\A\` and `blind\B\` and score every rubric item of each from 0 to 1, as if
-   each were the developer's game, before opening `blind\key.json`.
+   each were the developer's game, before opening `blind\key.json` and `sides.md`. The blind folders hold only the
+   pictures both sides have and the same names in each; each side's own count and notes (a play cut short) are in
+   `sides.md`, read with the key.
 2. The start must fail every required rubric item (below 0.5) and the reference must pass every one. If not, fix the
    rubric or the plays (never by easing what the task asks), and check again.
 3. Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row on the tasks branch).
