@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 namespace ProbeTests.Core
 {
     /// <summary>What a game may do in mid-play, by the play's arguments: quit (-corequit), refuse to quit
-    /// (-corerefuse), load a scene after one second (-coreload sync | async | parked), write saved data (-coresave),
+    /// (-corerefuse), load a scene after one second (-coreload sync | async | parked), write saved data (-coresave), set a PlayerPrefs key without saving it (-corequiet),
     /// destroy every object it finds but the hero and the camera (-corewipe), set the frame rate and vertical sync
     /// its own way, in Start and again in every Update (-coresettings). It says in the log what saved data it found
     /// when it started, and keeps the vertical sync count and the capture and target frame rates each Update
@@ -22,6 +22,8 @@ namespace ProbeTests.Core
             var file = Path.Combine(Application.persistentDataPath, "core_token.txt");
             Debug.Log("CORE saves prefs=" + PlayerPrefs.HasKey("core_token") + " file=" + File.Exists(file)
                       + " company=" + Application.companyName + " path=" + Application.persistentDataPath);
+            Debug.Log("CORE quiet=" + PlayerPrefs.HasKey("core_quiet"));
+            if (CoreArgs.Has("-corequiet")) PlayerPrefs.SetInt("core_quiet", 1);  // set, never saved by the game
             if (CoreArgs.Has("-coresave"))
             {
                 PlayerPrefs.SetInt("core_token", 7);

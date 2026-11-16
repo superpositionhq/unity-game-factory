@@ -291,6 +291,23 @@ def saves_kept(t, play):
     t.ok("probe.log says so", "the saved data is kept: the play runs after the plays that left it" in play.probe_log)
 
 
+def saves_clean(t, play):
+    """A play that doesn't say keep_saves starts clean, right after one that did."""
+    prefs, file, _, _ = _saves(play.log)
+    t.eq("the kept saves are gone", (prefs, file), ("False", "False"))
+
+
+def saves_quiet(t, play):
+    """The game sets a PlayerPrefs key and never saves it."""
+    t.ok("it started without the key", "CORE quiet=False" in play.log)
+
+
+def saves_quiet_kept(t, play):
+    """PlayerPrefs a game set without PlayerPrefs.Save() reach the play after it: the probe saves them when the play
+    ends, as a normal quit does."""
+    t.ok("the key the play before set is there", "CORE quiet=True" in play.log)
+
+
 FOREIGN = "ProbeTestsForeignCo"  # the company name CoreScenes.Foreign builds the second player with
 
 
@@ -445,6 +462,9 @@ PLAYS = {
     "saves_b": {"check": saves_b},
     "saves_again": {"check": saves_again, "args": ["-coresave"]},
     "saves_kept": {"check": saves_kept},
+    "saves_clean": {"check": saves_clean},
+    "saves_quiet": {"check": saves_quiet, "args": ["-corequiet"]},
+    "saves_quiet_kept": {"check": saves_quiet_kept},
     "errors_format": {"check": no_queries, "errors": [r"^queries format 'x/1' is not game-probe-queries/1$"]},
     "errors_array": {"check": no_queries, "errors": [r"^the queries have no queries array$"]},
     "errors": {"check": errors, "errors": [

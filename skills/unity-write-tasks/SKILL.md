@@ -469,7 +469,8 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   that reads a save (a level reached, a profile filled in) lists the plays that write it:
   `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
   left; every other play starts with none. A writer that failed still counts as run, so the failure shows in the
-  reader's checks. Of two writers, the second names the first in its own `after` (docs/task-probes.md, 1.1).
+  reader's checks. Of two writers, one names the other in its own `after`. A writer saves during its play, before
+  its time is up: `OnApplicationQuit` is not run (docs/task-probes.md, 1.1).
 - **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling) is
   staged, never left out because "no fixed play guarantees the contact": `pin` the foe or target ahead of the player
   (a target the build invents: the nearest thing a player can shove near the player) and press the task's own attack
@@ -510,8 +511,7 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   its difficulty (last item below).
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
 - `tools/validate-game.py` fails a game with fewer than 5 tasks or fewer than 4 `hard` ones, and a task that is
-  `easy`, has no `seed.reference`, has fewer than 3 required probes
-  outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
+  `easy`, has no `seed.reference`, has fewer than 3 required probes of weight above 0 outside `still_works`, or whose reference changes fewer than 5 game files, fewer than 100 code lines or fewer than 2
   systems against its start; for a seed on main it also fails fewer than 4 game-changing commits from `seed.commit` to
   `seed.reference`, and any required probe that names a component type, tag, layer, scene or asset the reference has
   and the start doesn't (section 5). These are floors, not targets: pick the longest threads the history has. It also refuses a task

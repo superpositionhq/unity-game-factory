@@ -712,6 +712,9 @@ namespace TaskProbe
             try { logFile?.Dispose(); } catch { }
             logFile = null;
             if (!quit) return;
+            // what a normal quit writes: the PlayerPrefs a game set without saving them (a play that runs after this
+            // one reads them); a game's own OnApplicationQuit is not run
+            try { PlayerPrefs.Save(); } catch { }
             // The play is over and its files are written and closed: the process ends here, with exit code 0. The
             // engine's own shutdown is no part of the play, a game may refuse it (Application.wantsToQuit) or hang
             // in it, and on a busy machine it has taken minutes (a player was killed at the checker's timeout four

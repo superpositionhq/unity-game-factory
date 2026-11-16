@@ -961,6 +961,22 @@ class Units(unittest.TestCase):
             {'name': 'still_works', 'checks': [judge('hud_unchanged'), judge('code', 'code_judge')]}]}
         self.assertEqual(vg.required_quality_judges(t), ['reads_well', 'looks_as_asked', 'code'])
 
+    def test_play_after(self):
+        """A task play's `after`: task plays of the task, named once, never itself, no cycle, and of two named
+        together one runs after the other, in either order."""
+        def reads(name, after=None):
+            play = {'name': name, 'seconds': 10}
+            return {'kind': 'probe', 'name': name, 'play': dict(play, after=after) if after else play}
+        ok = [reads('one'), reads('two', ['one']), reads('three', ['two', 'one'])]
+        self.assertEqual(vg.play_after_errors(ok), [])
+        for checks, said in (
+                ([reads('one', ['none'])], 'runs after none, which is no task play of the task'),
+                ([reads('one', ['one'])], 'names itself in its after'),
+                ([reads('one'), reads('two', ['one', 'one'])], 'task play two names one twice in its after'),
+                ([reads('one', ['two']), reads('two', ['one'])], 'a cycle'),
+                ([reads('one'), reads('two'), reads('three', ['one', 'two'])], 'neither runs after the other')):
+            self.assertTrue(any(said in e for e in vg.play_after_errors(checks)), (said, vg.play_after_errors(checks)))
+
     def test_a_guard_is_no_outcome(self):
         """The long-thread bar counts required probes of weight above 0 outside still_works: a required probe of
         weight 0 is a guard, not an outcome."""

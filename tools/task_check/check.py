@@ -231,6 +231,7 @@ class Side:
         self._build = None
         self.played = {}  # play name -> unity.Played
         self.saves = []  # the plays whose saved data the copy holds now: the last that started clean, and those after it
+        self.replays = {}  # play name -> what differed when it was played again for its saves (replay_note)
         self._editor = None
 
     # -- the build ---------------------------------------------------------------------------------------------------
@@ -296,28 +297,37 @@ class Side:
         """A play, once per name, on the scene and args `play` (a task play, or None for the checker's own) opens;
         `waits`: the real seconds its waits add (a task play's), which its timeout gets on top. A task play that
         names `after` starts on the saved data of the plays before it; every other play starts clean (the probe
-        clears the copy's saved data). `again`: played once more for the saved data it leaves, its result dropped."""
+        clears the copy's saved data). `again`: played once more for the saved data it leaves; its checks keep reading
+        its first play, its files are kept as <name>_again, and what differed from the first is noted (replay_note)."""
         if name not in self.played or again:
             keeps = bool(play and play.get("after"))
             self.log(f"  {self.name}: playing {name} " + ("again " if again else "")
                      + f"({seconds} s" + (f", {waits:g} s waiting" if waits else "") + ")")
             scene, args = tasks.place(self.task, play)
+            before, self.saves = self.saves, []  # a play that raises leaves no saves known
             found = self.project.play(seconds, shots, self.timeout + math.ceil(waits), scene=scene, inputs=inputs,
                                       queries=queries, args=args, every=every, player=self.player, keep_saves=keeps)
-            self.saves = self.saves + [name] if keeps else [name]
-            if again:
-                return found
-            self.played[name] = found
+            self.saves = before + [name] if keeps else [name]
             waited = getattr(found, "waited", 0.0)
-            self.log(f"  {self.name}: played {name} in {found.seconds:.0f} s"
-                     + (f" ({waited:.0f} s of it waiting for a machine slot)" if waited >= 1 else ""))
+            ended = found.probe.get("ended") if isinstance(found.probe, dict) else None
+            self.log(f"  {self.name}: played {name} " + ("again " if again else "") + f"in {found.seconds:.0f} s"
+                     + (f" ({waited:.0f} s of it waiting for a machine slot)" if waited >= 1 else "")
+                     + (f": exit {found.exit_code}{', timed out' if found.timed_out else ''}, ended {ended}"
+                        if again else ""))
             if self.evidence is not None:
                 # the play's spec too: probe.json keys its measures by query id, and only the spec says which id is
                 # which select (two components queries of one play, both empty, couldn't be told apart)
                 spec = self.project.read(f"{unity.LOGS}/{unity.SPEC}")
-                self._keep(name, {**found.files, "play.log": found.log.encode("utf-8"),
-                                  "output.txt": found.output.encode("utf-8"),
-                                  **({unity.SPEC: spec} if spec is not None else {})})
+                self._keep(name + ("_again" if again else ""),
+                           {**found.files, "play.log": found.log.encode("utf-8"),
+                            "output.txt": found.output.encode("utf-8"),
+                            **({unity.SPEC: spec} if spec is not None else {})})
+            if again:
+                differs = replay_note(name, self.played[name], found)
+                if differs:
+                    self.replays[name] = differs
+                return found
+            self.played[name] = found
         return self.played[name]
 
     def judge_plays(self, check):
@@ -382,6 +392,14 @@ class Side:
             for n in before:  # from the first, which starts clean: each on what those before it left
                 self._run(named[n], again=f"play_{n}" in self.played)
         return self._run(play)
+
+    def replayed(self, play):
+        """What to say in the detail of a check that reads task play `play`: the plays of its chain that, played again
+        for their saves, didn't end as their first play did (the saves it read may not be those their checks saw)."""
+        if not isinstance(play, dict):
+            return ""
+        notes = [self.replays[f"play_{n}"] for n in tasks.chain(self.task, play["name"]) if f"play_{n}" in self.replays]
+        return "; note: " + "; ".join(notes) if notes else ""
 
     def _run(self, play, again=False):
         name = play["name"]
@@ -517,6 +535,8 @@ class Grade:
             else:
                 try:
                     ok, detail = self.check(check)
+                    if check["kind"] == "probe":
+                        detail = str(detail) + self.side.replayed(check["play"])
                 except unity.MachineError:
                     raise  # the machine can't run Unity (its limiter, the licence): no verdict on the game
                 except (OSError, RuntimeError, ValueError) as exc:
@@ -526,6 +546,30 @@ class Grade:
                          "required": check["required"], "weight": check["weight"], "detail": str(detail)[:700],
                          "group": group})
         return {"checks": rows, "probes": self.measured}
+
+
+def _how(played):
+    """How a play ended, for comparing two plays of one play: (how it ended, timed out, the inputs that missed)."""
+    probe = played.probe if isinstance(played.probe, dict) else {}
+    missed = [(m.get("t"), m.get("kind"), m.get("target")) for m in probe.get("inputs_missed") or []
+              if isinstance(m, dict)]
+    return probe.get("ended"), bool(played.timed_out), missed
+
+
+def replay_note(name, first, again):
+    """What differed when play `name` was played again for its saved data, in words, or None: how it ended, whether it
+    timed out, which inputs missed."""
+    a, b = _how(first), _how(again)
+    if a == b:
+        return None
+    said = []
+    if a[0] != b[0]:
+        said.append(f"it ended {b[0]} (first: {a[0]})")
+    if a[1] != b[1]:
+        said.append("it timed out" if b[1] else "it did not time out as the first did")
+    if a[2] != b[2]:
+        said.append(f"{len(b[2])} input(s) missed (first: {len(a[2])})")
+    return f"{name}, played again for its saved data, did not go as its first play: " + ", ".join(said)
 
 
 def valid_name(name):

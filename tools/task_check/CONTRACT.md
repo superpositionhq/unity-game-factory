@@ -538,7 +538,8 @@ build scene has woken up: that scene's objects get `Awake` and `OnEnable`, then 
 the build lacks: a `query_errors` line, and the game's own first scene plays). Every play starts from clean saved data
 but one whose spec says `keep_saves` (a task play that names `after`: `check.Side._task_play` plays the plays it names
 first, in `tasks.chain`'s order, again when another play ran since, and `probe.log` says `the saved data is kept: the
-play runs after the plays that left it`):
+play runs after the plays that left it`). When a play ends, the probe calls `PlayerPrefs.Save()` before it ends the
+process (a normal quit writes them; `OnApplicationQuit` is not run). Clean means:
 the build gives the copy a company name of its own (`TaskProbe.<hash>`, section 5), the probe deletes PlayerPrefs and
 empties `persistentDataPath` when the play starts, read-only files too, leaving the folder itself (Unity makes it when
 the player starts, and a game writes into it without making it) (`Probe.ForgetSaves`: only when the company name is
@@ -719,8 +720,9 @@ first two track and camera rows (of 18) and the first sample of each query:
   frame waits for. `scene`: the active scene's path at the end; `player`: the player's name then, or null.
   `inputs_missed`: every input that didn't land, in the order sent, at most 400: each with its `t`, its `kind`, its
   `target` and `why`. A stage nothing took (kind pin, damage, set; target `select`, `at`, `to`, the object's name, the
-  set's path); a click no visible button took (click, the widget's name); a teleport without a player, or next to an
-  object no select matches (teleport, teleport_to); a key, button or axis the probe has no control for (key, the
+  set's path); a click no visible button took (click, the widget's name); a teleport without a player (teleport or
+  teleport_to, target `player`), or next to an object no select matches (teleport_to, target `select`); a key, button
+  or axis the probe has no control for, or any of them in a project without the Input System package (key, the
   control path); a touch that couldn't be made (tap, drag: the widget's name, or the finger). The key and touch
   misses are `query_errors` lines as well.
   `screenshots`: 960x540 PNGs of the frame as displayed, UI included, without alpha, taken at the middle of each of

@@ -96,9 +96,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     Never rely on the checker's order:** without `after`, a side's plays run in the order its checks first ask for
     them, which is not the order the task lists them in and can change. A play that failed or was cut short still
     counts as run: the plays after it run anyway and read whatever it left, so the failure shows in their own checks.
-    A play with `after` starts on the saved data the plays it names left, in the order named, and on nothing else's
-    (see "Saved data" below); when it names two, the second names the first in its own `after`, or the validator
-    refuses the task: a play without `after` clears the saved data when it starts.
+    A play with `after` starts on the saved data left by the plays it names and the plays those name, in order, and
+    on nothing else's (see "Saved data" below). When it names two, one of them runs after the other through its own
+    `after` (listed in either order), or the validator refuses the task: a play without `after` clears the saved data
+    when it starts. A writer must have saved before its play's time is up: the play ends by ending the process, so
+    `OnApplicationQuit` is not run (PlayerPrefs set without `PlayerPrefs.Save()` are saved for it).
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
     one with a `.` or `..` part or an empty part (`//`, or a `/` at its end).
@@ -232,8 +234,11 @@ Every play of the game, the checker's own (look, drive, a boot check's) and a ta
   itself doesn't change the play's time step: the probe sets the first two again before and after every frame's
   scripts, and the target frame rate before them.
 - **Saved data.** Every play starts from clean saved data, but a task play that names `after`: that one starts on
-  what the plays it names saved, and only that (when another play ran since they did, the checker plays them once
-  more first, for their saves alone; their checks keep reading their first play). The checker's build gives the
+  what the plays it names and the plays those name saved, in order, and only that (when another play ran since they
+  did, the checker plays them once more first, for their saves alone; their checks keep reading their first play,
+  the replay's files are kept as `<play>_again`, and a replay that ended otherwise than the first is noted in the
+  reader's checks). What is cleared is the game's PlayerPrefs and its `Application.persistentDataPath` folder; a
+  file a game writes anywhere else is not. The checker's build gives the
   copy's player a company name of its own (`TaskProbe.<hash>`, which `Application.companyName` reads in a play), so
   its PlayerPrefs and `Application.persistentDataPath` are its own, never the real game's; the probe clears both when
   a play starts clean (every PlayerPrefs key deleted; the folder emptied, and still there for the game to write

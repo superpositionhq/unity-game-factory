@@ -90,10 +90,46 @@ class PlayOrder(unittest.TestCase):
                  reading("two", play("two", 12))]
         with self.assertRaises(ValueError) as caught:
             task_with(*loose)
-        self.assertIn("two does not run after one", str(caught.exception))
+        self.assertIn("runs after one and two, but neither runs after the other", str(caught.exception))
+        self.assertIn('give two "after": ["one"], or one "after": ["two"]', str(caught.exception))
         loose[2] = reading("two", play("two", 12, ["one"]))
         task = task_with(*loose)
         self.assertEqual(self.played(task, FakeProject(measuring(0))), [(10, False), (12, True), (20, True)])
+
+    def test_two_plays_named_in_either_order_play_in_their_own(self):
+        task = task_with(reading("reads", play("reads", 20, ["two", "one"])), reading("one", play("one", 10)),
+                         reading("two", play("two", 12, ["one"])))
+        self.assertEqual(tasks.chain(task, "reads"), ["one", "two"])
+        self.assertEqual(self.played(task, FakeProject(measuring(0))), [(10, False), (12, True), (20, True)])
+
+    def test_a_name_twice_in_one_after_is_refused(self):
+        with self.assertRaises(ValueError) as caught:
+            task_with(reading("reads", play("reads", 20, ["one", "one"])), reading("one", play("one", 10)))
+        self.assertIn("task play reads names one twice in its after", str(caught.exception))
+
+    def test_a_replay_that_goes_otherwise_is_noted_on_the_reader(self):
+        from task_check import check
+        task = task_with(reading("writes", play("writes", 10)), reading("other", play("other", 15)),
+                         reading("reads", play("reads", 20, ["writes"])))
+        fine, cut = measuring(0), measuring(0)
+        calls = []
+
+        def answer(seconds, shots, queries):
+            calls.append(seconds)
+            probe, log = (cut if calls.count(10) == 2 and seconds == 10 else fine)(seconds, shots, queries)
+            if calls.count(10) == 2 and seconds == 10:
+                probe = dict(probe, ended="shutdown")
+            return probe, log
+        s = side("reference", FakeProject(answer), task)
+        rows = {r["name"]: r for r in check.Grade(task, "reference", side("start", FakeProject(measuring(0)), task), s, {}).run()["checks"]}
+        self.assertEqual(calls, [10, 15, 10, 20])
+        self.assertIn("play_writes, played again for its saved data, did not go as its first play: it ended shutdown "
+                      "(first: time)", rows["reads"]["detail"])
+        self.assertNotIn("played again", rows["writes"]["detail"])
+        same = side("reference", FakeProject(measuring(0)), task)
+        graded = check.Grade(task, "reference", side("start", FakeProject(measuring(0)), task), same, {}).run()["checks"]
+        self.assertNotIn("played again", {r["name"]: r for r in graded}["reads"]["detail"])
+        self.assertIsNone(check.replay_note("play_x", *[s.played["play_other"]] * 2))
 
 
 if __name__ == "__main__":

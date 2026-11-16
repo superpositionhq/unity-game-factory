@@ -1200,9 +1200,10 @@ def task_semantic_errors(t):
 
 def play_after_errors(checks):
     """A task play's `after` (docs/task-probes.md 1.1): every name it lists is a task play of the task (a probe's play
-    or a judge's own plays; never look, drive, editor or trace), never the play itself, and the plays never wait on
-    each other in a cycle. A play that names none starts on no saved data and clears what was there, so of the plays
-    one `after` lists, each after the first runs after the one before it (itself or through the plays it names)."""
+    or a judge's own plays; never look, drive, editor or trace), named once, never the play itself, and the plays
+    never wait on each other in a cycle. A play that names none starts on no saved data and clears what was there, so
+    of any two plays one `after` lists, one runs after the other (itself or through the plays it names), in whichever
+    order they are listed: the checker plays them in the order their own `after` gives."""
     after = {}
     for c in checks:
         named = [c.get('play')] if c.get('kind') == 'probe' else (c.get('plays') or [] if c.get('kind') == 'judge' else [])
@@ -1214,6 +1215,8 @@ def play_after_errors(checks):
     for name, before in after.items():
         if name in before:
             errs.append(f'task play {name} names itself in its after')
+        errs += [f'task play {name} names {other} twice in its after' for other in dict.fromkeys(before)
+                 if before.count(other) > 1]
         errs += [f'task play {name} runs after {other}, which is no task play of the task' for other in before
                  if other not in after]
     if errs:
@@ -1232,11 +1235,12 @@ def play_after_errors(checks):
             found |= {b} | all_before(b)
         return found
     for name, before in after.items():
-        for first, then in zip(before, before[1:]):
-            if first not in all_before(then):
-                errs.append(f'task play {name} runs after {first} and {then}, but {then} does not run after {first}: '
-                            f'it starts on no saved data and clears what {first} saved (give {then} "after": '
-                            f'["{first}"])')
+        for i, first in enumerate(before):
+            for then in before[i + 1:]:
+                if first not in all_before(then) and then not in all_before(first):
+                    errs.append(f'task play {name} runs after {first} and {then}, but neither runs after the other: '
+                                f'the later one starts on no saved data and clears what the earlier saved (give '
+                                f'{then} "after": ["{first}"], or {first} "after": ["{then}"])')
     return errs
 
 
