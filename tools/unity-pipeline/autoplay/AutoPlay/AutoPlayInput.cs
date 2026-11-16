@@ -1,5 +1,6 @@
 // The bot's input: a virtual Keyboard and Mouse of the Input System (and a Gamepad once the bot first uses one: a
-// gamepad switches many games' button prompts), fed with state events, each device's whole state with every change.
+// gamepad switches many games' button prompts; in a phone game's run a Touchscreen from the start, the only device its
+// bot plays with besides the back button), fed with state events, each device's whole state with every change.
 // The game's own InputActions, Keyboard.current and Mouse.current read them exactly as they read real devices; the
 // real ones (every device the native backend reports) are disabled for the whole run, so the person using the machine
 // never reaches the game. Every change is a row of inputs.jsonl. An input queued in frame f reaches the game at the
@@ -17,7 +18,8 @@ using UnityEngine.InputSystem.LowLevel;
 
 internal static class AutoPlayInput
 {
-    enum Kind { Key, MouseButton, PadButton, Trigger, Stick }
+    enum Kind { Key, MouseButton, PadButton, Trigger, Stick, Finger }
+    const string BackButton = "<Keyboard>/escape";  // what Android's back button is to the Input System
 
     sealed class Held
     {
@@ -30,6 +32,7 @@ internal static class AutoPlayInput
         public MouseButton Mouse;
         public GamepadButton Pad;
         public bool Left;
+        public int Finger;
 #endif
     }
 
@@ -49,6 +52,7 @@ internal static class AutoPlayInput
     static Keyboard keyboard;
     static Mouse mouse;
     static Gamepad gamepad;
+    static Touchscreen screen;
     static KeyboardState keys;
     static MouseState pointer;
     static GamepadState pad;
@@ -66,6 +70,8 @@ internal static class AutoPlayInput
             mouse = InputSystem.AddDevice<Mouse>("AutoPlayMouse");
             keyboard.MakeCurrent();
             mouse.MakeCurrent();
+            // a phone game finds its touch screen from the first frame
+            if (AutoPlayRun.IsPhone) screen = InputSystem.AddDevice<Touchscreen>("AutoPlayTouchscreen");
             if (allowReal) return;
             InputSystem.onDeviceChange += OnDeviceChange;
             DisableReal();
@@ -158,6 +164,8 @@ internal static class AutoPlayInput
         target = null;
         control = null;
         if (keyboard == null) return Refuse(path, "the Input System's devices are not set up");
+        if (AutoPlayRun.IsPhone && !string.Equals(path, BackButton, StringComparison.OrdinalIgnoreCase))
+            return Refuse(path, "a phone game is played by touch: the bot has Touch, TouchUp and " + BackButton + " (the back button)");
         var slash = path == null ? -1 : path.IndexOf('/');
         if (slash < 3 || path[0] != '<' || path[slash - 1] != '>')
             return Refuse(path, "a control is <Keyboard>/<key>, <Mouse>/<button> or <Gamepad>/<control>");
@@ -228,6 +236,8 @@ internal static class AutoPlayInput
                 if (c.Left) pad.leftStick = value;
                 else pad.rightStick = value;
                 break;
+            case Kind.Finger:
+                return;  // a finger's events are queued where it moves (QueueFinger)
         }
         InputSystem.QueueStateEvent(gamepad, pad);
         gamepad.MakeCurrent();
@@ -286,6 +296,7 @@ internal static class AutoPlayInput
         switch (c.Kind)
         {
             case Kind.Stick: return value;
+            case Kind.Finger: return value;
             case Kind.Trigger: return Mathf.Clamp01(value.x);
             default: return value != Vector2.zero ? 1 : 0;
         }
@@ -335,6 +346,7 @@ internal static class AutoPlayInput
             // the bot may name it another way ("<keyboard>/W"): read it as a control first
             if (!Resolve(control, null, out var target, out _) || !held.TryGetValue(target.Path, out h)) return;
         }
+        if (h.Kind == Kind.Finger) { TouchUp(h.Finger); return; }
         held.Remove(h.Path);
         try { Apply(h, Vector2.zero); }
         catch (Exception e) { AutoPlayRun.Error($"input {h.Path}: {e.GetType().Name}: {e.Message}"); }
@@ -353,6 +365,14 @@ internal static class AutoPlayInput
         held.Clear();
         foreach (var h in scratch)
         {
+            if (h.Kind == Kind.Finger)
+            {
+                try { QueueFinger(h, UnityEngine.InputSystem.TouchPhase.Ended); }
+                catch (Exception e) { AutoPlayRun.Error($"input {h.Path}: {e.GetType().Name}: {e.Message}"); }
+                AutoPlayRun.InputRow(AutoPlayRun.Stamp().Add("type", atEnd ? "release" : "inject").Add("key", h.Path).Add("value", h.Value).Add("edge", "up"));
+                if (!atEnd) Injected++;
+                continue;
+            }
             try { Apply(h, Vector2.zero); }
             catch (Exception e) { AutoPlayRun.Error($"input {h.Path}: {e.GetType().Name}: {e.Message}"); }
             Row(atEnd ? "release" : "inject", h, Vector2.zero, "up");
@@ -361,9 +381,63 @@ internal static class AutoPlayInput
 #endif
     }
 
+    // ------------------------------------------------------------------------------------------- fingers
+
+    public static void Touch(int finger, Vector2 position)
+    {
+#if AUTOPLAY_INPUT_SYSTEM
+        if (!AutoPlayRun.IsRunning) return;
+        var path = "<Touchscreen>/touch" + finger;
+        if (finger < 0 || finger > 9) { Refuse(path, "a finger is 0 to 9"); return; }
+        if (keyboard == null) { Refuse(path, "the Input System's devices are not set up"); return; }
+        try
+        {
+            // a game that is no phone game may be touched too: its touch screen comes with the first touch
+            if (screen == null) screen = InputSystem.AddDevice<Touchscreen>("AutoPlayTouchscreen");
+            held.TryGetValue(path, out var h);
+            if (h != null && (h.Value - position).sqrMagnitude < 1e-4f) return;  // where it is: the frame's hold row says so
+            var down = h == null;
+            if (down) held[path] = h = new Held { Path = path, Kind = Kind.Finger, Finger = finger };
+            h.Value = position;
+            h.Frame = Time.frameCount;
+            QueueFinger(h, down ? UnityEngine.InputSystem.TouchPhase.Began : UnityEngine.InputSystem.TouchPhase.Moved);
+            Describe(path, screen.touches[finger]);
+            AutoPlayRun.InputRow(AutoPlayRun.Stamp().Add("type", "inject").Add("key", path).Add("value", position).Add("edge", down ? "down" : "move"));
+            Injected++;
+        }
+        catch (Exception e) { AutoPlayRun.Error($"input {path}: {e.GetType().Name}: {e.Message}"); }
+#endif
+    }
+
+    public static void TouchUp(int finger)
+    {
+#if AUTOPLAY_INPUT_SYSTEM
+        var path = "<Touchscreen>/touch" + finger;
+        if (!AutoPlayRun.IsRunning || !held.TryGetValue(path, out var h)) return;
+        held.Remove(path);
+        try { QueueFinger(h, UnityEngine.InputSystem.TouchPhase.Ended); }
+        catch (Exception e) { AutoPlayRun.Error($"input {path}: {e.GetType().Name}: {e.Message}"); }
+        AutoPlayRun.InputRow(AutoPlayRun.Stamp().Add("type", "inject").Add("key", path).Add("value", h.Value).Add("edge", "up"));
+        Injected++;
+#endif
+    }
+
+#if AUTOPLAY_INPUT_SYSTEM
+    static void QueueFinger(Held h, UnityEngine.InputSystem.TouchPhase phase)
+    {
+        // a touch's id is never 0 (the Touchscreen reads 0 as no touch): finger n is touch n + 1 for the whole run
+        InputSystem.QueueStateEvent(screen, new TouchState { touchId = h.Finger + 1, phase = phase, position = h.Value, pressure = 1f });
+    }
+
+    /// <summary>A phone has no mouse: said once per call name.</summary>
+    static bool PhoneRefuses(string path) =>
+        AutoPlayRun.IsPhone && !Refuse(path, "a phone game is played by touch: the bot has Touch, TouchUp and " + BackButton + " (the back button)");
+#endif
+
     public static void MouseDelta(Vector2 delta)
     {
 #if AUTOPLAY_INPUT_SYSTEM
+        if (AutoPlayRun.IsRunning && PhoneRefuses("<Mouse>/delta")) return;
         if (!AutoPlayRun.IsRunning || mouse == null || delta == Vector2.zero) return;
         pointer.delta = delta;
         Impulse("<Mouse>/delta", mouse.delta, delta);
@@ -373,6 +447,7 @@ internal static class AutoPlayInput
     public static void Scroll(Vector2 scroll)
     {
 #if AUTOPLAY_INPUT_SYSTEM
+        if (AutoPlayRun.IsRunning && PhoneRefuses("<Mouse>/scroll")) return;
         if (!AutoPlayRun.IsRunning || mouse == null || scroll == Vector2.zero) return;
         pointer.scroll = scroll;
         Impulse("<Mouse>/scroll", mouse.scroll, scroll);
@@ -397,6 +472,7 @@ internal static class AutoPlayInput
     public static void SetCursor(Vector2 position)
     {
 #if AUTOPLAY_INPUT_SYSTEM
+        if (AutoPlayRun.IsRunning && PhoneRefuses("<Mouse>/position")) return;
         if (!AutoPlayRun.IsRunning || mouse == null) return;
         if (cursorLogged && (position - cursor).sqrMagnitude < 1e-4f) return;
         pointer.position = position;

@@ -21,6 +21,12 @@
   powershell -ExecutionPolicy Bypass -File <root>\unity-game-factory\templates\new-game.ps1 -Slug <game> `
       -Path <root>\games\<game> -Title "<Title>" -Description "<one line>" -Reason "<why>"
   (<root> written out, e.g. C:\Users\<you>\UnityWork)
+.EXAMPLE
+  ... -Slug <game> -Path <root>\games\<game> -Platform mobile -Orientation portrait
+  An Android phone game: the same skeleton with templates\unity-game-mobile laid over it (the mobile setup as a fifth
+  run of the first open, the Android APK build, the phone's size and orientation) and Platform.json at its root.
+  -Platform desktop (the default) creates a desktop game exactly as before; -Orientation goes with mobile only and is
+  the game's for good.
 #>
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^(?!.*--)[a-z0-9][a-z0-9-]*[a-z0-9]$', Options = 'None')][string]$Slug,
@@ -41,6 +47,10 @@ param(
     [string]$HooksDir,
     # default: the config's github_org (UGF_ORG)
     [string]$Org,
+    # mobile: an Android phone game (Platform.json, the mobile setup); desktop: a Windows game, as always
+    [ValidateSet('desktop', 'mobile')][string]$Platform = 'desktop',
+    # with -Platform mobile: how the phone is held, for good
+    [ValidateSet('landscape', 'portrait')][string]$Orientation,
     # skip the first editor open (tests, or no licence yet): run Scripts/unity.ps1 setup later
     [switch]$NoSetup,
     # skip creating the GitHub repo (tests, offline)
@@ -62,6 +72,8 @@ if (-not [IO.Path]::IsPathRooted($Path) -or [IO.Path]::GetFullPath($Path).TrimEn
     throw "-Path must be the absolute folder $want (got '$Path')"
 }
 Write-Host "project folder: $Path (this call maps the session to $Slug for recording)"
+if ($Platform -eq 'mobile' -and -not $Orientation) { throw 'a mobile game is held one way: pass -Orientation landscape or -Orientation portrait' }
+if ($Platform -ne 'mobile' -and $Orientation) { throw '-Orientation goes with -Platform mobile (a desktop game has none)' }
 $words = $Slug -split '-'
 # Invariant: under a Turkish culture 'i'.ToUpper() is a dotted capital I (ice-cave was refused as a project name)
 if (-not $Project) { $Project = ($words | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '' }
@@ -108,6 +120,30 @@ foreach ($f in Get-ChildItem -LiteralPath $template -Recurse -File -Force) {
     [IO.File]::WriteAllText($dst, (Expand ([IO.File]::ReadAllText($f.FullName))), $utf8)
     $count++
 }
+if ($Platform -eq 'mobile') {
+    # A mobile (Android phone) game: the mobile files laid over the skeleton's, the mobile setup added to the first
+    # open as its fifth run, and Platform.json at the root, which says what the game is to every tool after this one
+    # (validate-game.py, the task check, the pipeline, the packager). A desktop game has none of it: it is created
+    # exactly as before.
+    $phone = if ($Orientation -eq 'portrait') { @(1080, 1920) } else { @(1920, 1080) }
+    $map['__ORIENTATION__'] = $Orientation
+    $map['__PORTRAIT__'] = if ($Orientation -eq 'portrait') { 'true' } else { 'false' }
+    $map['__PHONE_WIDTH__'] = "$($phone[0])"
+    $map['__PHONE_HEIGHT__'] = "$($phone[1])"
+    $map['__ANDROID_NAME__'] = $Project.ToLowerInvariant()
+    $overlay = Join-Path $PSScriptRoot 'unity-game-mobile'
+    foreach ($f in Get-ChildItem -LiteralPath $overlay -Recurse -File -Force) {
+        $rel = Expand ($f.FullName.Substring($overlay.Length + 1))
+        $dst = Join-Path $Path $rel
+        if (-not (Test-Path -LiteralPath $dst)) { $count++ }
+        New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
+        [IO.File]::WriteAllText($dst, (Expand ([IO.File]::ReadAllText($f.FullName))), $utf8)
+    }
+    $unityPs1 = Join-Path $Path 'Scripts\unity.ps1'
+    [IO.File]::WriteAllText($unityPs1, (Add-UGFMobileSetupStep ([IO.File]::ReadAllText($unityPs1)) $Project), $utf8)
+    [IO.File]::WriteAllText((Join-Path $Path 'Platform.json'), (([ordered]@{ platform = 'mobile'; orientation = $Orientation } | ConvertTo-Json -Compress) + "`n"), $utf8)
+    $count++
+}
 # The AutoPlay drop-in, copied unchanged with its .meta files (the template's Assets\Scripts\Scenarios.cs calls it):
 # tools\unity-pipeline\autoplay\AutoPlay\ into Assets\AutoPlay\ (docs\autoplay-contract.md).
 $dropIn = Join-Path $repo 'tools\unity-pipeline\autoplay'
@@ -134,6 +170,7 @@ $row = [ordered]@{
     reason = $Reason; reason_source = 'agent_note'; status = 'observed'
     source = [ordered]@{ script = 'new-game.ps1'; sha256 = $scriptSha; commit = $null }
 }
+if ($Platform -eq 'mobile') { $row.params['platform'] = 'mobile'; $row.params['orientation'] = $Orientation }
 [IO.File]::WriteAllText((Join-Path $Path 'workflow.jsonl'), ($row | ConvertTo-Json -Compress -Depth 6) + "`n", $utf8)
 
 # git + LFS + recorder, then the first commit (the post-commit hook records it).
@@ -155,11 +192,13 @@ function Commit-All([string]$Message) {
     if ($code -ne 0) { throw "commit failed (git user.name / user.email set?): set them, delete $Path and run new-game.ps1 again" }
     return (& git -C $Path rev-parse --short HEAD)
 }
-$sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), the AutoPlay drop-in v$autoplay and the scenario list,`nroot-anchored .gitignore, LFS for every binary type.`n`nworkflow: $rowId"
+$kind = if ($Platform -eq 'mobile') { "`nAn Android phone game, held in $Orientation (Platform.json, the mobile setup, the APK build)." } else { '' }
+$sha = Commit-All "Create the $Title project (Unity $UnityVersion skeleton)`n`nVisible meta files and text serialization, the editor tools assembly (workflow log,`nfirst-open setup, player build), the AutoPlay drop-in v$autoplay and the scenario list,`nroot-anchored .gitignore, LFS for every binary type.$kind`n`nworkflow: $rowId"
 
 # The first editor open: packages, URP, TextMeshPro's essential resources, shared settings (Scripts\unity.ps1 setup),
 # committed with the files it made.
 $setup = 'skipped (-NoSetup): run Scripts/unity.ps1 setup, then commit'
+$mobileNote = if ($Platform -eq 'mobile') { "`nThen the mobile setup: the pipeline asset set for a phone, one quality level (Mobile),`nthe Android player settings ($Orientation, arm64, IL2CPP, Vulkan), the Windows player's`nwindow at the phone's size." } else { '' }
 if (-not $NoSetup) {
     $editor = Get-UGFUnity $Path -ErrorAction SilentlyContinue
     if ($editor -and (Test-Path -LiteralPath $editor)) {
@@ -168,7 +207,7 @@ if (-not $NoSetup) {
         if ($LASTEXITCODE -eq 0) {
             $rows = @(Get-Content -LiteralPath (Join-Path $Path 'workflow.jsonl') | Where-Object { $_.Trim() } | ForEach-Object { ($_ | ConvertFrom-Json).id })
             $span = if ($rows.Count -gt 1) { "$($rows[1])..$($rows[-1])" } else { $rowId }
-            $setup = "done, commit $(Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background. Generated .meta files and project settings committed.`n`nworkflow: $span")"
+            $setup = "done, commit $(Commit-All "Set up packages, URP and the shared player settings`n`nFirst editor open: URP, Input System, Cinemachine, uGUI, NavMesh, Timeline and`nTest Framework added by name, the URP asset made the default pipeline,`nTextMeshPro's essential resources imported, Linear colour, Input System only,`nrun in background.$mobileNote Generated .meta files and project settings committed.`n`nworkflow: $span")"
         } else {
             $setup = "FAILED (exit $LASTEXITCODE): read Logs/unity-ps1/setup_*.log, fix (licence? editor? network?), run Scripts/unity.ps1 setup again, then commit"
         }
@@ -204,6 +243,7 @@ if (-not $NoGitHub) {
 }
 
 Write-Host "created $Title ($Project, Unity $UnityVersion) at $Path"
+if ($Platform -eq 'mobile') { Write-Host "  platform: mobile (an Android phone game), held in $Orientation; read the unity-mobile-game skill before building" }
 Write-Host "  files: $count, first row $rowId, commit $sha"
 Write-Host "  first open: $setup"
 Write-Host "  remote: $(if ($remote) { $remote } else { 'none' })"

@@ -10,6 +10,8 @@
   progress stays as it was, staged or not. A Scripts\unity.ps1 the game changed itself is kept and named (the hand test
   then runs through its `play` mode: docs\autoplay-contract.md, section 7). Files in Assets\AutoPlay that are not the
   drop-in's are left where they are and named. On a game that is up to date it changes nothing and commits nothing.
+  A mobile game's Scripts\unity.ps1 is the template's with the mobile setup as one more run of its first open
+  (templates\new-game.ps1 -Platform mobile): it is compared with, and brought up to, the template's with that run.
   It wires nothing: the game's StartScenario handler, its ScenarioStarted and FinishRun calls and its bot are the game's
   own code (docs\autoplay-contract.md, section 6).
 .EXAMPLE
@@ -25,6 +27,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $repo = [IO.Path]::GetFullPath((Join-Path $here '..\..\..'))
+. (Join-Path $repo 'machine\lib\ugf-root.ps1')   # Add-UGFMobileSetupStep
 $src = Join-Path $here 'AutoPlay'
 $utf8 = New-Object Text.UTF8Encoding($false)
 # Files of an earlier drop-in that this one no longer has, by their path in Assets\AutoPlay\: removed from a game's copy.
@@ -115,7 +118,13 @@ if (Test-Path -LiteralPath $up) {
     $title = if ($first -match '^# (.*?): (?:heavy Unity jobs|headless Unity runs) through') { $Matches[1] } else { $null }
     $slug = if ($have -match '-Label "([^"\s]+) \$Label"') { $Matches[1] } else { $null }
     $project = if ($have -match '([A-Za-z][A-Za-z0-9_]*)\.EditorTools\.BuildPlayer\.BuildWindows') { $Matches[1] } else { $null }
-    function Expand([string]$t) { return $t.Replace('__PROJECT__', $project).Replace('__SLUG__', $slug).Replace('__TITLE__', $title) }
+    # a mobile game's has the mobile setup as its first open's fifth run: every template version is compared with it
+    $mobile = $have -match "@\('mobile', @\('-executeMethod', '[A-Za-z0-9_]+\.EditorTools\.Urp\.MobileSetup\.Apply'\), \`$true\)"
+    function Expand([string]$t) {
+        $t = $t.Replace('__PROJECT__', $project).Replace('__SLUG__', $slug).Replace('__TITLE__', $title)
+        if ($mobile) { try { $t = Add-UGFMobileSetupStep $t $project } catch { } }   # a template version without the anchor: no match
+        return $t
+    }
     if (-not ($title -and $slug -and $project)) {
         $unityPs1 = "kept: not the template's (its title, slug and project name could not be read from it)"
     } else {

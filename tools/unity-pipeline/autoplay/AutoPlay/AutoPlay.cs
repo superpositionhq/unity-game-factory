@@ -8,6 +8,10 @@
 // ScenarioStarted(name) and FinishRun(result, score), and the bot, a MonoBehaviour of its own that acts only through
 // Hold, Release, MouseDelta, Scroll and SetCursor below. Copy this folder into the game unchanged (Assets/AutoPlay/):
 // every game then writes identical files. Without -autoplay, and always in the editor, nothing here acts.
+//
+// A mobile game (an Android phone game: its Assets/Scripts/Phone.cs calls Phone(portrait) at boot) is played by touch
+// in a window of the phone's size, 1920x1080 held on its side or 1080x1920 upright: its bot acts only through Touch
+// and TouchUp (fingers on a virtual Touchscreen) and Hold/Release of "<Keyboard>/escape", Android's back button.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -16,7 +20,7 @@ public static class AutoPlay
 {
     /// <summary>The drop-in's version, written as autoplay_version in every file: it goes up when the files change
     /// shape.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
 
     // ------------------------------------------------------------------------------------------- the command line
 
@@ -119,6 +123,27 @@ public static class AutoPlay
     /// reads it); a following Hold/Release of "&lt;Mouse&gt;/leftButton" clicks there. In AutoPlay Mouse.current is
     /// the virtual mouse: draw a visible cursor at it so the video shows where the bot points.</summary>
     public static void SetCursor(Vector2 screenPosition) => AutoPlayInput.SetCursor(screenPosition);
+
+    // ------------------------------------------------------------------------------------------- a mobile game
+
+    /// <summary>The game is an Android phone game, held upright (`portrait`) or on its side: called once at boot,
+    /// before the first scene (the mobile template's Assets/Scripts/Phone.cs does it, from a
+    /// [RuntimeInitializeOnLoadMethod(SubsystemRegistration)]). An AutoPlay run then keeps the window at the phone's
+    /// size (1080x1920 or 1920x1080), has a virtual Touchscreen from its first frame, and refuses the keyboard (but
+    /// "&lt;Keyboard&gt;/escape", the back button), the mouse and the gamepad: a phone has none.</summary>
+    public static void Phone(bool portrait) => AutoPlayRun.Phone(portrait);
+
+    /// <summary>Whether Phone was called: the game is played by touch.</summary>
+    public static bool IsPhone => AutoPlayRun.IsPhone;
+
+    /// <summary>Put a finger (0..9) down at a screen position (pixels, origin bottom left, as
+    /// Touchscreen.current reads it), or move it there when it is down already; it stays down until TouchUp. A tap is
+    /// Touch in one frame and TouchUp in a later one; a virtual stick is a finger put down on it and moved. Two
+    /// fingers at once are two numbers. Only while IsRunning.</summary>
+    public static void Touch(int finger, Vector2 screenPosition) => AutoPlayInput.Touch(finger, screenPosition);
+
+    /// <summary>Lift a finger put down with Touch.</summary>
+    public static void TouchUp(int finger) => AutoPlayInput.TouchUp(finger);
 
     // ------------------------------------------------------------------------------------------- the clock
 

@@ -24,7 +24,8 @@ Agent sessions build them almost entirely through committed code, and three reco
   -executeMethod` through the machine's limiter). They create the scenes and place every object, make prefabs,
   materials and data assets, and set import settings. Each run logs `workflow.jsonl` rows through `WorkflowLog.Row`,
   with the step's own file (`source.script`) and the sha256 of its text as it ran (`source.sha256`). The first editor
-  open (`Scripts/unity.ps1 setup`, which `templates/new-game.ps1` runs) is four such runs.
+  open (`Scripts/unity.ps1 setup`, which `templates/new-game.ps1` runs) is four such runs (five for a mobile game,
+  whose setup table has the mobile setup as its last).
 - **Shell steps**: generated source files (images, sounds), store packs copied in, copies and moves of content.
 
 | Record | What it gives the replay |

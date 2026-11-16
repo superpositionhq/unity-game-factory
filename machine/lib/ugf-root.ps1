@@ -175,6 +175,32 @@ function Get-UGFNewestUnity([string]$Series = '6000.3', $Cfg = (Get-UGFConfig)) 
 
 # GitHub organisation (or user) that owns unity-game-factory and the private unity-game-<slug> repos: $env:UGF_ORG,
 # else "github_org" in the config file (bootstrap.ps1 -Org writes it), else '' (callers that need it say how to set it).
+# A mobile game's Scripts\unity.ps1 is the template's with one more run in its setup table: the mobile setup, after
+# Configure (templates\unity-game-mobile, Assets\Editor\Tools\Urp\MobileSetup.cs). $Text: the template's unity.ps1
+# with its placeholders already replaced, or not ($Project is then '__PROJECT__'). templates\new-game.ps1 writes a
+# mobile game's with it; the AutoPlay installer compares a mobile game's against it.
+function Add-UGFMobileSetupStep([string]$Text, [string]$Project) {
+    $last = "@('configure', @('-executeMethod', '$Project.EditorTools.ProjectSetup.Configure'), `$true)"
+    if (-not $Text.Contains($last)) { throw "Scripts\unity.ps1 has no setup run '$last' to put the mobile setup after" }
+    return $Text.Replace($last, "$last,`n      @('mobile', @('-executeMethod', '$Project.EditorTools.Urp.MobileSetup.Apply'), `$true)")
+}
+
+# What a Unity editor has for Android builds (a mobile game's APK): its Android Build Support module with the OpenJDK
+# and the Android SDK & NDK tools Unity Hub installs under it. $Unity: the editor's Unity.exe. Ok is true when all are
+# there; Why says what is missing; Aapt2 is the SDK's aapt2.exe (it reads a built APK back), or $null.
+function Get-UGFAndroidToolchain([string]$Unity) {
+    $root = if ($Unity) { Join-Path (Split-Path $Unity -Parent) 'Data\PlaybackEngines\AndroidPlayer' } else { '' }
+    $missing = @()
+    if (-not $root -or -not (Test-Path -LiteralPath $root)) { $missing += 'Android Build Support' }
+    else { foreach ($part in @(@('OpenJDK', 'OpenJDK'), @('SDK', 'Android SDK'), @('NDK', 'Android NDK'))) { if (-not (Test-Path -LiteralPath (Join-Path $root $part[0]))) { $missing += $part[1] } } }
+    $aapt2 = $null
+    if ($root -and (Test-Path -LiteralPath (Join-Path $root 'SDK\build-tools'))) {
+        $aapt2 = Get-ChildItem -LiteralPath (Join-Path $root 'SDK\build-tools') -Recurse -Filter 'aapt2.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    }
+    $why = if ($missing.Count) { "this editor has no $($missing -join ', ') (Unity Hub > Installs > the editor > Add modules: Android Build Support with OpenJDK and Android SDK & NDK Tools; docs/new-machine.md)" } else { '' }
+    return [pscustomobject]@{ Ok = ($missing.Count -eq 0); Why = $why; Root = $root; Aapt2 = $aapt2 }
+}
+
 function Get-UGFOrg($Cfg = (Get-UGFConfig)) {
     if ($env:UGF_ORG) { return $env:UGF_ORG.Trim() }
     if ($Cfg.PSObject.Properties['github_org'] -and $Cfg.github_org) { return ([string]$Cfg.github_org).Trim() }

@@ -20,6 +20,21 @@ pushing (`-NoGitHub` skips that; an existing repo of that name is never linked: 
 It refuses names containing Superposition, game-factory, Claude, Anthropic or OpenAI, and titles with quotes,
 backslashes or line breaks (they land in C# string literals).
 
+`-Platform mobile -Orientation landscape|portrait` makes an Android phone game instead. The files of
+`unity-game-mobile/` are laid over the skeleton: `Assets/Editor/Tools/Urp/MobileSetup.cs` (the mobile setup: the URP
+pipeline asset set for a phone, one quality level `Mobile` on every platform, the Android player settings: package
+`com.<project in lower case>.game`, minSdk 26, targetSdk 34, arm64 alone, IL2CPP, Vulkan alone, the orientation; and
+the Windows player's window at the phone's size, 1920x1080 or 1080x1920), `Assets/Editor/Tools/BuildAndroid.cs` (the
+APK build the release pipeline runs), `Assets/Scripts/Phone.cs` (the phone's size for every start of the Windows
+player, in a window or, on a display lower than the phone, full screen and scaled to fit; and the call that tells the
+AutoPlay drop-in the game is played by touch) and a `README.md` that says what the
+game is made for. The mobile setup becomes the fifth run of the game's own `Scripts/unity.ps1 setup` (one line added
+to its setup table, where the creation replay reads the first open's runs), so the first open runs it and commits
+what it made. `Platform.json` (`{"platform": "mobile", "orientation": ...}`) is written at the root: that file is how
+every later tool knows the game is a mobile game; a game without it is a desktop game. `-Orientation` is required
+with `-Platform mobile` and refused without it. The default, `-Platform desktop`, creates a desktop game exactly as
+before: `unity-game/` is the same for both.
+
 The editor version: `-UnityVersion`, else the config's `unity_version` (default `6000.3`: the newest installed
 `6000.3.*` editor; an exact version such as `6000.3.28f1` pins it); with no such editor installed it stops, unless
 `-UnityVersion` names one: install it through Unity Hub first.

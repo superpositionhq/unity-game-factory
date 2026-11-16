@@ -1,6 +1,6 @@
-# AutoPlay contract (Unity, v1)
+# AutoPlay contract (Unity, v2)
 
-> **The AutoPlay drop-in is here (v1):** `tools/unity-pipeline/autoplay/AutoPlay/`, copied unchanged into every game
+> **The AutoPlay drop-in is here (v2):** `tools/unity-pipeline/autoplay/AutoPlay/`, copied unchanged into every game
 > as `Assets/AutoPlay/` ([Getting the drop-in](#getting-the-drop-in)). A game implements its side (section 6), tests
 > one scenario by hand (section 7) and tags `milestone/autoplay-<n>`. The recorder, the run checker
 > (`tools/unity-pipeline/validate-run.ps1`) and the recording queue are the recording pipeline's
@@ -109,6 +109,14 @@ the drop-in leaves both alone, and `-goTimeout` defaults to 0.
 
 ## 2. Display and timing (enforced by the drop-in)
 
+- **A mobile game** (an Android phone game: its `Assets/Scripts/Phone.cs`, from the mobile template, calls
+  `AutoPlay.Phone(portrait)` at boot) is recorded as its Windows player in a window of the phone's size: 1920x1080
+  held on its side, **1080x1920** held upright. Everything below that says 1920x1080 holds for it at that size, and
+  the recorder starts it so (`-screen-width 1080 -screen-height 1920`, from the build's `build_info.json`). On a
+  display lower than the phone (Unity holds a window to the display's size) the drop-in takes the window's frame
+  away and sizes it past the screen, so the player still draws 1080x1920; the recorder then records the window
+  itself, not a region of the screen ([unity-pipeline.md](unity-pipeline.md#record)). Its bot plays by touch
+  (section 4).
 - **Windowed 1920x1080**: after the first rendered frame the drop-in calls
   `Screen.SetResolution(1920, 1080, FullScreenMode.Windowed)` when the window is not so already (the recorder's
   `-screen-*` flags make it so from the start), and again, with an `error` telemetry row, whenever the game changes it
@@ -199,6 +207,17 @@ the drop-in leaves both alone, and `-goTimeout` defaults to 0.
   `leftShoulder`, `rightShoulder`, `leftTrigger`, `rightTrigger`, `start`, `select`, `leftStickPress`,
   `rightStickPress`, `dpad/up|down|left|right`, `leftStick`, `rightStick`. Any other path does nothing and writes one
   `error` telemetry row per path.
+- **A mobile game's bot plays with fingers.** `AutoPlay.Touch(finger, screenPos)` puts finger 0..9 down at a screen
+  position (pixels, origin bottom left, as `Touchscreen.current` reads it), or moves it there when it is down
+  already; `AutoPlay.TouchUp(finger)` lifts it. A tap is a `Touch` in one frame and its `TouchUp` in a later one; a
+  virtual stick is a finger put down on it and moved; two thumbs are two finger numbers. The fingers are touches of a
+  virtual `Touchscreen` (`AutoPlayTouchscreen`), there from the run's first frame in a phone game (so a game that
+  looks for a touch screen at start finds it): the UI module's pointer events, the Input System's on-screen controls
+  and the game's own `Touchscreen.current` or EnhancedTouch code read them as they read a phone's. In a phone game's
+  run the drop-in refuses everything else but `"<Keyboard>/escape"`, which is Android's back button to the Input
+  System: any other key, the mouse (`MouseDelta`, `Scroll`, `SetCursor`) and the gamepad do nothing and write one
+  `error` telemetry row per control ("a phone game is played by touch"). A desktop game's bot may touch too; its
+  Touchscreen is added with its first touch.
 - A held control stays down until released (Hold with 0, or `Vector2.zero` for a stick, releases it too); the drop-in
   logs `down`, `hold` (once per frame while it is held, with the current value) and `up`.
 - The Gamepad is added the first time the bot uses one of its controls (a gamepad switches many games' button
@@ -247,10 +266,12 @@ then renamed into place, so whoever waits for one never reads half of it.
 `type`: `header` | `control_info` (the bot's first use of a control: the game's enabled InputActions bound to it, as
 `"Map/Action"` or `"Action"`) | `inject` (`edge` = `down` when a control is pressed, `hold` once per frame while it is
 held (from the frame after its `down`, written at the end of the frame), `up` when it is released, `impulse` for a
-mouse delta or scroll, which last one frame) | `release` (an `up` the drop-in writes itself for a control still held
+mouse delta or scroll, which last one frame; a finger's `down` when it touches, `move` when it moved, `hold` and
+`up` as a key's) | `release` (an `up` the drop-in writes itself for a control still held
 when the run ends) | `cursor` (a `SetCursor` that moved the pointer). `key` is the control's Input System path (the
 canonical name: `<Gamepad>/a` is logged as `<Gamepad>/buttonSouth`); `value` is what the bot put into the control's
-state (1/0 for a key or button, 0..1 for a trigger, `[x, y]` for a stick, a mouse delta, a scroll or a position),
+state (1/0 for a key or button, 0..1 for a trigger, `[x, y]` for a stick, a mouse delta, a scroll or a position; a
+finger's `key` is `<Touchscreen>/touch<n>` and its value its screen position `[x, y]`),
 before the control's own processors (a stick's deadzone). An input logged in frame f reaches the game in frame f + 1
 (section 4).
 
@@ -331,7 +352,7 @@ video.)
 ### `ready.json`, `go`, `game.log`, `watchdog.json`
 
 `ready.json` {`pid`, `title`, `window` [w, h], `fullscreen_mode`, `scenario`, `scenario_name`, `autoplay_version`,
-`t_ns`, `qpc`, `frame`}; `go` (any content) from the pipeline; `game.log`, Unity's player log (`-logFile`), where the
+`phone` (`landscape` or `portrait`, in a mobile game's run only), `t_ns`, `qpc`, `frame`}; `go` (any content) from the pipeline; `game.log`, Unity's player log (`-logFile`), where the
 drop-in's own lines start with `AutoPlay:`; `watchdog.json` only from the exit watchdog. Kept in the raw run directory,
 not part of the dataset bundle.
 
@@ -429,5 +450,9 @@ pipeline, workflow row ids in commit messages and `workflow.jsonl` are fine.
 
 ## Changes
 
+- **v2** (`autoplay_version` 2): touch. `AutoPlay.Phone`, `AutoPlay.IsPhone`, `AutoPlay.Touch` and
+  `AutoPlay.TouchUp`; a phone game's run in a window of the phone's size, with a virtual Touchscreen and nothing but
+  touch and the back button; finger rows in `inputs.jsonl` (`<Touchscreen>/touch<n>`, edge `move`); `phone` in
+  `ready.json`. A desktop game's run and its files are as in v1, but for the version number.
 - **v1** (`autoplay_version` 1): the first Unity drop-in. Files `autoplay-inputs/2`, `autoplay-telemetry/2`,
   `autoplay-outcome/2`, `autoplay-clock/2`, `autoplay-watchdog/1`, with `"engine": "unity"` in every header.

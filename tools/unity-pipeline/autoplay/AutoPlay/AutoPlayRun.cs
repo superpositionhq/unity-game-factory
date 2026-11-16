@@ -13,7 +13,20 @@ internal static class AutoPlayRun
 {
     enum Phase { Off, Boot, WaitingForGo, Running, Holding, Done }
 
-    const int Width = 1920, Height = 1080, FrameRate = 60;
+    const int FrameRate = 60;
+    // the run's window: 1920x1080, or a phone held upright (a mobile game: Phone)
+    static int Width = 1920, Height = 1080;
+    static bool phone;
+
+    internal static bool IsPhone => phone;
+
+    /// <summary>The game says it is a phone game (AutoPlay.Phone), before the run boots.</summary>
+    internal static void Phone(bool portrait)
+    {
+        phone = true;
+        Width = portrait ? 1080 : 1920;
+        Height = portrait ? 1920 : 1080;
+    }
     const double ReadyDelay = 1.0, HoldSeconds = 2.0, ShutdownSeconds = 30.0;
     static readonly string[] Reserved = { "t_ns", "qpc", "frame", "event" };
     static readonly string[] Stale = { "go", "ready.json", "outcome.json", "clock.json", "watchdog.json" };
@@ -276,8 +289,51 @@ internal static class AutoPlayRun
         Error(windowErrors > 10
             ? $"the window stays {WindowText()}: left as it is"
             : $"the window became {WindowText()}: set back to {Width}x{Height} windowed");
-        if (windowErrors <= 10) Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+        if (windowErrors <= 10) SetWindow();
     }
+
+    /// <summary>The run's window. A phone game's is the phone's size, and a phone held upright (1080x1920) is taller
+    /// than most displays, where Unity holds a window to the display's size: there the window loses its frame and is
+    /// sized past the screen (a window without a frame may be), and the player draws its whole picture into it; the
+    /// recorder then records the window itself. Every other window is Unity's own windowed mode.</summary>
+    static void SetWindow()
+    {
+        var display = Screen.currentResolution;
+        if (phone && Screen.fullScreenMode == FullScreenMode.Windowed && (display.width < Width || display.height < Height)
+            && Oversize(Width, Height)) return;
+        Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+    }
+
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string className, string title);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr(IntPtr window, int index, IntPtr value);
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+
+    static bool Oversize(int width, int height)
+    {
+        const long Popup = 0x80000000L, Visible = 0x10000000L, ClipSiblings = 0x04000000L, ClipChildren = 0x02000000L;
+        const uint NoZOrder = 0x0004, NoActivate = 0x0010, FrameChanged = 0x0020;
+        try
+        {
+            var mine = GetCurrentProcessId();
+            for (var window = FindWindowExW(IntPtr.Zero, IntPtr.Zero, "UnityWndClass", null); window != IntPtr.Zero;
+                 window = FindWindowExW(IntPtr.Zero, window, "UnityWndClass", null))
+            {
+                GetWindowThreadProcessId(window, out var owner);
+                if (owner != mine) continue;
+                var shown = GetWindowLongPtr(window, -16).ToInt64() & Visible;
+                SetWindowLongPtr(window, -16, new IntPtr(Popup | ClipSiblings | ClipChildren | shown));
+                return SetWindowPos(window, IntPtr.Zero, 0, 0, width, height, NoZOrder | NoActivate | FrameChanged);
+            }
+        }
+        catch (Exception) { }
+        return false;
+    }
+#else
+    static bool Oversize(int width, int height) => false;
+#endif
 
     static bool WindowRight() => Screen.width == Width && Screen.height == Height && Screen.fullScreenMode == FullScreenMode.Windowed;
 
@@ -292,7 +348,7 @@ internal static class AutoPlayRun
             settingsApplied = true;
             // only when it is not so already (the recorder starts the player with -screen-* at that size): a change of
             // the window can move it
-            if (!probePlay && !WindowRight()) Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+            if (!probePlay && !WindowRight()) SetWindow();
             readyAt = now + (long)(ReadyDelay * AutoPlayClock.Frequency);
             return;
         }
@@ -300,7 +356,7 @@ internal static class AutoPlayRun
         if (!probePlay && !WindowRight() && windowTries < 5)
         {
             windowTries++;
-            Screen.SetResolution(Width, Height, FullScreenMode.Windowed);
+            SetWindow();
             readyAt = now + (long)(ReadyDelay * AutoPlayClock.Frequency);
             return;
         }
@@ -308,6 +364,7 @@ internal static class AutoPlayRun
         var ready = new AutoPlayJson().Add("pid", (long)ProcessId()).Add("title", Application.productName)
             .Add("window", new Vector2(Screen.width, Screen.height)).Add("fullscreen_mode", Screen.fullScreenMode.ToString())
             .Add("scenario", scenario).Add("scenario_name", scenarioName).Add("autoplay_version", AutoPlay.Version);
+        if (phone) ready.Add("phone", Width > Height ? "landscape" : "portrait");
         AddStamp(ready);
         try { WriteFile("ready.json", ready.Close() + "\n"); }
         catch (Exception e) { Error("ready.json could not be written: " + e.Message); }
