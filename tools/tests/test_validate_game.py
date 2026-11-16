@@ -1339,7 +1339,8 @@ class Schema(unittest.TestCase):
                         # a colour's or vector's channel, one more part (GradingQuery.Post)
                         'post:Vignette.color.r', 'post:LiftGammaGain.lift.w', 'post:Vignette.center.x'],
             'pieces': ['count', 'visible', 'components', 'objects', 'triangles', 'visible_triangles'],
-            'audio': ['count', 'audible', 'volume', 'max_volume', 'level'],
+            'audio': ['count', 'audible', 'volume', 'max_volume', 'level', 'started', 'started_audible', 'sounds',
+                      'repeats'],
             'ground': ['height', 'hit', 'min', 'max', 'mean', 'range', 'hits'],
             'drawn': ['drawn', 'motion', 'base_r', 'base_g', 'base_b', 'base_change', 'reach', 'length'],
             # the editor pass reads a colour's or vector's channel by either name (.r-.a, .x-.w), a texture's name, the
@@ -1362,7 +1363,7 @@ class Schema(unittest.TestCase):
                'grading': ['post:BloomIntensity', 'post:Bloom', 'white_temp', 'post:Vignette.color.rgb',
                            'post:Vignette.color.r.g', 'post:Vignette.color.linear'],
                'pieces': ['actors', 'instances'],
-               'audio': ['loudest', 'peak'], 'ground': ['points', 'z'], 'drawn': ['pixels', 'primitives'],
+               'audio': ['loudest', 'peak', 'starts', 'starts_total'], 'ground': ['points', 'z'], 'drawn': ['pixels', 'primitives'],
                'asset': ['shader:_BaseColor.q', 'shader:_BaseColor.rgb', 'material:_BaseMap.name.r', 'keyword:',
                          'import:', 'material:'],
                'spawns': ['count'], 'log': ['lines'], 'render': ['batches', 'vertices'], 'world': ['time_dilation', 'speed'],

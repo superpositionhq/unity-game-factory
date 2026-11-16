@@ -455,6 +455,33 @@ def audio(t, play):
     t.eq("every audio query of a sample reads the one level (reading the tap resets it)",
          {v(qid, 10.0, "level") for qid in ("all", "tone", "menu", "shot")}, {v("all", 10.0, "level")})
     t.near("timeScale 0: everything plays on", v("all", 12.0, "volume"), STEADY, FLOAT)
+
+    # the sounds that start, each counted in the interval it was told in
+    def started(qid, after, upto, field="started"):
+        return sum((s.get("value") or {}).get(field) or 0 for s in play.samples(qid) if after < s["t"] <= upto + 1e-6)
+
+    def starts(qid, after, upto):
+        return [(r.get("sound"), r.get("named")) for s in play.samples(qid) if after < s["t"] <= upto + 1e-6
+                for r in (s.get("value") or {}).get("starts") or []]
+
+    t.eq("the 9 sources that play from the scene's start started; 7 were heard (one muted, one under 0.001)",
+         [started("all", 0, 1.0), started("all", 0, 1.0, "started_audible")], [9, 7])
+    t.eq("each by its clip's name", sorted(n for n, _ in starts("all", 0, 1.0)),
+         sorted(["Tone440", "Music220", "Muted330", "Mixed550", "Custom770", "Stream385", "Menu495", "Pause275", "Faint1100"]))
+    t.eq("nothing starts while they play on", started("all", 1.0, 2.0), 0)
+    t.eq("a clip played at 2.4 s that ends by 3 s: one start, heard", [started("all", 2.0, 3.0), started("all", 2.0, 3.0, "started_audible"), starts("all", 2.0, 3.0)],
+         [1, 1, [("End1000", True)]])
+    t.eq("a start by its sound's name", [started("late", 0, 21.0), started("late", 3.5, 4.5)], [1, 1])
+    t.eq("a source paused starts nothing", started("all", 4.5, 6.0), 0)
+    t.eq("PlayOneShot on a silent source: a start, heard, without a name", [started("shooter", 6.0, 7.0), started("shooter", 6.0, 7.0, "started_audible"), starts("shooter", 6.0, 7.0)],
+         [1, 1, [(None, False)]])
+    t.eq("PlayOneShot on a source with a clip of its own: no name either", starts("shooter_clip", 7.0, 8.0), [(None, False)])
+    t.eq("a sound select never takes a one-shot's start", started("shot", 0, 21.0), 0)
+    t.eq("PlayClipAtPoint: a start by its clip", starts("point", 8.0, 9.0), [("Point990", True)])
+    t.eq("near: the sound that started at the place", [started("near_point", 0, 21.0), starts("near_point", 8.0, 9.0)], [1, [("Point990", True)]])
+    t.eq("near: the 3D source playing there, at 8.5 s only", [v("near_point", 1.0, "count"), v("near_point", 8.5, "count")], [0.0, 1.0])
+    t.eq("AudioListener.pause set and lifted, timeScale 0: the sources go on, nothing starts", started("all", 9.0, 13.0), 0)
+    t.eq("a source played for the second listener at 14.5 s: heard there", [started("all", 14.0, 15.5), started("all", 14.0, 15.5, "started_audible")], [1, 1])
     t.near("a streaming clip reads like any other", v("stream", 1.0, "volume"), 0.3, FLOAT)
     t.eq("the mixer group by its name", [v("sfx", 1.0, "count"), v("sfx", 1.0, "loudest")], [1.0, "Mixed550"])
     t.eq("... its parent group's name doesn't match", v("master", 1.0, "count"), 0.0)

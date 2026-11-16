@@ -1098,7 +1098,24 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
 - `select` (optional; none: every source playing): `sound` a wildcard on the AudioClip's name, `sound_class` a
   wildcard on the name of the AudioMixerGroup the source outputs to (that group's own name: a parent group's doesn't
   match), `owner` an object select: the source is on a matching object or on one of its descendants (as a
-  components `owner`, section 2.5).
+  components `owner`, section 2.5), `near` (a point and radius, section 2.13): only a 3D source (`spatialBlend` above
+  0) at a place within it, and for the started fields a sound that started there; a 2D source is near nothing.
+- **The sounds that start**, every one however short, seen once a frame: `started` and `started_audible` (how many
+  started, and how many of them were heard at the listener at 0.001 or louder, in each sample's interval; summed over
+  the samples picked by default), `sounds` (how many differently named clips started) and `repeats` (how often a
+  sound started right after itself: "never the same take twice"); the last two take no `agg`. A sound starts when a
+  source plays that didn't the frame before (`Play` on a silent source, a new source, `PlayClipAtPoint`,
+  `PlayOneShot` on a silent source) or when a source that doesn't loop is played again while it plays. A source that
+  goes on where it stood (unpaused, `AudioListener.pause` lifted) starts nothing, and a sound that plays from the
+  scene's first frame started in the play's first interval. A start is counted in the interval in which its name was
+  settled, at most 5 frames (0.17 s) after it began, so give the window that much room. What a start can't tell:
+  - its name, when the clip that plays isn't the source's own: a `PlayOneShot` clip is never named, and no `sound`
+    select takes it. `sounds` and `repeats` then read nothing (the check fails and says why): they need sounds played
+    as their source's own clip (`source.clip = take; source.Play()`) or with `PlayClipAtPoint`;
+  - a `PlayOneShot` on a source that is already playing: the engine shows no new sound, so nothing is counted. Read
+    `level` there, or stage the event so that source is silent before it.
+  A sound ask reads "a sound starts when the event happens": `started_audible` near the source (or by `owner`), in a
+  window right after the event; what the sound is, how it sounds, is never checked.
 - Each source reads its **volume at the listener** (the first enabled AudioListener on an active object, in hierarchy
   order): its volume (0 when muted) times its distance attenuation by its rolloff, for its 3D share by
   `spatialBlend`; mixer volumes and `AudioListener.volume` are left out (a mixer group's volume changes `level`, never
@@ -1125,7 +1142,7 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
 - The sample's value also holds `loudest` (the loudest source's clip name), `peak` and `listener` (its object's name),
   for the logs.
 - **A `volume`, `max_volume` or `level` threshold is calibrated or relative to the start, never a literal value**: how
-  loud depends on the sounds a build chose. `count` and `audible` take a literal. Compare places by their own plays or
+  loud depends on the sounds a build chose. `count`, `audible` and the started fields take a literal. Compare places by their own plays or
   windows: teleport into each zone (section 1.1) and read the zone's sound there.
 - Every play runs with its sound on, and in every play the probe's tap on each enabled AudioListener measures the mix
   and then silences it, so nothing is heard on the machine. The tap is a component on the listener's object: hidden

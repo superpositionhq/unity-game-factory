@@ -19,6 +19,8 @@ RUNTIME = ("player", "camera", "objects", "widgets", "components", "pieces", "sc
            "log", "audio", "ground", "ui", "drawn", "render", "world")
 SAMPLED = ("player", "camera", "objects", "widgets", "components", "pieces", "screen", "light", "grading", "spawns",
            "audio", "ground", "ui", "drawn", "render", "world")
+AUDIO_STARTED = ("started", "started_audible")  # counted per sample's interval, summed by default (as spawns)
+AUDIO_NAMED = ("sounds", "repeats")  # read from the names of the sounds that started (probes._heard_names)
 WHOLE_SCREEN = [0.0, 0.0, 1.0, 1.0]
 ANGLES = ("yaw", "pitch", "roll", "world_yaw", "world_pitch")  # world_yaw, world_pitch: components fields
 ANGLE_PREFIXES = ("rel_yaw:", "world_yaw:", "world_pitch:", "world_roll:")

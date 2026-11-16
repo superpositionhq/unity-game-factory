@@ -485,10 +485,12 @@ no check at all, naming the task and the sentence. Fix what you find in the task
     "Tag each generator Generator so QA can find it."
   _(failure: tasks were reworked by writing the check's read target into the ticket, which hands the solver the
   answer)_
-- **A sound ask** is checked by a sound starting when the event happens (the `audio` reads near the source, rising in
-  a window right after the event; a clip's asset name when the ticket asks for distinct sounds, "each gun has its own
-  sound"). What the sound is, how it sounds, is never checked. New games import every sound (unity-game-session skill),
-  so every sound has an asset name.
+- **A sound ask** is checked by a sound starting when the event happens: `audio` `started_audible` near the source
+  (`select.near`) or by its `owner`, in a window right after the event (give it 0.2 s of room); `sounds` and `repeats`
+  when the ticket asks for distinct sounds ("each gun has its own sound", "never the same take twice"). What the
+  sound is, how it sounds, is never checked. A `PlayOneShot` clip has no name the probe can tell, and one played on a
+  source that is already playing is not seen at all (docs/task-probes.md, section 2.16): where the start plays its
+  sounds that way, read the mix's `level` rising in the window instead, and never write `sounds` or `repeats`.
 - **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
   ship an ask nothing checks. The instruction stays plain prose, never fields.
 
@@ -579,7 +581,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | `"of": "first"` over a broad select read another object on the reference (the scene was edited) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counted every child of each coin | name a component that sits once per thing (the coin's own script, when the start has it too); in a task that adds the thing no such component is sure, so count how often an `objects` `count` over a `has` select rises (docs/task-probes.md, section 2.9) |
 | `teleport_to` a hovering target left the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
-| a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `level` in an audio play, or select the source by `owner` |
+| a sound played with `PlayOneShot` matched no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `started_audible` by `owner` or `near`, or `level` in an audio play |
 | a widget click didn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |
 | an editor `shader:` value compared with `==` 0.2 read 0.19999995827674866 | floats come back as stored: `>=`/`<=` a little either side |
 | a readout read through the frame touched its rect's edge and read nothing | give the `ui` rect a margin of background around the text |

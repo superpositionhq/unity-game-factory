@@ -85,7 +85,7 @@ Selects and points:
 - Widget select: `component`, `name`, `text` (a regular expression on its text), `visible`.
 - UI select: `kind` (`text`, `box`, `image`), `text`, `rect`.
 - Audio select: `sound` (a wildcard on the AudioClip's name), `sound_class` (a wildcard on the name of the
-  AudioMixerGroup the source outputs to), `owner`. Piece select: `component`, `name`, `mesh`, `owner`, `near`.
+  AudioMixerGroup the source outputs to), `owner`, `near`. Piece select: `component`, `name`, `mesh`, `owner`, `near`.
 - A name a wildcard reads (`name`, `mesh`, `sound`, `sound_class`) may hold parentheses: `^[A-Za-z0-9_.*?() -]{1,120}$`
   (`Coin(Clone)`, `Lamp (1)`).
 - Points: `{"xyz": [x, y, z]}`, `{"player": true, "offset": [x, y, z]}`, `{"camera": true, "forward": m}`,
@@ -103,7 +103,8 @@ Measures:
   last dot.
 - `components` fields include `prop:<path>` (on the component itself); the measure takes `match` (a `prop:` string).
 - The schema lists every kind's fields: `widgets` has `value` and `interactable` among them, `camera`
-  `player_on_screen`, `pieces` `objects`, `audio` `level`; a `ground` measure reads at a point `xz` or over a `box`.
+  `player_on_screen`, `pieces` `objects`, `audio` `level` and the started fields (`started`, `started_audible`,
+  `sounds`, `repeats`); a `ground` measure reads at a point `xz` or over a `box`.
 - `grading`: `post:<Component>.<parameter>` and `post:<Component>.<parameter>.<channel>`
   (`^post:[A-Za-z_][A-Za-z0-9_]{0,63}\.[A-Za-z_][A-Za-z0-9_]{0,63}(\.[rgbaxyzw])?$`): a URP volume parameter belongs to
   its component.
@@ -404,7 +405,18 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   `spatialBlend` x its rolloff at the listener's distance: logarithmic min distance / distance, linear down to 0 at max
   distance, or its custom curve over distance / max distance). Without the Audio module every sample reads silence, and
   one `query_errors` line says so (`audio <id>: the project has no Audio module: no sound is read`). Mixer group volumes
-  and `AudioListener.volume` are left out. `level` is the RMS of the listener's mixed output since the previous sample,
+  and `AudioListener.volume` are left out. With `near`, only a source whose `spatialBlend` is above 0 at a place within
+  it. The sounds that start (`AudioStarts`, one scan a frame for every audio query, in hierarchy order within a frame):
+  a source enabled and playing that wasn't the frame before, unless it goes on from where it stood (same clip, its
+  `timeSamples` not behind where it was: a pause lifted), or one that doesn't loop whose `timeSamples` went back. A
+  start is told to the queries once its name is settled: its source's clip when `timeSamples` moved from where it was
+  at the start, else after 5 frames, or when the source stops, without a name (`named` false: a `PlayOneShot`). A
+  query takes a start by its select at that frame (`sound` only a named one, `sound_class` the group at the start,
+  `owner` the source's object or one above it, `near` the place it started at and only a 3D source) and counts it in
+  `started`; in `started_audible` once it reads 0.001 or louder at the listener, in the frame it started or a later
+  one while it plays. The value's `starts` lists the first 64 a sample took (`t`, `sound`, `named`) and
+  `starts_total` how many; the checker reads `sounds` and `repeats` from them over the samples picked
+  (`probes._heard_names`), and nothing when one has no name or more started than are listed. `level` is the RMS of the listener's mixed output since the previous sample,
   from `AudioTap`, an `OnAudioFilterRead` filter the probe keeps on every enabled listener (`AudioTap.Follow`, before
   and after the game's scripts every frame: it adds a tap, and switches one the game switched off back on), which sums
   the final mix

@@ -477,7 +477,34 @@ def series(measure, probe):
 
 
 def default_agg(measure):
-    return measure.get("agg") or ("sum" if measure["probe"] == "spawns" else "last")
+    started = measure["probe"] == "audio" and measure.get("field") in tasks.AUDIO_STARTED
+    return measure.get("agg") or ("sum" if measure["probe"] == "spawns" or started else "last")
+
+
+def _heard_names(measure, probe):
+    """(audio `sounds` or `repeats` over the samples `measure` picks, or None; why none): the names of the sounds that
+    started in those samples' intervals, in the order they started (each sample's `starts` rows: the probe lists at
+    most 64 a sample and says how many there were)."""
+    (query,) = needs(measure)
+    picked = pick([(s["t"], s.get("value")) for s in _samples(probe, query_id(query))], measure)
+    if not picked:
+        return None, f"no samples in the window (the play ended at {fmt(ended(probe))} s)"
+    rows = []
+    for _, value in picked:
+        if not isinstance(value, dict) or not isinstance(value.get("starts"), list):
+            return None, "no value in the window (no audio listener, or a probe that lists no starts)"
+        listed = [r for r in value["starts"] if isinstance(r, dict)]
+        total = value.get("starts_total")
+        if _count(total) and total > len(listed):
+            return None, "more sounds started than the probe lists, so their names can't all be read"
+        rows += listed
+    if any(r.get("named") is not True or not isinstance(r.get("sound"), str) for r in rows):
+        return None, ("a sound that started has no name the probe can tell (a PlayOneShot's clip, a source without a "
+                      "clip): play it as its source's own clip, or read started_audible")
+    names = [r["sound"] for r in sorted(rows, key=lambda r: r["t"] if _count(r.get("t")) else 0.0)]
+    if measure["field"] == "sounds":
+        return float(len(set(names))), None
+    return float(sum(1 for a, b in zip(names, names[1:]) if a == b)), None
 
 
 def reduce(measure, probe, log=""):
@@ -501,6 +528,8 @@ def measured(measure, probe, log=""):
         return float(sum(1 for line in (log or "").splitlines() if re.search(measure["pattern"], line))), None
     if probe is None:
         return None, "no samples in the window (the play wrote no probe file)"
+    if measure["probe"] == "audio" and measure.get("field") in tasks.AUDIO_NAMED:
+        return _heard_names(measure, probe)
     picked = pick(series(measure, probe), measure)
     if not picked:
         return None, f"no samples in the window (the play ended at {fmt(ended(probe))} s)"

@@ -283,7 +283,7 @@
     },
     "AudioMeasure": {
       "additionalProperties": false,
-      "description": "What the player hears (docs/task-probes.md, section 2.16): the AudioSources playing that `select` matches, each at its volume at the\nlistener (its own volume, 0 when muted, times its distance attenuation by its rolloff, its 3D share by spatialBlend;\nmixer volumes and AudioListener.volume left out): `count` (how many), `audible` (how many at 0.001, -60 dB, or\nlouder), `volume` (their sum), `max_volume` (the loudest); `level` (the RMS of the listener's mixed output since\nthe previous sample, mixers and effects included). A play with an audio measure runs paced to real time with its\nsound measured and silenced. The volumes' and the level's threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).",
+      "description": "What the player hears (docs/task-probes.md, section 2.16): the AudioSources playing that `select` matches, each at its volume at the\nlistener (its own volume, 0 when muted, times its distance attenuation by its rolloff, its 3D share by spatialBlend;\nmixer volumes and AudioListener.volume left out): `count` (how many), `audible` (how many at 0.001, -60 dB, or\nlouder), `volume` (their sum), `max_volume` (the loudest); `level` (the RMS of the listener's mixed output since\nthe previous sample, mixers and effects included). A play with an audio measure runs paced to real time with its\nsound measured and silenced. The volumes' and the level's threshold is calibrated or relative to the start,\nnever a literal (tools/validate-game.py).\n\nThe sounds that start, every one however short, seen once a frame (a source that plays and didn't the frame\nbefore): `started` (how many started in each sample's interval, summed over the samples picked by default),\n`started_audible` (how many of them were heard at the listener, 0.001 or louder), and from the starts' own names in\nthe order they started, over the samples picked: `sounds` (how many different clips), `repeats` (how many started\nwith the same clip as the start just before them). `sounds` and `repeats` read nothing when a start has no name the\nprobe can tell (a PlayOneShot's clip); they take no `agg`.",
       "properties": {
         "agg": {
           "anyOf": [
@@ -344,7 +344,11 @@
             "audible",
             "volume",
             "max_volume",
-            "level"
+            "level",
+            "started",
+            "started_audible",
+            "sounds",
+            "repeats"
           ],
           "title": "Field",
           "type": "string"
@@ -412,8 +416,19 @@
     },
     "AudioSelect": {
       "additionalProperties": false,
-      "description": "The AudioSources playing (docs/task-probes.md, section 2.16): by their AudioClip's name (`sound`, a wildcard), their output\nAudioMixerGroup's name (`sound_class`, a wildcard), and an owner object the `owner` select matches (the source on\nit or its descendants); none: every source playing.",
+      "description": "The AudioSources playing (docs/task-probes.md, section 2.16): by their AudioClip's name (`sound`, a wildcard), their output\nAudioMixerGroup's name (`sound_class`, a wildcard), and an owner object the `owner` select matches (the source on\nit or its descendants); and `near` a point (a 3D source at a place within it; for the started fields, where it\nstarted; a 2D source is near nothing); none: every source playing.",
       "properties": {
+        "near": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Near"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "owner": {
           "anyOf": [
             {
