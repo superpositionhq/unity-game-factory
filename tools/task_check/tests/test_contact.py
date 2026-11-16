@@ -107,5 +107,20 @@ class Readings(unittest.TestCase):
                              [{"kind": "objects", "select": FOE, "fields": [field]}])
 
 
+class CodeJudgeFocus(unittest.TestCase):
+    @staticmethod
+    def judge(**more):
+        return {"kind": "code_judge", "name": "fixed_at_its_cause", "required": False, "question": "Is it fixed at its cause?",
+                "rubric": [{"key": "cause", "criterion": "The cause is fixed."}], **more}
+
+    def test_a_focus_of_project_file_globs_is_taken(self):
+        task_with(probe(measure=ALIVE, expect=RELATIVE), self.judge(focus=["Assets/Scripts/*", "Assets/Scripts/Combat/Health.cs"]))
+        task_with(probe(measure=ALIVE, expect=RELATIVE), self.judge())
+
+    def test_a_focus_outside_the_project_or_too_long_is_refused(self):
+        for bad in (["/etc/passwd"], ["../other/*"], ["Assets/*"] * 9, "Assets/*"):
+            self.assertIsNotNone(refused(probe(measure=ALIVE, expect=RELATIVE), self.judge(focus=bad)), bad)
+
+
 if __name__ == "__main__":
     unittest.main()

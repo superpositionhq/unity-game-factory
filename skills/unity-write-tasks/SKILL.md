@@ -314,7 +314,9 @@ set. The usual order:
    `{"name": ..., "kind": "code_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
    `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set
    `"before": true` to be shown the start beside the result, and `route`, `reference`, `plays` and `shots` (the task
-   schema's `Judge` says what each does).
+   schema's `Judge` says what each does). A `code_judge` may name the files its question is about in `focus`
+   (up to 8 globs of project files, `["Assets/Scripts/Combat/*"]`): their diffs are shown first on both sides, so a
+   long change still shows them.
 
 **Every look-and-feel ask in the brief gets a required `looks_as_asked` rubric item** (a review of delivered tasks
 found the checks thinner than the briefs, look-and-feel asks most of all; the owner, 2026-11-11: such an ask gates the

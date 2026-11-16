@@ -782,8 +782,17 @@
     },
     "CodeJudge": {
       "additionalProperties": false,
-      "description": "A code reviewer's question over the run's own change (its diff from the start, text files) beside the game's\nreal change for the same problem (the seed's `reference`, a bug's fix from the game's history), which the agent\nnever sees.",
+      "description": "A code reviewer's question over the run's own change (its diff from the start, text files) beside the game's\nreal change for the same problem (the seed's `reference`, a bug's fix from the game's history), which the agent\nnever sees. `focus`: globs of the project files the question is about (Assets/Scripts/*, Assets/Scripts/Combat/Health.cs), at most 8; their diffs are shown first on both sides, so a long change still shows them.",
       "properties": {
+        "focus": {
+          "items": {
+            "pattern": "^([A-Za-z0-9_*-][A-Za-z0-9_.*?-]{0,63}/){0,8}[A-Za-z0-9_*-][A-Za-z0-9_.*?-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Focus",
+          "type": "array"
+        },
         "kind": {
           "const": "code_judge",
           "title": "Kind",
