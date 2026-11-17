@@ -381,8 +381,9 @@ widget that isn't on screen. Read it when a play did not do what its inputs say.
   game contract `TakeDamage` returns the damage actually applied (0 when the hit did nothing), so this is what a hit
   did: a block, an invulnerable moment, a weak spot. An object no stage struck has no value, never 0, nor one whose
   `TakeDamage` returns no number;
-- **a hit stop** (0.05 to 0.1 s: no screenshot shows it): `world` `time_scale` (section 2.21) where the stop slows
-  the game's time; objects `frozen` where it is the object's own: the longest short stop that ended since the
+- **a hit stop** (0.05 to 0.1 s: no screenshot shows it): objects `frozen`, the stop of the one struck, which every
+  way of building a hit stop gives; `world` `time_scale` (section 2.21) only when the ticket itself says the game's
+  time slows or stops (a build may hold the object alone, and the game's time then never moves). `frozen` is the longest short stop that ended since the
   previous sample (frames in which the object moved under 1 mm, turned under 0.05 degrees and none of its skinned
   meshes' bones or its parts moved 1 mm, between two frames of motion, 0.5 s at most; its parts are those it had
   when the play first read it, so a hit spark or a damage number made under it, moving or not, ends no stop, nor does

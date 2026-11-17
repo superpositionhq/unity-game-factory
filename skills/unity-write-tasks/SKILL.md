@@ -250,6 +250,13 @@ lamp looks), and give it its own probe.
   looks wanted, what must still work. Close with the art bar: the project's own assets and engine features, no
   primitive placeholder shapes, no debug text.
 - Describe the controls the player needs; the harness tells the agent which scene QA plays (`play_scene`).
+- **Say what QA's plays do to the game, where it matters.** The checker steps the game at a fixed 30 frames a second
+  of game time and runs it as fast as the machine renders, so far faster than a clock (a play that reads sound or a
+  hit stop runs at the pace of a clock); it may put the player somewhere at once and hold it there. Logic timed on
+  the real clock (`Time.unscaledTime`, `Time.realtimeSinceStartup`) barely advances in such a play, and state that
+  doesn't follow a moved player is left behind. When the ask touches either, the ticket's QA note says so in a
+  player's words ("QA fast-forwards the game", "QA may place the player at the gate"), and the checks' windows leave
+  room for it.
 - Never name the studio, its pipeline or its tools. Never describe the fix or any step of the thread.
 
 ## 4. `play_scene` and `play_args`
@@ -314,7 +321,10 @@ set. The usual order:
    `{"name": ..., "kind": "code_judge", "question": ..., "rubric": [{"key": ..., "criterion": ...}]}` with
    `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set
    `"before": true` to be shown the start beside the result, and `route`, `reference`, `plays` and `shots` (the task
-   schema's `Judge` says what each does). A `code_judge` may name the files its question is about in `focus`
+   schema's `Judge` says what each does). **Every judge has plays of its own that show each rubric item at the
+   moment it can be seen**: a judge without plays sees only the idle look and the drive. One subject per judge; no
+   item about "every screen" unless its plays open every screen; no empty criterion such as "shows what the ticket
+   asks". A `code_judge` may name the files its question is about in `focus`
    (up to 8 globs of project files, `["Assets/Scripts/Combat/*"]`): their diffs are shown first on both sides, so a
    long change still shows them.
 
@@ -417,7 +427,12 @@ see, never an exact string it doesn't quote), objects by a tag or a type the sta
 the widgets on screen, so one hidden instead of removed is not shown when it is inactive, under a disabled Canvas or
 a CanvasGroup at alpha 0, has its own graphic disabled, or lies outside the frame. A widget hidden another way (its
 colour's alpha at 0, scale 0, an empty text, a mask) still reads on screen: what is really drawn is `ui`'s to read.
-Write `"visible": false` only when the check really means "exists while hidden". **Ask the second-solution question of every check:** would a correct solution
+Write `"visible": false` only when the check really means "exists while hidden". **Measure the effect the player sees, never one way of building it**: not a global such as the game's time scale
+for "twice as fast" (read how far the thing gets in a time), not a part's offset from its parent (a correct fix
+that re-parents it reads otherwise: read where it is in the world), not the root object's rotation when a child does
+the moving, not a count of samples standing in for a count of events. **Select by what the thing is, not where the
+old one was**: no `near` around the start's position for something the task asks to move (a camera that must stand
+further back falls outside its own sphere). **Ask the second-solution question of every check:** would a correct solution
 that names things differently, lays the level out differently, or hides a thing instead of removing it still pass?
 If not, the check reads the reference, not the ask: rewrite it. Lighting and colour
 are measured from the engine (`light`, `grading`), never from screenshots. `describe` says the assertion in plain
@@ -478,7 +493,12 @@ sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
 
 Before the game is packaged, read each task you wrote, its instruction against its checks, yourself; no tool or
 reviewer does this for you. Lab reviews every task the same way at submission and sends the game back when an ask has
-no check at all, naming the task and the sentence. Fix what you find in the task before it is packed:
+no check at all, naming the task and the sentence. Some faults of a check the Lab may repair itself, without sending
+the game back, and only these: restage a play with the steps the instruction gives a player; move a window, or a
+judge's frames, to the moment the recorded play shows; retarget a selector to what the instruction names; click by
+on-screen text, or wait; read from the screen a value whose property reads nothing; remove a click repeated after
+its action already happened. The measure and its threshold stay as written. Everything else comes back to you.
+Fix what you find in the task before it is packed:
 
 - **Go through the instruction sentence by sentence.** The game's description, the controls line and the art line are
   context, and so are a bug report's symptom, cause and steps to reproduce; they ask nothing. What should now be
@@ -490,6 +510,16 @@ no check at all, naming the task and the sentence. Fix what you find in the task
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check alone.**
+- **A play does what a player must do to reach the state it probes.** When the game starts on a title screen or a
+  menu, every play that checks something in the level first clicks the start control the instruction names, by its
+  on-screen text, and waits for the level; or the instruction states the scene QA plays (`play_scene`). Never a
+  shortcut only the reference has.
+- **A play keeps its own preconditions true.** No input on the frame a state resets (press the key a few seconds
+  into the round, not at its start). No teleport that breaks what the game holds together: carried objects, tethers,
+  a range the instruction gives a limit to. Where a teleport is needed, move what the game moves together, or walk
+  there.
+- **A play never repeats an action that already happened.** No second click on Continue or Retry after it worked:
+  the button is gone, and the click is a missed input.
 - **A play that reads what another play writes names it in `after`. Never rely on the checker's order.** A task play
   that reads a save (a level reached, a profile filled in) lists the plays that write it:
   `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
@@ -502,8 +532,9 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   key; `set` a start-named health only to set the fight up; `damage` for a hit taken at a known moment (the game's
   own `IDamageable.TakeDamage`); `where` to pick the live ones (docs/task-probes.md, section 1.4). Read the result
   deterministically: a state change in a probe one sentence explains (a `prop:` of the component holding health,
-  state or phase, `damage_taken`); a hit stop by `world` `time_scale` or `frozen`, never a judge (no screenshot shows
-  it); a stagger, knock-back or interrupted action by a start-named state or Animator parameter, the object unable to
+  state or phase, `damage_taken`); a hit stop by objects `frozen` (the one struck holds still for a moment), never a judge (no
+  screenshot shows it), and by `world` `time_scale` only when the ticket itself says the game's time slows or stops:
+  a build may stop the object alone; a stagger, knock-back or interrupted action by a start-named state or Animator parameter, the object unable to
   move, or its distance from the attacker, never a judge. What it looks like (sparks, colours, glow) goes to the
   required visual judge on named frames across the contact. Names come from the start commit; `set` and `where` only
   on members the task does not ask to change. Where the nearest thing a player can shove is not surely the target,
@@ -585,6 +616,11 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a check written without running the game failed on the reference: an invented threshold, a window that missed the event, a click when no button was shown, a judge asking for what the frames don't show | run every check on both builds and read what it measured before handing the task in (section 5) |
 | an instruction asked for what no play can show (how a sound sounds, the packaged build, a frame rate on given hardware) | never an ask; saving across plays is checked with `after` |
 | a model judge misread screenshots and failed a correct fix (or passed a wrong one) | required probes for what can be measured; only the brief's own looks in a required judge (`looks_as_asked`, still-looks in `still_works`), each item concrete and decidable from the screenshots; every other judge `"required": false` |
+| every play probed the level while the game still sat on the title screen the task itself added | a play clicks the start control the instruction names, by its text, and waits; or the instruction states the scene QA plays |
+| "twice as fast" read from the game's time scale, a part read by its offset from its parent, a moving child read by its root's rotation, samples counted as events: a correct build made another way failed | measure the effect the player sees, in the world |
+| a `near` sphere around where the start had the thing, for a task that asks to move it | select by what the thing is (a component or tag the start has, `has`), not where the old one was |
+| an input sent on the frame the round reset was lost; a teleport left the carried object or the tether behind | a play keeps its own preconditions: input a few seconds in; move what the game moves together |
+| a second click on Continue after the first had worked was a missed input | a play never repeats an action that already happened |
 | a judge was shown only the title screen, or never the state a task's own key opens | the `judge` check names its own `plays` that reach it (section 5) |
 | five stills couldn't show whether a move eased or feet slid | a number: a probe sampled every 0.1 s with `agg` `step`; only seen: a `looks_as_asked` item with a short play and `shots` (section 5) |
 | a fix made only in assets (a prefab, a material) failed a code review | the cause is checked by its measured effect (a probe), never by reading the diff |
