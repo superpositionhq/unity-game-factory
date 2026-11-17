@@ -27,7 +27,7 @@ each.
 
 | Placeholder | From |
 |---|---|
-| `{{GAME_TITLE}}`, `{{SLUG}}`, `{{PROJECT}}` | the title, a lowercase slug (`island-survival`) and a PascalCase project name (`IslandSurvival`) |
+| `{{GAME_TITLE}}`, `{{SLUG}}`, `{{PROJECT}}` | the title, a lowercase slug (`example-game`) and a PascalCase project name (`ExampleGame`) |
 | `{{PITCH}}`, `{{SCENARIOS}}`, `{{STORY}}`, `{{ART_STYLE}}`, `{{ART_PACKS}}` | `games/<slug>.md`, or your own few lines |
 | `{{UGF_ROOT}}` | the machine root (e.g. `C:\Users\<name>\UnityWork`; `machine/lib/ugf-root.ps1`) |
 | `{{ORG}}` | the GitHub organisation (or user) owning the repos: `github_org` in the machine config |

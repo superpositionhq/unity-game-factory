@@ -46,7 +46,7 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   it; the oracle case, the game at its reference, must pass every required check; `tools/task-check.py` in one
   background run, reading its results, scoring the judges blind, the failure patterns and what to do for each).
 
-**Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory
+**Only these skills (owner's rule).** Contractors and every agent session working for unity-game-factory
 use the skills above (of unity-desktop-game and unity-mobile-game, the one of the game's platform, never both) and no
 others. Never install, enable or invoke any other skill: not the person's own
 personal or project skills, not a plugin's or a marketplace's skills, not the skills bundled with the agent (Claude
@@ -142,18 +142,18 @@ Code's Bash tool on Windows), put each Windows path in single quotes: bash drops
 
 ## Rules
 
-Rules for agents working in this repository. Each rule says what went wrong without it (on earlier games, where
-these were learned). Background is in `docs/`; keep this section to rules.
+Rules for agents working in this repository. Each rule gives its reason. Background is in `docs/`; keep this section
+to rules.
 
 ### Data
 
 - Never commit a full package, a project snapshot, `git.log` with asset diffs, or package zips here; only
-  tools and docs. _(failure: a package is tens of GB, far past GitHub's 100 MB file limit)_
-- Keep this repository private. _(failure: the docs describe a private repository and its asset data)_
+  tools and docs. _(why: a package is tens of GB, far past GitHub's 100 MB file limit)_
+- Keep this repository private. _(why: the docs describe a private repository and its asset data)_
 - Step reasons are the builder's own narration or notes, or the commit message; never write them with a
-  model. _(failure: reasons written after the fact make a package a reconstruction rather
+  model. _(why: reasons written after the fact make a package a reconstruction rather
   than a record)_
 - Anonymize authors as `dev_NN` and run the leak scan (real names, e-mails, `C:\Users\…`, `/Users/…`, `/home/…`)
   over every text file of a package before calling it done (`tools/package-dataset.py` does both, and refuses a
-  package with a name left in a text file or a path: never make a package another way). _(failure: commit metadata
+  package with a name left in a text file or a path: never make a package another way). _(why: commit metadata
   and asset files can carry real names and machine paths)_

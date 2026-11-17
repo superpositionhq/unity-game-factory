@@ -81,7 +81,7 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
   for ambience and music; `preloadAudioData` on for short clips (Unity 6.3 imports with it off, so a clip's data loads
   only when it first plays); Vorbis, the default compression. Then `SaveAndReimport()`, one workflow row per run
   (unity-game-session skill, "Replay-friendly work"). Commit the WAVs, their `.meta` files and the step together.
-- **Imported assets only (user rule, 2026-11-11).** Every sound the game plays is an AudioClip imported from a file (a
+- **Imported assets only (user rule).** Every sound the game plays is an AudioClip imported from a file (a
   Freesound clip, or a WAV a committed script generated, then imported like the rest), so it has an asset name the
   grader can tell apart. Never make one at run time: no `AudioClip.Create` (PCM reader callback or `SetData`), no
   `OnAudioFilterRead` writing samples. `tools/validate-game.py` checks the code (rule `sound`).

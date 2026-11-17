@@ -252,7 +252,7 @@ then renamed into place, so whoever waits for one never reads half of it.
 ### `inputs.jsonl` (written by the drop-in)
 
 ```json
-{"t_ns":437618858255400,"qpc":4376188582554,"frame":0,"type":"header","schema":"autoplay-inputs/2","autoplay_version":1,"engine":"unity","game":"TideFinal","run_id":"r1","scenario":1,"scenario_name":"","seed":7,"skill":0.6,"max_seconds":60,"qpc_frequency":10000000,"build_commit":"abc1234"}
+{"t_ns":437618858255400,"qpc":4376188582554,"frame":0,"type":"header","schema":"autoplay-inputs/2","autoplay_version":1,"engine":"unity","game":"ExampleGame","run_id":"r1","scenario":1,"scenario_name":"","seed":7,"skill":0.6,"max_seconds":60,"qpc_frequency":10000000,"build_commit":"abc1234"}
 {"t_ns":...,"qpc":...,"frame":208,"type":"control_info","key":"<Keyboard>/w","actions":["Move"]}
 {"t_ns":...,"qpc":...,"frame":208,"type":"inject","key":"<Keyboard>/w","value":1,"edge":"down"}
 {"t_ns":...,"qpc":...,"frame":209,"type":"inject","key":"<Keyboard>/w","value":1,"edge":"hold"}
@@ -278,7 +278,7 @@ before the control's own processors (a stick's deadzone). An input logged in fra
 ### `telemetry.jsonl` (drop-in rows + your game's rows)
 
 ```json
-{"t_ns":...,"qpc":...,"frame":189,"event":"scenario_start","scenario":1,"scenario_name":"Tide Run","scene":"Assets/Scenes/Arena.unity"}
+{"t_ns":...,"qpc":...,"frame":189,"event":"scenario_start","scenario":1,"scenario_name":"Example Run","scene":"Assets/Scenes/Arena.unity"}
 {"t_ns":...,"qpc":...,"frame":240,"event":"score","score":1,"delta":1,"reason":"progress"}
 {"t_ns":...,"qpc":...,"frame":1874,"event":"guard_state","guard":"Guard_2","from":"patrol","to":"suspicious"}
 ```
@@ -298,7 +298,7 @@ events (waves, checkpoints, laps, detections...) freely.
 ### `outcome.json` (drop-in; your part is the arguments of `FinishRun`)
 
 ```json
-{"schema":"autoplay-outcome/2","autoplay_version":1,"engine":"unity","game":"TideFinal","run_id":"ok","scenario":1,"scenario_name":"Tide Run",
+{"schema":"autoplay-outcome/2","autoplay_version":1,"engine":"unity","game":"ExampleGame","run_id":"ok","scenario":1,"scenario_name":"Example Run",
  "seed":7,"skill":0.6,"max_seconds":60,"qpc_frequency":10000000,"build_commit":"abc1234","result":"win","score":21,
  "duration_s":11.415671,"run_duration_s":11.445078,"go_qpc":4385959723793,"scenario_start_qpc":4385960017866,
  "scenario_end_qpc":4386074174573,"frames":682,"inputs_injected":920,"go_timed_out":false,"build_config":"release",
@@ -316,7 +316,7 @@ scenario_end; `frames` = frames from scenario_start to scenario_end (so `frames 
 ### `clock.json` (drop-in)
 
 ```json
-{"schema":"autoplay-clock/2","scenario":1,"scenario_name":"Tide Run","qpc_frequency":10000000,"t_ns_definition":"qpc * 1e9 / qpc_frequency",
+{"schema":"autoplay-clock/2","scenario":1,"scenario_name":"Example Run","qpc_frequency":10000000,"t_ns_definition":"qpc * 1e9 / qpc_frequency",
  "samples":[{"label":"start","qpc":4376188584008,"qpc_after":4376188584102,"t_ns":437618858400800,"unix_ns":1794343366960117500,"utc":"2026-11-10T20:42:46.960Z","frame":0}, "go", "audio_start", "audio_stop", "end"]}
 ```
 
@@ -346,8 +346,7 @@ pipeline anchors the WAV with these rows and turns it into `system_audio.mka` (`
 250 ms). Measured on a 48 kHz device: 1024-frame buffers (21 ms) arrive about every 20 ms with up to one buffer of
 jitter, two at once right after go; the drift stayed under 50 ms in every run, a listener swap included, and a sound
 appeared in the WAV within 27 ms of the game's `PlayOneShot` call. (A mixer recording without per-buffer stamps
-dropped buffers under load on earlier games: runs lost 8-23 s of audio, and the sound no longer lined up with the
-video.)
+drops buffers under load: a run loses seconds of audio, and the sound no longer lines up with the video.)
 
 ### `ready.json`, `go`, `game.log`, `watchdog.json`
 

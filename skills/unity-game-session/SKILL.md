@@ -120,22 +120,19 @@ by hand under these rules, or ask.
   material of a pack after import.
 - Opening a scene in Single mode in an editor step (`EditorSceneManager.OpenScene`, `NewScene`) unloads the assets
   loaded or created before it: one of them assigned afterwards through `SerializedObject` (`objectReferenceValue`)
-  reads back null at once and saves as `{fileID: 0}`, with no warning (one game's camera and HUD never got their data
-  assets: three commits). Open the scene first, then load the assets you assign (`AssetDatabase.LoadAssetAtPath` after
-  the open), and read each reference back before saving.
+  reads back null at once and saves as `{fileID: 0}`, with no warning. Open the scene first, then load the assets you
+  assign (`AssetDatabase.LoadAssetAtPath` after the open), and read each reference back before saving.
 - `AssetDatabase.ImportPackage` (a `.unitypackage`) imports nothing inside the method that calls it: right after it,
-  even after `AssetDatabase.Refresh`, no file is there, and with `-quit` the editor leaves with nothing imported (one
-  game's first import step logged a failure and imported nothing). Run that step with `unity.ps1 step ... -NoQuit`,
-  subscribe to `AssetDatabase.importPackageCompleted` and `importPackageFailed`, and call `EditorApplication.Exit` from
-  there and after a time limit: a run without `-quit` ends only when the step exits (the template's
-  `ProjectSetup.ImportTextEssentials` is the pattern).
+  even after `AssetDatabase.Refresh`, no file is there, and with `-quit` the editor leaves with nothing imported. Run
+  that step with `unity.ps1 step ... -NoQuit`, subscribe to `AssetDatabase.importPackageCompleted` and
+  `importPackageFailed`, and call `EditorApplication.Exit` from there and after a time limit: a run without `-quit`
+  ends only when the step exits (the template's `ProjectSetup.ImportTextEssentials` is the pattern).
 - `EditorSceneManager.SaveScene` makes no folder: into a missing one it saves nothing, returns false and only logs an
-  error, and a step that goes on to log its row records a scene that is not there (the template's first example step
-  did). Create the folder first (`Directory.CreateDirectory`, as the template's `UrpSetup` does) and check what
-  `SaveScene` returns.
+  error, and a step that goes on to log its row records a scene that is not there. Create the folder first
+  (`Directory.CreateDirectory`, as the template's `UrpSetup` does) and check what `SaveScene` returns.
 - Every MonoBehaviour in its own file named after its class: several in one file compile, but only the one named after
-  the file gets a script asset, and a player crashed loading a scene that used the others ("level1 is corrupted").
-- **Combat through one interface, state readable (user rule, 2026-11-11):** in a game where anything can be hurt,
+  the file gets a script asset, and a player can crash loading a scene that uses the others ("level1 is corrupted").
+- **Combat through one interface, state readable (user rule):** in a game where anything can be hurt,
   declare `public interface IDamageable { float TakeDamage(float amount, GameObject source); }`, returning the damage
   actually applied (0 when the hit did nothing: a guard, a shield, invulnerability); everything that can be
   hurt is a component implementing it (on the object or its parent) and decides health, death, stagger, guard, parry
@@ -150,11 +147,10 @@ by hand under these rules, or ask.
   play to reach gets a scenario start option (a scene and a command-line flag), listed in the README's QA section.
   `tools/validate-game.py` checks the interface and the statics (rule `contract`), and the packager refuses a game
   that fails it. It applies to every game not yet submitted: a game in progress is brought up to it before it is
-  packaged (route its hits through `IDamageable.TakeDamage`, keep its key state on component instances; owner,
-  2026-11-11). Games already approved in the Lab are not re-validated.
-  _(failure: combat asks could not be graded because damage and state lived in private sim code: a task's hit,
-  stagger, parry, stun or boss phase could not be staged or read by the grader, so reworked tasks shipped those asks
-  unchecked)_
+  packaged (route its hits through `IDamageable.TakeDamage`, keep its key state on component instances). Games already
+  approved in the Lab are not re-validated.
+  _(why: damage and state kept in private code can't be staged or read by the grader, so a task's hit, stagger, parry,
+  stun or boss phase would go unchecked)_
 - **Art style (user rule):** every game has one style from the library
   [docs/art-styles/](../../docs/art-styles/index.md) (100 guides: references, visual definition, Unity recipe, do /
   do not), and everything on screen follows it: models and materials, lighting, post-processing, effects, UI.
@@ -206,41 +202,39 @@ by hand under these rules, or ask.
   cues listed in the design doc, clips chosen by their numbers and measured with `tools/sfx.py`, CC0 or CC BY only,
   recorded in `assets.manifest.json`. Never leave a cue silent or ship a placeholder beep. Every sound the game plays
   is an imported AudioClip asset (a clip from the unity-sound skill, or a WAV a committed script made and Unity
-  imported; user rule, 2026-11-11); none is made at run time: no `AudioClip.Create` (with or without a PCM reader
+  imported; user rule); none is made at run time: no `AudioClip.Create` (with or without a PCM reader
   callback), no `OnAudioFilterRead` writing samples, no procedural clip data, for a game sound. `tools/validate-game.py`
   scans for them (rule `sound`), and the packager refuses a game that fails it. A game in progress replaces each
   sound it makes at run time with an imported asset (a WAV a committed script makes, then imports) before it is
-  packaged. _(failure: 52 of 218 Unreal games synthesised their
-  sounds at run time, so a task asking "each gun has its own sound" had no asset name for the grader to tell sounds
-  apart by)_
+  packaged. _(why: a sound made at run time has no asset name, so the grader can't tell such sounds apart and a task
+  about distinct sounds can't be checked)_
 - **UI (user rule):** matches the game's art style (its guide's UI and typography line): kit frames, icons, display
   fonts, styled numbers. UI Toolkit or
   uGUI with TextMeshPro, either is fine. No plain or default-font text on screen: never the default
   `LiberationSans SDF` or the built-in `LegacyRuntime` font; make a TextMeshPro font asset (or a UI Toolkit font asset)
   from the game's own display font.
-- **UI colours, when you are Codex (user rule, 2026-11-11):** Codex's habit, whatever the game, is a dense blue
-  interface: navy or dark-blue panels, cyan or blue glowing text and outlines, the screen packed edge to edge with
-  boxes, bars and small readouts. Do not build that. Take the UI's colours, materials and type from the game's art
+- **UI colours (user rule):** never fall back on a default dense blue interface, whatever the game: navy or dark-blue
+  panels, cyan or blue glowing text and outlines, the screen packed edge to edge with boxes, bars and small readouts.
+  Do not build that. Take the UI's colours, materials and type from the game's art
   style guide and its world, show only what the player needs at that moment and leave the play view open. Blue is used
   only where the style guide itself asks for it. Before calling a screen or the HUD done, look at a screenshot of it:
   if it reads as a blue sci-fi dashboard laid over a game that is not one, or as a wall of panels, redo it.
-  _(failure: games built by Codex came out one after another with the same dense blue UI, unrelated to their art
-  style)_
+  _(why: a default interface ignores the game's art style, and every game built that way looks the same)_
 - **Story (user rule):** a strong background story told in play, never a wall of text: environmental storytelling, at
   most one short line (under ~15 words) per area, optional discoverable details, a late payoff that recolours earlier
   play.
 - **Camera (user rule):** gentle; the user gets motion sick. Third person: character in the lower third, never filling
   the screen, never at hip height or jammed into the body (Cinemachine's Deoccluder or Decollider in narrow spaces,
   crouching).
-- **Gameplay depth (user rule, 2026-11-11):** a game is never only its genre's bare loop. On top of the core loop
+- **Gameplay depth (user rule):** a game is never only its genre's bare loop. On top of the core loop
   the design doc names several further systems the player uses, each changing how a session goes, of the kind a
   player of that genre expects from a full game: a technique to master, things to pick up or use during play,
   progression or customising between runs, opponents or hazards that behave in different ways, choices with a
   trade-off. Each one works, shows in play with its own feedback, and is reachable by a scenario. One example, not a
   template: a racing game that is only driving laps is too thin; one with drifting, item pick-ups and car modification
-  is the depth meant. Choose what fits your own game's genre and story and never copy this list. _(failure: a racing
-  game shipped as plain racing, too simple as a game and too thin to give hard tasks)_
-- **Play loops are designed with the person (user rule, 2026-11-11):** do not settle the game's loops alone. Before
+  is the depth meant. Choose what fits your own game's genre and story and never copy this list. _(why: a bare loop is
+  thin to play and its history gives no long threads for hard tasks)_
+- **Play loops are designed with the person (user rule):** do not settle the game's loops alone. Before
   writing the design doc's systems, propose the core loop and the further systems to the person in plain words, with
   two or three real alternatives where the choice is open, ask what they would want to play, and build what you
   agree. Keep doing it while you build: after each playable round, ask them to play or watch it and say what felt
@@ -248,8 +242,7 @@ by hand under these rules, or ask.
   back-and-forth the better; a session where the person only says "continue" is a weak one. Their choices are
   `user.direction` rows (unity-commit-always skill). Ask about play, not about engine detail, and never stall on a
   question: when the person is away, go on with your best proposal, say so, and bring it up when they are back.
-  _(failure: agents chose every loop themselves, so games came out thin and the record held little of the person's
-  judgement)_
+  _(why: the person's choices make the design richer, and they are part of the record the dataset keeps)_
 - **Quality bar and room for hard tasks:** in the skill of your game's platform: **unity-desktop-game**, or
   **unity-mobile-game** for a game made with `new-game.ps1 -Platform mobile` (its `Platform.json` says so). Read that
   one, never both.

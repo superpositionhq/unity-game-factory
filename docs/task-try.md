@@ -1,7 +1,7 @@
 # Task try: run a task with a coding agent (internal)
 
-**Contractors don't run this** (owner, 2026-11-05: it took up to 25 minutes a task). Judge a task's difficulty in the
-game session instead (unity-write-tasks skill, section 6). We run the try on submitted tasks.
+**Contractors don't run this**: it is long and tells nothing a session can't judge. Judge a task's difficulty in the
+game session instead (unity-write-tasks skill, section 6). The Lab runs the try on submitted tasks.
 
 The task check ([task-check.md](task-check.md)) proves a task is fair: the start fails it and the reference passes.
 The task try tells you whether it is hard enough. It gives the task to your own coding agent, Claude Code or Codex on
@@ -18,8 +18,8 @@ python tools\task-try.py C:\Users\<you>\UnityWork\games\<slug> --task C:\Users\<
 Each task prints one line, for example:
 
 ```
-0/3 solved  stealth-fix-guards-lose-the-player  (best 4/7 required checks)
-2/3 solved  rally-racer-corr-chase-camera  (best 7/7 required checks)
+0/3 solved  example-game-fix-door-stays-shut  (best 4/7 required checks)
+2/3 solved  example-game-corr-chase-camera  (best 7/7 required checks)
 ```
 
 Options: `--runs N` (default 1), `--model M` (the harness's model; default its own), `--agent-arg ARG` (an extra

@@ -5,15 +5,15 @@ How a task author writes the checks that decide whether a game task passes. It g
 skill ([skills/unity-write-tasks/SKILL.md](../skills/unity-write-tasks/SKILL.md)), and `tools/validate-game.py` checks
 every rule below that can be checked without running the game.
 
-**Pass/fail is deterministic (owner's decision, 2026-10-19).** A task passes or fails only on checks the checker
-computes from the running game or from the project: `build`, `boot`, `log_absent` and `probe`. A model judge never
-decides pass/fail, and nothing is graded from pixel statistics of the game's frames except one: the frame's mean
-luminance (`screen`, section 2.15; the owner, 2026-11-06), whose threshold is always calibrated or relative to the
-start, so the same machine measures both sides. Judges (`judge`, `code_judge`) stay as **non-gating** quality checks
-(`"required": false`). Text a model reads from a named screenshot (`seen`, section 2.22) is a visual check, counted
-with the judges, never one of a task's required probes. Nothing in a task reads the agent's tool calls: a task is
-graded on the game's outcome alone. Retired (the owner, 2026-11-13): `actions_judge` checks and `trace` probes; never
-add one, take them out of a task you edit.
+**Pass/fail is deterministic.** A task's outcomes are decided by checks the checker computes from the running game
+or from the project: `build`, `boot`, `log_absent` and `probe`, and nothing is graded from pixel statistics of the
+game's frames except one: the frame's mean luminance (`screen`, section 2.15), whose threshold is always calibrated or
+relative to the start, so the same machine measures both sides. Judges (`judge`, `code_judge`) are quality checks,
+`"required": false`, but for the two the unity-write-tasks skill requires, which judge only the brief's own looks:
+`looks_as_asked` and a look judge in `still_works` (section 3.2). Text a model reads from a named screenshot (`seen`,
+section 2.22) is a visual check, counted with the judges, never one of a task's required probes. Nothing in a task
+reads the agent's tool calls: a task is graded on the game's outcome alone. Retired: `actions_judge` checks and
+`trace` probes; never add one, take them out of a task you edit.
 
 Words used here:
 - **the start**: the game at the task's `seed.commit`, as the agent receives it;
@@ -1070,7 +1070,7 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
 
 ### 2.12 `trace`: retired
 
-Retired (the owner, 2026-11-13): never add a `trace` probe, and take it out of a task you edit. A task that still
+Retired: never add a `trace` probe, and take it out of a task you edit. A task that still
 carries one stays valid (`"required": false`, play `"trace"`, a literal threshold) and `validate-game.py` warns
 "retired: remove it".
 

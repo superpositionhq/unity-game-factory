@@ -36,8 +36,8 @@ Without `--task` or `--all` it lists the tasks on the branch. Each task prints o
 when every task is VALID (1 otherwise; 2 for a usage error, when nothing ran):
 
 ```
-VALID   metro-runner-corr-cell-and-dead-meter
-INVALID island-survival-fix-hut-door: start already passes every required probe
+VALID   example-game-corr-lap-count
+INVALID example-game-fix-door-stays-shut: start already passes every required probe
 ```
 
 Options: `--keep` keeps the built copies (to look at a build or rerun a play by hand), not what their plays left

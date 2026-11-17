@@ -109,7 +109,7 @@ with main: `Tasks/<game>-<kind>-<slug>.json` (one task each in the task format `
 leaves it out. Seeds (`seed.commit`, `seed.reference`) point at commits of main's history, or of the task's own start
 branch `starts/<task name>`.
 
-**Combat contract (every game not yet submitted, from 2026-11-11).** In a game where anything can be hurt, a `public interface
+**Combat contract (every game not yet submitted).** In a game where anything can be hurt, a `public interface
 IDamageable { float TakeDamage(float amount, GameObject source); }` (returning the damage actually applied) is declared, what can be hurt implements it, and
 every hit calls it; key gameplay state (a number or bool named with a word of health, hp, hitpoints, hull, poise,
 armor, shield, stamina, mana, lives, dead, alive, dying, stun, stagger, invulnerable, invincible, guard, blocking,

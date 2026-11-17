@@ -336,9 +336,9 @@ GPU frames first and only those are downloaded and converted (BT.709 matrix, lim
 ```
 
 The libx264 variant is the same with `format=yuv420p` and `-c:v libx264 -preset ultrafast -crf 17 -g 120 -bf 0
--pix_fmt yuv420p` (`veryfast` only reached 0.977x on a shared CPU). Fallbacks (`-Capture`), as measured
-on earlier games: `gdigrab-region` captures real content but only ~44 fps (24 % duplicates), `gdigrab-window` ~56 fps (8 %
-duplicates, 23 % gap time); both fail validation, so they are for emergencies. `auto` tries ddagrab, then (after waking
+-pix_fmt yuv420p` (`veryfast` only reached 0.977x on a shared CPU). Fallbacks (`-Capture`):
+`gdigrab-region` captures real content but only about 44 fps (about a quarter of the frames duplicates),
+`gdigrab-window` about 56 fps (frames duplicated and gaps); both fail validation, so they are for emergencies. `auto` tries ddagrab, then (after waking
 the display) ddagrab once more, then gfxcapture, and gdigrab-region last, each only if the one before got fewer than 30
 frames in 10 s; each failed attempt is logged with its frame count, whether ffmpeg hung or exited (exit code) and the
 tail of its log. `gfxcapture` (Windows.Graphics.Capture of the game window by `hwnd`, ffmpeg 8's `gfxcapture` filter,
@@ -350,8 +350,8 @@ line (misread, it looked like 2–6 frames/s and broke the start estimate). If t
 before capture, `auto` skips the screen-region modes and uses gfxcapture.
 
 Display: run it at a multiple of 60 Hz (e.g. 120 Hz) for recording sessions; with vsync off the game's frames reach the
-screen on the display's refresh grid, and a 60 Hz capture repeats some and misses some otherwise (measured
-on earlier games: 13 % at 159 Hz, 7 % at 120 Hz on the AMF path, 0.3–1.1 % with NVENC). The recorder logs
+screen on the display's refresh grid, and a 60 Hz capture repeats some and misses some otherwise (more at a rate that isn't a multiple of 60, and more
+on the AMF path than with NVENC). The recorder logs
 `machine.display_refresh_hz` and warns (does not fail) when the rate is not a multiple of 60; `machine/check.ps1` checks
 it too.
 
@@ -467,7 +467,7 @@ scenario as `1=300,2=600,3=900` (unlisted ones keep 600; `*=700` changes the res
 values 30..7200. The request stores it as `max_seconds`, and the job's `pipeline.jsonl` row lists the limit used per
 scenario. A machine without IL2CPP's C++ tools records a Mono release player: `-Backend mono` (stored as `backend`).
 
-**A game that is GPU-bound at its default quality** (coordinator rule 2026-10-18: the GPU 3D engine above ~95 % with
+**A game that is GPU-bound at its default quality** (coordinator rule: the GPU 3D engine above ~95 % with
 the game under ~55 fps, so the capture fails on duplicated frames) is recorded one quality level lower and says so:
 `record.ps1 ... -ExtraArgs "-autoplayQuality <level>" -CaptureNote "<level> quality for 60 fps capture"` (the drop-in's
 flag; a level's index or name). The note goes to the run's `metadata.json` (`extra_args`, `capture_notes`), then to the
