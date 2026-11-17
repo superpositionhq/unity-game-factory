@@ -80,7 +80,7 @@ def write_progress(out, started, names, results, now=None):
     for r in results:
         lines.append(f"  {line(r)}" + (f"  ({round(r['seconds'] / 60)} min)" if r.get("seconds") else ""))
         lines += [f"    {judges.line(n, j)}: {r['task']}/judge-shots/{n}/ask.md"
-                  for n, j in (r.get("judges") or {}).items()]
+                  for n, j in (r.get("judges") or {}).items() if j.get("status") != judges.ANSWERED]
         lines += [f"    {seen.line(n, j)}: {r['task']}/seen-shots/{n}/ask.md"
                   for n, j in (r.get("seen") or {}).items() if j.get("status") != seen.ANSWERED]
     if done < len(names):
@@ -90,7 +90,8 @@ def write_progress(out, started, names, results, now=None):
     (Path(out) / "progress.json").write_text(json.dumps(
         {"format": "task-check-progress/1", "started": started, "updated": now, "tasks": names,
          "done": [{"task": r["task"], "verdict": r["verdict"], "reasons": r["reasons"], "seconds": r.get("seconds"),
-                   "judges_pending": sorted(r.get("judges") or {}),
+                   "judges_pending": sorted(n for n, j in (r.get("judges") or {}).items()
+                                             if j.get("status") != judges.ANSWERED),
                    "seen_pending": sorted(n for n, j in (r.get("seen") or {}).items()
                                           if j.get("status") != seen.ANSWERED)} for r in results],
          "finished": done == len(names)}, indent=2), encoding="utf-8")

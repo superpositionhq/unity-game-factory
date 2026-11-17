@@ -1614,9 +1614,11 @@ go under `<task>\judge-shots\<check>\start\` and `reference\`, named `<play>_<nn
 the same pictures, and `blind\key.json` says which side each is. A play a probe names is the same play and is played
 once.
 
-Look at them yourself before calling a task with a required judge VALID, blind: score every rubric item for A and for
-B first, then open the key. The start must fail every required rubric item and the reference must pass every one.
-Write both sides' answers in the task's notes (its `tasks-workflow.jsonl` row). A task try saves the same for the
+Score them yourself, blind: every rubric item for A and for B from 0 to 1, into `blind\answers.json`, before you
+open the key, then check the task again ([task-check.md](task-check.md), "VALID and INVALID"). A required judge holds
+the task until it is scored, as the Lab's grader holds the task's own fix to its judge: the reference must pass it and
+the start must fail every required rubric item (pass it, for a judge in `still_works`). Write both sides' scores in the
+task's notes too (its `tasks-workflow.jsonl` row). A task try saves the same for the
 agent's game (`agent\`) under `<task>\run<N>\judge-shots\`: answer its judges the same way before calling the task
 too easy or held. `tools/validate-game.py` checks the rules of a judge's plays.
 
@@ -1637,8 +1639,9 @@ Before any agent is given a task, the checker grades the start and the fix with 
 - every required `still_works` probe passes at the start;
 - every calibrated probe, a required one or not, measures differently on the start and the fix: the Lab's grade of
   a task fails whole on a probe without a threshold;
-- every required `judge` check, answered by the task's writer from the screenshots the check saves (section 3.2),
-  fails on the start and passes on the fix, item by item.
+- every required `judge` check, scored by the task's writer from the screenshots the check saves (section 3.2, into
+  `blind\answers.json`), fails on the start and passes on the fix, item by item (a judge in `still_works` passes on
+  both); until it is scored the task isn't valid.
 
 A required `seen` probe (section 2.22) gates as a probe does, on the values the task's writer read from its crops: the
 start fails it and the fix passes it, and a fix that reads nothing it reads makes the task invalid. Until both sides

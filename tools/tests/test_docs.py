@@ -222,7 +222,7 @@ def classify(v):
     if set(v) == {'widget'}:
         return 'OnWidget'       # a touch's spot on a widget
     if v and set(v) <= {'A', 'B'}:
-        return 'answers'        # a seen probe's blind/answers.json, the writer's reading of its crops (seen.py)
+        return 'answers'        # a seen probe's or a judge's blind/answers.json (seen.py, judges.py)
     if v.get('format') in EXCHANGED or 'nonce' in v or {'out', 'result'} <= set(v) or {'ok', 'exe'} <= set(v):
         return 'exchange'       # a play spec, probe.json, the editor pass's files, the build's request and result
     if v.get('kind') in CHECKS and 'name' in v:
@@ -312,10 +312,14 @@ def value_problems(v):
                 'or a select: make it one, or teach classify() in tools/tests/test_docs.py what it is']
     if kind == 'exchange':
         return []
-    if kind == 'answers':       # each side: a shot's lines, or {shot: lines} for a list of shots (seen.lines_of)
+    if kind == 'answers':       # each side: a shot's lines, or {shot: lines} for a list of shots (seen.lines_of); a
+        # judge's: {rubric item: its score from 0 to 1} (judges.score_problem)
         lines = lambda x: isinstance(x, list) and all(isinstance(line, str) for line in x)  # noqa: E731
-        return [] if all(lines(a) or (isinstance(a, dict) and a and all(lines(x) for x in a.values()))
-                         for a in v.values()) else ['a side of blind/answers.json is [lines] or {shot: [lines]}']
+        score = lambda x: isinstance(x, int | float) and not isinstance(x, bool) and 0 <= x <= 1  # noqa: E731
+        return [] if all(lines(a) or (isinstance(a, dict) and a and (all(lines(x) for x in a.values())
+                                                                      or all(score(x) for x in a.values())))
+                         for a in v.values()) else ['a side of blind/answers.json is [lines] or {shot: [lines]} (a '
+                                                    "seen probe's), or {item: a score from 0 to 1} (a judge's)"]
     if unstated(v) or (kind in dict(INPUTS).values() and 't' not in v):
         return sketch_problems(v)
     if kind == 'task':

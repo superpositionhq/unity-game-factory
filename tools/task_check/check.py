@@ -29,9 +29,11 @@ check plays boot_<seconds>s (2 screenshots, no queries). Every task's boot is a 
 20 s of the same idle game, so when no look probe reads the log, a side that boots (the reference; a start is never
 booted) plays one 60 s idle play with look's queries for both (Side.idle): the boot check reads it whole, and look
 reads its first 20 s only (first_seconds), one game launch instead of two. A `package` check fails on every side, as
-the Lab's grader fails it closed (it has no package step for a Unity game). Judges and trace probes never decide a task
-check: a `judge` check's plays are played on both sides and the screenshots its judge would see are saved
-under <name>/judge-shots/<check>/ (judges.py) for whoever runs the check to look at and answer (`judge_shots`). A
+the Lab's grader fails it closed (it has no package step for a Unity game). Trace probes never decide a task check,
+and no model is asked a judge: a `judge` check's plays are played on both sides and the screenshots its judge would see
+are saved under <name>/judge-shots/<check>/ (judges.py) for whoever runs the check to score blind (`judge_shots`); a
+required judge then decides on those scores as the Lab's model decides it (judges.decide), and until they are written
+the task isn't VALID. A
 `seen` probe (text the Lab's visual model reads from a named shot) is read by the task's writer instead: its crops are
 saved under <name>/seen-shots/<check>/ (seen.py), and once the writer has answered, their answer is the probe's
 measure on each side; until then the probe measures nothing, and a task with a required one isn't VALID."""
@@ -75,7 +77,7 @@ def own_play(play, project):
 
 
 JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
-NOT_JUDGED = "not asked: judges never decide a task check"
+NOT_JUDGED = "not asked: a judge decides on the writer's scores of its saved shots (judge-shots), never here"
 TASK_ERROR = "task error"  # a check's detail starts so when no version of the game can pass it (Grade.task_error)
 NO_PACKAGE = "not packaged: the Lab's grader has no package step for a Unity game, so a package check fails every run"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
@@ -676,10 +678,11 @@ def start_unbuilt(task, why):
                         "weight": build["weight"], "detail": str(why)[:700], "group": group}], "probes": {}}
 
 
-def save_judge_shots(task, sides, folder, where="", blind=False, log=print, rng=None):
+def save_judge_shots(task, sides, folder, where="", blind=False, log=print, rng=None, held=None):
     """Play every `judge` check's plays on `sides` ({folder name: Side}, a side that didn't build left out with a note)
     and save the screenshots its judge would see under <folder>/<check>/ (judges.save), with the blind copy when
-    `blind`. Nothing is asked of a model: {check: record}, each "answer needed", its `folder` named as `where` (the
+    `blind` and every side was played, carrying over the writer's scores `held` (judges.kept) still stand for. Nothing
+    is asked of a model: {check: record}, each "answer needed" until scored, its `folder` named as `where` (the
     folder's place in the results) and the check's name."""
     out = {}
     for found in judges.judges(task):
@@ -692,7 +695,8 @@ def save_judge_shots(task, sides, folder, where="", blind=False, log=print, rng=
                 played[label] = side.judge_plays(found)
             except Exception as exc:  # a play the checker couldn't make: said in ask.md, never the task's error
                 notes.append(f"{label}: the plays failed ({type(exc).__name__}: {str(exc)[:200]})")
-        record = judges.save(task, found, played, folder, blind=blind, notes=notes, rng=rng)
+        record = judges.save(task, found, played, folder, blind=blind and len(played) == len(sides), notes=notes,
+                             rng=rng, held=(held or {}).get(found["name"]))
         record["folder"] = f"{where}{found['name']}/"
         log(f"  {judges.line(found['name'], record)}")
         out[found["name"]] = record
@@ -789,6 +793,7 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
     seed = task["seed"]
     evidence = Path(out_dir) / name
     held = seen.kept(evidence / "seen-shots")  # the writer's answers outlive the evidence they were given for
+    scored = judges.kept(evidence / "judge-shots", task)  # and so do their judges' scores
     own = builds is None
     if own:
         builds = Builds(repo, scratch, direct, log)
@@ -832,11 +837,17 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         failed_rows = verdict.failures(ref_grade, start_grade)
         gaps()
         notes += gap_notes(result)
-        if judge_shots and judges.judges(task):
-            shown = {label: s for label, s in (("start", start), ("reference", reference)) if s is not None}
+        if judge_shots and judges.judges(task):  # a start that doesn't build by design is never played
+            shown = {label: s for label, s in (("start", start), ("reference", reference)) if s is not None
+                     and not (label == "start" and build is not None and not start.built())}
             result["judges"] = save_judge_shots(task, shown, evidence / "judge-shots", f"{name}/judge-shots/",
-                                                blind=True, log=log)
+                                                blind=True, log=log, held=scored)
             notes += [judges.line(n, r) for n, r in result["judges"].items()]
+        # a required judge decides as the Lab's model decides it on the task's own fix: on the writer's blind scores,
+        # so the task isn't VALID until they are written and hold
+        unscored = {"status": "its shots weren't saved (--no-judge-shots), so it can't be scored"}
+        judged = [w for c in judges.judges(task) for w in judges.decide(c, result["judges"].get(c["name"], unscored))]
+        valid, why = valid and not judged, why + judged
         if seen.checks(task):  # a start that doesn't build by design is never played, so it has nothing to read
             shown = {label: s for label, s in (("start", start), ("reference", reference)) if s is not None
                      and not (label == "start" and build is not None and not start.built())}

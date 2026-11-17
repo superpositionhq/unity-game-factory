@@ -176,6 +176,8 @@ A task is **VALID** when all of this holds:
 - with a reference: the reference builds, boots (every `boot` check) and passes every **required** check the checker
   runs: probes, `log_absent`, `file_exists` and `package` alike. The Lab's grader holds the task's own fix to every
   required check, so a required check the reference fails is one no solution like the reference can pass;
+- every required `judge` check is scored by you, blind, and the scores hold: the reference passes it and the start
+  fails it (passes it, for a judge in `still_works`), as below;
 - every probe has a threshold, a `"required": false` one too: a probe the checker can't calibrate (below) makes the
   Lab's grade of the task fail whole, so it is a reason, never a note;
 - the start fails every required probe outside `still_works` (or doesn't build by design): each is one issue of the
@@ -202,24 +204,40 @@ A row whose check the checker itself couldn't run reads `the checker failed (...
 checker's fault, never the task's, so the task is an **ERROR** (`the checker couldn't run a check, so this is no
 verdict on the task ...`), never VALID or INVALID. Fix what the row names and check it again.
 
-A `judge` check is looked at by you instead. The check plays its plays on the start and on the reference (its own
-`plays`, else `look` and `drive`; a play a probe names is the same play, played once, with the most screenshots a
-judge showing it asks) and saves the screenshots the cloud's judge would be shown ([task-probes.md](task-probes.md)
-section 3.2) under `<task>\judge-shots\<check>\`: `start\` and `reference\` (`<play>_<nn>.png`, in the order
-taken), `ask.md` (the brief, the question, the rubric and what each picture is) and a blind copy, `blind\A\` and
-`blind\B\`, whose sides are in `blind\key.json`, with `sides.md` (each side's own pictures and notes, which the ask
-of a blind copy leaves out). The task's notes in the result and its lines in `progress.txt` say
-`judge <check>: shots saved for start/reference, answer needed`. Before you call a task with a required judge VALID:
+A `judge` check is scored by you instead: the Lab's grader asks its judge model a required judge on the task's own
+fix, which must pass it, and the checker asks no model. The check plays the judge's plays on the start and on the
+reference (its own `plays`, else `look` and `drive`; a play a probe names is the same play, played once, with the most
+screenshots a judge showing it asks) and saves the screenshots the Lab's judge would be shown
+([task-probes.md](task-probes.md) section 3.2) under `<task>\judge-shots\<check>\`: `start\` and `reference\`
+(`<play>_<nn>.png`, in the order taken), `ask.md` (the brief, the question, the rubric and what each picture is),
+`pictures.json` (each picture's sha256) and a blind copy, `blind\A\` and `blind\B\`, whose sides are in
+`blind\key.json`, with `sides.md` (each side's own pictures and notes, which the ask of a blind copy leaves out).
+Until it is scored, a **required** judge keeps the task from VALID: the reason and the line in `progress.txt` say
+`judge <check>: shots saved for start/reference, answer needed`. To score it:
 
 1. Open `ask.md`, then look at `blind\A\` and `blind\B\` and score every rubric item of each from 0 to 1, as if
    each were the developer's game, before opening `blind\key.json` and `sides.md`. The blind folders hold only the
    pictures both sides have and the same names in each; each side's own count and notes (a play cut short) are in
-   `sides.md`, read with the key.
-2. The start must fail every required rubric item (below 0.5) and the reference must pass every one. If not, fix the
-   rubric or the plays (never by easing what the task asks), and check again.
-3. Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row on the tasks branch).
+   `sides.md`, read with the key. Write the scores into `blind\answers.json`, every item of the rubric for each
+   letter:
 
-`--no-judge-shots` skips the judge plays.
+   ```json
+   {"A": {"door_open": 1, "lit": 0.5}, "B": {"door_open": 0, "lit": 0}}
+   ```
+
+2. Check the task again. It reads the scores and holds the judge to them: the reference must pass it (weighted score
+   at least 0.6, no required item below 0.5), and the start must fail every required item (below 0.5; a judge with no
+   required item, a weighted score under 0.6), or pass it, for a judge in `still_works`. Otherwise the reason says
+   which (`reference fails judge X on your scores (...)`, `start already passes judge X on your scores (...)`): fix
+   the rubric or the plays (never by easing what the task asks), and check again. The line then says `judge <check>:
+   scored in blind/answers.json`.
+3. Write both sides' scores in the task's notes too (its `tasks-workflow.jsonl` row on the tasks branch).
+
+The folder is kept from one check to the next, and a side's scores stand while its pictures are the same
+(`pictures.json`); pictures that changed (another commit, a play that changed) drop that side's scores, with a note. A
+start that doesn't build by design is never played: only the reference is saved, as `blind\A\`. A judge with
+`"required": false` never holds the task. `--no-judge-shots` skips the judge plays, so a task with a required judge
+can't be VALID in that run.
 
 A `seen` probe ([task-probes.md](task-probes.md) section 2.22) is read by you too, since the check asks no model. Its
 task play is played on the start and on the reference (once, with the other probes of that play), and each named shot
@@ -311,8 +329,9 @@ without), so this is for drafts only.
   the fields asked for) or a `value` with the kind's own keys (task-probes.md, section 2, under each kind). A
   `spawns` sample holds running totals since the play started; the checker reads each sample's rise over the one
   before.
-- `<repo>\.task-checks\<task>\judge-shots\<check>\`: each judge check's pictures to answer (VALID and INVALID
-  above); the result's `judges` lists them, each `answer needed`.
+- `<repo>\.task-checks\<task>\judge-shots\<check>\`: each judge check's pictures to score (VALID and INVALID
+  above); the result's `judges` lists them, each `answer needed` or `scored in blind/answers.json`, with the scores
+  read (`scores`).
 - `<repo>\.task-checks\<task>\seen-shots\<check>\`: each `seen` probe's crops to answer (above); the result's `seen`
   lists them, each `answer needed` or `read from blind/answers.json`.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each

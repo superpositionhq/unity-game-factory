@@ -159,6 +159,9 @@ The task check's own rules, each closing a case that would otherwise read wrongl
   play's input did not land: ..."; when the reference's play of it missed one too, or the probe is calibrated and the
   reference's play missed one, it is "task error: ..." (`check.Grade.landing`, `reference_unlanded`), as the Lab's
   grader reads a play; only the plays a side already made are read, none is played for it;
+- a required judge decides on the writer's blind scores of its saved shots (`judges.kept`, `judges.decide`): unscored,
+  or a reference that fails it, or a start that passes a required item (fails it, for a judge in `still_works`), keeps
+  the task from VALID; a side's scores stand while its pictures' sha256 (`pictures.json`) are the same;
 - a row the checker couldn't make (`the checker failed (...)`) makes the task an ERROR, no verdict
   (`verdict.failures`, `check.check_task`);
 - a calibrated threshold anchored on the reference alone (the start measured nothing) needs a reference other than 0:
