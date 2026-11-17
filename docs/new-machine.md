@@ -159,6 +159,13 @@ folder (`<editor>\Editor\Data\PlaybackEngines\AndroidPlayer\` with `OpenJDK\`, `
   itself is elevated. Unattended (over SSH, from a scheduled task) it ends with `The Windows elevation prompt was
   cancelled or timed out` and installs nothing.
 
+An Android SDK and NDK installed apart from Unity work too (Android Studio's, with an SDK platform, the build tools
+and an NDK installed through its SDK Manager), as long as the editor has **Android Build Support** with its
+**OpenJDK**: the release build looks in `UGF_ANDROID_SDK`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then
+`%LOCALAPPDATA%\Android\Sdk`, takes the newest NDK under its `ndk\` (or `UGF_ANDROID_NDK`), and tells the game's
+APK build where they are. Unity wants the NDK version its own module would install (r27c, `27.2.12479018`, for
+6000.3) and stops the build with a line naming it when another is given.
+
 `machine/check.ps1` says which of the three the editor has (`Android toolchain (mobile games)`, a WARN when one is
 missing). Without them `build.ps1` builds a mobile game's Windows player, skips the APK with a line that says so and
 records it in `build_info.json` (`apk.status` `skipped`); the dataset then ships without the APK, with a warning.

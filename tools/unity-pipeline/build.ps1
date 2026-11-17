@@ -199,7 +199,12 @@ try {
             Write-Step "APK: skipped, $($tool.Why). The Windows player is built and can be recorded; build again on a machine with the Android toolchain for the APK"
         } else {
             $ns = $bp.Method -replace '\.BuildPlayer\.BuildWindows$', ''
-            $r = Invoke-Step 'apk' @('-buildTarget', 'Android', '-projectPath', $src, '-executeMethod', "$ns.BuildAndroid.Build", '-buildOut', $apkDir)
+            $apkArgs = @('-buildTarget', 'Android', '-projectPath', $src, '-executeMethod', "$ns.BuildAndroid.Build", '-buildOut', $apkDir)
+            if ($tool.Sdk) {   # an SDK and NDK installed apart from Unity: the build is told where they are
+                $apkArgs += @('-androidSdk', $tool.Sdk, '-androidNdk', $tool.Ndk)
+                Write-Step "APK: built with the Android SDK at $($tool.Sdk) and the NDK at $($tool.Ndk) (the editor has none of its own)"
+            }
+            $r = Invoke-Step 'apk' $apkArgs
             if ($r.exit_code -ne 0) { $failure = 'APK build failed'; throw $failure }
             $apkPath = Join-Path $apkDir "$projectName.apk"
             if (-not (Test-Path -LiteralPath $apkPath)) { throw "the APK build succeeded but $apkPath is missing" }
@@ -216,7 +221,22 @@ try {
             $unpacked = Join-Path $outDir '_apk'
             if (Test-Path -LiteralPath $unpacked) { Remove-Item -LiteralPath $unpacked -Recurse -Force }
             Add-Type -AssemblyName System.IO.Compression.FileSystem
-            [IO.Compression.ZipFile]::ExtractToDirectory($apkPath, $unpacked)
+            # entry by entry: an APK holds names that differ only by case (res\9n.9.png, res\9N.9.png), which one
+            # Windows folder cannot hold; the second of such a pair gets "~<n>" before its extension
+            $zip = [IO.Compression.ZipFile]::OpenRead($apkPath)
+            try {
+                $taken = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+                $n = 0
+                foreach ($entry in $zip.Entries) {
+                    if (-not $entry.Name) { continue }   # a folder's own entry
+                    $rel = $entry.FullName -replace '/', '\'
+                    if ($rel -match '(^|\\)\.\.(\\|$)' -or [IO.Path]::IsPathRooted($rel)) { continue }
+                    if (-not $taken.Add($rel)) { $n++; $rel = [IO.Path]::ChangeExtension($rel, $null).TrimEnd('.') + "~$n" + [IO.Path]::GetExtension($rel); [void]$taken.Add($rel) }
+                    $to = Join-Path $unpacked $rel
+                    New-Item -ItemType Directory -Force (Split-Path $to -Parent) | Out-Null
+                    [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $to, $true)
+                }
+            } finally { $zip.Dispose() }
             $apkHits = @(Find-LeakedStrings $unpacked @($UserNamePatterns + $ForbiddenNamePatterns))
             Remove-Item -LiteralPath $unpacked -Recurse -Force
             $leakScan.scanned = 'Windows\, Android\'

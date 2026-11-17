@@ -94,7 +94,8 @@ Try-Check 'Unity 6.3 LTS editor' {
     # (lib\ugf-root.ps1 Get-UGFAndroidToolchain, what tools\unity-pipeline\build.ps1 asks before its APK step). A WARN,
     # never a FAIL: only a mobile game's release needs it, and without it that step is skipped and says so.
     $android = Get-UGFAndroidToolchain $exe
-    if ($android.Ok) { Add-Result PASS 'Android toolchain (mobile games)' "$ver has Android Build Support with OpenJDK, SDK and NDK" }
+    if ($android.Ok -and $android.Sdk) { Add-Result PASS 'Android toolchain (mobile games)' "$ver has Android Build Support with OpenJDK; SDK $($android.Sdk), NDK $($android.Ndk)" }
+    elseif ($android.Ok) { Add-Result PASS 'Android toolchain (mobile games)' "$ver has Android Build Support with OpenJDK, SDK and NDK" }
     else { Add-Result WARN 'Android toolchain (mobile games)' "not found for $ver" "only for a mobile game's APK (its release build skips the APK without it): Unity Hub > Installs > $ver > Add modules > Android Build Support, with OpenJDK and Android SDK & NDK Tools (docs/new-machine.md, `"Mobile games`")" }
 }
 # A game builds, tests and plays only on the exact editor its ProjectSettings\ProjectVersion.txt names (Get-UGFUnity).

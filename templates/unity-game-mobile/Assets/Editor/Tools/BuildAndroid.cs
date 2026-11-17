@@ -1,8 +1,9 @@
 // Builds the game's Android APK (arm64, IL2CPP, release) from the scenes in the build list, headless:
 //   Unity -batchmode -nographics -quit -buildTarget Android -executeMethod __PROJECT__.EditorTools.BuildAndroid.Build
-//         -buildOut <dir>
+//         -buildOut <dir> [-androidSdk <dir> -androidNdk <dir>]
 // The release pipeline runs it on a machine that has the editor's Android Build Support module with its OpenJDK and
-// Android SDK & NDK tools (tools/unity-pipeline/build.ps1; machine/check.ps1 says whether the machine has them). A
+// Android SDK & NDK tools, or with an SDK and NDK installed apart from Unity, which -androidSdk and -androidNdk name
+// (tools/unity-pipeline/build.ps1; machine/check.ps1 says whether the machine has them). A
 // game session never needs it: the game is built, played and recorded on the PC as its Windows player
 // (Scripts/unity.ps1 build), at the phone's size. The APK is signed with Unity's debug key: it installs on a phone for
 // testing and is not a store upload.
@@ -46,6 +47,12 @@ namespace __PROJECT__.EditorTools
                 Directory.Delete(fullOut, true);
             Directory.CreateDirectory(fullOut);
 
+            var tools = Outside(args, "-androidSdk", "sdkRootPath") ?? Outside(args, "-androidNdk", "ndkRootPath");
+            if (tools != null)
+            {
+                Fail(target, tools, 1);
+                return;
+            }
             EditorUserBuildSettings.buildAppBundle = false;   // an .apk, one file to install
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
@@ -80,6 +87,23 @@ namespace __PROJECT__.EditorTools
             if (!ok && !string.IsNullOrEmpty(error)) p["error"] = error.Split('\n')[0].Trim();
             WorkflowLog.Row("build.player", target, p, status: ok ? "observed" : "failed");
             EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        // An SDK or NDK installed apart from Unity (`flag` names its folder): the editor is told where it is, for
+        // this run. Through reflection: the settings' type is the Android module's, which a machine that only plays
+        // the game need not have. Returns what went wrong, or null.
+        static string Outside(string[] args, string flag, string setting)
+        {
+            var at = Array.IndexOf(args, flag);
+            if (at < 0 || at + 1 >= args.Length) return null;
+            var folder = args[at + 1];
+            if (!Directory.Exists(folder)) return flag + " " + folder + ": no such folder";
+            var type = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("UnityEditor.Android.AndroidExternalToolsSettings")).FirstOrDefault(t => t != null);
+            var property = type?.GetProperty(setting, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (property == null) return "this editor's Android module has no " + setting + " setting: " + flag + " cannot be used";
+            property.SetValue(null, folder);
+            return null;
         }
 
         static void Fail(string target, string error, int code)

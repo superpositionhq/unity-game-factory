@@ -186,19 +186,36 @@ function Add-UGFMobileSetupStep([string]$Text, [string]$Project) {
 }
 
 # What a Unity editor has for Android builds (a mobile game's APK): its Android Build Support module with the OpenJDK
-# and the Android SDK & NDK tools Unity Hub installs under it. $Unity: the editor's Unity.exe. Ok is true when all are
-# there; Why says what is missing; Aapt2 is the SDK's aapt2.exe (it reads a built APK back), or $null.
+# and the Android SDK & NDK tools Unity Hub installs under it, or, when the editor has the module and the OpenJDK but
+# no SDK or NDK of its own, an Android SDK installed apart from Unity (Android Studio's): the folder
+# $env:UGF_ANDROID_SDK, ANDROID_HOME or ANDROID_SDK_ROOT names, else %LOCALAPPDATA%\Android\Sdk, with a platform, the
+# build tools and an NDK ($env:UGF_ANDROID_NDK, else the newest under its ndk\). $Unity: the editor's Unity.exe. Ok is
+# true when everything is there; Why says what is missing; Aapt2 is the SDK's aapt2.exe (it reads a built APK back),
+# or $null; Sdk and Ndk are the outside SDK's and NDK's folders when those are used ($null: the editor's own), which
+# the game's BuildAndroid step is then told (-androidSdk, -androidNdk).
 function Get-UGFAndroidToolchain([string]$Unity) {
     $root = if ($Unity) { Join-Path (Split-Path $Unity -Parent) 'Data\PlaybackEngines\AndroidPlayer' } else { '' }
     $missing = @()
     if (-not $root -or -not (Test-Path -LiteralPath $root)) { $missing += 'Android Build Support' }
     else { foreach ($part in @(@('OpenJDK', 'OpenJDK'), @('SDK', 'Android SDK'), @('NDK', 'Android NDK'))) { if (-not (Test-Path -LiteralPath (Join-Path $root $part[0]))) { $missing += $part[1] } } }
-    $aapt2 = $null
-    if ($root -and (Test-Path -LiteralPath (Join-Path $root 'SDK\build-tools'))) {
-        $aapt2 = Get-ChildItem -LiteralPath (Join-Path $root 'SDK\build-tools') -Recurse -Filter 'aapt2.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    $sdk = $null; $ndk = $null
+    $sdkRoot = if ($root) { Join-Path $root 'SDK' } else { '' }
+    if ($missing.Count -and -not ($missing -contains 'Android Build Support') -and -not ($missing -contains 'OpenJDK')) {
+        # the editor can build for Android but has no SDK or NDK of its own: one installed apart from Unity
+        $found = @($env:UGF_ANDROID_SDK, $env:ANDROID_HOME, $env:ANDROID_SDK_ROOT, (Join-Path $env:LOCALAPPDATA 'Android\Sdk')) |
+            Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path $_ 'platforms')) -and (Test-Path -LiteralPath (Join-Path $_ 'build-tools')) } | Select-Object -First 1
+        if ($found) {
+            $ndkFound = if ($env:UGF_ANDROID_NDK -and (Test-Path -LiteralPath (Join-Path $env:UGF_ANDROID_NDK 'source.properties'))) { $env:UGF_ANDROID_NDK }
+                else { Get-ChildItem -LiteralPath (Join-Path $found 'ndk') -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'source.properties') } | Sort-Object { [version]($_.Name -replace '[^0-9.]', '') } -Descending | Select-Object -First 1 -ExpandProperty FullName }
+            if ($ndkFound) { $sdk = [IO.Path]::GetFullPath($found); $ndk = [IO.Path]::GetFullPath($ndkFound); $sdkRoot = $sdk; $missing = @() }
+        }
     }
-    $why = if ($missing.Count) { "this editor has no $($missing -join ', ') (Unity Hub > Installs > the editor > Add modules: Android Build Support with OpenJDK and Android SDK & NDK Tools; docs/new-machine.md)" } else { '' }
-    return [pscustomobject]@{ Ok = ($missing.Count -eq 0); Why = $why; Root = $root; Aapt2 = $aapt2 }
+    $aapt2 = $null
+    if ($sdkRoot -and (Test-Path -LiteralPath (Join-Path $sdkRoot 'build-tools'))) {
+        $aapt2 = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Recurse -Filter 'aapt2.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    }
+    $why = if ($missing.Count) { "this editor has no $($missing -join ', ') (Unity Hub > Installs > the editor > Add modules: Android Build Support with OpenJDK and Android SDK & NDK Tools; or, with the module and its OpenJDK, an Android SDK and NDK installed apart from Unity: docs/new-machine.md)" } else { '' }
+    return [pscustomobject]@{ Ok = ($missing.Count -eq 0); Why = $why; Root = $root; Aapt2 = $aapt2; Sdk = $sdk; Ndk = $ndk }
 }
 
 function Get-UGFOrg($Cfg = (Get-UGFConfig)) {
