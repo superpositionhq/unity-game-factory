@@ -395,6 +395,12 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   budget: draw calls, triangles, texture memory; a literal threshold, in a play of its own), `spawns`, `log`, `asset` (editor: a material's
   `shader:` and `keyword:` values, `import:` settings, a ScriptableObject's `prop:`, and in a scene or prefab
   `material_default`, `material:<property>`, `mesh_collision`).
+- On-screen text: `ui` (or `widgets`) first, and `ui`'s frame reader (a text select with a `rect`) for what `OnGUI`,
+  `GL` or a mesh draws. Only text neither can read (drawn by a script, a shader or a texture, in a font the frame
+  reader refuses) is a `seen` probe's: the model the visual checks use reads it from a `shot` input of the check's own
+  task play, taken when the text holds still, with a loose `rect` or none (docs/task-probes.md, section 2.22). It is a
+  visual check, counted with the judges: never one of the task's required or outcome probes, and the task check
+  doesn't read it yet.
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or
   `{"op": ">=", "calibrate": 0.5}` for continuous quantities: the grader measures the start and the reference in the
   grading environment and puts the threshold that fraction of the way from start to fix; `op` points to the fix's side.
@@ -645,6 +651,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a HUD made with UI Toolkit read as absent to a uGUI widget select (or the reverse) | `ui`: what the UI shows on screen, whatever draws it (text with `match`, counts by `kind` and `rect`) |
 | a lamp whose glow comes from a Shader Graph's own nodes had no reading from its material | `lit` and `glow` as they are: a renderer whose shader lacks the standard emission interface, or whose colour has a texture, is read as rendered |
 | a readout drawn with `OnGUI`, `GL` lines or a custom mesh read as absent to `ui` | `ui` `text` with `match` on a `select` of `"kind": "text"` with a `rect` around the readout (read from the frame as drawn); there are no line elements, so if it still doesn't read, grade another outcome |
+| text drawn by a script, a shader or a texture that `ui` and its frame reader can't read had no reading | a `seen` probe on a `shot` input of its own play, with a loose `rect` (a tight one fails a build that draws it elsewhere); a visual check besides the task's required probes, never in their place |
 | a task needs a readout to keep updating, and it may be drawn by any UI system | `ui` `signature` with `"agg": "changes"` on a `select` with a `rect` around the readout (calibrated or relative to the start) |
 | an effect (particles, a panned material, a spinning mesh) had no reading that it shows and moves | `drawn` `near` a point: `drawn`, and `motion` calibrated or relative to the start |
 | a spinning part had no speed, or needed its object's name | `spin` of `components` near a point or by `owner`, or an object's `spin`; calibrated or relative to the start |

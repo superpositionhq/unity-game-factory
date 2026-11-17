@@ -238,9 +238,10 @@ without), so this is for drafts only.
     `| measured V, threshold OP T`, with what the start and the reference measured when the threshold came from them,
     and why it has no value: `... | measured 0, threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing,
     threshold >= 1: no value in the window (...)`; a probe left without a threshold reads `uncalibrated: X: ...`
-    instead. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
-    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
-    counts for nothing;
+    instead. A detail starting `not asked` is a check that side doesn't run (judges, `seen` probes, trace probes and
+    packaging on either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as
+    passed and counts for nothing. A `seen` probe is read by the visual checks' model, which the task check doesn't ask
+    yet ([task-probes.md](task-probes.md), section 2.22);
   - `task_sha256` (the SHA-256 of the task file as the run read it: the file as committed on the `tasks` branch, or
     the `.json` given by path; a checkout with other line endings hashes differently), `task`, `game`, `at` (when,
     UTC), `seconds` (how long the check took) and `evidence` (the task's folder of play files, below).

@@ -10,9 +10,10 @@ computes from the running game or from the project: `build`, `boot`, `log_absent
 decides pass/fail, and nothing is graded from pixel statistics of the game's frames except one: the frame's mean
 luminance (`screen`, section 2.15; the owner, 2026-11-06), whose threshold is always calibrated or relative to the
 start, so the same machine measures both sides. Judges (`judge`, `code_judge`) stay as **non-gating** quality checks
-(`"required": false`). Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome
-alone. Retired (the owner, 2026-11-13): `actions_judge` checks and `trace` probes; never add one, take them out of a
-task you edit.
+(`"required": false`). Text a model reads from a named screenshot (`seen`, section 2.22) is a visual check, counted
+with the judges, never one of a task's required probes. Nothing in a task reads the agent's tool calls: a task is
+graded on the game's outcome alone. Retired (the owner, 2026-11-13): `actions_judge` checks and `trace` probes; never
+add one, take them out of a task you edit.
 
 Words used here:
 - **the start**: the game at the task's `seed.commit`, as the agent receives it;
@@ -195,8 +196,8 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 120 s;
     - a named screenshot: `{"t": 6.0, "shot": "pause_menu"}` (a letter or `_` first, then letters, digits, `_`; up to
       32) takes `shot_pause_menu.png` at that moment, with the UI, beside the evenly spaced ones. Each name once in a
-      play, 20 at most. A picture never passes or fails anything by itself: it is for a judge (section 3.2) and for
-      whoever reviews a run;
+      play, 20 at most. A picture never passes or fails anything by itself: it is for a judge (section 3.2), for a
+      `seen` probe that reads its text (section 2.22) and for whoever reviews a run;
     - a scene load: `{"t": 10.0, "scene": "Assets/Scenes/Yard.unity"}` loads that scene of the build, as the game's own
       load does; the play's clock stands still while it loads;
     - a view turn: `{"t": 10.5, "view": [-15, 90]}` turns the player to the yaw and the main camera to that pitch and
@@ -448,6 +449,7 @@ Which measure answers which question (each section has its fields, defaults and 
 | what is drawn at a spot or along a line: motion, colour, a beam's reach | `drawn` (2.19) |
 | what the renderer drew, against a budget: draw calls, triangles, texture memory | `render` (2.20) |
 | the game's time: slowed for a hit stop, paused | `world` (2.21) |
+| text no UI element gives and the frame reader can't read (drawn by a script, a shader or a texture), read by a model from a named screenshot | `seen` (2.22) |
 
 How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: section 1.3; a staged contact (`pin`,
 `damage`, `set`): section 1.4. What a check may rely on: section 1.5. Literal or calibrated: section 1.2. Points and
@@ -1473,10 +1475,68 @@ play that runs as fast as the machine renders that stop would last many times as
 {"probe": "world", "field": "time_scale", "window": [2.0, 2.5], "agg": "min"}
 ```
 
+### 2.22 `seen`: text a model reads from a named screenshot
+
+```json
+{"name": "combo_counter_shows", "kind": "probe", "required": true, "weight": 1,
+ "describe": "After three hits in a row the combo counter drawn on the HUD reads 3 or more",
+ "play": {"name": "three_hits", "seconds": 10,
+          "inputs": [{"t": 1.0, "key": "<Mouse>/leftButton", "press": true},
+                     {"t": 1.1, "key": "<Mouse>/leftButton", "press": false},
+                     {"t": 1.8, "key": "<Mouse>/leftButton", "press": true},
+                     {"t": 1.9, "key": "<Mouse>/leftButton", "press": false},
+                     {"t": 2.6, "key": "<Mouse>/leftButton", "press": true},
+                     {"t": 2.7, "key": "<Mouse>/leftButton", "press": false},
+                     {"t": 3.6, "shot": "combo"}]},
+ "measure": {"probe": "seen", "shot": "combo", "rect": [0.6, 0.0, 1.0, 0.25], "read": "number"},
+ "expect": {"op": ">=", "value": 3}}
+```
+
+The text in a named screenshot of the check's own play, read by the model the visual checks use. **Read text with
+`ui` or `widgets` first** (section 2.18, 2.6), and through `ui`'s own frame reader (a `select` of text in a `rect`,
+section 2.18, rows of source `ocr`), which reads what `OnGUI`, `GL` or a mesh draws in line-drawn and segment fonts.
+`seen` is for the text they cannot read: drawn by a script, a shader or a texture in a font the frame reader refuses
+(lower case, an O, a font too bold for its size).
+
+- `shot` (required): the name of a `shot` input (section 1.1) of the check's own task play, never of `look`, `drive`,
+  `editor` or `trace`. One moment per shot: take it when the text holds still on screen (not mid-fade, not while a
+  number counts up). It may instead be a list of 2 to 4 names of the play's shots, each once, read with `read`
+  `number` or `clock` and an `agg`: `first`, `last`, `delta`, `rises`, `falls`, `min` or `max` (section 2.1), each
+  shot read alone, then reduced in the order the list gives. One shot takes no `agg`.
+- `rect` (optional): `[x0, y0, x1, y1]` in frame fractions, y down; without it the whole frame is read. At least 0.02
+  of the frame each way (x1 - x0 >= 0.02, y1 - y0 >= 0.02). **Keep it loose, or leave it out**: a tight region around
+  where the reference draws the text fails a correct build that draws it somewhere else. The HUD's whole corner, as
+  above, is loose enough.
+- `read` (required): `text` (1 when `match`, a regular expression of 1 to 200 characters, is found anywhere in what
+  was read, else 0; `^...$` for a whole line), `number` (the first number read, as `ui`'s `number` reads it, section
+  2.18) or `clock` (the first time read, as `ui`'s `clock` reads it). `match` is given exactly when `read` is `text`.
+- `expect` takes any threshold (section 1.2): a literal, `calibrate`, `start_times` or `start_plus`.
+- Desktop shots are 960x540 (a mobile game's, the phone's size). Text under about 10 px tall in a desktop shot (about
+  0.02 of the frame's height) is not read reliably.
+
+How the Lab's grader reads it:
+
+- **The crop.** The shot is cut to `rect`, rounded outward to whole pixels, and scaled up (by a whole factor, at most
+  4x) until its shorter side is 360 px or more. Only that picture is sent, with one fixed prompt that asks the model to
+  copy every line of text in it: it never sees `match`, `expect`, `describe` or the brief.
+- **The agent's game.** Each crop is read 3 times, and the value is what at least 2 of the 3 readings give. When no 2
+  agree, it is read 3 times more, once, and the value is what more than half of the 6 give; else the check fails with
+  "the readings disagree", the readings kept in the grade.
+- **The start and the reference.** All 3 readings of each must agree, or it is a task error; a reference that reads
+  nothing (no text, or no number where a number is read) is a task error too. So a crop that reads only some of the
+  time never reaches a run.
+- **A visual check.** It is counted with the judges (section 3.2) wherever the grader switches or counts its checks.
+  A task still needs its own required probes besides it: a `seen` probe counts toward neither a task's required probe
+  nor its outcome probes (section 3).
+
+The task check asks no model, so it doesn't read a `seen` probe yet: its row on each side reads `not asked`, as a
+judge's does, and counts for nothing (section 4).
+
 ## 3. What gates, and how a probe fails
 
 - **At least one required probe.** Every task has at least one `probe` check with `"required": true` (the default);
-  the validator refuses a task without one. Every bug fix and correction has at least one required probe that the start
+  the validator refuses a task without one. A `seen` probe (section 2.22) is a visual check: it counts toward neither
+  this nor a task's outcome probes. Every bug fix and correction has at least one required probe that the start
   fails for the reported reason and the fix passes.
 - **`still_works` probes already pass at the start.** A required probe in the `still_works` milestone (the player
   still moves, the HUD still shows, the scene still loads its scenario) must pass on the start: what still works must
@@ -1572,6 +1632,8 @@ Before any agent is given a task, the checker grades the start and the fix with 
 - every required `judge` check, answered by the task's writer from the screenshots the check saves (section 3.2),
   fails on the start and passes on the fix, item by item.
 
+A `seen` probe (section 2.22) is not read by the task check yet: it neither makes a task valid nor invalid.
+
 A task with no fix is checked on its start alone: the start builds, fails every required probe outside `still_works`
 (thresholds literal or relative to the start) and passes its still-works probes. Only a draft has no fix: the
 validator refuses a task without `seed.reference`. A task that fails the task check is not run; a run on an invalid
@@ -1631,7 +1693,8 @@ task is void.
 - **A HUD need not be one UI system.** A build may draw its HUD with uGUI or with UI Toolkit: check what it shows with
   `ui` (text with `match`, counts by `kind` and `rect`), which reads both the same; `widgets` sees only the widget it
   names. A HUD drawn with `OnGUI` or `GL` is no element: `ui` reads only its text, from the frame (a select of text in
-  a `rect`).
+  a `rect`). Text the frame reader can't read either (a texture, a shader, a font it refuses) is a `seen` probe's, a
+  visual check (section 2.22).
 - **Brightness on screen goes through calibration.** A `screen` threshold is always calibrated between the start and
   the fix (or relative to the start), and its window starts after the scene has settled (a fade-in, a teleport).
 - **The screen includes the UI.** A `screen` rect over the HUD measures the HUD: keep it on the scene.

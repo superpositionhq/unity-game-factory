@@ -977,6 +977,95 @@ class Units(unittest.TestCase):
                 ([reads('one'), reads('two'), reads('three', ['one', 'two'])], 'neither runs after the other')):
             self.assertTrue(any(said in e for e in vg.play_after_errors(checks)), (said, vg.play_after_errors(checks)))
 
+    def test_seen_rules(self):
+        """A `seen` measure (task-probes.md 2.22), as the Lab's grader takes it: the schema's shape, then the rules
+        beyond it, each with the grader's words."""
+        play = {'name': 'combo', 'seconds': 10, 'inputs': [{'t': 3, 'shot': 'hud'}, {'t': 5, 'shot': 'hud_later'}]}
+
+        def check(play=play, **measure):
+            return {'name': 'p', 'kind': 'probe', 'describe': 'x', 'play': play,
+                    'measure': {'probe': 'seen', 'shot': 'hud', 'read': 'number', **measure},
+                    'expect': {'op': '>=', 'value': 3}}
+
+        def schema(c):
+            return list(vg.check_schema(c, vg.SCHEMAS['game-task']['$defs']['Probe'], vg.SCHEMAS['game-task']))
+
+        def errs(c):
+            t = task('a' * 40, 'b' * 40, milestones=[{'name': 'm', 'checks': [c]}])
+            return ' | '.join(vg.task_semantic_errors(t))
+
+        good = (check(), check(read='text', match='COMBO\\s*x\\d'), check(read='clock', rect=[0.6, 0, 1, 0.25]),
+                check(rect=[0.5, 0.5, 0.52, 0.52]), check(shot=['hud', 'hud_later'], agg='rises'),
+                check(shot=['hud_later', 'hud'], read='clock', agg='delta'),
+                dict(check(), expect={'op': '>=', 'calibrate': 0.5}))
+        for c in good:
+            self.assertEqual((schema(c), errs(c)), ([], ''), c['measure'])
+        for c in (check(shot='Hud'), check(shot='h' * 33), check(shot=['hud']), check(shot=['a', 'b', 'c', 'd', 'e']),
+                  check(shot=['hud', 'Bad'], agg='max'), check(rect=[0, 0, 1]), check(rect=[0, 0, 1.2, 1]),
+                  check(read='words'), check(read='text', match=''), check(read='text', match='x' * 201),
+                  check(agg='mean'), check(field='text'), check(window=[0, 5]), {**check(), 'measure': {
+                      'probe': 'seen', 'read': 'number'}}, {**check(), 'measure': {'probe': 'seen', 'shot': 'hud'}}):
+            self.assertNotEqual(schema(c), [], c['measure'])
+        self.assertEqual(schema(check(read='text', match='x' * 200)), [])
+        for c, said in (
+                (check(play='look'), 'check p: a seen measure reads a named shot of a task play of its own, never of '
+                                     'look'),
+                (check(play='drive'), 'never of drive'),
+                (check(play='editor'), 'never of editor'),
+                (check(shot='menu'), 'check p: its play combo takes no shot named menu (a `shot` input)'),
+                (check(shot=['hud', 'menu'], agg='max'), 'check p: its play combo takes no shot named menu'),
+                (check(rect=[0.5, 0.5, 0.51, 0.9]), 'check p: a seen rect is [x0, y0, x1, y1], at least 0.02 of the '
+                                                    'frame each way'),
+                (check(rect=[0.9, 0.5, 0.1, 0.9]), 'at least 0.02 of the frame each way'),
+                (check(rect=[0.1, 0.5, 0.9, 0.505]), 'at least 0.02 of the frame each way'),
+                (check(read='text'), 'check p: a seen measure takes `match` exactly when it reads text'),
+                (check(read='text', match=None), 'takes `match` exactly when it reads text'),
+                (check(match='x'), 'takes `match` exactly when it reads text'),
+                (check(match=None), 'takes `match` exactly when it reads text'),
+                (check(shot=['hud', 'hud_later']), 'check p: a seen measure reads a list of shots as a number or a '
+                                                   'clock, with an `agg`'),
+                (check(shot=['hud', 'hud_later'], agg=None), 'as a number or a clock, with an `agg`'),
+                (check(shot=['hud', 'hud_later'], read='text', match='x', agg='max'), 'as a number or a clock'),
+                (check(shot=['hud', 'hud'], agg='max'), 'check p: a seen measure names a shot twice'),
+                (check(agg='max'), 'check p: a seen measure of one shot takes no `agg`'),
+                (check(agg=None), 'check p: a seen measure of one shot takes no `agg`'),
+                (check(read='text', match='('), "check p: '(' isn't a regular expression")):
+            self.assertIn(said, errs(c), c['measure'])
+
+    def test_a_seen_probe_is_a_visual_check(self):
+        """A `seen` probe goes with the judges: it is no required probe and no outcome probe, earns no no-op score,
+        and a task needs its own required probes besides it."""
+        play = {'name': 'combo', 'seconds': 10, 'inputs': [{'t': 3, 'shot': 'hud'}]}
+        seen = {'name': 'combo_shows', 'kind': 'probe', 'describe': 'x', 'play': play,
+                'measure': {'probe': 'seen', 'shot': 'hud', 'read': 'number'}, 'expect': {'op': '>=', 'value': 3}}
+        judge = {'name': 'j', 'kind': 'judge', 'question': 'q', 'rubric': [{'key': 'k', 'criterion': 'c'}]}
+        self.assertTrue(vg.visual(seen) and vg.visual(judge))
+        self.assertFalse(vg.visual(dict(seen, measure={'probe': 'ui', 'field': 'count'})))
+        self.assertFalse(vg.visual(dict(judge, kind='code_judge')))
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][2]['checks'].append(seen)
+        rep = vg.Report()
+        self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
+        self.assertEqual(errors(rep), [], 'a seen probe beside the required probes')
+        self.assertEqual([c['name'] for c in vg.outcome_probes(t)], ['hero_on_ground', 'score_counts', 'enemies_glow'])
+        t['milestones'][2]['checks'] = [seen, dict(seen, name='combo_again'), dict(seen, name='combo_third')]
+        self.assertEqual(vg.outcome_probes(t), [])
+        rep = vg.Report()
+        vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None)
+        said = errors(rep)
+        self.assertIn('x: 0 required outcome probe(s) of weight above 0 outside still_works, fewer than 3 (a required '
+                      'probe of weight 0 is a guard, not an outcome) (unity-write-tasks section 1: only long threads '
+                      "of multiple edits); seen probe(s) ['combo_shows', 'combo_again', 'combo_third'] are visual "
+                      'checks, never outcome probes', said)
+        self.assertIn('x: no required outcome check carries weight, so no run can score (unity-write-tasks section 1: '
+                      'only long threads of multiple edits)', said)
+        t['milestones'][3]['checks'] = [dict(seen, name='still_combo', weight=0)]
+        rep = vg.Report()
+        vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None)
+        self.assertIn("x: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5); seen "
+                      "probe(s) ['combo_shows', 'combo_again', 'combo_third', 'still_combo'] are visual checks, counted "
+                      'with the judges', errors(rep))
+
     def test_a_guard_is_no_outcome(self):
         """The long-thread bar counts required probes of weight above 0 outside still_works: a required probe of
         weight 0 is a guard, not an outcome."""
@@ -1311,6 +1400,7 @@ class Schema(unittest.TestCase):
     S = vg.SCHEMAS['game-task']
     KINDS = ('player', 'objects', 'components', 'widgets', 'camera', 'light', 'grading', 'spawns', 'log', 'asset',
              'trace', 'pieces', 'screen', 'audio', 'ground', 'ui', 'drawn', 'render', 'world')   # the probe kinds (contract section 2)
+    GRADER_KINDS = ('seen',)   # measures the grader reads from a play's screenshots, never the probe (task-probes.md 2.22)
     MEASURE = {kind: ref.split('/')[-1]
                for kind, ref in S['$defs']['Probe']['properties']['measure']['discriminator']['mapping'].items()}
     SHAPE = {kind: ref.split('/')[-1]   # the check kinds' definitions
@@ -1396,7 +1486,7 @@ class Schema(unittest.TestCase):
         extra = {'objects': {'select': {'component': 'Enemy'}}, 'components': {'select': {'component': 'Light'}},
                  'widgets': {'select': {'component': 'Slider'}}, 'spawns': {'component': 'Projectile'},
                  'light': {'point': {'xyz': [0, 1, 0]}}, 'log': {'pattern': 'Error'}, 'asset': {'asset': 'Assets/x.mat'}}
-        self.assertEqual(sorted(self.MEASURE), sorted(self.KINDS))
+        self.assertEqual(sorted(self.MEASURE), sorted(self.KINDS + self.GRADER_KINDS))
         self.assertEqual((sorted(good), sorted(bad)), (sorted(self.KINDS), sorted(self.KINDS)))
 
         def key(probe):

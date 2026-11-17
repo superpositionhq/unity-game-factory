@@ -366,10 +366,18 @@ def fails_at_start(task):
     return next((c for _, c in checks(task) if c["kind"] == "build" and c["fails_at_start"]), None)
 
 
+def seen(c):
+    """Whether check `c` is a `seen` probe: text read from a named shot by the visual checks' model, a visual check
+    the Lab's grader counts with the judges (docs/task-probes.md, section 2.22). The task check asks no model, so it
+    never reads one."""
+    return c["kind"] == "probe" and c["measure"]["probe"] == "seen"
+
+
 def gating(task):
-    """The names of the task's required probes (a retired trace probe never gated)."""
+    """The names of the task's required probes (a retired trace probe never gated; a seen probe is a visual check,
+    no deterministic probe)."""
     return {c["name"] for _, c in checks(task) if c["kind"] == "probe" and c["required"]
-            and c["measure"]["probe"] != "trace"}
+            and c["measure"]["probe"] not in ("trace", "seen")}
 
 
 def still_works(task):

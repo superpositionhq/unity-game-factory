@@ -28,10 +28,10 @@ task's play_scene and play_args unless a task play names its own, with the task'
 check plays boot_<seconds>s (2 screenshots, no queries). Every task's boot is a 60 s idle play and "look" is the first
 20 s of the same idle game, so when no look probe reads the log, a side that boots (the reference; a start is never
 booted) plays one 60 s idle play with look's queries for both (Side.idle): the boot check reads it whole, and look
-reads its first 20 s only (first_seconds), one game launch instead of two. Judges, trace probes and packaging never
-decide a task check: a `judge` check's plays are played on both sides and the screenshots its judge would see are
-saved under <name>/judge-shots/<check>/ (judges.py) for whoever runs the check to look at and answer
-(`judge_shots`)."""
+reads its first 20 s only (first_seconds), one game launch instead of two. Judges, seen probes (read by the visual
+checks' model, which the task check doesn't ask yet), trace probes and packaging never decide a task check: a `judge`
+check's plays are played on both sides and the screenshots its judge would see are saved under
+<name>/judge-shots/<check>/ (judges.py) for whoever runs the check to look at and answer (`judge_shots`)."""
 
 import json
 import math
@@ -73,6 +73,7 @@ def own_play(play, project):
 
 JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
 NOT_JUDGED = "not asked: judges never decide a task check"
+NOT_SEEN = "not asked: a seen probe is read by the visual checks' model, which the task check doesn't ask yet"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:
 # `t >= seconds + 0.5`), so a look cut from a longer play keeps that half second too
@@ -491,6 +492,8 @@ class Grade:
             return True, NOT_JUDGED
         if kind == "probe" and check["measure"]["probe"] == "trace":
             return True, "not asked: trace probes are retired: remove it"
+        if tasks.seen(check):  # a visual check, as a judge is: no model is asked here
+            return True, NOT_SEEN
         if self.mode == "start":
             if kind == "build" and check["fails_at_start"]:
                 return (True, "the start built") if self.start.built() else (False, self.start.why_unbuilt())
@@ -610,14 +613,14 @@ def save_judge_shots(task, sides, folder, where="", blind=False, log=print, rng=
 
 def probe_values(task, reference, start):
     """{probe: {group, required, op, expect, start, reference, threshold, start_passed, reference_passed}} from the two
-    grades' measures (trace probes left out)."""
+    grades' measures (trace and seen probes left out: neither is measured here)."""
 
     def passed(grade, name):
         return next((r["passed"] for r in (grade or {}).get("checks", []) if r["name"] == name), None)
 
     out = {}
     for group, check in tasks.checks(task):
-        if check["kind"] != "probe" or check["measure"]["probe"] == "trace":
+        if check["kind"] != "probe" or check["measure"]["probe"] in ("trace", "seen"):
             continue
         name = check["name"]
         ref = ((reference or {}).get("probes") or {}).get(name) or {}

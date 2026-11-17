@@ -1025,8 +1025,8 @@ def probe_errors(c, seed, ref, plays):
     or a `line` and the fields of that one; a components select names its component or `effect`; a near's height band
     has y_min < y_max and `y_relative` only with one of them; a task play's waits add at most 300 s; regular
     expressions that compile; a ui measure takes `match` exactly when it reads text, `agg` changes, any, all or count
-    when it reads its signature, and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a calibrated threshold
-    needs seed.reference and a start-relative one a seed."""
+    when it reads its signature, and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a seen measure's rules
+    (seen_errors); a calibrated threshold needs seed.reference and a start-relative one a seed."""
     errs, n = [], c.get('name')
     play = c.get('play')
     measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
@@ -1121,6 +1121,8 @@ def probe_errors(c, seed, ref, plays):
             errs.append(f'check {n}: a ui select rect is [x0, y0, x1, y1] with x0 < x1 and y0 < y1')
         if sel.get('text') is not None and sel.get('kind') not in (None, 'text'):
             errs.append(f"check {n}: a ui select's `text` picks text elements: its kind is text or unset")
+    if probe == 'seen':
+        errs.extend(seen_errors(n, play, measure))
     if rel and expect.get('op') in ('==', '!='):
         errs.append(f'check {n}: == and != take a literal value, never a calibrated threshold')
     if rel == 'calibrate' and not ref:
@@ -1128,6 +1130,49 @@ def probe_errors(c, seed, ref, plays):
     if rel == 'start' and not seed:
         errs.append(f'check {n} sets its threshold from the start, which only a seeded task has')
     return errs
+
+
+SEEN_RECT = 0.02   # a seen rect's least width and height, in frame fractions (the Lab's grader)
+
+
+def seen_errors(n, play, measure):
+    """A `seen` measure's rules beyond the schema, as the Lab's grader and dataset format say them (docs/task-probes.md,
+    section 2.22): it reads named shots (`shot` inputs) of its check's own task play, never look, drive, editor or
+    trace; a rect is at least SEEN_RECT of the frame each way; `match` exactly when it reads text; a list of shots
+    only as a number or a clock, with an `agg`, each shot named once; one shot with no `agg`. A null `match` or `agg`
+    counts as given where the format reads the key and as missing where the grader reads its value, so either way
+    refuses it."""
+    errs = []
+    if not isinstance(play, dict):
+        errs.append(f'check {n}: a seen measure reads a named shot of a task play of its own, never of {play}')
+    else:
+        named = set(named_shots(play))
+        shots = measure.get('shot') if isinstance(measure.get('shot'), list) else [measure.get('shot')]
+        for shot in (s for s in shots if s not in named):
+            errs.append(f"check {n}: its play {play.get('name')} takes no shot named {shot} (a `shot` input)")
+    rect = measure.get('rect')
+    if isinstance(rect, list) and len(rect) == 4 and all(_is(v, 'number') for v in rect) and not (
+            rect[2] - rect[0] >= SEEN_RECT - 1e-9 and rect[3] - rect[1] >= SEEN_RECT - 1e-9):
+        errs.append(f'check {n}: a seen rect is [x0, y0, x1, y1], at least {SEEN_RECT} of the frame each way')
+    text = measure.get('read') == 'text'
+    if (text and measure.get('match') is None) or (not text and 'match' in measure):
+        errs.append(f'check {n}: a seen measure takes `match` exactly when it reads text')
+    listed = isinstance(measure.get('shot'), list)
+    if listed and (text or measure.get('agg') is None):
+        errs.append(f'check {n}: a seen measure reads a list of shots as a number or a clock, with an `agg`')
+    if listed and len(set(map(str, measure['shot']))) != len(measure['shot']):
+        errs.append(f'check {n}: a seen measure names a shot twice')
+    if not listed and 'agg' in measure:
+        errs.append(f'check {n}: a seen measure of one shot takes no `agg`')
+    return errs
+
+
+def visual(c):
+    """Whether check `c` is a visual one, a model's reading of the grader's screenshots: a `judge`, or a probe whose
+    measure is `seen` (the Lab's grader counts it with the judges wherever checks are switched or counted). A seen
+    probe is no deterministic probe: it counts toward no task's required or outcome probes."""
+    measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
+    return c.get('kind') == 'judge' or (c.get('kind') == 'probe' and measure.get('probe') == 'seen')
 
 
 def task_semantic_errors(t):
@@ -1328,10 +1373,11 @@ GAME_PATHS = ('Assets', 'Packages', 'ProjectSettings', ':(exclude)Assets/Editor/
 
 def outcome_probes(t):
     """The task's outcome probes: its required probes outside still_works whose weight is above 0. A required probe of
-    weight 0 is a guard, not an outcome: it must pass, and settles nothing a run earns."""
+    weight 0 is a guard, not an outcome: it must pass, and settles nothing a run earns. A `seen` probe is a visual
+    check (`visual`), never an outcome probe."""
     return [c for m in t.get('milestones') or [] if isinstance(m, dict) and m.get('name') != 'still_works'
             for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe'
-            and c.get('required', True) and c.get('weight', 1) > 0]
+            and c.get('required', True) and c.get('weight', 1) > 0 and not visual(c)]
 
 
 def thread_errors(t, outcomes):
@@ -1351,7 +1397,8 @@ def thread_errors(t, outcomes):
 
 def noop_errors(t):
     """Why a no-op would earn something, from the task alone: a no-op scores zero (owner, 2026-11-04). The score is the
-    weighted share of checks passed, so what is true of the start takes `"weight": 0`. The task check measures the rest."""
+    weighted share of checks passed, so what is true of the start takes `"weight": 0`. The task check measures the rest.
+    A `seen` probe is a visual check (`visual`), never the outcome check that earns."""
     errs, earning = [], 0
     for m in t.get('milestones') or []:
         for c in (m.get('checks') or []) if isinstance(m, dict) else []:
@@ -1362,7 +1409,8 @@ def noop_errors(t):
                 or m.get('name') == 'still_works'
             if passes_at_start and weight != 0:
                 errs.append(f'check {c.get("name")}: a no-op passes it, so a no-op would score; give it "weight": 0')
-            elif not passes_at_start and c.get('required', True) and kind in ('probe', 'build') and weight > 0:
+            elif not passes_at_start and c.get('required', True) and kind in ('probe', 'build') and weight > 0 \
+                    and not visual(c):
                 earning += 1
     if not earning:
         errs.append('no required outcome check carries weight, so no run can score')
@@ -1487,16 +1535,22 @@ def check_task(rep, a, label, t, game, has_commit):
     for w in task_warnings(t)[:5]:
         rep.warn(a, f'{label}: {w}')
     gated = [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
-             if isinstance(c, dict) and c.get('kind') == 'probe' and c.get('required', True)]
+             if isinstance(c, dict) and c.get('kind') == 'probe' and c.get('required', True) and not visual(c)]
     judged = required_quality_judges(t)
     retired = retired_checks(t)
     if retired:
         rep.warn(a, f'{label}: check(s) {retired}: `actions_judge` checks and `trace` probes are retired: remove it '
                     f'(nothing in a task reads the agent\'s tool calls) (unity-write-tasks section 5)')
+    seen_probes = [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict)
+                   for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe' and visual(c)]
     if not gated:
-        rep.error(a, f'{label}: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)')
+        rep.error(a, f'{label}: no required probe check: pass/fail must be deterministic (unity-write-tasks section 5)'
+                     + (f'; seen probe(s) {seen_probes} are visual checks, counted with the judges'
+                        if seen_probes else ''))
     for e in thread_errors(t, len(outcome_probes(t))):
-        rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)')
+        rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)'
+                     + (f'; seen probe(s) {seen_probes} are visual checks, never outcome probes'
+                        if seen_probes and 'outcome probe' in e else ''))
     if judged:
         rep.note(a, f'{label}: required judge check(s) {judged}: only a judge of the brief\'s looks is required '
                     '(`looks_as_asked`, or a judge in `still_works`); other judges should be "required": false '

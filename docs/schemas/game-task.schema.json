@@ -3100,6 +3100,7 @@
               "player": "#/$defs/PlayerMeasure",
               "render": "#/$defs/RenderMeasure",
               "screen": "#/$defs/ScreenMeasure",
+              "seen": "#/$defs/SeenMeasure",
               "spawns": "#/$defs/SpawnsMeasure",
               "trace": "#/$defs/TraceMeasure",
               "ui": "#/$defs/UiMeasure",
@@ -3165,6 +3166,9 @@
             },
             {
               "$ref": "#/$defs/WorldMeasure"
+            },
+            {
+              "$ref": "#/$defs/SeenMeasure"
             }
           ],
           "title": "Measure"
@@ -3593,6 +3597,105 @@
       "title": "Seed",
       "type": "object"
     },
+    "SeenMeasure": {
+      "additionalProperties": false,
+      "description": "Text read from a named screenshot of the check's own task play by the visual checks' model, as the Lab's\ngrader reads it (docs/task-probes.md, section 2.22): the `shot` (a `shot` input of the play), cropped to `rect`\n[x0, y0, x1, y1] in frame fractions, y down (default the whole frame), at least 0.02 of the frame each way, and\nscaled up, is transcribed by the model with one fixed prompt that says nothing of the task, each crop 3 times,\nthe value the one 2 of 3 readings give. `read`: `text` (1 when `match`, a regular expression, is found in what\nwas read, else 0), `number` (the first number read, as a ui number) or `clock` (the first time read, as a ui\nclock). For text no UI element gives (drawn by a script, a shader or a texture); an element's text is read with\n`ui` or `widgets`. A visual check: it is counted with the judges, never as one of a task's required probes.\n`shot` may list 2 to 4 shots of the play with `read` number or clock and an `agg` (first, last, delta, rises,\nfalls, min, max): each read alone, then reduced in their order (tools/validate-game.py).",
+      "properties": {
+        "agg": {
+          "anyOf": [
+            {
+              "enum": [
+                "first",
+                "last",
+                "delta",
+                "rises",
+                "falls",
+                "min",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agg"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match"
+        },
+        "probe": {
+          "const": "seen",
+          "title": "Probe",
+          "type": "string"
+        },
+        "read": {
+          "enum": [
+            "text",
+            "number",
+            "clock"
+          ],
+          "title": "Read",
+          "type": "string"
+        },
+        "rect": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rect"
+        },
+        "shot": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z_][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "pattern": "^[a-z_][a-z0-9_]{0,31}$",
+                "type": "string"
+              },
+              "maxItems": 4,
+              "minItems": 2,
+              "type": "array"
+            }
+          ],
+          "title": "Shot"
+        }
+      },
+      "required": [
+        "probe",
+        "shot",
+        "read"
+      ],
+      "title": "SeenMeasure",
+      "type": "object"
+    },
     "Select": {
       "additionalProperties": false,
       "description": "GameObjects that match every key given: `component` (a component on the object itself, by C# type name or full\nname; base types and interfaces match), `tag` (its tag), `layer` (its layer, by name), `name` (a wildcard on its name),\n`near` (within `radius` m of a point), `player` (true: the player object; false: anything but it), `has` (a part it carries that matches\nevery key given there: an object that gives light, one with a drawn mesh near a point), `inactive` (inactive\nobjects match too; without it only objects active in the hierarchy do); `where` (members of\nthe object compared with values: only the foes still alive, one bay's group).",
@@ -3767,7 +3870,7 @@
     },
     "Shot": {
       "additionalProperties": false,
-      "description": "A screenshot at `t` with the UI, as the player sees it, named `shot` (shot_<name>.png beside the evenly spaced\nones): the grader's own picture of a moment, for a judge and for whoever reviews a run (docs/task-probes.md, section 1.1).\nNever a pass or fail by itself.",
+      "description": "A screenshot at `t` with the UI, as the player sees it, named `shot` (shot_<name>.png beside the evenly spaced\nones): the grader's own picture of a moment, for a judge, for a `seen` probe that reads its text (section 2.22) and for\nwhoever reviews a run (docs/task-probes.md, section 1.1). Never a pass or fail by itself.",
       "properties": {
         "shot": {
           "pattern": "^[a-z_][a-z0-9_]{0,31}$",

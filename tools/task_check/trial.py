@@ -10,12 +10,12 @@ For one task and each run:
    the machine's recording hooks off (UGF_NO_RECORDING, and GF_NO_RECORDING for another factory's hooks on the
    same machine). Its transcript is kept.
 3. The workspace is graded as a solution: its build outputs and Library removed, TaskProbe added, built fresh,
-   played, every check but judges, trace probes and packaging run against the thresholds the start and the reference
-   give (both built and measured once for all runs, before the first agent starts, and deleted then: the reference copy
-   is the answer, and it would lie two folders above the agent's). Each `judge` check's plays are then played on the
-   agent's game and the screenshots its judge would see are saved under <name>/run<N>/judge-shots/<check>/agent/ with
-   ask.md (judges.py): no model is asked, so whoever runs the try looks at them and answers; the run's number leaves
-   judges out, and the result lists them as pending.
+   played, every check but judges, seen probes, trace probes and packaging run against the thresholds the start and
+   the reference give (both built and measured once for all runs, before the first agent starts, and deleted then: the
+   reference copy is the answer, and it would lie two folders above the agent's). Each `judge` check's plays are then
+   played on the agent's game and the screenshots its judge would see are saved under
+   <name>/run<N>/judge-shots/<check>/agent/ with ask.md (judges.py): no model is asked, so whoever runs the try looks
+   at them and answers; the run's number leaves judges out, and the result lists them as pending.
 
 The result says, per run, whether the agent solved the task (every required check passed), which milestones it
 reached, its time, turns and cost when the harness reports them, and whether its transcript names the game repo or the
@@ -295,9 +295,11 @@ def linked(folder):
 
 def score(task, grade):
     """What a run reached: solved (every required check passed), its score (the weighted share of checks passed, as the
-    cloud scores it, judges left out since a try doesn't run them), required checks passed, milestones reached."""
+    cloud scores it, judges and seen probes left out since a try doesn't run them), required checks passed, milestones
+    reached."""
     rows = grade["checks"]
-    weighed = [r for r in rows if r.get("kind") not in verdict.JUDGES]
+    unread = {c["name"] for _, c in tasks.checks(task) if tasks.seen(c)} if task else set()
+    weighed = [r for r in rows if r.get("kind") not in verdict.JUDGES and r["name"] not in unread]
     total = sum(r.get("weight", 1) for r in weighed)
     earned = sum(r.get("weight", 1) for r in weighed if r["passed"])
     required = [r for r in rows if r["required"]]
@@ -376,7 +378,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
         thresholds = {}
         measure = check.Grade(task, "reference", start, reference, thresholds)
         for _, c in tasks.checks(task):  # every threshold now: neither copy is played once an agent has started
-            if c["kind"] == "probe" and c["measure"]["probe"] != "trace":
+            if c["kind"] == "probe" and c["measure"]["probe"] not in ("trace", "seen"):
                 try:
                     measure.threshold(c)
                 except verdict.Uncalibrated:

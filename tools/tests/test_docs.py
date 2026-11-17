@@ -262,6 +262,10 @@ def measure_problems(m):
     probe = m.get('probe')
     c = {'name': 'x', 'kind': 'probe', 'describe': 'x', 'measure': m,
          'play': {'asset': 'editor', 'trace': 'trace'}.get(probe, 'look')}
+    if probe == 'seen':     # reads named shots of a task play of its own
+        shots = m.get('shot') if isinstance(m.get('shot'), list) else [m.get('shot')]
+        c['play'] = {'name': 'p', 'seconds': 10, 'inputs': [{'t': 1 + i, 'shot': s} for i, s in enumerate(shots)
+                                                            if isinstance(s, str)]}
     if probe == 'trace':
         c.update(required=False, expect={'op': '>=', 'value': 1})
     else:
@@ -571,7 +575,7 @@ def undocumented(text):
         if kind == 'trace':     # retired: its section says so, and names none of its keys for anyone to write
             continue
         num, props = ks[kind][0], DEFS[name]['properties']
-        need(f'{kind} field', field_words(props.get('field') or props['fact']), num)
+        need(f'{kind} field', field_words(props.get('field') or props.get('fact') or props['read']), num)   # seen: read
         need(f'{kind} key', set(props) - {'probe', 'field', 'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis'},
              num)
         sel = props.get('select', {}).get('$ref', '').rsplit('/', 1)[-1]
@@ -620,7 +624,7 @@ def schema_words():
     walk(TASK)
     for name in kinds().values():
         props = DEFS[name]['properties']
-        out |= field_words(props.get('field') or props['fact'])
+        out |= field_words(props.get('field') or props.get('fact') or props['read'])
     return out
 
 
