@@ -114,16 +114,72 @@ class Verdict(unittest.TestCase):
                          (False, [f"fps_kept has no threshold: {unset[:160]}"], []),
                          "a still-works one too: the crash excuses its failing at the start, not its missing threshold")
 
-    def test_the_reference_must_build_and_boot_and_its_other_checks_are_notes(self):
+    def test_the_reference_passes_every_required_check_and_only_optional_ones_are_notes(self):
+        """The Lab's grader holds the task's own fix to every required check, so a required file_exists or log_absent
+        the reference fails is a reason, as a required probe is; one that isn't required stays a note."""
         task = task_with(probe(), {"kind": "file_exists", "name": "route_left", "glob": "Tests/*.json"},
+                         {"kind": "log_absent", "name": "no_errors", "pattern": "NullReference", "weight": 0},
+                         {"kind": "file_exists", "name": "notes_left", "glob": "Docs/*.md", "required": False},
                          {"kind": "boot", "name": "boots_clean"})
         ref = record(checked("hero_on_ground", "probe", True), checked("route_left", "file_exists", False, "0 file(s)"),
+                     checked("no_errors", "log_absent", False, "1 matching log line(s)"),
+                     checked("notes_left", "file_exists", False, "0 file(s)"),
                      checked("boots_clean", "boot", False, "crashed"))
         start = record(checked("hero_on_ground", "probe", False))
         valid, why, notes = verdict.verdict(task, ref, start)
         self.assertFalse(valid)
-        self.assertEqual(why, ["reference fails boots_clean: crashed"])
-        self.assertEqual(notes, ["reference fails route_left (file_exists): 0 file(s)"], "a deliverable never decides")
+        self.assertEqual(why, ["reference fails route_left: 0 file(s)", "reference fails no_errors: 1 matching log line(s)",
+                               "reference fails boots_clean: crashed"])
+        self.assertEqual(notes, ["reference fails notes_left (file_exists): 0 file(s)"], "an optional one never decides")
+        rows = record(*(dict(c, required=c["name"] != "route_left") for c in ref["checks"]))
+        self.assertNotIn("reference fails route_left: 0 file(s)", verdict.verdict(task, rows, start)[1],
+                         "a row's own `required` is read first, as the checker writes it")
+
+    def test_a_required_package_check_is_never_valid(self):
+        """The Lab's grader has no package step for a Unity game and fails a package check closed, so a required one
+        keeps every run from passing: the checker fails it on every side too."""
+        task = task_with(probe(), {"kind": "package", "name": "ships", "weight": 0})
+        ref = check.Grade(task, "reference", side("start", FakeProject(measuring(-1)), task),
+                          side("reference", FakeProject(measuring(1)), task), {}).run()
+        self.assertEqual([(r["name"], r["passed"]) for r in ref["checks"]], [("hero_on_ground", True), ("ships", False)])
+        self.assertIn("no package step", ref["checks"][1]["detail"])
+        start = record(checked("hero_on_ground", "probe", False), checked("ships", "package", True, "not asked"))
+        valid, why, _ = verdict.verdict(task, ref, start)
+        self.assertFalse(valid)
+        self.assertEqual([w.split(":")[0] for w in why], ["reference fails ships"])
+        optional = task_with(probe(), {"kind": "package", "name": "ships", "weight": 0, "required": False})
+        ref = check.Grade(optional, "reference", side("start", FakeProject(measuring(-1)), optional),
+                          side("reference", FakeProject(measuring(1)), optional), {}).run()
+        self.assertTrue(verdict.verdict(optional, ref, start)[0], "an optional one is a note")
+
+    def test_every_probe_needs_a_threshold_required_or_not(self):
+        """A probe the checker can't calibrate fails the Lab's grade of the task whole, a probe that isn't required
+        too, so it is a reason, never a note."""
+        task = task_with(probe(), probe("extra", required=False, weight=0, expect={"op": ">=", "calibrate": 0.5}))
+        same = "uncalibrated: extra: the start and the reference both measure 0, so there is no threshold between them"
+        ref = record(checked("hero_on_ground", "probe", True), checked("extra", "probe", False, same))
+        start = record(checked("hero_on_ground", "probe", False), checked("extra", "probe", False, same))
+        self.assertEqual(verdict.verdict(task, ref, start), (False, [f"extra has no threshold: {same}"], []))
+        ref["checks"][1] = checked("extra", "probe", False, "measured 3, threshold >= 4")
+        start["checks"][1] = checked("extra", "probe", False, "measured 0, threshold >= 4")
+        self.assertEqual(verdict.verdict(task, ref, start),
+                         (True, [], ["reference fails extra (probe): measured 3, threshold >= 4"]),
+                         "an optional probe with a threshold the reference fails stays a note")
+        required = task_with(probe(expect={"op": ">=", "calibrate": 0.5}))
+        both = same.replace("extra", "hero_on_ground")
+        self.assertEqual(verdict.verdict(required, record(checked("hero_on_ground", "probe", False, both)),
+                                         record(checked("hero_on_ground", "probe", False, both)))[1],
+                         [f"reference fails hero_on_ground: {both}"], "a required one is named once")
+
+    def test_a_check_the_checker_couldnt_run_is_no_verdict(self):
+        """A row the checker couldn't make (`the checker failed`) is the machine's or the checker's, never the task's:
+        the task check is an ERROR, as the Lab asks such a check again."""
+        ref = record(checked("hero_on_ground", "probe", False, "the checker failed (OSError: disk full)"))
+        start = record(checked("hero_on_ground", "probe", False))
+        self.assertEqual(verdict.failures(ref, start),
+                         ["reference hero_on_ground: the checker failed (OSError: disk full)"])
+        self.assertEqual(verdict.failures(record(checked("hero_on_ground", "probe", True)), start), [])
+        self.assertEqual(verdict.failures(None, start), [])
 
     def test_a_no_op_scores_zero(self):
         """What is true of the start carries no weight, whether or not it is required (owner, 2026-11-04)."""

@@ -171,7 +171,11 @@ it waited for a machine slot (`unity-heavy.ps1`).
 A task is **VALID** when all of this holds:
 
 - the start builds, or doesn't build exactly when a build check says `fails_at_start`;
-- with a reference: the reference builds, boots (every `boot` check) and passes every **required** probe;
+- with a reference: the reference builds, boots (every `boot` check) and passes every **required** check the checker
+  runs: probes, `log_absent`, `file_exists` and `package` alike. The Lab's grader holds the task's own fix to every
+  required check, so a required check the reference fails is one no solution like the reference can pass;
+- every probe has a threshold, a `"required": false` one too: a probe the checker can't calibrate (below) makes the
+  Lab's grade of the task fail whole, so it is a reason, never a note;
 - the start fails every required probe outside `still_works` (or doesn't build by design): each is one issue of the
   thread, and one the start already passes rewards no work. A required check of `"weight": 0` is a guard wherever it
   sits (it rewards nothing), so the start may pass it; that lets a task hold more guards than `still_works`' 32;
@@ -185,12 +189,16 @@ A task is **VALID** when all of this holds:
   or a probe, a `"required": false` one too (the task check measures that). Judges and the retired trace probes aren't measured
   here, so their weights aren't covered by this rule.
 
-Never decided by the check: judges (`judge`, `code_judge`: no model is asked), `package` checks, and the
-retired `actions_judge` checks and `trace` probes an older task still carries. The reference's other failures (`log_absent`,
-`file_exists`, probes with `"required": false`) are reported as notes and never make a task INVALID. Read the notes
-all the same: every check is required unless it says `"required": false`, a `log_absent` or `file_exists` too, and
-a run counts as solved only when every required check passes, so a required one the reference itself fails is one no
-solution like the reference can pass. Fix its pattern, or make it `"required": false`.
+Never decided by the check: `code_judge` checks (no model is asked) and the retired `actions_judge` checks and
+`trace` probes an older task still carries. A `package` check fails on every side: the Lab's grader has no package step
+for a Unity game and fails it closed, so a required one keeps every run from passing and the task is INVALID (`reference
+fails X: not packaged: ...`); drop it. The reference's failures of checks that aren't required are reported as notes
+and never make a task INVALID. Every check is required unless it says `"required": false`, a `log_absent` or
+`file_exists` too, and a run counts as solved only when every required check passes.
+
+A row whose check the checker itself couldn't run reads `the checker failed (...)`: that is the machine's or the
+checker's fault, never the task's, so the task is an **ERROR** (`the checker couldn't run a check, so this is no
+verdict on the task ...`), never VALID or INVALID. Fix what the row names and check it again.
 
 A `judge` check is looked at by you instead. The check plays its plays on the start and on the reference (its own
 `plays`, else `look` and `drive`; a play a probe names is the same play, played once, with the most screenshots a
@@ -269,8 +277,8 @@ without), so this is for drafts only.
     `| measured V, threshold OP T`, with what the start and the reference measured when the threshold came from them,
     and why it has no value: `... | measured 0, threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing,
     threshold >= 1: no value in the window (...)`; a probe left without a threshold reads `uncalibrated: X: ...`
-    instead. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
-    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
+    instead. A detail starting `not asked` is a check that side doesn't run (judges and trace probes on either
+    side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
     counts for nothing. A `seen` probe's detail is the value read from the writer's answer, or why it has none
     (`not read yet: its crops are saved under seen-shots, answer needed`);
   - `task_sha256` (the SHA-256 of the task file as the run read it: the file as committed on the `tasks` branch, or
@@ -335,10 +343,11 @@ The bug doesn't show in what the probes measure.
 **`uncalibrated: ... the start and the reference both measure N`.** The measures are equal on both sides, so there is
 nothing to put a threshold between: the probe doesn't see the change. Measure something the fix changes (a
 different field, window or play), or use a literal value when the fact is a count or a boolean. A probe that isn't
-required and can't be calibrated fails as a note, never as a reason for INVALID. `uncalibrated: X: the reference
+required and can't be calibrated is a reason too (**`X has no threshold: uncalibrated: ...`**): the Lab's grade of a
+task fails whole on any probe without a threshold, so fix it or drop it. `uncalibrated: X: the reference
 measured nothing (...)` (or `the start measured nothing (...)`, for a threshold relative to the start or with a
 reference that measured 0): read the reason in brackets as below. In a task with no reference, a required probe the
-start leaves uncalibrated reads **`X has no threshold: uncalibrated: ...`**: no solution could pass it.
+start leaves uncalibrated reads the same: no solution could pass it.
 
 **`no samples in the window (the play ended at N s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
@@ -456,7 +465,8 @@ Pick a start and a reference from the part of the game's history made on 6000.3.
 nothing about the task; the run goes on with the next one, and the exit code is 1. The rest of the line says why: a
 missing LFS object (above), a Unity version that isn't installed, PowerShell refusing `unity-heavy.ps1`, a build that
 stopped (next entry), a player that couldn't be started on a desktop of its own, a disk error. Fix that and run
-again. One check's row reading `the checker failed (...)` is the same for that check alone.
+again. One check's row reading `the checker failed (...)` makes the task an ERROR the same way (VALID and INVALID,
+above).
 
 **`... didn't build: Unity stopped twice (exit N) with no compiler error and no result saying why: ...`** (or **`Unity
 was stopped at the build's time limit (N s) ...`**; an ERROR line). The build failed without a word about the game:

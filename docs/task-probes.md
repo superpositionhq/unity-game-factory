@@ -1620,16 +1620,17 @@ Before any agent is given a task, the checker grades the start and the fix with 
 ([task-check.md](task-check.md)). A task is valid when:
 
 - the start builds (unless the task says it doesn't, section 3.1: then it must not);
-- the fix builds, boots and passes every required probe (its other checks only add notes: a `log_absent` or
-  `file_exists` it fails, a probe that isn't required);
+- the fix builds, boots and passes every required check: probes, `log_absent`, `file_exists` and `package` alike (a
+  `package` check fails on every side, as the Lab's grader fails it closed, so a task carries none); the checks that
+  aren't required only add notes;
 - the start fails every required probe outside `still_works`, of which there is at least one (or the `fails_at_start`
   build check);
 - a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
   `"weight": 0`, as does any other check true of the start, a `log_absent` or `file_exists` check or a probe,
   `"required": false` ones included (the score is the weighted share of checks passed);
 - every required `still_works` probe passes at the start;
-- every required calibrated probe measures differently on the start and the fix (one that isn't required and can't
-  be calibrated fails as a note, never making the task invalid);
+- every calibrated probe, a required one or not, measures differently on the start and the fix: the Lab's grade of
+  a task fails whole on a probe without a threshold;
 - every required `judge` check, answered by the task's writer from the screenshots the check saves (section 3.2),
   fails on the start and passes on the fix, item by item.
 

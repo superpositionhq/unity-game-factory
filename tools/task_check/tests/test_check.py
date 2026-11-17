@@ -444,6 +444,21 @@ class Whole(unittest.TestCase):
             self.assertTrue(result["reasons"][0].startswith("start: ProjectSettings/ProjectVersion.txt names Unity "
                                                             "6000.0.40f1"), result["reasons"])
 
+    def test_a_check_the_checker_couldnt_run_makes_the_task_an_error(self):
+        """A play that raised (a disk error, a folder another program holds) leaves its rows `the checker failed`: no
+        verdict on the task, which is checked again, as the Lab asks such a check again."""
+
+        class Broken(FakeProject):
+            def play(self, *args, **kwargs):
+                raise OSError("the disk is full")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.check(task_with(probe()), {"start": FakeProject(measuring(-5)), "reference": Broken()}, tmp)
+            self.assertEqual(result["verdict"], "ERROR")
+            self.assertTrue(result["reasons"][0].startswith("the checker couldn't run a check, so this is no verdict on "
+                                                            "the task"), result["reasons"])
+            self.assertIn("reference hero_on_ground: the checker failed (OSError: the disk is full)", result["reasons"][0])
+
     def test_a_machine_that_cant_run_unity_is_an_error_never_a_verdict(self):
         def unlicensed(*args, **kwargs):
             raise unity.Unlicensed('Unity has no active licence (exit 198, "No valid Unity Editor license")')

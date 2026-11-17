@@ -142,15 +142,21 @@ Fields whose threshold is never a literal (calibrated or relative to the start o
 `spin`, `spread`, `bounds_change`, `pose_change`, `glow`; pieces `triangles`, `visible_triangles`; `screen` (all);
 audio `volume`, `max_volume`, `level`; ground `range`; drawn everything but `drawn`.
 
-Six of the task check's rules, each closing a case that would otherwise read wrongly:
+The task check's own rules, each closing a case that would otherwise read wrongly:
 
 - a still-works probe is excused only when its start play has no samples ("no samples in the window": the play
   crashed, ended early or wrote no probe file); one that finds nothing to measure in a start that ran counts against
   the task (excusing any "measured nothing" would hide a broken still-works probe) (`verdict.verdict`);
-- a check without a reference needs a threshold for every required probe, still-works ones too: an uncalibrated one is a
-  reason, "<name> has no threshold: <detail>", since no solution could pass it (`verdict.verdict`; a still-works probe
-  relative to a start that measured nothing has none either, and a crash excuses its failing at the start, not its
-  missing threshold);
+- every probe needs a threshold, a required one or not and still-works ones too: an uncalibrated one is a reason,
+  "<name> has no threshold: <detail>" (a required one's reference row already says "reference fails <name>:
+  uncalibrated: ..."), since no solution could pass it and the Lab's grade of a task fails whole on one
+  (`verdict.verdict`; a still-works probe relative to a start that measured nothing has none either, and a crash
+  excuses its failing at the start, not its missing threshold);
+- the reference passes every required check the checker runs, `log_absent`, `file_exists` and `package` too (a
+  `package` check fails closed on every side, `check.NO_PACKAGE`, as the Lab's grader has no package step for a Unity
+  game); only checks that aren't required are notes (`verdict.verdict`);
+- a row the checker couldn't make (`the checker failed (...)`) makes the task an ERROR, no verdict
+  (`verdict.failures`, `check.check_task`);
 - a calibrated threshold anchored on the reference alone (the start measured nothing) needs a reference other than 0:
   a share of 0 is no margin, so the probe is uncalibrated, "<name>: the start measured nothing (<why>) and the
   reference measured 0, so there is no threshold" (`verdict.make_threshold`);

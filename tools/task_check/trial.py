@@ -10,10 +10,10 @@ For one task and each run:
    the machine's recording hooks off (UGF_NO_RECORDING, and GF_NO_RECORDING for another factory's hooks on the
    same machine). Its transcript is kept.
 3. The workspace is graded as a solution: its build outputs and Library removed, TaskProbe added, built fresh,
-   played, every check but judges, seen probes (a model's reading in the Lab: not asked, and left out of the number),
-   trace probes and packaging run against the thresholds the start and the reference give (both built and measured
-   once for all runs, before the first agent starts, and deleted then: the reference copy is the answer, and it would
-   lie two folders above the agent's). Each `judge` check's plays are then
+   played, every check but judges, seen probes (a model's reading in the Lab: not asked, and left out of the number)
+   and trace probes run (a package check fails closed, as in the Lab's grader) against the thresholds the start and
+   the reference give (both built and measured once for all runs, before the first agent starts, and deleted then: the
+   reference copy is the answer, and it would lie two folders above the agent's). Each `judge` check's plays are then
    played on the agent's game and the screenshots its judge would see are saved under
    <name>/run<N>/judge-shots/<check>/agent/ with ask.md (judges.py): no model is asked, so whoever runs the try looks
    at them and answers; the run's number leaves judges out, and the result lists them as pending.

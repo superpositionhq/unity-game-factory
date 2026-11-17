@@ -28,8 +28,9 @@ task's play_scene and play_args unless a task play names its own, with the task'
 check plays boot_<seconds>s (2 screenshots, no queries). Every task's boot is a 60 s idle play and "look" is the first
 20 s of the same idle game, so when no look probe reads the log, a side that boots (the reference; a start is never
 booted) plays one 60 s idle play with look's queries for both (Side.idle): the boot check reads it whole, and look
-reads its first 20 s only (first_seconds), one game launch instead of two. Judges, trace probes and packaging never
-decide a task check: a `judge` check's plays are played on both sides and the screenshots its judge would see are saved
+reads its first 20 s only (first_seconds), one game launch instead of two. A `package` check fails on every side, as
+the Lab's grader fails it closed (it has no package step for a Unity game). Judges and trace probes never decide a task
+check: a `judge` check's plays are played on both sides and the screenshots its judge would see are saved
 under <name>/judge-shots/<check>/ (judges.py) for whoever runs the check to look at and answer (`judge_shots`). A
 `seen` probe (text the Lab's visual model reads from a named shot) is read by the task's writer instead: its crops are
 saved under <name>/seen-shots/<check>/ (seen.py), and once the writer has answered, their answer is the probe's
@@ -75,6 +76,7 @@ def own_play(play, project):
 
 JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
 NOT_JUDGED = "not asked: judges never decide a task check"
+NO_PACKAGE = "not packaged: the Lab's grader has no package step for a Unity game, so a package check fails every run"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:
 # `t >= seconds + 0.5`), so a look cut from a longer play keeps that half second too
@@ -478,8 +480,8 @@ class Side:
 
 
 class Grade:
-    """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges, trace
-    probes and packaging, of the reference or of `side` (an agent's game, task-try.py); "start": its probes and a
+    """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges and trace
+    probes (a package check fails closed), of the reference or of `side` (an agent's game, task-try.py); "start": its probes and a
     `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`)."""
 
     def __init__(self, task, mode, start, reference, thresholds, side=None):
@@ -548,8 +550,8 @@ class Grade:
             found = [p for p in root.glob(check["glob"]) if p.is_file()
                      and not SKIP.intersection(p.relative_to(root).parts)]
             return len(found) >= check["min_count"], f"{len(found)} file(s) match"
-        if kind == "package":
-            return True, "not asked: a task check never packages the game"
+        if kind == "package":  # fails closed, as in the Lab's grader: a required one keeps every run from passing
+            return False, NO_PACKAGE
         if kind == "probe":
             return self.probe_check(check)
         raise ValueError(f"no check kind {kind}")
@@ -768,6 +770,7 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         else:
             start_grade = Grade(task, "start", start, reference, thresholds).run()
         valid, why, notes = verdict.verdict(task, ref_grade, start_grade)
+        failed_rows = verdict.failures(ref_grade, start_grade)
         gaps()
         notes += gap_notes(result)
         if judge_shots and judges.judges(task):
@@ -787,6 +790,9 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
             valid, why = valid and not waiting, why + waiting
         result.update(probes=probe_values(task, ref_grade, start_grade), start_checks=start_grade["checks"],
                       reference_checks=ref_grade["checks"] if ref_grade else [])
+        if failed_rows:  # a check the checker couldn't run says nothing of the task: no verdict until it runs again
+            return finish("ERROR", [f"the checker couldn't run a check, so this is no verdict on the task (fix the "
+                                    f"machine and check it again): {failed_rows[0]}"] + failed_rows[1:], notes)
         return finish("VALID" if valid else "INVALID", why, notes)
     except Exception as exc:  # any error of the checker's own: this task's ERROR, never the end of a run of many
         return finish("ERROR", [f"the checker couldn't check it: {type(exc).__name__}: {str(exc)[:400]}"])

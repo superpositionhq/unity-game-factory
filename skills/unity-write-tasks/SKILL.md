@@ -307,8 +307,8 @@ set. The usual order:
 1. `builds`: `build` (`player_builds`: the scripts compile and a Windows player builds).
 2. `boots`: `boot` 60 s (`boots_clean`: the player runs 60 s without a crash), `needs` the build. A managed exception
    the game survives is not a crash; a `log_absent` check catches those. It is required like any check that doesn't
-   say `"required": false`, and the task check only notes a `log_absent` the reference fails: read its notes, since
-   no solution like the reference could pass one (docs/task-check.md, "VALID and INVALID").
+   say `"required": false`, so the reference must pass it: a required `log_absent` the reference fails makes the task
+   INVALID, since no solution like the reference could pass it (docs/task-check.md, "VALID and INVALID").
 3. `fixed` (bug_fix, correction) / `done` (feature, change): `probe` checks of the reported outcomes, `required`,
    `needs` `boots_clean`: at least 3, one per issue the thread settled (split them over several milestones, e.g.
    `fixed_hud`, `fixed_camera`, when the issues are separable). Each one fails at the start for the reported reason

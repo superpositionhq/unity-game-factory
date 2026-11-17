@@ -13,9 +13,13 @@ Thresholds (a probe's `expect`):
 A task is VALID when
 - the start builds, unless the task says it doesn't (a build check's `fails_at_start`: making it build is the task):
   then the start must not build, and that is the start failing the task (it is never played);
-- with a reference: the reference builds and boots and passes every required probe; its other checks (log_absent,
-  file_exists, probes that aren't required) are notes, never decisive; the start fails every required probe
-  outside still_works (or doesn't build by design);
+- with a reference: the reference passes every required check the checker runs (build, boot, log_absent,
+  file_exists, package, every required probe), as the Lab's grader holds the task's own fix to every required check;
+  its checks that aren't required are notes, never decisive; the start fails every required probe outside
+  still_works (or doesn't build by design);
+- every probe has a threshold, a required one or not: one the checker can't calibrate (the start and the reference
+  measure the same, the reference measured nothing) makes the Lab's grade of the task fail whole, so no task carries
+  one;
 - without a reference: the start fails every required probe outside still_works (or doesn't build by design), and
   every required probe has a threshold (one the start leaves uncalibrated, no solution could pass);
 - either way, every required probe of the task's `still_works` milestone already passes at the start: what still works
@@ -26,9 +30,13 @@ A task is VALID when
   nothing; a task may hold more guards than still_works' 32);
 - a no-op scores zero (owner, 2026-11-04): no check the start passes carries weight. The cloud's score is the weighted
   share of checks passed, so build, boot and still-works checks and anything else true of the start take `"weight": 0`.
-Judges (judge, code_judge) and packaging never take part, and neither do the retired actions_judge checks and
-trace probes an older task still carries. A `seen` probe takes part as a probe, on the values the task's writer read
-from its crops (seen.py); until they are read it measures nothing."""
+A required `package` check fails on every side (the Lab's grader has no package step for a Unity game, so it fails
+closed there), so a task with one is never VALID. Judges (judge, code_judge) never take part here, and neither do the
+retired actions_judge checks and trace probes an older task still carries. A `seen` probe takes part as a probe, on the values
+the task's writer read from its crops (seen.py); until they are read it measures nothing.
+
+A row whose check the checker itself couldn't run (`the checker failed (...)`) is no verdict on the task: `failures`
+names them, and the task check is then an ERROR, never VALID or INVALID."""
 
 import math
 
@@ -36,6 +44,8 @@ from . import probes, tasks
 
 JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
 MARGIN = 0.25  # a calibrated threshold whose start measured nothing: the reference's value, this share toward the start
+FAILED = "the checker failed"  # a row's detail when the checker couldn't run its check (check.Grade.run)
+UNCALIBRATED = "uncalibrated"  # a probe row's detail when it has no threshold (check.Grade.probe_check)
 
 
 class Uncalibrated(Exception):
@@ -119,6 +129,14 @@ def noop_score(task, start):
     return (round(sum(weights[n] for n in names) / total, 3) if total else 0.0), names
 
 
+def failures(reference, start):
+    """["<side> X: the checker failed (...)"] of the rows on either side whose check the checker itself couldn't run:
+    the machine's or the checker's fault, never the task's, so the task check is an ERROR until it runs again."""
+    return [f"{label} {c['name']}: {str(c['detail'])[:160]}" for label, grade in (("reference", reference),
+                                                                                ("start", start))
+            for c in (grade or {}).get("checks", []) if str(c["detail"]).startswith(FAILED)]
+
+
 def verdict(task, reference, start):
     """(valid, why, notes) from the reference's and the start's check rows ({"checks": [{name, kind, passed,
     detail}]}). `reference` None: a start-only check."""
@@ -135,17 +153,24 @@ def verdict(task, reference, start):
         if c["name"] in still and not c["passed"] and not detail.startswith("not asked") \
                 and "no samples in the window" not in detail:  # a crash the task fixes leaves nothing to measure
             why.append(f"start fails still-works {c['name']}: {detail[:160]}")
+    named = set()  # the probes a reason already names
+    asked = {c["name"]: c["required"] for _, c in tasks.checks(task)}  # every check's `required`, its default filled in
     if reference is not None:
+        # the task's own fix passes every required check the checker runs, as the Lab's grader holds it to them all
         for c in reference["checks"]:
             if c["passed"]:
                 continue
-            if c["kind"] in ("build", "boot") or c["name"] in required:
+            if c["kind"] in ("build", "boot") or c.get("required", asked.get(c["name"], False)):
                 why.append(f"reference fails {c['name']}: {str(c['detail'])[:160]}")
-            else:
+                named.add(c["name"])
+            elif not str(c["detail"]).startswith(UNCALIBRATED):  # (one with no threshold is a reason, below)
                 notes.append(f"reference fails {c['name']} ({c['kind']}): {str(c['detail'])[:160]}")
-    else:  # an uncalibrated probe is no start failing it: no solution could pass it (with a reference, its row says so)
-        why.extend(f"{c['name']} has no threshold: {str(c['detail'])[:160]}" for c in start["checks"]
-                   if c["name"] in required and str(c["detail"]).startswith("uncalibrated"))
+    # a probe with no threshold, required or not, is no start failing it: no solution could pass it, and the Lab's grade
+    # of a task fails whole on one (with a reference, a required one's row says so above)
+    for c in (reference or {"checks": []})["checks"] + start["checks"]:
+        if c["kind"] == "probe" and c["name"] not in named and str(c["detail"]).startswith(UNCALIBRATED):
+            why.append(f"{c['name']} has no threshold: {str(c['detail'])[:160]}")
+            named.add(c["name"])
     earned, names = noop_score(task, start)
     told = (required - still) | ({build["name"]} if build is not None else set())  # those have their own reasons below
     if earned and set(names) - told:
