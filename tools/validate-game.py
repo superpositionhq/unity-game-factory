@@ -2095,7 +2095,7 @@ def check_rules(rep, repo, files):
     check_mobile(rep, repo, files)
 
 
-# ---- the contract on a game with combat (Lab docs/planning/2026-11-11_game-contact-checks/spec.md section 11.2):
+# ---- the contract on a game with combat (unity-game-session skill, "Combat through one interface, state readable"):
 # ---- damage through one IDamageable interface the probe can find, key gameplay state never in mutable statics -------
 HEALTH_WORDS = {'health', 'hp', 'hitpoints', 'hull', 'poise', 'armor', 'armour'}
 STATE_WORDS = {'shield', 'stamina', 'mana', 'lives', 'dead', 'alive', 'dying', 'stun', 'stunned', 'stagger', 'staggered',

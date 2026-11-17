@@ -383,7 +383,7 @@ def build_rules(user, machine, session_ids, identities):
     add('agent-mention', 'all', OPUS_WORD % 'OPUS', 'MODEL', 'opus')
     add('agent-mention', 'all', OPUS_WORD % 'Opus', 'Model', 'opus')
     add('agent-mention', 'all', '(?i)' + OPUS_WORD % 'opus', 'model', 'opus')
-    # the model's name as a segment of a run or file name in the sessions' record (pilot-2c-opus-siege, run-opus-win.png)
+    # the model's name as a segment of a run or file name in the sessions' record (run-<model>-win, <model>-pass.png)
     add('agent-mention', 'json', r'(?i)(?<=[A-Za-z0-9][-_.])opus(?=[-_}]|\.[A-Za-z]{2,4}\b)', 'model', 'opus')
     add('agent-mention', 'all', r'(?i)claude', cased('agent', 'Agent', 'AGENT'), 'claude')
     add('agent-mention', 'all', r'(?i)anthropic', cased('provider', 'Provider', 'PROVIDER'), 'anthropic')
