@@ -41,6 +41,10 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
   every one a long thread of multiple edits from the real history, never a single fix, at least 4 of them hard: the others
   may be medium, none easier; seed and reference commits, observation-only briefs, milestones with deterministic
   probe checks).
+- **unity-check-tasks** ([skills/unity-check-tasks/SKILL.md](skills/unity-check-tasks/SKILL.md)): sessions that
+  check a game's tasks, after every task written or edited (the no-op case, the game at the task's start, must fail
+  it; the oracle case, the game at its reference, must pass every required check; `tools/task-check.py` in one
+  background run, reading its results, scoring the judges blind, the failure patterns and what to do for each).
 
 **Only these skills (owner's rule, 2026-10-21).** Contractors and every agent session working for unity-game-factory
 use the skills above (of unity-desktop-game and unity-mobile-game, the one of the game's platform, never both) and no

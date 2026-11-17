@@ -126,7 +126,7 @@ packager's first run.
   (`tools/package-dataset.py`) and its scrub.
 - [AGENTS.md](AGENTS.md): what every session reads first (Claude Code through [CLAUDE.md](CLAUDE.md), Codex
   directly): the skills in `skills/` (unity-commit-always, unity-game-session, unity-desktop-game or unity-mobile-game,
-  unity-sound, unity-write-tasks), the
+  unity-sound, unity-write-tasks, unity-check-tasks), the
   priorities, how the two agents differ, and the rules for agents working here (each with the failure behind it).
 - [docs/new-machine.md](docs/new-machine.md): setting up another Windows machine (`machine/setup.ps1`, which runs
   `machine/bootstrap.ps1` and `machine/check.ps1`).
@@ -143,7 +143,7 @@ tools/thread-stats.py              a thread's own commits counted against the ta
 tools/sfx.py                       sound effects for a game: search Freesound, fetch into the repo, measure (unity-sound skill)
 machine/                           machine setup: setup (entry point), bootstrap/check, unity-heavy limiter, recording hooks, ffmpeg
 templates/                         Unity 6.3 LTS game skeleton + new-game.ps1 (a desktop game, or -Platform mobile: an Android phone game)
-skills/                            unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks (agent-neutral; bootstrap installs them for each agent)
+skills/                            unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks, unity-check-tasks (agent-neutral; bootstrap installs them for each agent)
 docs/                              everything learned so far; docs/briefs/ = session prompts
 ```
 

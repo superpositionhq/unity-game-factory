@@ -43,7 +43,7 @@ Read first: {{UGF_ROOT}}\unity-game-factory\AGENTS.md, README.md, docs/autoplay-
 and the unity-game-session, unity-desktop-game, unity-commit-always and unity-sound skills
 ({{UGF_ROOT}}\unity-game-factory\skills\<name>\SKILL.md; installed for your agent too). They hold the rules; in short:
 - use only the unity-game-factory skills (unity-commit-always, unity-game-session, unity-desktop-game, unity-sound,
-  unity-write-tasks):
+  unity-write-tasks, unity-check-tasks):
   never install, enable or invoke any other skill (personal, project, plugin, marketplace, built into the agent, or
   another factory's), even when one is offered;
 - every editor, build or GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for
@@ -101,7 +101,8 @@ build; 6) playtest checklist, status section in the design doc, and
 before calling it content-complete: 5-7 real gameplay stills in Docs/screenshots/ (JPG, LFS; until recordings exist,
 the framing frames there are, never invented ones) shown in the README as a hero image plus a captioned gallery,
 checked on github.com after I say push; Tasks/ with at least 5 and up to about 10 tasks on the game, at least 4 of them hard (the others may be medium, none easier), every one a long thread of
-multiple edits, on the tasks branch, never on main (unity-write-tasks skill); tools/validate-game.py VALID; 7) the
+multiple edits, on the tasks branch, never on main (unity-write-tasks skill), each VALID in the task check
+(unity-check-tasks skill); tools/validate-game.py VALID; 7) the
 release, when I say (unity-game-session skill, "Dataset"): first ensure AutoPlay, a required step
 (tools/unity-pipeline/autoplay/install.ps1, every scenario wired, the bot, a passing hand test per scenario, the
 milestone/autoplay-<n> tag), and only then choose the release commit; tell me the release commit so I queue its

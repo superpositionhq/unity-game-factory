@@ -287,7 +287,7 @@ builds the dataset from the repo, so don't assemble a `Dataset.zip` by hand.
    recording of the release commit the packager refuses.
 
 Your agent sessions use only the unity-game-factory skills (`unity-commit-always`, `unity-game-session`,
-`unity-sound`, `unity-write-tasks` and, by the game's platform, `unity-desktop-game` or `unity-mobile-game`, installed by
+`unity-sound`, `unity-write-tasks`, `unity-check-tasks` and, by the game's platform, `unity-desktop-game` or `unity-mobile-game`, installed by
 `machine/setup.ps1`): never install, enable or invoke any other
 skill, whether your own personal or project skills, a plugin's or marketplace's, or one bundled with the agent
 (AGENTS.md, "Only these skills"). The recorded sessions are the dataset (every tool call, every prompt you type and

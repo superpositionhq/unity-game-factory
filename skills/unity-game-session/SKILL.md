@@ -13,7 +13,7 @@ every game. `%UGF_ROOT%` = the machine root (`machine/README.md`); the coordinat
 Use the **unity-commit-always** skill for every commit and the **unity-sound** skill for every sound.
 
 **Only the unity-game-factory skills (owner's rule).** Use unity-commit-always, unity-game-session, unity-sound,
-unity-write-tasks and your game's platform skill (unity-desktop-game, or unity-mobile-game for an Android phone game)
+unity-write-tasks, unity-check-tasks and your game's platform skill (unity-desktop-game, or unity-mobile-game for an Android phone game)
 and no other skill: never install, enable or invoke a personal, project, plugin, marketplace or agent
 built-in skill, even when the agent offers one, and that includes another factory's skills (commit-always,
 game-session, sound, write-tasks) if this machine has them (AGENTS.md, "Only these skills"). Do what they don't cover
@@ -453,8 +453,9 @@ there, never on main: task work never enters the game's history (the hooks ignor
 commits. Follow the unity-write-tasks skill (the branch and worktree, seeds, the brief written from context, the play
 scene, deterministic probe checks, what must never reach the agent); never point the game's code or docs at `Tasks/`.
 validate-game.py checks their format, and `tools/task-check.py <games>/<slug> --all` (docs/task-check.md), started
-once all the tasks are written as a background process the person can leave running (unity-write-tasks section 5),
-checks them on the engine: a task ships only when the task check says VALID. Judge each task's difficulty in the
+once all the tasks are written as a background process the person can leave running (the unity-check-tasks skill),
+checks them on the engine, the start (the no-op case) and the reference (the oracle case): a task ships only when the
+task check says VALID on its final file. Judge each task's difficulty in the
 session against the bar (unity-write-tasks skill, section 6); never run a task with another coding agent
 (`tools/task-try.py` is ours, run on submitted tasks).
 

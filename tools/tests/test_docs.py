@@ -40,8 +40,9 @@ DEFS = TASK['$defs']
 PROBES = 'docs/task-probes.md'
 DOC_PLAYER = 'Game.exe'  # the player as the docs' command lines name it: the factory's machines are Windows
 SKILL = 'skills/unity-write-tasks/SKILL.md'
+CHECK_SKILL = 'skills/unity-check-tasks/SKILL.md'
 CONTRACT = 'tools/task_check/CONTRACT.md'
-DOCS = (PROBES, 'docs/task-check.md', 'docs/task-try.md', 'docs/game-format.md', SKILL, CONTRACT)
+DOCS = (PROBES, 'docs/task-check.md', 'docs/task-try.md', 'docs/game-format.md', SKILL, CHECK_SKILL, CONTRACT)
 
 
 def read(rel):

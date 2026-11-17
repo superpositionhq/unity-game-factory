@@ -1,5 +1,8 @@
 # Task check: check your own tasks
 
+A game session checks its tasks with the unity-check-tasks skill, which says step by step how to run this check and
+read it; this page is its full reference.
+
 A task (a GameTask JSON in `Tasks/` on the game repo's orphan `tasks` branch, schema
 [schemas/game-task.schema.json](schemas/game-task.schema.json)) is only useful when its checks tell a broken game from a
 fixed one. The task checker proves that on your machine before you hand the task in: it builds the game at the task's
@@ -23,7 +26,7 @@ built with), so a commit that is one task's start and another's reference, or tw
 copy is deleted after the last task that needs it (or when the disk runs below the floor, then rebuilt if a later task
 needs it). A shared copy is the commit exactly as committed, so sharing changes no result. A run of 10 tasks takes
 hours, so start it where it can run on its own and come back; a game session starts it as its own process
-(unity-write-tasks skill, section 5). Two runs at once on one game each get their own scratch folder, but share
+(the unity-check-tasks skill). Two runs at once on one game each get their own scratch folder, but share
 `<out>` unless each is given its own `--out`: they rewrite each other's progress files, and a task checked by both
 loses its evidence to the other. `<out>\progress.txt` (and `progress.json`) is rewritten after every task: how many
 are done, each one's verdict and minutes, and which is running; it says `finished` at the end. Progress lines carry
@@ -446,6 +449,12 @@ values to the turn you need.
 (`Input.GetKey`, `Input.GetAxis`) takes no input in a play; the `track` in `probe.json` stays put through the
 `drive`. Such a game's tasks can only use what goes around the Input System (teleports, widget clicks, waits and idle
 plays), or a start that reads the Input System.
+
+**A mobile game's `drive` moves nothing** (the `track` in `probe.json` stays put through the drive). The drive by touch
+puts a left thumb down at the lower left of the screen (`[0.15, 0.75]`) and pushes it, and taps the lower right (`[0.85, 0.75]`) for
+the jump (task-probes.md, section 1.1): a game whose virtual stick sits elsewhere, or appears only where a finger first
+lands outside that spot, takes none of it. Probe the move with a task play of `drag` inputs on the game's own stick
+(task-probes.md, section 1.3), or put the stick where a thumb rests.
 
 **`start fails still-works X`.** The game works at the start, so a still-works probe that fails there is broken: it
 doesn't find the HUD, the object or the value it looks for. Fix the probe (see the play's `probe.json`), never the

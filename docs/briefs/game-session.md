@@ -123,8 +123,8 @@ Steps:
    ones), the README shows them as a hero image plus a captioned gallery, and
    after the push every image renders on the github.com repo page (unity-game-session skill, "README screenshots");
    and Tasks/ on the repo's orphan tasks branch (its own worktree, never on main) holds the game's tasks, up to about
-   10, every one a long thread of multiple edits (unity-write-tasks skill); and tools/validate-game.py on your repo
-   says VALID (docs/game-format.md). Report back with a short summary and the commit sha when done or blocked.
+   10, every one a long thread of multiple edits (unity-write-tasks skill), each VALID in the task check on its final
+   file (unity-check-tasks skill); and tools/validate-game.py on your repo says VALID (docs/game-format.md). Report back with a short summary and the commit sha when done or blocked.
 7) The release, when I say (unity-game-session skill, "Dataset"): first ensure AutoPlay, a required step
    (tools/unity-pipeline/autoplay/install.ps1, every scenario wired, the bot, a passing hand test per scenario, the
    milestone/autoplay-<n> tag), and only then choose the release commit; send me the release commit to record (no other

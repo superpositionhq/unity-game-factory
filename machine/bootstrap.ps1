@@ -420,7 +420,7 @@ if ($Agents -contains 'codex') {
     $agentsPath = Join-Path $repo 'AGENTS.md'
     $line = "Before anything else, read $agentsPath and follow it (rules, skills, priorities)."
     Set-RootFile (Join-Path $Root 'AGENTS.md') $line ("# UnityWork root`n`nEvery session in this folder follows the unity-game-factory rules and skills.`n$line`n" +
-        "The skills it names (unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks) are installed in $AgentsSkillsDir.`n")
+        "The skills it names (unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks, unity-check-tasks) are installed in $AgentsSkillsDir.`n")
 }
 
 # --- 4. git, LFS, gh, game repos --------------------------------------------------------------------------------------

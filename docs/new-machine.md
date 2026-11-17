@@ -14,7 +14,7 @@ stopped.
 **Another factory on the same PC.** Both can live on one machine. This one has its own root
 (`%USERPROFILE%\UnityWork`), config (`%USERPROFILE%\.unity-game-factory\config.json`), hooks folder
 (`%USERPROFILE%\.unity-game-factory\hooks\`) and skills (`unity-commit-always`, `unity-game-session`, `unity-desktop-game`,
-`unity-mobile-game`, `unity-sound`, `unity-write-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
+`unity-mobile-game`, `unity-sound`, `unity-write-tasks`, `unity-check-tasks`); setup and bootstrap add their entries next to the other factory's and never change them. A
 session is recorded by the factory whose `games\<slug>` folder one of its tool calls names. The two share one thing on
 purpose: the
 machine-wide job slots (`unity-heavy.ps1` takes the same named mutexes as that factory's `ue-heavy.ps1`, and also

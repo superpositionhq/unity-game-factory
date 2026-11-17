@@ -1,6 +1,6 @@
 ---
 name: unity-mobile-game
-description: 'The rules of a unity-game-factory game-building session that hold for a mobile (Android phone) game only. Use with the unity-game-session skill in every session that builds a game made with new-game.ps1 -Platform mobile (its root has a Platform.json), and with the unity-write-tasks skill when writing that game''s tasks. A desktop game''s session reads unity-desktop-game instead.'
+description: 'The rules of a unity-game-factory game-building session that hold for a mobile (Android phone) game only. Use with the unity-game-session skill in every session that builds a game made with new-game.ps1 -Platform mobile (its root has a Platform.json), and with the unity-write-tasks and unity-check-tasks skills when writing and checking that game''s tasks. A desktop game''s session reads unity-desktop-game instead.'
 ---
 
 # Mobile game (Unity)

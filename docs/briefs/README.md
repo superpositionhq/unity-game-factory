@@ -2,7 +2,7 @@
 
 The prompts that start each session of unity-game-factory (Claude Code or Codex), as reusable templates. The rules
 every session follows are in the skills (`skills/`: unity-commit-always, unity-game-session, unity-desktop-game or
-unity-mobile-game, unity-sound, unity-write-tasks); the briefs carry the task. The coordinator and its helper and game sessions use the Claude desktop
+unity-mobile-game, unity-sound, unity-write-tasks, unity-check-tasks); the briefs carry the task. The coordinator and its helper and game sessions use the Claude desktop
 app's side sessions; a solo game runs in a terminal with either agent.
 
 | File | For |

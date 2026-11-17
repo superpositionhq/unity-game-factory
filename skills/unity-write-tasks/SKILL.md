@@ -1,6 +1,6 @@
 ---
 name: unity-write-tasks
-description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, at least 4 hard, the rest medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, milestones and deterministic probe checks (pass/fail never by pixels; judges only for asked looks; one required probe per issue), validating and the background task check, limits, and what keeps a task gradable and unleaked. Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
+description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, at least 4 hard, the rest medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, deterministic probe checks (never by pixels; judges only for asked looks; one required probe per issue), every ask with a check, limits, and what keeps a task gradable and unleaked (checking it: unity-check-tasks). Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
 ---
 
 # Writing a game's tasks (Unity)
@@ -72,9 +72,9 @@ prints one line per finding (`x` an error, `!` a warning, `-` a note): its `repo
 (a task with nothing wrong has no line of its own: the note `N task(s) on tasks` counts those it read and checked);
 its other `repo:` lines (the README, `.meta` files, LFS, the manifest) and its `dataset:` lines are about the game
 repo, not a task: they never change a task check's verdict, but a game is delivered only when the validator says
-VALID. Commit tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then run the
-task check on all of them in one background run (section 5, `tools/task-check.py`): only VALID tasks ship, so fix or
-remove every INVALID one before the game is packaged.
+VALID. Commit tasks as you go, like any work (unity-commit-always skill), but on the tasks branch only. Then check
+all of them, the no-op case and the oracle case, in one background run of `tools/task-check.py` (the unity-check-tasks
+skill): only VALID tasks ship, so fix or remove every INVALID one before the game is packaged.
 
 ## 1. The bar: long threads of multiple edits, nothing else
 
@@ -446,55 +446,34 @@ are measured from the engine (`light`, `grading`), never from screenshots. `desc
 words; it is shown in the grade, never to the agent. Check names are unique and `needs` only names earlier checks;
 calibrated probes, `code_judge` and `"reference": true` judges need `seed.reference`.
 
-A task is valid only when it passes the task check: its start fails the task and its reference fix builds, boots and
-passes every required probe, and every required `still_works` probe already passes at the start. Write the probes per
-[docs/task-probes.md](../../docs/task-probes.md), then check the game's tasks **together, in one background run** (one
-run builds a commit several tasks share once, and the person can leave it running and come back). Write and commit
-every task first, check that Unity Hub is signed in with an active licence (a batchmode run without one exits 198),
-then start the check as its own process so it outlives your turn and no tool timeout cuts it short (PowerShell, under
-either agent):
-
-```powershell
-Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game-factory `
-  -ArgumentList 'tools\task-check.py', '<UGF_ROOT>\games\<slug>', '--all' `
-  -RedirectStandardOutput <UGF_ROOT>\games\<slug>\.task-checks\run.out `
-  -RedirectStandardError <UGF_ROOT>\games\<slug>\.task-checks\run.log
-```
-
-Create `.task-checks` first if it doesn't exist. Unity fails on paths past 260 characters, so the checker refuses a
-scratch project folder longer than 90 characters: it then stops at once and `run.log` says so; add `'--scratch',
-'C:\tc'` (a short folder on the repo's drive) to the arguments. Tell the person it is running, roughly how long (7 to
-31 minutes a task for small projects on the machine it was measured on, longer for a game with many or large assets
-and several times longer while the machine runs other Unity jobs; most of it is the builds, and a commit several
-tasks share is built once: docs/task-check.md, "Requirements"), and that they can leave it. Read
-`<UGF_ROOT>\games\<slug>\.task-checks\progress.txt` to see where it stands (rewritten after every task; it says
-`finished` at the end); never start a second run of the same game while one is going. A recheck of the tasks you
-fixed takes `--task <name>` once per task instead of `--all`. `--task <path>/Tasks/<name>.json` checks a file not
-committed yet ([docs/task-check.md](../../docs/task-check.md)). The check builds each start and reference as a
-Windows player with the probe package, plays them on a Windows desktop of their own (nothing on the person's screen,
-the game counting itself focused) and writes VALID or INVALID per task with the reasons and the measured values. **A
-task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common reasons and fixes"),
-never the threshold toward what the start happens to measure.
+A task is valid only when it passes the task check in both of its cases: **the no-op case**, the game at
+`seed.commit` unchanged, fails it for the reason its checks give, and **the oracle case**, the game at
+`seed.reference`, passes every required check (build, boot, `log_absent`, `file_exists`, every required probe and
+every required judge), with every required `still_works` probe already passing at the start and every probe a
+threshold. Write the probes per [docs/task-probes.md](../../docs/task-probes.md), commit every task, then check them
+with the **unity-check-tasks** skill: one background run of `tools/task-check.py` over all of the game's tasks, how to
+read what it writes, how to score the judges and read the `seen` probes blind, and what to do for each failure.
+**A task ships only when the task check says VALID on its final file, checked again after every edit**; for INVALID,
+fix the task, never the threshold toward what the start happens to measure. _(why: the Lab's grader runs the same two
+cases before any agent gets the task, and a task that fails either is void)_
 
 **Every check is run before the task is handed in, on both builds, and you read what it measured**, not only the
 verdict (`.task-checks\<task>\`: the result's `probes` values, each play's `probe.json` and `probe.log`): it fails at
 the start and passes on the reference for the reason its `describe` gives; the play's inputs landed (no row in
-`inputs_missed`, the click found its button, the teleport its object); the probe matched something on both sides
-(rows, not an empty selection that happens to compare right); a judge's frames show the moment asked about. A
+`inputs_missed`, the click found its button, the teleport its object: a probe of a play whose input missed fails
+whatever it measured); the probe matched something on both sides (rows, not an empty selection that happens to
+compare right); the moment it reads falls inside its window on both sides with room to spare; a judge's frames show
+the moment asked about. A check added or changed after the last run is unchecked until it runs again. A
 threshold comes from the instruction or from the start (`start_plus`, `start_times`, a number the ticket states),
 never from whatever makes the reference pass. **The reference does everything the instruction asks, in a place a play
 can reach**: an ask the reference doesn't meet, or meets only where no play gets to, comes out of the instruction or
 the reference is the wrong commit.
 
-**The check asks no model, so you answer the judges.** For every `judge` check it plays the check's plays on the start
-and on the reference and saves the screenshots the cloud's judge would be shown under
-`.task-checks\<task>\judge-shots\<check>\` (`start\`, `reference\`, and a blind copy in `blind\A\` and `blind\B\`
-whose sides are in `blind\key.json`), with `ask.md` holding the brief, the question and the rubric; `progress.txt` says
-`judge <check>: shots saved for start/reference, answer needed`. Before you call a task with a required judge VALID,
-look at the pictures yourself, blind: score every rubric item for A and for B from 0 to 1 first, then open the key.
-The start must fail every required rubric item (below 0.5) and the reference must pass every one; if either doesn't,
-reword the item or fix the plays so the pictures show the state, never by asking less of the solution. Write both
-sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
+**The check asks no model, so you score the judges.** A required judge holds the task until you have scored its saved
+screenshots blind, every rubric item of the start and the reference from 0 to 1 (unity-check-tasks skill, "Answer the
+judges and the `seen` probes, blind"): the reference must pass it and the start must fail every required item (pass
+it, for a judge in `still_works`). If either doesn't, reword the item or fix the plays so the pictures show the state,
+never by asking less of the solution. Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
 
 ### Every ask has a check
 
