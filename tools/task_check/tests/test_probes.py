@@ -1397,8 +1397,8 @@ class ComponentWorldTurn(unittest.TestCase):
         rows = [[{"world_yaw": 0.0}, {"world_yaw": 10.0}], [{"world_yaw": -95.0}, {"world_yaw": 265.0}],
                 [{"world_yaw": 179.0}, {"world_yaw": -84.0}]]
         port = self.comp(field="world_yaw", to_angle=-90, of="max")
-        self.assertAlmostEqual(probes.reduce(facing, objects_play(facing, rows[:2])), 5.0)
-        self.assertAlmostEqual(probes.reduce(facing, objects_play(facing, rows)), 91.0)
+        self.assertAlmostEqual(probes.reduce(port, objects_play(port, rows[:2])), 5.0)
+        self.assertAlmostEqual(probes.reduce(port, objects_play(port, rows)), 91.0)
         held = self.comp(field="world_yaw", to_angle=-90, of="max", agg="min", window=[0, 0.5])
         self.assertAlmostEqual(probes.reduce(held, objects_play(held, rows)), 5.0)
         axis = self.comp(field="world_yaw", to_axis=90, of="first")
