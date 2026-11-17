@@ -142,7 +142,7 @@
         "object",
         "null"
       ],
-      "description": "the Windows release player in Build/ (full variant); null in the repo Dataset/. A mobile game's (platform.kind mobile) may also name its Android APK (`apk`) with what the APK says of itself; it is there when the machine that built the release had the Android toolchain",
+      "description": "the Windows release player in Build/ (full variant); null in the repo Dataset/. A mobile game's (platform.kind mobile) also names its Android APK (`apk`) with what the APK says of itself: a delivered mobile game has it (tools/validate-game.py refuses one without)",
       "required": [
         "config",
         "commit",

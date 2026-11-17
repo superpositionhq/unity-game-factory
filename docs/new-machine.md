@@ -87,7 +87,7 @@ Setup prints these as TODOs (as notes where a PC may not need them) and detects 
 | Unity Hub sign-in and licence | Open Unity Hub, sign in with your Unity ID (create one if needed), then **Preferences > Licenses > Add** (Personal, or the org's seat). Every editor run needs it, batchmode too. | the licence file Unity Hub writes (`%LOCALAPPDATA%\Unity\licenses\`) or a serial activation's (`%ProgramData%\Unity\Unity_lic.ulf`); a licence server's floating seat leaves neither, so `check.ps1` only warns |
 | Unity 6.3 LTS editor | In Unity Hub: **Installs > Install Editor > Unity 6.3 (LTS)**, the newest 6000.3 patch (new games use the newest installed one; the config's `unity_version` set to an exact version pins it, and older patches are under **Archive**), with the module **Windows Build Support (IL2CPP)**. Default folder `C:\Program Files\Unity\Hub\Editor\<version>`; another works (set `unity_hub_editors`, or `"unity_editors": {"<version>": "<path to Unity.exe>"}` in the config). Each game builds with the exact version its `ProjectSettings\ProjectVersion.txt` names, so keep the versions your games use installed (`check.ps1` lists any that are missing). | `<unity_hub_editors>\6000.3.*\Editor\Unity.exe` |
 | C++ tools (IL2CPP builds only) | Visual Studio 2022 or its Build Tools with **Desktop development with C++** (or **Game development with Unity** with its C++ option). Mono player builds and the editor need none. | `check.ps1` (WARN only) |
-| Android toolchain (mobile games' APKs only) | In Unity Hub: **Installs** > the 6.3 LTS editor's gear > **Add modules** > **Android Build Support** with **OpenJDK** and **Android SDK & NDK Tools**, and approve the Windows prompt ([Mobile games](#mobile-games)). Without it everything else works: a mobile game is built, played and recorded as its Windows player, and its release build skips the APK and says so. | `check.ps1` (WARN only) |
+| Android toolchain (mobile games' APKs only) | In Unity Hub: **Installs** > the 6.3 LTS editor's gear > **Add modules** > **Android Build Support** with **OpenJDK** and **Android SDK & NDK Tools**, and approve the Windows prompt ([Mobile games](#mobile-games)). Without it a mobile game is still built, played and recorded as its Windows player, but it cannot be released: its dataset needs the APK. | `check.ps1` (WARN only) |
 | NVIDIA driver (if you have an NVIDIA GPU; for recording) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
 | Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window (a mobile game held upright, 1080x1920, is recorded on it too: in a window larger than the screen, captured as a window): Settings > System > Display | `check.ps1` |
 | Asset Store | only to download store packs for a **new** game: in the editor, **Window > Package Manager > My Assets** (signed in with the account that owns them) > Download. Downloads land in `%APPDATA%\Unity\Asset Store-5.x\`. Purchases and licence choices stay with their owner. | `check.ps1` counts the downloads |
@@ -168,7 +168,9 @@ APK build where they are. Unity wants the NDK version its own module would insta
 
 `machine/check.ps1` says which of the three the editor has (`Android toolchain (mobile games)`, a WARN when one is
 missing). Without them `build.ps1` builds a mobile game's Windows player, skips the APK with a line that says so and
-records it in `build_info.json` (`apk.status` `skipped`); the dataset then ships without the APK, with a warning.
+records it in `build_info.json` (`apk.status` `skipped`). That build plays and records, but it cannot be released: a
+mobile game is delivered with its APK, so `tools/package-dataset.py` refuses a build without one and
+`tools/validate-game.py` refuses a mobile dataset without it.
 
 ## Toolchain notes
 

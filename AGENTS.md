@@ -60,7 +60,7 @@ Pipeline: [docs/unity-pipeline.md](docs/unity-pipeline.md). AutoPlay:
 
 **Priorities (user decision).** What ships is what matters, in this order: the game plays; the game builds (editor and
 the Windows release player; a mobile game is played and recorded as that player at the phone's size, and its APK is
-built at release where the machine has the Android toolchain); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
+built at release and delivered with it); the dataset holds the replay scripts and the git log. The AutoPlay bot should still play
 like a human (human-like input, aim and camera), but bot work never blocks a release: one recorded scenario per game
 (one video) that shows the game running is enough, whatever the result (win/lose/timeout is metadata). No tuning for
 win rates, seed sweeps or "clean" runs, and no re-runs or re-recordings to improve how the bot plays. No retest loops:

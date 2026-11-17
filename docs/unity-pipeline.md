@@ -227,8 +227,8 @@ Dynamic guards on top of the counts:
    Android Build Support with its OpenJDK and Android SDK & NDK tools (`Get-UGFAndroidToolchain`;
    `machine\check.ps1` reports them, [new-machine.md](new-machine.md) says how to install them): on a machine without
    them the step is skipped with a line that says so, `build_info.json` holds `apk {status: "skipped", reason}` and
-   the build is ok, so the game can still be recorded; build the release commit again on a machine with the toolchain
-   for the APK.
+   the build is ok, so the game can still be recorded. It cannot be released from that build: a mobile game's dataset
+   needs its APK, so build the release commit again on a machine with the toolchain.
 
 `builds.jsonl` row and `build_info.json` (next to the player, written only for an ok build; schema `unity-build/1`):
 `game`, `project`, `commit`, `short_sha`, `requested`, `commit_subject`, `commit_time`, `command`,
@@ -558,7 +558,7 @@ commit than `HEAD`, `--commit milestone` the newest `milestone/autoplay-<n>` tag
   `build_info.json` (status `ok`, config `release`), the release commit's own or, without one, the nearest earlier
   commit's (a warning names it). A mobile game's APK comes from the same build (`Android\<Project>.apk`, named by
   `build_info.json` `apk`, its sha256 checked) and goes in as `Build/<Project>.apk`; a build that skipped it (no
-  Android toolchain) gives a delivery without the APK and a warning. A build whose leak scan found anything (`build_info.json` `leak_scan.hits`), or one not
+  Android toolchain) refuses the package: a mobile game is delivered with its APK. A build whose leak scan found anything (`build_info.json` `leak_scan.hits`), or one not
   in the release commit's history, refuses the package. Without a pipeline build it takes `<repo>\Build\Windows`
   (`Scripts\unity.ps1 build`; a warning when a commit after the build changed `Assets/` or `Packages/`). `--build` names
   a pipeline build folder or a player folder. A development player, or a player of another product (its

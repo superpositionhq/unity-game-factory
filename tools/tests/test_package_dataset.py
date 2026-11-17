@@ -482,20 +482,17 @@ class Mobile(unittest.TestCase):
         vg.check_dataset(rep, self.zip, 'dataset')
         self.assertEqual(base.errors(rep), [])
 
-    def test_a_build_without_the_android_toolchain_ships_the_player_alone(self):
+    def test_a_build_without_its_apk_is_not_packaged(self):
         info = dict(self.info, apk={'status': 'skipped', 'reason': 'this editor has no Android Build Support'})
         base.write(self.build_dir, 'build_info.json', json.dumps(info))
         self.addCleanup(base.write, self.build_dir, 'build_info.json', json.dumps(self.info))
         out = os.path.join(self.tmp, 'elsewhere')   # the class's own zip stays as it is
         res = run(self.inp, '--no-repo-dataset', '--out', out, build=False)
-        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
-        self.assertIn('a mobile game without its APK: this editor has no Android Build Support', res.stdout + res.stderr)
-        made = os.path.join(out, 'Dataset.pending.zip')
-        m = manifest_of(made)
-        self.assertEqual(m['platform'], {'kind': 'mobile', 'orientation': 'landscape'})
-        self.assertNotIn('apk', m['build'])
-        with zipfile.ZipFile(made) as z:
-            self.assertNotIn(f'{SLUG}/Build/KilnRun.apk', z.namelist())
+        self.assertNotEqual(res.returncode, 0, res.stdout + res.stderr)
+        said = res.stdout + res.stderr
+        self.assertIn('a mobile game without its APK: this editor has no Android Build Support', said)
+        self.assertIn('A mobile game is delivered with its Android APK', said)
+        self.assertFalse([f for f in (os.listdir(out) if os.path.isdir(out) else []) if f.endswith('.zip')], 'no zip is written')
 
     def test_a_desktop_games_manifest_has_no_platform(self):
         self.assertNotIn('platform', json.dumps(PKG.LAYOUT_SPEC['manifest']['required_keys']))

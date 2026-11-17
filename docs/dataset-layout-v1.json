@@ -1,7 +1,7 @@
 {
   "schema": "unity-dataset-layout/v1",
   "approved": "2026-11-10",
-  "changes": "v1: the first layout. 2026-11-16: a mobile game (manifest platform, UnityProject/Platform.json, the phone's video size, the APK in Build/); nothing changes for a desktop game.",
+  "changes": "v1: the first layout. 2026-11-16: a mobile game (manifest platform, UnityProject/Platform.json, the phone's video size, the APK in Build/); nothing changes for a desktop game. 2026-11-17: a mobile game's APK is required.",
   "description": "Our standard delivery layout for every Unity game: the creation record (git.log, workflow.jsonl, ReplayScripts/, the full git history in History/, the brief and design doc in Brief/), the game's tasks in Tasks/, the project, per-scenario gameplay videos, README screenshots and the built player. docs/game-format.md is the prose version of this file; tools/validate-dataset.ps1 checks against this file.",
   "names": {
     "zip": "Dataset.zip",
@@ -105,14 +105,14 @@
       "kind": "dir",
       "required": true,
       "in_repo_dataset": false,
-      "what": "the Windows release player (x64, non-development): <Game>.exe, <Game>_Data/, UnityPlayer.dll; no .pdb; a mobile game's (manifest platform.kind mobile) also holds its Android APK (arm64, IL2CPP, release), <Game>.apk, when the machine that built the release had the Android toolchain",
+      "what": "the Windows release player (x64, non-development): <Game>.exe, <Game>_Data/, UnityPlayer.dll; no .pdb; a mobile game's (manifest platform.kind mobile) also holds its Android APK (arm64, IL2CPP, release), <Game>.apk: a mobile game is not delivered without it",
       "must_contain": [
         "*.exe"
       ],
       "forbid": [
         "*.pdb"
       ],
-      "may_contain_mobile": [
+      "must_contain_mobile": [
         "*.apk"
       ]
     },
@@ -194,7 +194,7 @@
     "history_rule": "full variant: history is an object (head = commit, the bundle holds every commit, every LFS object of every commit is under History/lfs/objects); repo-dataset: history is null (the repo is its own history)",
     "brief_rule": "brief lists the Brief/ files: {\"brief\": \"Brief/brief.md\", \"design\": \"Brief/design.md\"}",
     "tasks_rule": "tasks: {\"count\": n >= 1, \"names\": [the task names], \"schema\": \"game-task/1\"} (full variant); null in a repo Dataset/",
-    "platform_rule": "platform is optional: absent or {\"kind\": \"desktop\"} is a desktop game; {\"kind\": \"mobile\", \"orientation\": \"landscape\" | \"portrait\"} an Android phone game, whose gameplay videos are 1920x1080 (landscape) or 1080x1920 (portrait), whose UnityProject/Platform.json says the same, and whose build may name its apk with package, version_code, version_name, min_sdk and target_sdk (then Build/ holds that .apk, arm64-v8a, beside the Windows player)"
+    "platform_rule": "platform is optional: absent or {\"kind\": \"desktop\"} is a desktop game; {\"kind\": \"mobile\", \"orientation\": \"landscape\" | \"portrait\"} an Android phone game, whose gameplay videos are 1920x1080 (landscape) or 1080x1920 (portrait), whose UnityProject/Platform.json says the same, and whose build names its apk with package, version_code, version_name, min_sdk and target_sdk (Build/ holds that .apk, arm64-v8a, beside the Windows player; a mobile game without it is refused)"
   },
   "readme": {
     "sections_in_order": [

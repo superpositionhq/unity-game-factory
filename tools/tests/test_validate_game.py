@@ -1975,9 +1975,9 @@ class Mobile(unittest.TestCase):
         mobile = {'platform': {'kind': 'mobile', 'orientation': 'portrait'}}
         held = '{"platform": "mobile", "orientation": "portrait"}'
         self.assertEqual(self.platform(dict(mobile, build=dict(self.APK, exe='Build/KilnRun.exe')), held), ([], []))
-        found, warned = self.platform(mobile, held)
-        self.assertEqual(found, [])
-        self.assertIn('without its APK', warned[0])
+        found, warned = self.platform(mobile, held)   # a mobile game is delivered with its APK
+        self.assertEqual(warned, [])
+        self.assertIn('a mobile game without its APK in Build/', found[0])
         self.assertIn('there is no UnityProject/Platform.json', self.platform(mobile)[0][0])
         self.assertIn('says mobile, landscape', self.platform(mobile, held.replace('portrait', 'landscape'))[0][0])
         self.assertIn('says its orientation', self.platform({'platform': {'kind': 'mobile'}}, held)[0][0])

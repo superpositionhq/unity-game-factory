@@ -18,7 +18,8 @@
   game's Assets/Editor/Tools/BuildAndroid.cs and read back with the SDK's aapt2. The APK step needs the editor's
   Android Build Support with its OpenJDK and Android SDK & NDK tools (machine\check.ps1 says whether the machine has
   them, docs\new-machine.md how to install them); without them the step is skipped, build_info.json says so
-  (apk.status "skipped") and the build is still ok.
+  (apk.status "skipped") and the build is still ok: the game can be played and recorded from it, but not released
+  (a mobile game's dataset needs its APK, and the packager refuses a build without one).
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Game,
@@ -196,7 +197,7 @@ try {
         }
         if (-not $tool.Ok) {
             $apk = [ordered]@{ status = 'skipped'; reason = $tool.Why }
-            Write-Step "APK: skipped, $($tool.Why). The Windows player is built and can be recorded; build again on a machine with the Android toolchain for the APK"
+            Write-Step "APK: skipped, $($tool.Why). The Windows player is built and can be recorded. This build cannot be released: a mobile game's dataset needs its APK, so build the release commit again on a machine with the Android toolchain"
         } else {
             $ns = $bp.Method -replace '\.BuildPlayer\.BuildWindows$', ''
             $apkArgs = @('-buildTarget', 'Android', '-projectPath', $src, '-executeMethod', "$ns.BuildAndroid.Build", '-buildOut', $apkDir)

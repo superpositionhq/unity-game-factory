@@ -93,7 +93,7 @@ videos, README screenshots and the built player:
   Gameplay/<game>_S<n>.mp4       one video per recorded scenario of the release version (one is enough), game audio muxed
   Screenshots/                   the README's hero and gallery
   Build/                         the Windows release player, no .pdb; not in the repo Dataset/
-                                 (a mobile game: also its Android APK, when the release was built with the Android toolchain)
+                                 (a mobile game: also its Android APK, always)
   manifest.json
 ```
 

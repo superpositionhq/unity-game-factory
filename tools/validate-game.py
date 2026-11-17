@@ -474,9 +474,9 @@ def _check_dataset(rep, v, area):
 def check_dataset_platform(rep, area, v, m, listed):
     """A dataset's platform (docs/game-format.md, "Platform"): the manifest's `platform` (absent or kind desktop: a
     desktop game; kind mobile with its orientation: an Android phone game) says what UnityProject/Platform.json says
-    (full variant); a mobile game's build may name its APK, then with what the APK says of itself, at the SDK levels
-    and package name of a mobile game, the file in Build/; a desktop game's names none. A mobile game delivered without
-    its APK (built on a machine without the Android toolchain) is a warning."""
+    (full variant); a mobile game's build names its APK with what the APK says of itself, at the SDK levels and
+    package name of a mobile game, the file in Build/; a desktop game's names none. A mobile game delivered without
+    its APK (full variant) is an error: the APK is part of a mobile game's delivery."""
     a = f'{area}: manifest.json'
     p = m.get('platform') if isinstance(m.get('platform'), dict) else {}
     mobile = p.get('kind') == 'mobile'
@@ -505,8 +505,9 @@ def check_dataset_platform(rep, area, v, m, listed):
         return
     if 'apk' not in b:
         if m['variant'] == 'full':
-            rep.warn(a, 'a mobile game without its APK in Build/: built on a machine without the Android toolchain '
-                        '(docs/new-machine.md, "Mobile games"); build the release commit on one that has it and package again')
+            rep.error(a, 'a mobile game without its APK in Build/: a mobile game is delivered with its Android APK. Build '
+                         'the release commit on a machine with the Android toolchain (docs/new-machine.md, "Mobile '
+                         'games") and package again')
         return
     missing = [k for k in keys if k not in b]
     if missing:

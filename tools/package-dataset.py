@@ -2007,7 +2007,8 @@ def package(args):
             copy_file(full, os.path.join(stage, 'Build', os.path.relpath(full, lp(build))))
             n_build += 1
     # a mobile game's APK, from the pipeline build that made the player (build_info.json apk, read back there with
-    # aapt2); a build made on a machine without the Android toolchain has none, and the delivery says so
+    # aapt2). A mobile game is delivered with its APK: a build made without one (a machine without the Android
+    # toolchain) packages nothing
     apk = None
     if orientation:
         made = (build_info or {}).get('apk') or {}
@@ -2021,9 +2022,10 @@ def package(args):
             n_build += 1
             step(f'build: the APK {apk["apk"]} ({apk["package"]}, minSdk {apk["min_sdk"]}, targetSdk {apk["target_sdk"]})')
         else:
-            warnings.append('a mobile game without its APK: ' + (str(made.get('reason')) if made.get('status') == 'skipped' else
-                            'the player is not a pipeline build that made one') + '. Build/ holds the Windows player alone; build the '
-                            'release commit on a machine with the Android toolchain (tools/unity-pipeline/build.ps1) and package again')
+            raise Refused('a mobile game without its APK: ' + (str(made.get('reason')) if made.get('status') == 'skipped' else
+                          'the player is not a pipeline build that made one') + '. A mobile game is delivered with its Android '
+                          'APK: build the release commit on a machine with the Android toolchain '
+                          '(tools/unity-pipeline/build.ps1; docs/new-machine.md, "Mobile games") and package again')
 
     # ---- Tasks ----
     step(f'tasks: {len(task_files)} from Tasks/ on {tasks_at[0]} ({tasks_at[1][:12]})')
@@ -2653,9 +2655,7 @@ def dataset_readme(c, repo):
         a.append('- `Gameplay/` — videos of the recorded scenarios, played through with the game audio. *(pending)*')
     if not repo:
         a.append(f'- `Build/` — the Windows release player (`Build/{c["exe"]}`)'
-                 + (f' and the Android APK (`Build/{c["apk"]["apk"]}`, arm64, package `{c["apk"]["package"]}`).' if c.get('apk') else
-                    '; the Android APK is not in this delivery (it was built on a machine without the Android toolchain).'
-                    if c.get('orientation') else '.'))
+                 + (f' and the Android APK (`Build/{c["apk"]["apk"]}`, arm64, package `{c["apk"]["package"]}`).' if c.get('apk') else '.'))
     a += ['- `Screenshots/` — the images in this README.', '- `manifest.json` — path, size and sha256 of every file, and the release metadata.', '',
           'Keep these files and folders together.', '', '## Play the game', '']
     if repo:

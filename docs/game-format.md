@@ -169,10 +169,11 @@ from it through one reader, `tools/validate-game.py` (`read_platform`; `python t
 - **the task check** plays a mobile game at the phone's size (1920x1080 landscape, 1080x1920 portrait) with a touch
   screen, and its own drive is by touch ([task-probes.md](task-probes.md), section 1.1).
 - **the pipeline** builds the Windows player, which is what is played and recorded on the PC at the phone's size, and
-  the Android APK (arm64, IL2CPP) where the machine has the Android toolchain; the recorder's window and video are
+  the Android APK (arm64, IL2CPP), which a release needs (a machine without the Android toolchain skips it, and that
+  build cannot be packaged); the recorder's window and video are
   the phone's size ([unity-pipeline.md](unity-pipeline.md)).
 - **the packager** writes `"platform": {"kind": "mobile", "orientation": ...}` in the dataset's manifest, takes
-  videos of the phone's size and puts the APK in `Build/` when the build made one.
+  videos of the phone's size and puts the APK in `Build/`; it refuses a mobile game whose build made none.
 
 A file that says anything else is an error, never read as a desktop game. Nothing here changes for a desktop game.
 
@@ -194,7 +195,7 @@ while the creation replay is missing, see "Complete vs pending" below):
 | `ReplayScripts/` | yes | the creation replayed headless, with `Verification/report.json` (required for complete; its verdict PASS or FAIL is metadata) |
 | `Gameplay/<game>_S<n>.mp4` | yes | at least one scenario video of the release version (one recorded scenario is enough; videos of other scenarios already recorded may be included), 1920x1080 h264 + aac (a mobile game held upright: 1080x1920) |
 | `Screenshots/` | yes | the README's images |
-| `Build/` | no | the Windows release player (x64, non-development), no `.pdb`; a mobile game's also holds its Android APK (`<Game>.apk`, arm64) when the machine that built the release had the Android toolchain |
+| `Build/` | no | the Windows release player (x64, non-development), no `.pdb`; a mobile game's also holds its Android APK (`<Game>.apk`, arm64): a mobile game is not delivered without it |
 | `manifest.json` | yes | metadata, `history`, `brief`, `tasks`, `build`, a mobile game's `platform`, and path / bytes / sha256 of every file except the content-addressed `History/lfs/objects/` |
 
 **The history is rewritten for delivery** (the game repos are not changed): authors and committers become `dev_NN`,

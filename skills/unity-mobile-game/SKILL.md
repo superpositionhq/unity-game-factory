@@ -115,7 +115,8 @@ player as the product, the rule here is the one that applies.
   & NDK tools), the APK through the game's `Assets/Editor/Tools/BuildAndroid.cs`; it reads the APK back and refuses
   one that is not arm64 alone, at the SDK levels and with the package name above. On a machine without the Android
   toolchain the APK step is skipped and says so (`machine/check.ps1` reports the toolchain, docs/new-machine.md says
-  how to install it).
+  how to install it): the game still plays and records, but **a mobile game is released only with its APK**, so the
+  release build and the package are made on a machine that has the toolchain.
 - The scenario videos are recorded from the Windows player at the phone's size. The dataset's manifest says
   `"platform": {"kind": "mobile", "orientation": "..."}`, and its `Build/` holds the Windows player and, when it was
   built, the APK.
