@@ -18,7 +18,8 @@
    "id": "uguitexts",
    "kind": "widgets",
    "select": {
-    "component": "Text"
+    "component": "Text",
+    "visible": false
    },
    "fields": [
     "text"
@@ -28,7 +29,8 @@
    "id": "labels",
    "kind": "widgets",
    "select": {
-    "component": "Label"
+    "component": "Label",
+    "visible": false
    },
    "fields": [
     "text"

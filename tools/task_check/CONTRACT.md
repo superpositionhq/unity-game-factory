@@ -82,7 +82,9 @@ Selects and points:
   there for an object saved static: measured).
 - Component select: `component` or `effect` or both, `name` (a wildcard on its object's name), `owner` (an object
   select), `near`, `mesh`, `visible`, `inactive`.
-- Widget select: `component`, `name`, `text` (a regular expression on its text), `visible`.
+- Widget select: `component`, `name`, `text` (a regular expression on its text), `visible` (absent or true: only
+  the widgets on screen; false: on screen or not. The checker writes `"visible": false` into the query of a measure
+  of the `visible` field whose select doesn't say: `probes.needs`).
 - UI select: `kind` (`text`, `box`, `image`), `text`, `rect`.
 - Audio select: `sound` (a wildcard on the AudioClip's name), `sound_class` (a wildcard on the name of the
   AudioMixerGroup the source outputs to), `owner`, `near`. Piece select: `component`, `name`, `mesh`, `owner`, `near`.

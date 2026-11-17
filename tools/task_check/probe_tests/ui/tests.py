@@ -178,6 +178,10 @@ def widgets(t, play):
     t.ok("an unnamed part of a UI Toolkit control is a widget named by its type", "VisualElement" in names(play, "vis", 1.0))
     t.eq("visible: true keeps exactly the visible ones", sorted(n for n in names(play, "visonly", 1.0) if n != "VisualElement"),
          sorted(n for n, v in VISIBLE.items() if v))
+    t.eq("a select that doesn't say reads the same: only what is on screen", names(play, "visdefault", 1.0), names(play, "visonly", 1.0))
+    t.ok("visible: false reads the hidden and inactive ones too", len(names(play, "vis", 1.0)) > len(names(play, "visdefault", 1.0)))
+    t.eq("a text hidden at 1.5 s is no row of a select that doesn't say (it was one while shown)",
+         [len(play.rows("stale_shown", 1.5)), get(play, "stale", 1.5, "StaleText", "visible")], [0, 0])
     t.eq("interactable: a disabled Button, a non-interactable one, a disabled UI Toolkit Button",
          [get(play, "vis", 1.0, n, "interactable") for n in ("VisMuted", "VisLocked", "VisUitkDisabled")], [0, 0, 0])
     rect(t, "VisOff (off the frame, still has a rectangle)", play.row("vis", 1.0, "VisOff"), frac(-300, 230, 100, 20), FLOAT)

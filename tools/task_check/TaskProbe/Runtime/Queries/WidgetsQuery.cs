@@ -1,11 +1,11 @@
 // widgets: the UI's own elements and their state (contract section 3): uGUI objects (graphics, selectables, TextMeshPro)
 // on the scene's canvases and every element of every UIDocument's panel (a control's own parts too, an unnamed one
-// named by its type), hidden ones included.
+// named by its type). A select keeps the widgets on screen (those the visible field reads 1 for) unless it says
+// "visible": false: then hidden and inactive ones are rows too.
 // "rows": [{"name", "class", <field>: value}] for every widget the select matches (select: component, a type name of
 // a component on the object, or of the element, base types included, and with a name one above it too; name, a
 // wildcard on the object's or element's name, which alone also finds an object of a canvas with no graphic; text, a
-// regex its text must match, a Selectable's being its label's; visible: true, only the widgets the visible field
-// reads 1 for).
+// regex its text must match, a Selectable's being its label's; visible: false, the widgets not on screen too).
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -21,7 +21,7 @@ namespace TaskProbe
         };
         string component, name;
         Regex text;
-        bool visibleOnly, bad;
+        bool visibleOnly = true, bad;  // on screen only, unless the select says "visible": false
 
         public override void Load()
         {
@@ -45,7 +45,7 @@ namespace TaskProbe
                     Probe.Error("widgets " + Id + ": the text regex " + pattern + " doesn't compile");
                 }
             }
-            visibleOnly = Json.Bool(select, "visible");
+            visibleOnly = !(select.TryGetValue("visible", out var visible) && visible is bool shown && !shown);
         }
 
         public override void Sample(double t, Dictionary<string, object> sample)

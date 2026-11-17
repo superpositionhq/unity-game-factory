@@ -49,6 +49,10 @@ def needs(measure):
         return []
     if probe == "camera":
         return [{"kind": "camera", "fields": [field]}] if field in ("occluded", "player_on_screen") else []
+    if probe == "widgets" and field == "visible" and measure["select"].get("visible") is None:
+        # which widgets are on screen is asked of them all: a select that doesn't say reads them drawn or not (any
+        # other field of a select that doesn't say reads the widgets on screen only, the probe's default)
+        return [{"kind": probe, "select": {**measure["select"], "visible": False}, "fields": [field]}]
     if probe in ("objects", "widgets", "components"):
         return [{"kind": probe, "select": measure["select"], "fields": [] if field == "count" else [field]}]
     if probe == "light":

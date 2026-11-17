@@ -396,15 +396,30 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   required probe without a threshold and the task INVALID.
 
 Write probes from the game's own code at `seed.commit`: the real component types, tags, layers, scene paths and UI
-element names. **Never a name only the reference has** (a component type, tag, layer, object, scene or asset the
-thread itself created): another fair build names it otherwise and reads as absent. Select what the thread creates by
+element names. **Everything a required probe or its play relies on exists at the start commit, or is something the
+instruction says in a ticket's own words.** That covers object, component, member, tag, layer and widget names, the
+scenes a play opens or loads, play arguments, exact strings and regular expressions, coordinates, and input sequences
+that only work on the reference's own layout. A code name comes from the start, never from the instruction (below,
+"Hints, never answers"); what a player sees or a ticket can say (a line of on-screen text it quotes, the scene QA is
+told to play) may come from the instruction. Anything else, a name only the reference has first of all (a component
+type, tag, layer, object, scene or asset the thread itself created), moves the probe to what the player sees:
+another fair build names it otherwise and reads as absent. Select what the thread creates by
 what it does or where it is (`has`, `near`, `ui` with a `rect` or text, `drawn`, `lit`, `changed`; a part's direction
 by `components` `world_yaw`/`world_pitch` with `near`, not `world_yaw:<Part>`); `validate-game.py` refuses a required
 probe that names something the start lacks and the reference has, a part in a field such as `world_yaw:<Part>`
 included. **Test the outcome a player
 sees, never the implementation**: another valid fix must
 pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor
-times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). Lighting and colour
+times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). So prefer what the
+player sees: on-screen text read with a loose match (`ui`, a regular expression for the words the ticket asks to
+see, never an exact string it doesn't quote), objects by a tag or a type the start already has, a place reached by
+`teleport_to` or by pinning an object, never by raw coordinates. **"Shown" means on screen**: a `widgets` select reads
+the widgets on screen, so one hidden instead of removed is not shown when it is inactive, under a disabled Canvas or
+a CanvasGroup at alpha 0, has its own graphic disabled, or lies outside the frame. A widget hidden another way (its
+colour's alpha at 0, scale 0, an empty text, a mask) still reads on screen: what is really drawn is `ui`'s to read.
+Write `"visible": false` only when the check really means "exists while hidden". **Ask the second-solution question of every check:** would a correct solution
+that names things differently, lays the level out differently, or hides a thing instead of removing it still pass?
+If not, the check reads the reference, not the ask: rewrite it. Lighting and colour
 are measured from the engine (`light`, `grading`), never from screenshots. `describe` says the assertion in plain
 words; it is shown in the grade, never to the agent. Check names are unique and `needs` only names earlier checks;
 calibrated probes, `code_judge` and `"reference": true` judges need `seed.reference`.
@@ -438,6 +453,16 @@ Windows player with the probe package, plays them on a Windows desktop of their 
 the game counting itself focused) and writes VALID or INVALID per task with the reasons and the measured values. **A
 task ships only when the task check says VALID**; for INVALID, fix the task (the docs' "Common reasons and fixes"),
 never the threshold toward what the start happens to measure.
+
+**Every check is run before the task is handed in, on both builds, and you read what it measured**, not only the
+verdict (`.task-checks\<task>\`: the result's `probes` values, each play's `probe.json` and `probe.log`): it fails at
+the start and passes on the reference for the reason its `describe` gives; the play's inputs landed (no row in
+`inputs_missed`, the click found its button, the teleport its object); the probe matched something on both sides
+(rows, not an empty selection that happens to compare right); a judge's frames show the moment asked about. A
+threshold comes from the instruction or from the start (`start_plus`, `start_times`, a number the ticket states),
+never from whatever makes the reference pass. **The reference does everything the instruction asks, in a place a play
+can reach**: an ask the reference doesn't meet, or meets only where no play gets to, comes out of the instruction or
+the reference is the wrong commit.
 
 **The check asks no model, so you answer the judges.** For every `judge` check it plays the check's plays on the start
 and on the reference and saves the screenshots the cloud's judge would be shown under
@@ -505,6 +530,9 @@ no check at all, naming the task and the sentence. Fix what you find in the task
   twice" (`<`, `<=`, `==`; the validator warns), unless the start plays that sound as a source's own clip.
 - **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
   ship an ask nothing checks. The instruction stays plain prose, never fields.
+- **Nothing is asked that the checker cannot run.** Saving across plays can be checked (a play that names its
+  writer in `after`, above). What a sound is like, how the packaged build behaves outside a play, and a frame rate on
+  given hardware cannot: never write them as asks.
 
 ## 6. Difficulty, limits and what the validator enforces
 
@@ -552,6 +580,10 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 |---|---|
 | checks or log patterns shown in the brief | the agent gets the brief only |
 | an ask in the brief that no check reads, so Lab sends the game back | read each task against its checks before packing (section 5, "Every ask has a check") |
+| a probe or its play relied on something only the reference has and the instruction never says (a widget or member name, a scene, an exact on-screen string, a teleport coordinate, a count of key presses that solves the reference's layout): a correct solution built another way read "nothing it selects was measured" | everything a required probe or its play relies on is at the start commit or in the instruction's own words; else read what the player sees (section 5) |
+| a "must not be shown" check failed a solution that hid the widget instead of removing it, and a hidden widget passed a "must be shown" check | "shown" means on screen: `widgets` reads the widgets on screen (not inactive, not under a disabled Canvas or a CanvasGroup at alpha 0, inside the frame); what is drawn is `ui`'s; `"visible": false` only for "exists while hidden" |
+| a check written without running the game failed on the reference: an invented threshold, a window that missed the event, a click when no button was shown, a judge asking for what the frames don't show | run every check on both builds and read what it measured before handing the task in (section 5) |
+| an instruction asked for what no play can show (how a sound sounds, the packaged build, a frame rate on given hardware) | never an ask; saving across plays is checked with `after` |
 | a model judge misread screenshots and failed a correct fix (or passed a wrong one) | required probes for what can be measured; only the brief's own looks in a required judge (`looks_as_asked`, still-looks in `still_works`), each item concrete and decidable from the screenshots; every other judge `"required": false` |
 | a judge was shown only the title screen, or never the state a task's own key opens | the `judge` check names its own `plays` that reach it (section 5) |
 | five stills couldn't show whether a move eased or feet slid | a number: a probe sampled every 0.1 s with `agg` `step`; only seen: a `looks_as_asked` item with a short play and `shots` (section 5) |

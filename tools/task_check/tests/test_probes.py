@@ -594,9 +594,11 @@ class MoreFairReadings(unittest.TestCase):
                     {"probe": "ground", "box": [5, 0, 1, 1], "field": "max"},
                     {"probe": "ground", "box": [0, 0, 1, 1], "grid": 64, "field": "max"},
                     {"probe": "ground", "xy": [0, 0], "field": "height"},
-                    {"probe": "widgets", "select": {"name": "Warn*", "visible": False}, "field": "count"}):
+                    {"probe": "widgets", "select": {"name": "Warn*", "visible": "no"}, "field": "count"}):
             with self.assertRaises(ValueError, msg=json.dumps(bad)):
                 task_with(probe(measure=bad))
+        # a widgets select reads the widgets on screen; "visible": false reads them on screen or not
+        task_with(probe(measure={"probe": "widgets", "select": {"name": "Warn*", "visible": False}, "field": "count"}))
 
     def test_lights_read_on_and_their_intensity_as_components(self):
         lamp = m(**{**LAMP, "field": "on", "of": "any", "at": None})

@@ -4663,7 +4663,7 @@
     },
     "WidgetSelect": {
       "additionalProperties": false,
-      "description": "Widgets: uGUI components (UnityEngine.UI Graphics and Selectables, TextMeshPro) on their objects and UI Toolkit\nelements of every UIDocument panel, by their type (`component`: Button, Slider, TMP_Text, Label, ProgressBar, a\ngame's own type) and/or name (a wildcard on the object's or element's name); `text`: a regular expression the\nwidget's text must match; `visible`: only the widgets drawn (as the `visible` field reads them: never an\ninactive, hidden or transparent one, nor one under such a parent), so a select counts what is on screen.",
+      "description": "Widgets: uGUI components (UnityEngine.UI Graphics and Selectables, TextMeshPro) on their objects and UI Toolkit\nelements of every UIDocument panel, by their type (`component`: Button, Slider, TMP_Text, Label, ProgressBar, a\ngame's own type) and/or name (a wildcard on the object's or element's name); `text`: a regular expression the\nwidget's text must match. Only the widgets on screen are matched (as the `visible` field reads\nthem: never an inactive one, one whose graphic or Canvas is disabled, one under a CanvasGroup at alpha 0, nor one\noutside the frame), so a\nselect reads what is shown; `\"visible\": false` matches them on screen or not. A measure of the `visible` field\nitself, with no `visible` in its select, matches them on screen or not too (it reads which are).",
       "properties": {
         "component": {
           "anyOf": [
@@ -4708,7 +4708,6 @@
         "visible": {
           "anyOf": [
             {
-              "const": true,
               "type": "boolean"
             },
             {

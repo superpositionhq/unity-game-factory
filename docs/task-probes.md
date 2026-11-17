@@ -151,9 +151,10 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       uGUI nor UI Toolkit);
     - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` puts the player's own position (its pivot) at that
       point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player), at once: the game's
-      scripts of that frame already find the player there (a key reaches them a frame later). It is the way to reach
-      a test spot. The probe doesn't move it to the ground or out of a collider afterwards: take the point from where
-      the player stands in a play (the `track` of its `probe.json`);
+      scripts of that frame already find the player there (a key reaches them a frame later). Reach a test spot by an
+      object where you can (`teleport_to` below, or a pinned object: section 1.5): raw coordinates are right only
+      where the start's own layout fixes the place. The probe doesn't move it to the ground or out of a collider
+      afterwards: take the point from where the player stands in a play (the `track` of its `probe.json`);
     - a teleport next to an object: `{"t": 0.2, "teleport_to": <object select>, "distance": 2.0, "offset": [x, y, z],
       "face": <Point>}` places the player `distance` m (default 2; 0 to 1000) from the object the select matches
       nearest to the player, position to position (the player and its own children left out; of two as near, the
@@ -400,6 +401,22 @@ widget that isn't on screen. Read it when a play did not do what its inputs say.
 play staged the same way and named `shot` frames a few hundredths of a second apart across the contact. A pose may be
 an extra rubric item, never the only check of a behaviour.
 
+### 1.5 What a check may rely on
+
+A required probe, and the play it reads, rely only on what a solver could know: what exists at the task's start
+commit, and what the instruction says. That covers the names in its selects and fields (objects, components,
+members, tags, layers, widgets), the scenes its play opens or loads and the play's arguments, the exact strings and
+regular expressions it matches, the coordinates it teleports or pins to, and its input sequence (a count of key
+presses that only solves the reference's own layout is the reference's, not the task's). A code name comes from the
+start, never from the instruction; a line of on-screen text the instruction quotes, or the scene it tells QA to
+play, may come from the instruction. A check that needs anything else reads the reference, not the ask, and a correct
+solution built another way reads "nothing it selects was measured". Move it to what the player sees: on-screen text
+with a loose match (`ui`), an object by what it does or where it is (`has`, `near`), a place by `teleport_to` or a
+pinned object rather than raw coordinates.
+
+For each check ask: would a correct solution that names things differently, lays the level out differently, or hides
+a thing instead of removing it still pass?
+
 ## 2. Measures
 
 Which measure answers which question (each section has its fields, defaults and limits):
@@ -426,7 +443,7 @@ Which measure answers which question (each section has its fields, defaults and 
 | the game's time: slowed for a hit stop, paused | `world` (2.21) |
 
 How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: section 1.3; a staged contact (`pin`,
-`damage`, `set`): section 1.4. Literal or calibrated: section 1.2. Points and
+`damage`, `set`): section 1.4. What a check may rely on: section 1.5. Literal or calibrated: section 1.2. Points and
 `near`: section 2.13. Why a probe has no value: section 3.
 
 ### 2.1 Common fields
@@ -772,8 +789,8 @@ Limits:
 
 - What is searched: uGUI (the `UnityEngine.UI` Graphics and Selectables, TextMeshPro text) on every canvas of the
   loaded scenes, and UI Toolkit (every element of every `UIDocument`'s panel, the parts a control builds inside itself
-  too, such as a Slider's tracker and dragger, each named by its name or, unnamed, by its type), hidden and inactive
-  widgets included. World-space canvases are included too, their rectangle projected through the camera (`ui` leaves
+  too, such as a Slider's tracker and dragger, each named by its name or, unnamed, by its type). **A select reads
+  the widgets on screen**; hidden and inactive ones are read only when it says `"visible": false` (below). World-space canvases are included too, their rectangle projected through the camera (`ui` leaves
   them out). A widget is a uGUI component's object or a UI Toolkit element: one row per GameObject or element, not
   per component. A row's `class` is the matched component's type, else the object's Selectable, else its text or
   graphic (a UI Toolkit element's: its type).
@@ -792,17 +809,22 @@ Limits:
 - **To check what a HUD shows, whatever draws it, use `ui` (section 2.18).** `widgets` reads a named widget's own
   state, so it sees a HUD only when a build made it with that widget; a HUD made with the other UI system, or drawn
   with `OnGUI`, reads as absent.
-- `"visible": true` in the select keeps only the widgets the `visible` field reads 1 for. `visible` is the widget's
-  state: the object active, every Canvas up the chain enabled, its own graphic enabled, the CanvasGroups' alpha above
+- **"Shown" means on screen.** A select keeps only the widgets the `visible` field reads 1 for, so `count` counts
+  what the game shows and `text` reads what is shown: a widget hidden instead of removed is not shown, and a hidden
+  one never passes a "must be shown" check. `"visible": false` in the select reads them on screen or not ("exists
+  while hidden", a text set before its panel opens); `"visible": true` says the default out loud. A measure of the
+  `visible` field itself, with no `visible` in its select, reads them on screen or not too: it asks which are.
+  `visible` is the widget's state: the object active, every Canvas up the chain enabled, its own graphic enabled, the CanvasGroups' alpha above
   0.004, on a canvas drawn on the screen and inside the frame; in UI Toolkit, displayed all the way up, its own
   visibility visible (a child may be visible again under a hidden parent), an opacity above 0.004 down the tree, in a
   panel drawn on the screen and inside the frame. Its colour, its size and clipping don't count: a shown panel whose
   own image is transparent, or whose root has no size, reads visible like its children, and so does an item scrolled
   out of a Scroll View's view while inside the frame. Never visible: an inactive widget, one whose own graphic is
   disabled, one under an inactive object, a disabled Canvas or a CanvasGroup at alpha 0, one entirely outside the
-  frame, one on a canvas drawn into a texture, on another display or by a camera that is off. So `count` counts what
-  the game shows (a warning bar's shown messages, not the ones it keeps hidden); what is drawn on screen is `ui`'s
-  (section 2.18). A disabled button whose image still draws is visible: whether it can be pressed is `interactable`.
+  frame, one on a canvas drawn into a texture, on another display or by a camera that is off. Not tested: whether
+  another widget or a 3D object covers it, whether a mask or a scroll view clips it, its own colour's alpha and its
+  size. So `count` counts what the game shows (a warning bar's shown messages, not the ones it keeps hidden); what
+  is drawn on screen, pixel for pixel, is `ui`'s (section 2.18). A disabled button whose image still draws is visible: whether it can be pressed is `interactable`.
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; an input field's (`InputField`,
   `TMP_InputField`, UI Toolkit's `TextField`) what was typed, not its placeholder; a UI Toolkit `DropdownField`'s

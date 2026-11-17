@@ -60,7 +60,8 @@
    "id": "slider",
    "kind": "widgets",
    "select": {
-    "name": "GoSlider"
+    "name": "GoSlider",
+    "visible": false
    },
    "fields": [
     "value"
@@ -70,7 +71,8 @@
    "id": "toggle",
    "kind": "widgets",
    "select": {
-    "name": "GoToggle"
+    "name": "GoToggle",
+    "visible": false
    },
    "fields": [
     "value"

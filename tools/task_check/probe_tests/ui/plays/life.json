@@ -8,7 +8,8 @@
    "id": "doomed_w",
    "kind": "widgets",
    "select": {
-    "name": "DoomedText"
+    "name": "DoomedText",
+    "visible": false
    },
    "fields": [
     "text"
@@ -28,7 +29,8 @@
    "id": "born_w",
    "kind": "widgets",
    "select": {
-    "name": "*Born*"
+    "name": "*Born*",
+    "visible": false
    },
    "fields": [
     "text",
@@ -49,7 +51,8 @@
    "id": "grey_w",
    "kind": "widgets",
    "select": {
-    "name": "GreyRight"
+    "name": "GreyRight",
+    "visible": false
    },
    "fields": [
     "visible"

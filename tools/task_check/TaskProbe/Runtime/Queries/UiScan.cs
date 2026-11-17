@@ -417,7 +417,7 @@ namespace TaskProbe
         /// or an element above, also matches (the row keeps its own class).
         /// `name`: a wildcard on the object's or element's name; without `component` it finds any object of a canvas
         /// (a panel with no graphic too). `text`: a regex its text must match (a Selectable's is its label's, so a text
-        /// matches the Selectable and its label). `visible`: visible only.</summary>
+        /// matches the Selectable and its label). `visibleOnly`: only the widgets on screen.</summary>
         public static List<UiWidget> Widgets(string component, string name, Regex text, bool visibleOnly)
         {
             var found = new List<UiWidget>();

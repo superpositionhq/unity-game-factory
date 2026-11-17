@@ -32,7 +32,8 @@
    "id": "score",
    "kind": "widgets",
    "select": {
-    "name": "ScoreText"
+    "name": "ScoreText",
+    "visible": false
    },
    "fields": [
     "count",
@@ -53,7 +54,8 @@
    "id": "type",
    "kind": "widgets",
    "select": {
-    "name": "TypeText"
+    "name": "TypeText",
+    "visible": false
    },
    "fields": [
     "text"
@@ -63,7 +65,8 @@
    "id": "legacy",
    "kind": "widgets",
    "select": {
-    "name": "LegacyLabel"
+    "name": "LegacyLabel",
+    "visible": false
    },
    "fields": [
     "text"
@@ -73,7 +76,8 @@
    "id": "rawtag",
    "kind": "widgets",
    "select": {
-    "name": "RawTagText"
+    "name": "RawTagText",
+    "visible": false
    },
    "fields": [
     "text"
@@ -83,7 +87,8 @@
    "id": "stale",
    "kind": "widgets",
    "select": {
-    "name": "StaleText"
+    "name": "StaleText",
+    "visible": false
    },
    "fields": [
     "text",
@@ -94,7 +99,8 @@
    "id": "sliders",
    "kind": "widgets",
    "select": {
-    "component": "Slider"
+    "component": "Slider",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -108,7 +114,8 @@
    "id": "fills",
    "kind": "widgets",
    "select": {
-    "name": "*Fill*"
+    "name": "*Fill*",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -121,7 +128,8 @@
    "id": "toggles",
    "kind": "widgets",
    "select": {
-    "component": "Toggle"
+    "component": "Toggle",
+    "visible": false
    },
    "fields": [
     "value",
@@ -133,7 +141,8 @@
    "id": "fields",
    "kind": "widgets",
    "select": {
-    "component": "InputField"
+    "component": "InputField",
+    "visible": false
    },
    "fields": [
     "text"
@@ -143,7 +152,8 @@
    "id": "tmpfields",
    "kind": "widgets",
    "select": {
-    "component": "TMP_InputField"
+    "component": "TMP_InputField",
+    "visible": false
    },
    "fields": [
     "text"
@@ -153,7 +163,8 @@
    "id": "uitkfields",
    "kind": "widgets",
    "select": {
-    "component": "TextField"
+    "component": "TextField",
+    "visible": false
    },
    "fields": [
     "text"
@@ -163,7 +174,8 @@
    "id": "dropdowns",
    "kind": "widgets",
    "select": {
-    "name": "*Dropdown"
+    "name": "*Dropdown",
+    "visible": false
    },
    "fields": [
     "text",
@@ -174,7 +186,8 @@
    "id": "bars",
    "kind": "widgets",
    "select": {
-    "name": "PageBar"
+    "name": "PageBar",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -185,7 +198,8 @@
    "id": "scrollers",
    "kind": "widgets",
    "select": {
-    "component": "Scroller"
+    "component": "Scroller",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -196,7 +210,8 @@
    "id": "progress",
    "kind": "widgets",
    "select": {
-    "component": "ProgressBar"
+    "component": "ProgressBar",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -208,7 +223,8 @@
    "id": "sliderints",
    "kind": "widgets",
    "select": {
-    "component": "SliderInt"
+    "component": "SliderInt",
+    "visible": false
    },
    "fields": [
     "percent",
@@ -219,7 +235,8 @@
    "id": "pictures",
    "kind": "widgets",
    "select": {
-    "component": "RawImage"
+    "component": "RawImage",
+    "visible": false
    },
    "fields": [
     "has_brush",
@@ -230,7 +247,8 @@
    "id": "images",
    "kind": "widgets",
    "select": {
-    "name": "*Image"
+    "name": "*Image",
+    "visible": false
    },
    "fields": [
     "has_brush",
@@ -241,7 +259,8 @@
    "id": "uitk",
    "kind": "widgets",
    "select": {
-    "name": "Uitk*"
+    "name": "Uitk*",
+    "visible": false
    },
    "fields": [
     "has_brush",
@@ -255,7 +274,8 @@
    "id": "own",
    "kind": "widgets",
    "select": {
-    "component": "UiScoreKeeper"
+    "component": "UiScoreKeeper",
+    "visible": false
    },
    "fields": [
     "text",
@@ -267,7 +287,8 @@
    "id": "marker",
    "kind": "widgets",
    "select": {
-    "component": "UiHudMarker"
+    "component": "UiHudMarker",
+    "visible": false
    },
    "fields": [
     "visible",
@@ -282,7 +303,8 @@
    "id": "vis",
    "kind": "widgets",
    "select": {
-    "name": "Vis*"
+    "name": "Vis*",
+    "visible": false
    },
    "fields": [
     "visible",
@@ -303,10 +325,29 @@
    "fields": []
   },
   {
+   "id": "visdefault",
+   "kind": "widgets",
+   "select": {
+    "name": "Vis*"
+   },
+   "fields": []
+  },
+  {
+   "id": "stale_shown",
+   "kind": "widgets",
+   "select": {
+    "name": "StaleText"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
    "id": "rects",
    "kind": "widgets",
    "select": {
-    "name": "Rect*"
+    "name": "Rect*",
+    "visible": false
    },
    "fields": [
     "visible",
@@ -320,7 +361,8 @@
    "id": "regex",
    "kind": "widgets",
    "select": {
-    "text": "^SCORE \\d+$"
+    "text": "^SCORE \\d+$",
+    "visible": false
    },
    "fields": [
     "text"
@@ -330,7 +372,8 @@
    "id": "uitkregex",
    "kind": "widgets",
    "select": {
-    "text": "^UITK \\d+$"
+    "text": "^UITK \\d+$",
+    "visible": false
    },
    "fields": [
     "text"
@@ -340,7 +383,8 @@
    "id": "buttons",
    "kind": "widgets",
    "select": {
-    "component": "Button"
+    "component": "Button",
+    "visible": false
    },
    "fields": [
     "interactable",
@@ -351,7 +395,8 @@
    "id": "anon",
    "kind": "widgets",
    "select": {
-    "name": "Label"
+    "name": "Label",
+    "visible": false
    },
    "fields": [
     "text"
@@ -360,7 +405,9 @@
   {
    "id": "order",
    "kind": "widgets",
-   "select": {},
+   "select": {
+    "visible": false
+   },
    "fields": []
   },
   {
@@ -368,7 +415,8 @@
    "kind": "widgets",
    "select": {
     "component": "UiHudMarker",
-    "name": "HudChild"
+    "name": "HudChild",
+    "visible": false
    },
    "fields": [
     "text"
@@ -379,7 +427,8 @@
    "kind": "widgets",
    "select": {
     "component": "UiHudMarker",
-    "name": "ScoreText"
+    "name": "ScoreText",
+    "visible": false
    },
    "fields": []
   },
@@ -388,7 +437,8 @@
    "kind": "widgets",
    "select": {
     "component": "Box",
-    "name": "UitkOwned"
+    "name": "UitkOwned",
+    "visible": false
    },
    "fields": [
     "text"
@@ -398,7 +448,8 @@
    "id": "bare",
    "kind": "widgets",
    "select": {
-    "name": "BarePanel"
+    "name": "BarePanel",
+    "visible": false
    },
    "fields": [
     "visible",

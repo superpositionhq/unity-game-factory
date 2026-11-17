@@ -8,7 +8,8 @@
    "id": "w_badrx",
    "kind": "widgets",
    "select": {
-    "text": "(["
+    "text": "([",
+    "visible": false
    },
    "fields": [
     "text"
@@ -36,7 +37,8 @@
    "id": "w_field",
    "kind": "widgets",
    "select": {
-    "name": "ScoreText"
+    "name": "ScoreText",
+    "visible": false
    },
    "fields": [
     "text",
@@ -58,7 +60,8 @@
    "id": "w_type",
    "kind": "widgets",
    "select": {
-    "component": "NoSuchWidgetType"
+    "component": "NoSuchWidgetType",
+    "visible": false
    },
    "fields": []
   }

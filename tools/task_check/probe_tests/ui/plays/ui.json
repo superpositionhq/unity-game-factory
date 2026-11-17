@@ -129,7 +129,8 @@
    "id": "layout_w",
    "kind": "widgets",
    "select": {
-    "name": "LayoutB"
+    "name": "LayoutB",
+    "visible": false
    },
    "fields": [
     "x"
@@ -139,7 +140,8 @@
    "id": "mover_w",
    "kind": "widgets",
    "select": {
-    "name": "UitkMover"
+    "name": "UitkMover",
+    "visible": false
    },
    "fields": [
     "x"

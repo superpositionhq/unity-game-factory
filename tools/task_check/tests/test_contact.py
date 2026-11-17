@@ -112,6 +112,32 @@ class Readings(unittest.TestCase):
                              [{"kind": "objects", "select": FOE, "fields": [field]}])
 
 
+class WidgetsOnScreen(unittest.TestCase):
+    """A widgets select reads the widgets on screen unless it says `"visible": false`; a measure of the `visible`
+    field with no `visible` in its select asks which are, so it reads them on screen or not."""
+
+    def needs(self, select, field):
+        from task_check import probes, tasks
+        measure = {"probe": "widgets", "select": select, "field": field, "of": "any"}
+        task = task_with(probe(measure=measure, expect={"op": ">=", "value": 1}))
+        return probes.needs(tasks.checks(task)[0][1]["measure"])[0]
+
+    def test_a_select_is_handed_to_the_probe_as_written(self):
+        for select in ({"name": "ResumeButton"}, {"name": "ResumeButton", "visible": True},
+                       {"name": "ResumeButton", "visible": False}):
+            self.assertEqual(self.needs(select, "count")["select"], select)
+
+    def test_the_visible_field_asks_of_every_widget(self):
+        self.assertEqual(self.needs({"name": "ResumeButton"}, "visible")["select"], {"name": "ResumeButton", "visible": False})
+        self.assertEqual(self.needs({"name": "ResumeButton", "visible": True}, "visible")["select"],
+                         {"name": "ResumeButton", "visible": True})
+
+    def test_a_shown_read_and_a_which_are_shown_read_are_two_queries(self):
+        from task_check import probes
+        self.assertNotEqual(probes.query_id(self.needs({"name": "ResumeButton"}, "text")),
+                            probes.query_id(self.needs({"name": "ResumeButton"}, "visible")))
+
+
 class Paced(unittest.TestCase):
     def test_a_play_that_reads_a_hit_stop_is_paced_to_real_time(self):
         from task_check import probes
