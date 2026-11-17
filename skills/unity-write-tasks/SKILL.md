@@ -512,7 +512,8 @@ Fix what you find in the task before it is packed:
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check alone.**
 - **A play does what a player must do to reach the state it probes.** When the game starts on a title screen or a
   menu, every play that checks something in the level first clicks the start control the instruction names, by its
-  on-screen text, and waits for the level; or the instruction states the scene QA plays (`play_scene`). Never a
+  on-screen text (`{"widget": "begin_run", "click": true}` clicks a button reading "Begin Run"), and waits for the
+  level; or the instruction states the scene QA plays (`play_scene`). Never a
   shortcut only the reference has.
 - **A play keeps its own preconditions true.** No input on the frame a state resets (press the key a few seconds
   into the round, not at its start). No teleport that breaks what the game holds together: carried objects, tethers,
