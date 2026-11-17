@@ -338,8 +338,8 @@ GPU frames first and only those are downloaded and converted (BT.709 matrix, lim
 The libx264 variant is the same with `format=yuv420p` and `-c:v libx264 -preset ultrafast -crf 17 -g 120 -bf 0
 -pix_fmt yuv420p` (`veryfast` only reached 0.977x on a shared CPU). Fallbacks (`-Capture`):
 `gdigrab-region` captures real content but only about 44 fps (about a quarter of the frames duplicates),
-`gdigrab-window` about 56 fps (frames duplicated and gaps); both fail validation, so they are for emergencies. `auto` tries ddagrab, then (after waking
-the display) ddagrab once more, then gfxcapture, and gdigrab-region last, each only if the one before got fewer than 30
+`gdigrab-window` about 56 fps (frames duplicated and gaps); both fail validation, so they are for emergencies.
+`auto` tries ddagrab, then (after waking the display) ddagrab once more, then gfxcapture, and gdigrab-region last, each only if the one before got fewer than 30
 frames in 10 s; each failed attempt is logged with its frame count, whether ffmpeg hung or exited (exit code) and the
 tail of its log. `gfxcapture` (Windows.Graphics.Capture of the game window by `hwnd`, ffmpeg 8's `gfxcapture` filter,
 max 120 fps, then the same `fps=60` CFR + NVENC path) records only the game window, so other windows never reach the

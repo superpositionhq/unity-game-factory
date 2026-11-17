@@ -451,10 +451,10 @@ values to the turn you need.
 plays), or a start that reads the Input System.
 
 **A mobile game's `drive` moves nothing** (the `track` in `probe.json` stays put through the drive). The drive by touch
-puts a left thumb down at the lower left of the screen (`[0.15, 0.75]`) and pushes it, and taps the lower right (`[0.85, 0.75]`) for
-the jump (task-probes.md, section 1.1): a game whose virtual stick sits elsewhere, or appears only where a finger first
-lands outside that spot, takes none of it. Probe the move with a task play of `drag` inputs on the game's own stick
-(task-probes.md, section 1.3), or put the stick where a thumb rests.
+puts a left thumb down at the lower left of the screen (`[0.15, 0.75]`) and pushes it, and taps the lower right
+(`[0.85, 0.75]`) for the jump (task-probes.md, section 1.1): a game whose virtual stick sits elsewhere, or appears
+only where a finger first lands outside that spot, takes none of it. Probe the move with a task play of `drag` inputs
+on the game's own stick (task-probes.md, section 1.3), or put the stick where a thumb rests.
 
 **`start fails still-works X`.** The game works at the start, so a still-works probe that fails there is broken: it
 doesn't find the HUD, the object or the value it looks for. Fix the probe (see the play's `probe.json`), never the

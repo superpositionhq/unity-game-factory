@@ -606,11 +606,11 @@ Fix what you find in the task before it is packed:
   section 0.
 - **Judge difficulty in the session; never run the task with another agent** (a try is long and tells you nothing
   the session can't judge; the Lab tries every submitted task itself). Don't run `tools/task-try.py` or start a fresh
-  Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with the person: would a strong agent given only
-  the brief and the start solve it easily (25 minutes is a guide, not a cut-off)? It would when the brief points at
-  one place, the issues share one obvious cause, or the reference diff is mostly one file or one system. If so, extend
-  the thread back to an earlier attempt, merge it with its neighbouring issues, or drop it. Tell the person which
-  tasks you judged long enough and why, in a line each. The Lab tries every submitted task with a strong agent and
+  Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with the
+  person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
+  cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
+  mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring
+  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each. The Lab tries every submitted task with a strong agent and
   measures its time; that grade decides.
 
 Probes may measure the cause's effect directly, since the agent never sees them.
