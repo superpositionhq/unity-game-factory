@@ -898,7 +898,9 @@ the order the build writes):
   other letters differently, a dotted capital I, a final capital sigma); no splash screen; several instances allowed;
   the Mono backend; no static batching (a batched renderer's mesh would hide its own mesh name and triangle count:
   `PlayerSettings.SetStaticBatchingForPlatform`); no managed code stripping (the probe reads by reflection engine
-  members the game never calls, which the linker removes: measured at High). Then a Windows x64 player,
+  members the game never calls, which the linker removes: measured at High). Then a Windows x64 player (on a Linux editor a Linux x64 one,
+  `Game.x86_64` in the same folder: the player is the build machine's own, since that machine plays it; the factory's
+  machines are Windows, the Lab's check machines Linux),
   `BuildOptions.None`, not a development build (no watermark on the frame). The window (windowed, 960x540; a mobile game's: the phone's size, without a frame) and the
   player log come from the play's command line alone (`-screen-fullscreen 0 -screen-width 960 -screen-height 540`,
   `-logFile`), and the probe sets `Application.runInBackground`. The game's assets and code are untouched by the probe;

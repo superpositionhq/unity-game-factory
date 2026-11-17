@@ -1,7 +1,8 @@
 // The checker's build of its scratch copy (contract section 5):
 //   Unity -batchmode -nographics -quit -projectPath <copy> -executeMethod TaskProbe.EditorTools.Build.Player
 //         -taskProbeBuild <request file>
-// A Windows x64 Mono player, not a development build (no watermark on the frame), of the project's own enabled build
+// A Windows x64 Mono player (a Linux x64 one when the editor itself runs on Linux: the player is the build machine's
+// own, since the same machine plays it), not a development build (no watermark on the frame), of the project's own enabled build
 // scenes plus every scene the task's plays open, into a folder under the project's Build/. For the build only, the
 // player gets its own company name (so the plays' saves and settings are their own and never touch the real game's),
 // no splash screen, several instances allowed, no static batching (so a renderer keeps its own mesh for the `mesh`
@@ -32,7 +33,9 @@ namespace TaskProbe.EditorTools
 {
     public static class Build
     {
-        const BuildTarget Windows = BuildTarget.StandaloneWindows64;
+        // the player of the machine that builds it, which is the machine that plays it
+        static readonly BuildTarget Platform = Application.platform == RuntimePlatform.LinuxEditor
+            ? BuildTarget.StandaloneLinux64 : BuildTarget.StandaloneWindows64;
         static readonly NamedBuildTarget Target = NamedBuildTarget.Standalone;
         // a reference in a scene's text: {fileID: n, guid: g, type: t} (a string field holding a GUID is no reference)
         static readonly Regex Reference = new Regex(@"\{fileID: -?\d+, guid: ([0-9a-f]{32}), type: \d+\}", RegexOptions.CultureInvariant);
@@ -53,6 +56,8 @@ namespace TaskProbe.EditorTools
             };
             try
             {
+                if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, Platform))
+                    throw new InvalidOperationException("this editor has no build support for a " + Platform + " player");
                 result["ok"] = Run(project, Json.Str(request, "out") ?? Path.Combine(project, "Build", "TaskProbe"),
                     Json.Strings(request, "scenes"), result);
             }
@@ -102,14 +107,14 @@ namespace TaskProbe.EditorTools
                 PlayerSettings.SplashScreen.show = false;
                 PlayerSettings.forceSingleInstance = false;
                 PlayerSettings.SetScriptingBackend(Target, ScriptingImplementation.Mono2x);
-                PlayerSettings.SetStaticBatchingForPlatform(Windows, false);
+                PlayerSettings.SetStaticBatchingForPlatform(Platform, false);
                 PlayerSettings.SetManagedStrippingLevel(Target, ManagedStrippingLevel.Disabled);
-                var exe = Path.Combine(folder, "Game.exe");
+                var exe = Path.Combine(folder, Platform == BuildTarget.StandaloneLinux64 ? "Game.x86_64" : "Game.exe");
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = scenes.ToArray(),
                     locationPathName = exe,
-                    target = Windows,
+                    target = Platform,
                     targetGroup = BuildTargetGroup.Standalone,
                     options = BuildOptions.None,
                 });
@@ -144,7 +149,7 @@ namespace TaskProbe.EditorTools
             readonly bool splash = PlayerSettings.SplashScreen.show;
             readonly bool single = PlayerSettings.forceSingleInstance;
             readonly ScriptingImplementation backend = PlayerSettings.GetScriptingBackend(Target);
-            readonly bool batching = PlayerSettings.GetStaticBatchingForPlatform(Windows);
+            readonly bool batching = PlayerSettings.GetStaticBatchingForPlatform(Platform);
             readonly ManagedStrippingLevel stripping = PlayerSettings.GetManagedStrippingLevel(Target);
 
             public Kept(string project)
@@ -160,7 +165,7 @@ namespace TaskProbe.EditorTools
                 PlayerSettings.SplashScreen.show = splash;
                 PlayerSettings.forceSingleInstance = single;
                 PlayerSettings.SetScriptingBackend(Target, backend);
-                PlayerSettings.SetStaticBatchingForPlatform(Windows, batching);
+                PlayerSettings.SetStaticBatchingForPlatform(Platform, batching);
                 PlayerSettings.SetManagedStrippingLevel(Target, stripping);
                 // BuildPlayer has written the changed settings: the file gets its own bytes back, and Unity writes
                 // nothing more when it exits (it would write the values put back with an entry for each default a new
