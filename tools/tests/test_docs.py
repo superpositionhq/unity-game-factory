@@ -220,6 +220,8 @@ def classify(v):
         return 'platform'       # a game's Platform.json
     if set(v) == {'widget'}:
         return 'OnWidget'       # a touch's spot on a widget
+    if v and set(v) <= {'A', 'B'}:
+        return 'answers'        # a seen probe's blind/answers.json, the writer's reading of its crops (seen.py)
     if v.get('format') in EXCHANGED or 'nonce' in v or {'out', 'result'} <= set(v) or {'ok', 'exe'} <= set(v):
         return 'exchange'       # a play spec, probe.json, the editor pass's files, the build's request and result
     if v.get('kind') in CHECKS and 'name' in v:
@@ -309,6 +311,10 @@ def value_problems(v):
                 'or a select: make it one, or teach classify() in tools/tests/test_docs.py what it is']
     if kind == 'exchange':
         return []
+    if kind == 'answers':       # each side: a shot's lines, or {shot: lines} for a list of shots (seen.lines_of)
+        lines = lambda x: isinstance(x, list) and all(isinstance(line, str) for line in x)  # noqa: E731
+        return [] if all(lines(a) or (isinstance(a, dict) and a and all(lines(x) for x in a.values()))
+                         for a in v.values()) else ['a side of blind/answers.json is [lines] or {shot: [lines]}']
     if unstated(v) or (kind in dict(INPUTS).values() and 't' not in v):
         return sketch_problems(v)
     if kind == 'task':

@@ -142,7 +142,8 @@ def measure(m):
     ("count") for selections, `field` ("count") for the log, `to` and `point` with their defaults, a pieces measure's
     `select` ({} when unset), a screen measure's `rect` (the whole frame when unset), an audio measure's `select` ({}
     when unset), a ground measure's `xz`, `box`, `select` (None when unset) and `grid` (8), and a ui measure's `select`
-    ({} when unset), `of` ("count") and `match` (None), and a drawn measure's `near` and `line` (None when unset)."""
+    ({} when unset), `of` ("count") and `match` (None), a drawn measure's `near` and `line` (None when unset), and a
+    seen measure's `rect`, `match` and `agg` (None when unset)."""
     out = dict(m)
     kind = out["probe"]
     if kind in SAMPLED:
@@ -182,6 +183,9 @@ def measure(m):
             out["select"] = select(out["select"])
     elif kind == "log":
         out.setdefault("field", "count")
+    elif kind == "seen":  # read from a named shot (seen.py), not by the probe
+        for k in ("rect", "match", "agg"):
+            out.setdefault(k, None)
     return out
 
 
@@ -366,18 +370,10 @@ def fails_at_start(task):
     return next((c for _, c in checks(task) if c["kind"] == "build" and c["fails_at_start"]), None)
 
 
-def seen(c):
-    """Whether check `c` is a `seen` probe: text read from a named shot by the visual checks' model, a visual check
-    the Lab's grader counts with the judges (docs/task-probes.md, section 2.22). The task check asks no model, so it
-    never reads one."""
-    return c["kind"] == "probe" and c["measure"]["probe"] == "seen"
-
-
 def gating(task):
-    """The names of the task's required probes (a retired trace probe never gated; a seen probe is a visual check,
-    no deterministic probe)."""
+    """The names of the task's required probes (a retired trace probe never gated)."""
     return {c["name"] for _, c in checks(task) if c["kind"] == "probe" and c["required"]
-            and c["measure"]["probe"] not in ("trace", "seen")}
+            and c["measure"]["probe"] != "trace"}
 
 
 def still_works(task):

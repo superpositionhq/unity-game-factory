@@ -399,8 +399,9 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   `GL` or a mesh draws. Only text neither can read (drawn by a script, a shader or a texture, in a font the frame
   reader refuses) is a `seen` probe's: the model the visual checks use reads it from a `shot` input of the check's own
   task play, taken when the text holds still, with a loose `rect` or none (docs/task-probes.md, section 2.22). It is a
-  visual check, counted with the judges: never one of the task's required or outcome probes, and the task check
-  doesn't read it yet.
+  visual check, counted with the judges: the task still needs a required probe besides it, and the task check saves
+  its crops for you to read blind: type what each crop shows into `blind/answers.json` before opening the key
+  (docs/task-check.md).
 - `expect`: a literal (`{"op": ">=", "value": 1}`) for facts (counts, booleans, "not the default material"), or
   `{"op": ">=", "calibrate": 0.5}` for continuous quantities: the grader measures the start and the reference in the
   grading environment and puts the threshold that fraction of the way from start to fix; `op` points to the fix's side.

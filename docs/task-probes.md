@@ -1528,9 +1528,10 @@ How the Lab's grader reads it:
 - **A visual check.** It is counted with the judges (section 3.2) wherever the grader switches or counts its checks.
   A task still needs its own required probes besides it: a `seen` probe counts toward neither a task's required probe
   nor its outcome probes (section 3).
-
-The task check asks no model, so it doesn't read a `seen` probe yet: its row on each side reads `not asked`, as a
-judge's does, and counts for nothing (section 4).
+- **The local task check asks no model.** It saves the crops of the start and the reference, and the task's writer
+  reads them blind ([task-check.md](task-check.md)): their answer is the two sides' measures, reduced the way the Lab
+  reduces a reading. Until both sides are answered the probe measures nothing, and a task with a required one isn't
+  VALID.
 
 ## 3. What gates, and how a probe fails
 
@@ -1632,7 +1633,9 @@ Before any agent is given a task, the checker grades the start and the fix with 
 - every required `judge` check, answered by the task's writer from the screenshots the check saves (section 3.2),
   fails on the start and passes on the fix, item by item.
 
-A `seen` probe (section 2.22) is not read by the task check yet: it neither makes a task valid nor invalid.
+A required `seen` probe (section 2.22) gates as a probe does, on the values the task's writer read from its crops: the
+start fails it and the fix passes it, and a fix that reads nothing it reads makes the task invalid. Until both sides
+are answered the task isn't valid.
 
 A task with no fix is checked on its start alone: the start builds, fails every required probe outside `still_works`
 (thresholds literal or relative to the start) and passes its still-works probes. Only a draft has no fix: the

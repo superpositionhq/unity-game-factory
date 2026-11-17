@@ -211,6 +211,37 @@ of a blind copy leaves out). The task's notes in the result and its lines in `pr
 
 `--no-judge-shots` skips the judge plays.
 
+A `seen` probe ([task-probes.md](task-probes.md) section 2.22) is read by you too, since the check asks no model. Its
+task play is played on the start and on the reference (once, with the other probes of that play), and each named shot
+it reads is saved under `<task>\seen-shots\<check>\` as the Lab's model would get it: `start\` and `reference\`
+(`<shot>.png`, cropped to the probe's `rect`, or the whole frame without one), `ask.md` (the Lab's prompt, what the
+probe reads, what each picture is), `crops.json` (each crop's sha256) and a blind copy, `blind\A\` and `blind\B\`,
+whose sides are in `blind\key.json`. The crops are at the shot's own pixels: the Lab also scales them up (`ask.md`
+says how much), which the checker can't do without an image library. Until it is answered, the probe measures nothing
+on either side, the task's line says `seen <check>: crops saved for start/reference, answer needed`, and a task with
+a required `seen` probe is not VALID. To answer:
+
+1. Before opening `blind\key.json`, copy every line of text you can read in each crop of `blind\A\` and `blind\B\`,
+   top to bottom, exactly as shown (`?` for a character you can't read for sure, `[]` when there is no text), into
+   `blind\answers.json`:
+
+   ```json
+   {"A": ["COMBO x3"], "B": ["COMBO"]}
+   ```
+
+   For a probe that reads a list of shots, give each shot's lines by its name:
+   `{"A": {"before": ["12"], "after": ["15"]}, "B": {"before": ["12"], "after": ["12"]}}`.
+2. Check the task again. The checker reads the answer with the Lab's own reduction (the `match`, the first number, the
+   first time; the `agg` over a list of shots) and uses the values as the start's and the reference's measures, so
+   the probe decides VALID or INVALID like any other. A reference whose answer gives nothing the probe reads is
+   INVALID, as the Lab makes it a task error. The line then says `seen <check>: read from blind/answers.json`.
+
+The folder is kept from one check to the next, and an answer stands while its crop is the same (`crops.json`); a
+crop that changed (another commit, a play that changed) drops that side's answer, with a note. A start that doesn't
+build by design is never played: only the reference is saved, as `blind\A\`. In the Lab the model must read the start
+and the reference the same 3 times out of 3, which this check can't show: a crop you can read only with a `?`, or
+only at full zoom, may not.
+
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
 `still_works` and pass its still-works probes, and every required probe, a still-works one too, needs a threshold
 (relative to the start, or a literal; a relative one the start measured nothing for has none, and no solution could
@@ -238,10 +269,10 @@ without), so this is for drafts only.
     `| measured V, threshold OP T`, with what the start and the reference measured when the threshold came from them,
     and why it has no value: `... | measured 0, threshold >= 89.9957 (start 0, fix 179.991)`, `... | measured nothing,
     threshold >= 1: no value in the window (...)`; a probe left without a threshold reads `uncalibrated: X: ...`
-    instead. A detail starting `not asked` is a check that side doesn't run (judges, `seen` probes, trace probes and
-    packaging on either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as
-    passed and counts for nothing. A `seen` probe is read by the visual checks' model, which the task check doesn't ask
-    yet ([task-probes.md](task-probes.md), section 2.22);
+    instead. A detail starting `not asked` is a check that side doesn't run (judges, trace probes and packaging on
+    either side; on the start, everything but its probes and a `fails_at_start` build check): it shows as passed and
+    counts for nothing. A `seen` probe's detail is the value read from the writer's answer, or why it has none
+    (`not read yet: its crops are saved under seen-shots, answer needed`);
   - `task_sha256` (the SHA-256 of the task file as the run read it: the file as committed on the `tasks` branch, or
     the `.json` given by path; a checkout with other line endings hashes differently), `task`, `game`, `at` (when,
     UTC), `seconds` (how long the check took) and `evidence` (the task's folder of play files, below).
@@ -272,11 +303,14 @@ without), so this is for drafts only.
   before.
 - `<repo>\.task-checks\<task>\judge-shots\<check>\`: each judge check's pictures to answer (VALID and INVALID
   above); the result's `judges` lists them, each `answer needed`.
+- `<repo>\.task-checks\<task>\seen-shots\<check>\`: each `seen` probe's crops to answer (above); the result's `seen`
+  lists them, each `answer needed` or `read from blind/answers.json`.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each
-  finished task's console line with its minutes (`(18 min)`) and a line per judge check waiting for an answer, and
+  finished task's console line with its minutes (`(18 min)`) and a line per judge check or `seen` probe waiting for an
+  answer, and
   `checking <task>, then N more`. `progress.json` (format `task-check-progress/1`) holds the same: `started` and
   `updated` (seconds since 1970), `tasks` (in order), `done` (each finished task's `task`, `verdict`, `reasons`,
-  `seconds` and `judges_pending`) and `finished`.
+  `seconds`, `judges_pending` and `seen_pending`) and `finished`.
 - `.task-checks\` is git-ignored: new games have it in `.gitignore` (templates/unity-game); for an older game the
   checker adds it to the repo's own `.git\info\exclude`. Never commit results.
 

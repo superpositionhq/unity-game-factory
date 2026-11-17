@@ -70,15 +70,16 @@ check's).
    `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`: besides Unity's import cache, `Library/` holds the agent's editor
    state, its build profiles, compiled scripts and build caches, which a game's files never carry), adds the probe
    package as `Packages/com.taskprobe/`, builds it afresh and plays the agent's game (on a desktop of its own, as the
-   task check's plays) and runs every check but judges, trace probes and packaging, against the thresholds of step 1.
+   task check's plays) and runs every check but judges, `seen` probes (a model reads them in the Lab: here they are
+   `not asked`, left out of the number), trace probes and packaging, against the thresholds of step 1.
 5. Plays each `judge` check's plays on the agent's game and saves the screenshots the cloud's judge would be shown
    under `<task>\run<N>\judge-shots\<check>\agent\`, with `ask.md` ([task-check.md](task-check.md), VALID and
    INVALID). No model is asked: the run's number leaves judges out, and the result lists them in `judges_pending`.
    `--no-judge-shots` skips this.
 
 Results: `<repo>\.task-tries\<task>.json` (format `task-try/1`): per run `solved` (every required check passed),
-`score` (the weighted share of checks passed, as the cloud scores it, judges left out), `required_passed` of
-`required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness reports them, the
+`score` (the weighted share of checks passed, as the cloud scores it, judges and `seen` probes left out),
+`required_passed` of `required`, `milestones` reached, `seconds`, `timed_out`, `turns` and `usd` when the harness reports them, the
 `checks` rows, `peeked`, and `why` when the agent's game couldn't be graded at all (it moved the project off Unity
 6000.3 or to a release this machine doesn't have, removed or relinked the workspace or left a link (a symbolic link
 or a junction) anywhere among the game's files, since the grade would write through it (`<path> is now a link to
