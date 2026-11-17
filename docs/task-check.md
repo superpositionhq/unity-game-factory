@@ -40,7 +40,9 @@ INVALID island-survival-fix-hut-door: start already passes every required probe
 Options: `--keep` keeps the built copies (to look at a build or rerun a play by hand), not what their plays left
 outside them (a play starts from clean saved data anyway), `--out DIR` puts the results elsewhere, `--scratch DIR`
 puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Unity without the machine's job slots,
-`--timeout S` (a play or the editor pass, default 1800) and `--build-timeout S` (default 3600).
+`--timeout S` (the editor pass, default 1800; a play gets its own seconds and 300 s, start-up included, as the Lab's
+grader allows, or `--timeout` when that is shorter, and a task play's waits on top) and `--build-timeout S` (default
+3600).
 
 ## Requirements
 
@@ -352,7 +354,8 @@ start leaves uncalibrated reads the same: no solution could pass it.
 **`no samples in the window (the play ended at N s)`.** The play ended before the window: the window or `at` lies past
 the play's `seconds`, or the game crashed or quit (see the play's log). **`the play wrote no probe file`**: the game
 never got to play (a crash at load: see the play's `play.log` and `output.txt`), or the play was stopped at
-`--timeout` before its end (its progress line then shows it took that long). A scene the commit doesn't have
+its time limit before its end (its seconds and 300 s, or `--timeout` when shorter: its progress line then shows it
+took that long; a play that slow times out in the Lab's grader too). A scene the commit doesn't have
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
 **`the play's input did not land: click X at N s (...)`** (or `task error: ... in the reference's play X, an input did
@@ -441,7 +444,7 @@ feature, a change), another solution would name them otherwise, so select by wha
 brief itself asks for, as coins that shine are `lit`), and keep out a parent that holds them with a `component` on
 the object itself (task-probes.md, section 2.4). `teleport_to skipped
 (no object matches)` found nothing. `reference fails boots_clean: crashed` means the reference crashes in a plain
-boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past `--timeout`).
+boot (`didn't finish its run`: it stopped before its `seconds`; `timed out`: it ran past its time limit).
 `reference fails X: build failed (exit N: ...)` means the reference doesn't build as committed; every check that
 `needs` it then fails `not run: needs X`, and so on down the chain. The reason names the first cause and
 `reference\build\build.log` holds the rest, as for `start doesn't build` below.

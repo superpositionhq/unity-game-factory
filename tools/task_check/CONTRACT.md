@@ -830,7 +830,8 @@ frame.
 It runs with the checker's own Python and the player `Build/TaskProbe/Game.exe`, where the build was asked to put it
 (never a path the build's result names: the game's own editor code runs during the build and could write any), through
 `unity-heavy.ps1 -Label "task-check play <commit[:12]>" -Gpu` when the machine has the limiter (a GPU slot), with a
-timeout of `--timeout` (1800 s) plus the play's waits, counted from when the job starts. `desk.py` starts the player on
+timeout of the play's seconds and 300 s (the Lab's grader's limit, start-up included; `--timeout`, 1800 s, when that
+is shorter: `check.play_timeout`) plus the play's waits, counted from when the job starts. `desk.py` starts the player on
 a Windows desktop of its own (`WinSta0\TaskProbe`, made when it isn't there), in a job object that kills it and
 everything it started when `desk.py` goes, and exits with the player's exit code: 0 when the play ended (once
 probe.json, the screenshots and probe.log are written and closed, the probe ends the process at once,

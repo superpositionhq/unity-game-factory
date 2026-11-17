@@ -58,6 +58,25 @@ def grade(task, mode, start, reference=None, thresholds=None):
 
 
 class Grades(unittest.TestCase):
+    def test_a_play_gets_its_seconds_and_300_s_as_the_labs_grader_allows(self):
+        """A play slower than its seconds and 300 s times out in the Lab's grader, start-up included, so it times out
+        here too; `--timeout` only shortens that, and a task play's waits come on top."""
+        self.assertEqual(check.play_timeout(20, 1800), 320)
+        self.assertEqual(check.play_timeout(20, 60), 60)
+        timeouts = []
+
+        class Timed(FakeProject):
+            def play(self, seconds, shots, timeout, **kwargs):
+                timeouts.append((seconds, timeout))
+                return super().play(seconds, shots, timeout, **kwargs)
+
+        waiting = {"name": "wait_door", "seconds": 30, "inputs": [{"t": 1.0, "wait": 12.5}]}
+        task = task_with(probe(), probe("door", play=waiting))
+        s = check.Side("reference", Timed(measuring(1)), task, 1800, 60, None, lambda *a: None)
+        s.probe_play("look")
+        s.probe_play(check.tasks.play(waiting))
+        self.assertEqual(timeouts, [(20, 320), (30, 330 + 13)])
+
     def test_a_literal_probe_passes_on_the_measured_number_and_its_queries_reach_the_probe(self):
         task = task_with(probe(), probe("walls", measure={"probe": "objects", "select": WALLS, "field": "y",
                                                           "of": "max"}, expect={"op": ">", "value": 100}),

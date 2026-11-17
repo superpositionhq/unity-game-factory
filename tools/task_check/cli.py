@@ -110,7 +110,8 @@ def main(argv=None):
                              f"files are hardlinked; a copy's folder may be at most {seeds.MAX_FOLDER} characters)")
     parser.add_argument("--direct", action="store_true",
                         help="run Unity directly, not through the machine's unity-heavy.ps1 slots")
-    parser.add_argument("--timeout", type=int, default=1800, help="seconds a play or the editor pass may run")
+    parser.add_argument("--timeout", type=int, default=1800, help="seconds the editor pass may run, and a play at most "
+                             "(a play gets its seconds and 300 s, as the Lab's grader allows, when that is shorter)")
     parser.add_argument("--build-timeout", type=int, default=3600, help="seconds a build may run")
     parser.add_argument("--no-judge-shots", dest="judge_shots", action="store_false",
                         help="don't play judge checks' plays or save their screenshots (by default each judge check's "

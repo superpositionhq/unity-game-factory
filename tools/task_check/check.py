@@ -82,6 +82,15 @@ SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".g
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:
 # `t >= seconds + 0.5`), so a look cut from a longer play keeps that half second too
 OVERRUN = 0.5
+# s: a play's own seconds and this much more is all the Lab's grader gives it, start-up included; a play slower than
+# that times out there, so it times out here too (`--timeout` only ever shortens it)
+PLAY_MARGIN = 300
+
+
+def play_timeout(seconds, timeout):
+    """A play's time limit (s, before its waits): its seconds and PLAY_MARGIN, as the Lab's grader allows, or
+    `timeout` (`--timeout`) when that is shorter."""
+    return min(int(timeout), int(seconds) + PLAY_MARGIN)
 
 
 def fatal(log):
@@ -314,8 +323,9 @@ class Side:
                      + f"({seconds} s" + (f", {waits:g} s waiting" if waits else "") + ")")
             scene, args = tasks.place(self.task, play)
             before, self.saves = self.saves, []  # a play that raises leaves no saves known
-            found = self.project.play(seconds, shots, self.timeout + math.ceil(waits), scene=scene, inputs=inputs,
-                                      queries=queries, args=args, every=every, player=self.player, keep_saves=keeps)
+            found = self.project.play(seconds, shots, play_timeout(seconds, self.timeout) + math.ceil(waits),
+                                      scene=scene, inputs=inputs, queries=queries, args=args, every=every,
+                                      player=self.player, keep_saves=keeps)
             self.saves = before + [name] if keeps else [name]
             waited = getattr(found, "waited", 0.0)
             ended = found.probe.get("ended") if isinstance(found.probe, dict) else None
