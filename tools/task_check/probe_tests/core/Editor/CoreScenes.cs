@@ -54,8 +54,10 @@ namespace ProbeTests.Core
                 FileUtil.DeleteFileOrDirectory("Build/ProbeTestsForeign");
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
-                    scenes = new[] { Made + "/Clock.unity" }, locationPathName = "Build/ProbeTestsForeign/Game.exe",
-                    target = BuildTarget.StandaloneWindows64, options = BuildOptions.None,
+                    // the editor's own platform, as the probe's build is: the machine that builds it plays it
+                    scenes = new[] { Made + "/Clock.unity" },
+                    locationPathName = "Build/ProbeTestsForeign/" + (Linux ? "Game.x86_64" : "Game.exe"),
+                    target = Linux ? BuildTarget.StandaloneLinux64 : BuildTarget.StandaloneWindows64, options = BuildOptions.None,
                 });
                 if (report.summary.result != BuildResult.Succeeded) throw new Exception("the foreign player didn't build: " + report.summary.result);
             }
@@ -66,6 +68,8 @@ namespace ProbeTests.Core
                 PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, stripping);
             }
         }
+
+        static bool Linux => Application.platform == RuntimePlatform.LinuxEditor;
 
         static Scene New() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 

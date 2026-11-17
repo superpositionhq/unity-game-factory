@@ -38,6 +38,7 @@ TASK = vg.SCHEMAS['game-task']
 DEFS = TASK['$defs']
 
 PROBES = 'docs/task-probes.md'
+DOC_PLAYER = 'Game.exe'  # the player as the docs' command lines name it: the factory's machines are Windows
 SKILL = 'skills/unity-write-tasks/SKILL.md'
 CONTRACT = 'tools/task_check/CONTRACT.md'
 DOCS = (PROBES, 'docs/task-check.md', 'docs/task-try.md', 'docs/game-format.md', SKILL, CONTRACT)
@@ -888,14 +889,14 @@ def command_problems(block):
     """(which job a command line starts, why it is not the one unity.py starts): its flags, its method, its window
     and the files it names against unity.py, and its own flag against the C# that reads it."""
     text = ' '.join(block.split())
-    if unity.PLAYER in text:
+    if DOC_PLAYER in text:
         job, parts = 'player command line', ('play',)
     elif unity.BUILD_METHOD in text:
         job, parts = 'build command line', ('_batch', 'build')
     elif unity.ASSETS_METHOD in text:
         job, parts = 'editor-pass command line', ('_batch', 'editor_assets')
     else:
-        return 'command line', [f'it starts neither the player ({unity.PLAYER}), the build ({unity.BUILD_METHOD}) nor '
+        return 'command line', [f'it starts neither the player ({DOC_PLAYER}), the build ({unity.BUILD_METHOD}) nor '
                                 f'the editor pass ({unity.ASSETS_METHOD})']
     flags, files = set(), written()[2]
     for part in parts:

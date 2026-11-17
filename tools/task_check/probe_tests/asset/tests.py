@@ -336,7 +336,7 @@ def robust(t):
 def _twins(t):
     """Two plays of the build at once, as two scratch copies' plays can run on one machine: each one's probe.json."""
     _, _, unity = _tools()
-    exe = t.project / "Build" / "TaskProbe" / "Game.exe"
+    exe = t.project / "Build" / "TaskProbe" / unity.PLAYER
     procs, files = [], []
     for name in ("twin_a", "twin_b"):
         folder = t.project / "Logs" / "ProbeTests" / f"asset.{name}"
@@ -380,7 +380,7 @@ def facts(t, play):
     build = json.loads((t.project / "Logs" / "TaskProbe" / "build.json").read_text(encoding="utf-8"))
     t.eq("the build result's keys", sorted(build), sorted(["ok", "exe", "scenes", "errors", "seconds", "error", "missing"]))
     t.eq("ok, no error", (build.get("ok"), build.get("error")), (True, None))
-    t.ok("the player is under the project's Build/TaskProbe", str(build.get("exe")).endswith("/Build/TaskProbe/Game.exe"), build.get("exe"))
+    t.ok("the player is under the project's Build/TaskProbe", str(build.get("exe")).endswith("/Build/TaskProbe/" + _tools()[2].PLAYER), build.get("exe"))
     t.ok("the play's scene is built", MADE + "Facts.unity" in (build.get("scenes") or []), build.get("scenes"))
     deleted = dict(line.split(" ", 1) for line in (t.project / MADE / "Deleted.txt").read_text(encoding="utf-8").split("\n") if line)
     gap = (build.get("missing") or {}).get(MADE + "Facts.unity") or {}

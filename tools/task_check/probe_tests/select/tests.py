@@ -301,13 +301,13 @@ def props(t, play):
 def _deep(t):
     """A spec nested 100,000 deep: the player says it can't read it and ends with exit code 2 (no stack overflow, which
     no catch stops)."""
-    exe = t.project / "Build" / "TaskProbe" / "Game.exe"
+    from task_check import unity  # the checker's own module (run.py has loaded it): its player's name, its desk.py
+    exe = t.project / "Build" / "TaskProbe" / unity.PLAYER
     folder = Path(tempfile.mkdtemp(prefix="seldeep"))
     spec = folder / "deep.json"
     spec.write_text('{"format": "unity-probe-play/1", "out": ' + json.dumps(str(folder)) + ', "deep": '
                     + "[" * 100000 + "]" * 100000 + "}", encoding="utf-8")
     log = folder / "play.log"
-    from task_check import unity  # the checker's own module (run.py has loaded it): where its desk.py is
     desk = unity.DESK
     try:
         ran = subprocess.run([sys.executable, str(desk), str(exe), "-screen-fullscreen", "0", "-screen-width", "960",

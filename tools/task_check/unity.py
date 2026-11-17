@@ -49,7 +49,8 @@ WRAPPER_GRACE = 60  # seconds unity-heavy.ps1 gets to release its slot once the 
 QUEUE_POLL = 5  # seconds between looks at whether the wrapper has started its job
 LOGS = "Logs/TaskProbe"  # in the copy: requests, results, logs and the play's folder (Logs/ is never the game's)
 BUILD_DIR = "Build/TaskProbe"
-PLAYER = "Game.exe"
+# the player Build.Player makes: the build machine's own (the editor's platform)
+PLAYER = "Game.exe" if sys.platform == "win32" else "Game.x86_64"
 DESK = HERE / "desk.py"  # runs the player on its own desktop
 BUILD_METHOD = "TaskProbe.EditorTools.Build.Player"
 ASSETS_METHOD = "TaskProbe.EditorTools.AssetPass.Run"

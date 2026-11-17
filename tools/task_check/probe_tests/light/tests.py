@@ -579,7 +579,7 @@ def stray(t, play):
     t.eq("... and nothing leaves it", row.get("prop:LightEarAfter.peak"), 0.0)
     t.ok("... though buffers pass", (row.get("prop:LightEarAfter.buffers") or 0) > 0, row.get("prop:LightEarAfter.buffers"))
     t.near("... its level: a 0.05 sine at volume 1", at(play, "all", 2.0, "level"), LEVEL / 10, LEVEL / 10 * 0.01)
-    exe = t.project / "Build" / "TaskProbe" / "Game.exe"
+    exe = t.project / "Build" / "TaskProbe" / unity.PLAYER
     log = t.project / "Logs" / "ProbeTests" / "light.stray_run.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.unlink(missing_ok=True)

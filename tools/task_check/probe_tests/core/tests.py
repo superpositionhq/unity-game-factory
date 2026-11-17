@@ -58,11 +58,11 @@ def clocks(t, play):
 
 def _start(t, name, *args, build="TaskProbe"):
     """A built player started by hand, as the checker starts a play (on its own desktop): (exit code, its log)."""
-    exe = t.project / "Build" / build / "Game.exe"
+    from task_check import unity  # the checker's own module (run.py has loaded it): where its desk.py is
+    exe = t.project / "Build" / build / unity.PLAYER
     log = t.project / "Logs" / "ProbeTests" / f"core.{name}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.unlink(missing_ok=True)
-    from task_check import unity  # the checker's own module (run.py has loaded it): where its desk.py is
     desk = unity.DESK
     ran = subprocess.run([sys.executable, str(desk), str(exe), "-screen-fullscreen", "0", "-screen-width", "960",
                           "-screen-height", "540", "-logFile", str(log), *args], cwd=str(exe.parent), timeout=180)
