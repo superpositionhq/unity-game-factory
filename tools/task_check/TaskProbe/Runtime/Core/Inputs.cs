@@ -364,7 +364,8 @@ namespace TaskProbe
 
         /// <summary>Where a spot is on the screen, in pixels from the bottom left: a viewport point [fx, fy] (fractions,
         /// y down from the top), or {"widget": name}: the centre of the first visible widget of that name (a wildcard)
-        /// or type, whatever its kind, as it is laid out now. False for a widget that isn't on screen.</summary>
+        /// or type, whatever its kind, as it is laid out now, else the first button that reads so (UiScan.Caption).
+        /// False for a widget that isn't on screen.</summary>
         static bool Spot(object spot, out Vector2 at, out string named)
         {
             at = default;
@@ -388,6 +389,13 @@ namespace TaskProbe
                     named = w.Name + " (" + w.Class + ")";
                     return true;
                 }
+            // then a button by what it reads (one the task itself adds has no name at the start)
+            if (UiScan.CaptionSpot(named, out var cx, out var cy, out var cw, out var ch, out var captioned))
+            {
+                at = new Vector2((float)((cx + cw / 2) * Screen.width), (float)((1.0 - (cy + ch / 2)) * Screen.height));
+                named = captioned;
+                return true;
+            }
             return false;
         }
 

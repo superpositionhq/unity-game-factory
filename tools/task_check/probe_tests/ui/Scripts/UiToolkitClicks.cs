@@ -5,11 +5,11 @@ namespace ProbeTests.Ui
 {
     /// <summary>The Clicks scene's UI Toolkit buttons, each counting its clicks: UGoButton (Button.clicked), UEvtButton
     /// (a ClickEvent callback only), UNoButton (disabled), UOffButton (off the frame), UCursorButton (for the
-    /// cursor).</summary>
+    /// cursor), UCaptionButton (clicked by what it reads).</summary>
     [RequireComponent(typeof(UIDocument))]
     public sealed class UiToolkitClicks : MonoBehaviour
     {
-        public int go, evt, no, off, cursor;
+        public int go, evt, no, off, cursor, caption;
         VisualElement root;
 
         Button Add(Button button, string name, float x, float y, float w, float h)
@@ -32,6 +32,7 @@ namespace ProbeTests.Ui
             Add(new Button(() => no++) { text = "UNO" }, "UNoButton", 620, 100, 120, 30).SetEnabled(false);
             Add(new Button(() => off++) { text = "UOFF" }, "UOffButton", -500, 140, 120, 30);
             Add(new Button(() => cursor++) { text = "UCURSOR" }, "UCursorButton", 620, 300, 160, 40);
+            Add(new Button(() => caption++) { text = "Start run" }, "UCaptionButton", 620, 360, 120, 30);
         }
     }
 }

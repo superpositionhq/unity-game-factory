@@ -42,7 +42,8 @@
     "prop:UiToolkitClicks.evt",
     "prop:UiToolkitClicks.no",
     "prop:UiToolkitClicks.off",
-    "prop:UiToolkitClicks.cursor"
+    "prop:UiToolkitClicks.cursor",
+    "prop:UiToolkitClicks.caption"
    ]
   },
   {
@@ -261,6 +262,26 @@
   {
    "t": 4.4,
    "widget": "GoDropdown",
+   "click": true
+  },
+  {
+   "t": 4.5,
+   "widget": "New_expedition",
+   "click": true
+  },
+  {
+   "t": 4.55,
+   "widget": "Begin",
+   "click": true
+  },
+  {
+   "t": 4.6,
+   "widget": "sealed_door",
+   "click": true
+  },
+  {
+   "t": 4.65,
+   "widget": "START_RUN",
    "click": true
   }
  ]

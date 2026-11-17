@@ -365,6 +365,15 @@ def clicks_for(module):
              [get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("no", "off")], [0, 0])
         t.eq("UI Toolkit: a ClickEvent handler: not by the widget click (2 s)", get(play, "uitk", 2.5, "UitkClicks", "prop:UiToolkitClicks.evt"), 0)
         log = play.probe_log
+        # by what a button reads, when no widget has the name or the type
+        t.eq("a click by caption: the first of two that read alike, the second not",
+             [count(play, end, n, "fired") for n in ("CaptionA", "CaptionB")], [on, 0])
+        t.eq("a button of the name wins over one that reads so", [count(play, end, n, "fired") for n in ("Begin", "CaptionC")], [on, 0])
+        t.eq("a button that reads so but can't be clicked isn't", count(play, end, "CaptionLocked", "fired"), 0)
+        t.ok("probe.log: no visible button matches 'sealed_door'", "no visible button matches 'sealed_door'" in log)
+        t.eq("UI Toolkit: a Button clicked by its caption", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.caption"), 1)
+        t.ok("probe.log says it took the caption", "clicked UCaptionButton (Button) by its caption" in log
+             and (not on or "clicked CaptionA (Button) by its caption" in log))
         for widget in ("UGoButton", "UEvtButton") + (("GoButton", "Toggle") if on else ()):
             # the line names the widget clicked and its type, whether the input gave a name or a type
             t.ok(f"probe.log: clicked {widget}", re.search(rf"clicked ({widget} \(\w+\)|\S+ \({widget}\))", log))

@@ -683,16 +683,94 @@ namespace TaskProbe
         /// (pressed, released, clicked). Visible is the widgets' state (a fully transparent button
         /// takes a click). No raycast: an image over it doesn't stop it. Without an EventSystem a player's click reaches
         /// no uGUI widget, and neither does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or
-        /// a type name may match several: the log names the one), or null when none.</summary>
-        public static string Click(string want)
+        /// a type name may match several: the log names the one), or null when none. When no name and no type
+        /// matches, the first such widget whose caption is `want` (Caption) is clicked: a button the task itself adds
+        /// has no name at the start, and the instruction names it by what it reads.</summary>
+        public static string Click(string want) => Click(want, false) ?? Click(want, true);
+
+        /// <summary>A name or a caption as a click compares them: in lower case, every run of characters that are
+        /// neither letters nor digits one `_`, none at either end ("New_expedition" is a button reading
+        /// "New expedition!").</summary>
+        public static string Caption(string text)
         {
+            var found = new System.Text.StringBuilder();
+            foreach (var c in text ?? "")
+            {
+                if (char.IsLetterOrDigit(c)) found.Append(char.ToLowerInvariant(c));
+                else if (found.Length > 0 && found[found.Length - 1] != '_') found.Append('_');
+            }
+            return found.ToString().TrimEnd('_');
+        }
+
+        static bool Reads(string caption, string want)
+        {
+            var wanted = Caption(want);
+            return wanted.Length > 0 && Caption(caption) == wanted;
+        }
+
+#if TASKPROBE_UGUI
+        /// <summary>What a Selectable reads: its own text, else the first text below it that shows with it.</summary>
+        static string CaptionOf(Selectable s)
+        {
+            foreach (var g in s.GetComponentsInChildren<Graphic>(true))
+            {
+                if (!g.enabled || (g.gameObject != s.gameObject && !ActiveBelow(g.transform, s.transform))) continue;
+                var label = GraphicText(g);
+                if (label != null) return label;
+            }
+            return null;
+        }
+#endif
+
+        /// <summary>Where the first visible, interactable uGUI Selectable or UI Toolkit Button whose caption is `want`
+        /// is on the screen (fractions, y down), for a finger: a tap's spot when no widget has the name or the
+        /// type.</summary>
+        public static bool CaptionSpot(string want, out double x, out double y, out double w, out double h, out string named)
+        {
+            x = y = w = h = 0.0;
+            named = null;
+#if TASKPROBE_UGUI
+            var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
+            Find.SortByHierarchy(selectables);
+            foreach (var s in selectables)
+            {
+                if (s == null || Probe.IsOwn(s.gameObject) || !Reads(CaptionOf(s), want)) continue;
+                var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
+                if (!s.isActiveAndEnabled || !s.IsInteractable() || !UguiVisible(s.gameObject, own)) continue;
+                if (!RectOf(s.transform as RectTransform, s.GetComponentInParent<Canvas>(), false, out x, out y, out w, out h) || w <= 0.0 || h <= 0.0) continue;
+                named = s.gameObject.name + " (" + s.GetType().Name + ") by its caption";
+                return true;
+            }
+#endif
+#if TASKPROBE_UITK
+            var all = new List<UIE.VisualElement>();
+            foreach (var root in UitkRoots())
+            {
+                all.Clear();
+                Walk(root.Key, all);
+                foreach (var e in all)
+                {
+                    if (!(e is UIE.Button) || !Reads(UitkText(e), want)) continue;
+                    if (!e.enabledInHierarchy || !UitkVisible(e, root.Value, false)) continue;
+                    if (!RectOf(e, out x, out y, out w, out h) || w <= 0.0 || h <= 0.0) continue;
+                    named = NameOf(e) + " (" + e.GetType().Name + ") by its caption";
+                    return true;
+                }
+            }
+#endif
+            return false;
+        }
+
+        static string Click(string want, bool byCaption)
+        {
+            var how = byCaption ? " by its caption" : "";
 #if TASKPROBE_UGUI
             var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
             Find.SortByHierarchy(selectables);
             foreach (var s in selectables)
             {
                 if (s == null || Probe.IsOwn(s.gameObject)) continue;
-                if (!Find.Wild(want, s.gameObject.name) && !Reflect.IsA(s.GetType(), want)) continue;
+                if (byCaption ? !Reads(CaptionOf(s), want) : !Find.Wild(want, s.gameObject.name) && !Reflect.IsA(s.GetType(), want)) continue;
                 var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
                 if (!s.isActiveAndEnabled || !s.IsInteractable() || !UguiVisible(s.gameObject, own)) continue;
                 if (EventSystem.current == null)
@@ -702,7 +780,7 @@ namespace TaskProbe
                     break;
                 }
                 UguiClick(s);
-                return s.gameObject.name + " (" + s.GetType().Name + ")";
+                return s.gameObject.name + " (" + s.GetType().Name + ")" + how;
             }
 #endif
 #if TASKPROBE_UITK
@@ -714,7 +792,7 @@ namespace TaskProbe
                 foreach (var e in all)
                 {
                     if (!(e is UIE.Button button)) continue;
-                    if (!Find.Wild(want, NameOf(e)) && !Reflect.IsA(e.GetType(), want)) continue;
+                    if (byCaption ? !Reads(UitkText(e), want) : !Find.Wild(want, NameOf(e)) && !Reflect.IsA(e.GetType(), want)) continue;
                     if (!e.enabledInHierarchy || !UitkVisible(e, root.Value, false)) continue;
                     // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or
                     // pad press does; a ClickEvent callback needs a pointer's click (the cursor)
@@ -723,7 +801,7 @@ namespace TaskProbe
                         submit.target = button;
                         button.SendEvent(submit);
                     }
-                    return NameOf(e) + " (" + e.GetType().Name + ")";
+                    return NameOf(e) + " (" + e.GetType().Name + ")" + how;
                 }
             }
 #endif

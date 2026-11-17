@@ -469,6 +469,13 @@ namespace ProbeTests.Ui
             var skin = Skin();
             var canvas = NewCanvas("ClickCanvas");
             MakeButton(skin, "GoButton", canvas, 20, 20, 120, 30, "GO");
+            // clicked by what they read: the first of two that read alike; a button of the name wins over one that
+            // reads so; one that can't be clicked is passed over
+            MakeButton(skin, "CaptionA", canvas, 20, 260, 120, 30, "New  expedition!");
+            MakeButton(skin, "CaptionB", canvas, 160, 260, 120, 30, "new expedition");
+            MakeButton(skin, "Begin", canvas, 20, 300, 120, 30, "X");
+            MakeButton(skin, "CaptionC", canvas, 160, 300, 120, 30, "Begin");
+            MakeButton(skin, "CaptionLocked", canvas, 20, 340, 120, 30, "Sealed door").GetComponent<UnityEngine.UI.Button>().interactable = false;
             var toggle = Control(DefaultControls.CreateToggle(skin), "GoToggle", canvas, 160, 20, 120, 20);
             toggle.GetComponent<Toggle>().isOn = true;
             toggle.AddComponent<UiClickCount>();

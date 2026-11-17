@@ -581,7 +581,11 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   `rightStick/x|y`, `leftTrigger` and `rightTrigger` keep their value until set again.
 - widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
   and visible (the `widgets` state: a fully transparent button counts) uGUI Selectable in hierarchy order whose name (a
-  wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit Button (`UiScan.Click`). A uGUI one
+  wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit Button (`UiScan.Click`); when neither kind has one, the first such uGUI Selectable,
+  else UI Toolkit Button, whose caption is `widget` (`UiScan.Caption`: lower case, every run of characters that are
+  neither letters nor digits one `_`, none at either end; a Selectable's caption is its own text or the first text
+  below it that shows with it), and `probe.log` adds `by its caption`; a touch's widget spot falls back the same way
+  (`UiScan.CaptionSpot`). A uGUI one
   gets what the Input System's UI module sends for a press and release at its centre, through `ExecuteEvents`
   (`UiScan.UguiClick`): the pointer enters; the press lets go of a selection the object wouldn't take, then pointer down
   and the start of a possible drag; the release pointer up and the click, to the click handler found at the press; then

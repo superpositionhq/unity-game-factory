@@ -136,7 +136,13 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       of a selection the clicked object wouldn't take; a Slider takes the value at its centre, an InputField is
       focused, a Dropdown opens), a UI Toolkit Button a submit event, which fires `Button.clicked` (a game that handles
       a raw `ClickEvent` instead needs the cursor, below). The click casts no ray, so an image drawn over the button
-      doesn't stop it. The play's `probe.log` names what it clicked and its type: `clicked RetryButton (Button)`. With
+      doesn't stop it. The play's `probe.log` names what it clicked and its type: `clicked RetryButton (Button)`.
+      When no such widget has the name or the type, the first one that **reads** so is clicked: its caption (a uGUI
+      button's own or first text below it, a UI Toolkit Button's text) compared with `widget` in lower case, every
+      run of characters that are neither letters nor digits one `_`, none at either end, so `"New_expedition"` clicks
+      a button reading "New expedition!". A title screen the task itself adds has no name at the start, and the
+      instruction names its button by what it reads; a name still wins, and the log says which it took: `clicked
+      StartButton (Button) by its caption`. A touch's `{"widget": ...}` spot falls back the same way. With
       no EventSystem in the scene a player's click reaches no uGUI widget, and neither does this one: `probe.log` says
       `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
       when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
