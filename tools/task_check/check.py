@@ -76,6 +76,7 @@ def own_play(play, project):
 
 JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
 NOT_JUDGED = "not asked: judges never decide a task check"
+TASK_ERROR = "task error"  # a check's detail starts so when no version of the game can pass it (Grade.task_error)
 NO_PACKAGE = "not packaged: the Lab's grader has no package step for a Unity game, so a package check fails every run"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:
@@ -481,8 +482,13 @@ class Side:
 
 class Grade:
     """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges and trace
-    probes (a package check fails closed), of the reference or of `side` (an agent's game, task-try.py); "start": its probes and a
-    `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`)."""
+    probes (a package check fails closed), of the reference or of `side` (an agent's game, task-try.py); "start": its
+    probes and a `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`).
+
+    A probe of a task play reads only a play that did what the task says: when an input of the play didn't land (the
+    play's `inputs_missed`, probes.missed), the check fails, saying so, whatever it measured; when the reference's own
+    play of it missed one too, it is the task's error (TASK_ERROR: its own fix can't be driven by its play), as in the
+    Lab's grader. A calibrated probe whose reference play missed an input is that task error too."""
 
     def __init__(self, task, mode, start, reference, thresholds, side=None):
         self.task, self.mode, self.start, self.reference = task, mode, start, reference
@@ -504,16 +510,59 @@ class Grade:
         return found
 
     def probe_check(self, check):
+        calibrated = tasks.relative(check) == "calibrate"
         try:
             limit, start, fix = self.threshold(check)
         except verdict.Uncalibrated as exc:
             value, _ = self.side.value(check)
             self.measured[check["name"]] = {"value": value, "threshold": None, "start": exc.start, "fix": exc.fix}
-            return False, f"uncalibrated: {exc}"
+            broken = self.reference_unlanded(check["play"]) if calibrated else None
+            return self.task_error(check, broken) if broken else (False, f"uncalibrated: {exc}")
         value, why = self.side.value(check)
         self.measured[check["name"]] = {"value": value, "threshold": limit, "start": start, "fix": fix}
+        broken = self.reference_unlanded(check["play"]) if calibrated else None
+        if broken:  # a threshold made from a reference play that didn't do what the task says
+            return self.task_error(check, broken)
+        landed = self.landing(check["play"])
+        if landed:  # what it measured is of a play that didn't do what the task says
+            broken, said = landed
+            return self.task_error(check, broken) if broken else (False, f"{check['describe']} | {said}")
         passed = value is not None and verdict.passes(value, check["expect"]["op"], limit)
         return passed, verdict.describe(check, value, limit, start, fix, why)
+
+    @staticmethod
+    def played(side, play):
+        """Task play `play` as `side` played it, or None (not a task play, no such side, not played): never played
+        here."""
+        if side is None or not isinstance(play, dict):
+            return None
+        return side.played.get(f"play_{play['name']}")
+
+    def landing(self, play):
+        """None when task play `play`'s inputs all landed in the graded side's play (or it can't say, or `play` is look,
+        drive or editor); else (why it is the task's error, or None; the check's detail when it isn't)."""
+        found = self.played(self.side, play)
+        rows = probes.missed(found.probe) if found is not None else None
+        if not rows:
+            return None
+        broken = self.reference_unlanded(play)
+        if broken:
+            return broken, None
+        return None, f"the play's input did not land: {probes.missed_text(rows)}"
+
+    def reference_unlanded(self, play):
+        """Why task play `play` can't be driven even on the task's own fix (an input of the reference's play of it
+        didn't land), or None: it landed every one, or the reference never played it."""
+        found = self.played(self.reference, play)
+        rows = probes.missed(found.probe) if found is not None else None
+        if not rows:
+            return None
+        return f"in the reference's play {play['name']}, an input did not land ({probes.missed_text(rows)}): the " \
+               "task's own fix can't be driven by its play"
+
+    def task_error(self, check, why):
+        """(False, its detail) of a probe no version of the game can pass: the task's error."""
+        return False, f"{TASK_ERROR}: {check['describe']} | {why}"
 
     def check(self, check):
         kind = check["kind"]

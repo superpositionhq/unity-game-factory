@@ -355,6 +355,15 @@ never got to play (a crash at load: see the play's `play.log` and `output.txt`),
 `--timeout` before its end (its progress line then shows it took that long). A scene the commit doesn't have
 doesn't stop a play: the probe plays the game's own first scene instead, and its `query_errors` says so.
 
+**`the play's input did not land: click X at N s (...)`** (or `task error: ... in the reference's play X, an input did
+not land (...): the task's own fix can't be driven by its play`). An input of the task play missed: a click no visible
+button took, a teleport next to nothing, a stage nothing took, a key the probe has no control for, a touch on a widget
+that isn't on screen (the play's `inputs_missed` in `probe.json`, and `probe.log`). What the probe measured is of a
+play that never did what the task says, so the check fails whatever its value; on the reference it is the task's
+error. Fix the play: wait for the button to show before the click, click by the caption the start already has, drop a
+click the game already took (a second press of a button that has gone), and teleport next to something that is there
+(task-probes.md, section 1.4).
+
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
 has that field, or a `player` or `camera` measure's play never found the player or the camera (name the player with
 the task's `player` select: task-probes.md, "Words used here"). `component` is the C# type name (`Projectile`) or its

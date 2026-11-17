@@ -155,6 +155,10 @@ The task check's own rules, each closing a case that would otherwise read wrongl
 - the reference passes every required check the checker runs, `log_absent`, `file_exists` and `package` too (a
   `package` check fails closed on every side, `check.NO_PACKAGE`, as the Lab's grader has no package step for a Unity
   game); only checks that aren't required are notes (`verdict.verdict`);
+- a probe of a task play whose play missed an input (`inputs_missed`, kind `shot` aside: `probes.missed`) fails, "the
+  play's input did not land: ..."; when the reference's play of it missed one too, or the probe is calibrated and the
+  reference's play missed one, it is "task error: ..." (`check.Grade.landing`, `reference_unlanded`), as the Lab's
+  grader reads a play; only the plays a side already made are read, none is played for it;
 - a row the checker couldn't make (`the checker failed (...)`) makes the task an ERROR, no verdict
   (`verdict.failures`, `check.check_task`);
 - a calibrated threshold anchored on the reference alone (the start measured nothing) needs a reference other than 0:

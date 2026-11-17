@@ -543,6 +543,24 @@ def stage_missed(probe):
     return None
 
 
+def missed(probe):
+    """The inputs a play sent that didn't land (probe.json `inputs_missed`: a stage nothing took, a click no button
+    took, a teleport next to nothing, an unknown key, a touch that couldn't be made), [{t, kind, target, why}]; [] when
+    every one landed; None when it can't say (no probe file, or none of that list). A named screenshot is no input of
+    the game's (kind `shot`)."""
+    rows = probe.get("inputs_missed") if isinstance(probe, dict) else None
+    if not isinstance(rows, list):
+        return None
+    return [r for r in rows if isinstance(r, dict) and r.get("kind") != "shot"]
+
+
+def missed_text(rows, limit=3):
+    """Missed inputs in a line: "click NewGame at 1 s (no visible button takes it); ..."."""
+    said = [f"{r.get('kind')} {r.get('target')} at {fmt(r['t']) if _count(r.get('t')) else '?'} s "
+            f"({str(r.get('why'))[:200]})" for r in rows[:limit]]
+    return "; ".join(said) + (f"; and {len(rows) - limit} more" if len(rows) > limit else "")
+
+
 def measured(measure, probe, log=""):
     """(a runtime measure of one play as one number, or None; why none). A play that ended early (quit, crashed,
     never reached the window) has no samples there: "no samples in the window (the play ended at X s)". A play one

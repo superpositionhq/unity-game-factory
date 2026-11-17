@@ -376,9 +376,12 @@ object or no member takes. **A play with such a row measured no staged contact: 
 side, whatever its samples say** (`a stage of the play did not land (...)`), so "it took no damage" never passes
 because nothing was hit. On the reference that makes the task invalid: fix the play.
 
-Every other input that didn't land is listed there too, and fails nothing by itself: a click no visible button took,
-a teleport without a player or next to an object nothing matches, a key the probe has no control for, a touch on a
-widget that isn't on screen. Read it when a play did not do what its inputs say.
+Every other input that didn't land is listed there too: a click no visible button took, a teleport without a player
+or next to an object nothing matches, a key the probe has no control for, a touch on a widget that isn't on screen.
+**A probe of a task play whose input didn't land fails, whatever it measured** (`the play's input did not land:
+...`), as in the Lab's grader: what it measured is of a play that never did what the task says. When the reference's
+own play of it missed an input too, it is the task's error (`task error: ... in the reference's play X, an input did
+not land (...): the task's own fix can't be driven by its play`), and the task is invalid: fix the play.
 
 **Read it deterministically**, in a probe one sentence explains:
 
@@ -1553,6 +1556,9 @@ How the Lab's grader reads it:
   error about that measure's own query, when it logged one (the play's `probe.json` holds them all in
   `query_errors`). The usual reasons a select matched nothing, and where to look: [task-check.md](task-check.md),
   "Common reasons and fixes", under "no value in the window".
+- **An input that didn't land fails the probe.** A probe of a task play whose play lists a row in `inputs_missed`
+  (section 1.4) fails with "the play's input did not land: ..."; on the reference, or when the reference's play missed
+  one too, it is the task's error. Read the reference's `inputs_missed` and `probe.log` until both are empty of misses.
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`
