@@ -1647,6 +1647,11 @@ A required `seen` probe (section 2.22) gates as a probe does, on the values the 
 start fails it and the fix passes it, and a fix that reads nothing it reads makes the task invalid. Until both sides
 are answered the task isn't valid.
 
+Run every check before submitting, on both sides, and read what it measured, not only the verdict: the start fails
+for the reason the check gives, the fix passes, the plays reach their moments and their inputs land. A threshold comes
+from the instruction or the start, never from what makes the fix pass, and the fix does every ask of the instruction
+in a place a play reaches. Run the check again after every edit to the task (the unity-check-tasks skill).
+
 A task with no fix is checked on its start alone: the start builds, fails every required probe outside `still_works`
 (thresholds literal or relative to the start) and passes its still-works probes. Only a draft has no fix: the
 validator refuses a task without `seed.reference`. A task that fails the task check is not run; a run on an invalid
@@ -1664,9 +1669,16 @@ task is void.
   sees none of them; teleports, widget clicks and waits still work, as they don't go through the Input System. Check
   the game's input code at the seed before writing a task play.
 - **Check that a play really reaches the situation.** A probe of a moment the play never reaches measures nothing
-  useful. Teleport to the spot (`teleport` input), use a scenario (`scene`/`args`) that starts there, and check on
-  the fix that the play gets there before trusting its threshold: the fix's `probe.json` holds the player's `track`,
-  and its `probe.log` names what each `teleport_to` reached.
+  useful. Teleport to the spot (`teleport` input), use a scenario (`scene`/`args`) that starts there, or click past a
+  title screen by the button's caption as a player would, and check on the fix that the play gets there before
+  trusting its threshold: the fix's `probe.json` holds the player's `track` and its `inputs_missed` (empty when every
+  input landed), and its `probe.log` names what each `teleport_to` and click reached.
+- **A contact is staged, never waited for.** A play that waits for a foe to come and strike, or for a swing to happen
+  to land, reaches the contact on some builds and not others. Put the foe in reach (`pin`), deal the hit (`damage`),
+  or set the fight up (`set`) at a known moment (section 1.4), then read what follows.
+- **A budget is read where the game is heaviest.** A `render` reading (draw calls, triangles, texture memory) belongs
+  in a play of its own that stands where the most is drawn, with nothing else captured in it (section 2.20): a play
+  that tours the level, or captures for other measures, reads another load than the one asked about.
 - **A boot scene doesn't run before `play_scene`.** Its objects get `Awake` and `OnEnable`, then go before `Start`
   (section 1.1): what a boot scene sets up in `Start` (a save loaded, a manager filled in) is missing in a play that
   opens a later scene. Such a game is started through its own `play_args` with `play_scene` null.

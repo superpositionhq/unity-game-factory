@@ -101,8 +101,14 @@ player as the product, the rule here is the one that applies.
   in its arguments (no task's may: the validator refuses them).
 - **Drive the game by touch.** A play's inputs use `tap` and `drag` (docs/task-probes.md section 1.3): a spot on the
   screen as fractions of its width and height, or a widget by name; `hold` for a held touch, `finger` for a second
-  finger. The back button is the key `<Keyboard>/escape`. A brief written for a mobile game never asks for a key or a
-  mouse.
+  finger. The back button is the key `<Keyboard>/escape`. Name the widget where you can, by the game's own name for it,
+  not a spot. _(why: a widget's place differs between landscape and portrait, and between builds; its name does not)_
+- **One finger lifts before it touches again.** Two touches of one finger are at least 0.1 s apart, lift to start, and
+  every touch is over by the play's end (the validator refuses a task that asks otherwise). _(why: a finger still down
+  from an earlier touch can't touch again, and the touch is a missed input)_
+- **A brief written for a mobile game never asks for a key, a mouse, a click, a gamepad or an Escape key**; Android's
+  back button is fine. _(why: a phone has none of them, so no touch play can check such an ask, and the Lab's review
+  counts it as unchecked whatever the checks are)_
 - Good mobile threads to look for in your history: a control that was too small or badly placed and took rounds to
   fix, a layout broken in the game's orientation, a view over a budget brought back under it (the `render` reading,
   in a play of its own with no `drawn`, `lit` or `glow` check), the back button's behaviour, the pause on leaving the
