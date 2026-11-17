@@ -226,12 +226,17 @@ def lamps(t, play):
 
 def lamps_builtin(t, play):
     """Without URP (the pipeline switched off before the first frame): light is still URP's falloff with the light's
-    colour as the engine computes it, grading neutral and without post: values, and each query says so once. URP
-    turns the project's linear light intensity on (GraphicsSettings.lightsUseLinearIntensity); without it a light's
-    intensity counts in gamma: (2 x white).linear, 2^2.2."""
+    colour as the engine computes it, grading neutral and without post: values, and each query says so once. The
+    engine counts a light's intensity by the project's GraphicsSettings.lightsUseLinearIntensity, which the game
+    logs once the pipeline is off (a project made for URP keeps it on: measured in a new game of the template):
+    linear, the intensity itself (2); in gamma, (2 x white).linear, 2^2.2."""
     t.ok("the pipeline was off", "LIGHT builtin: pipeline none" in play.log)
-    t.near("A: URP's falloff, the lamp's colour the engine's without URP (intensity in gamma)", at(play, "A", 1.0, "local"),
-           POINT_A / 2 * gamma_to_linear(2.0), FLOAT)
+    said = re.search(r"LIGHT builtin: linear intensity (True|False)", play.log)
+    t.ok("the game says how the engine counts a light's intensity", said is not None)
+    linear = said is not None and said.group(1) == "True"
+    t.near("A: URP's falloff, the lamp's colour as the engine counts it without URP (intensity "
+           + ("linear" if linear else "in gamma") + ")", at(play, "A", 1.0, "local"),
+           POINT_A / 2 * (2.0 if linear else gamma_to_linear(2.0)), FLOAT)
     grade = play.value("grade", 1.0) or {}
     t.eq("grading: no pipeline, no stack, neutral", [grade.get(k) for k in ("pipeline", "source", "post_processing", "contrast", "post:Bloom.intensity")],
          ["builtin", "none", 0.0, 1.0, None])

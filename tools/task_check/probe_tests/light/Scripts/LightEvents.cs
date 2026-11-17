@@ -22,6 +22,8 @@ namespace ProbeTests.Lighting
             GraphicsSettings.defaultRenderPipeline = null;
             QualitySettings.renderPipeline = null;
             Debug.Log("LIGHT builtin: pipeline " + (GraphicsSettings.currentRenderPipeline == null ? "none" : GraphicsSettings.currentRenderPipeline.name));
+            // how the engine counts a light's intensity now: a project keeps what its settings say when the pipeline goes
+            Debug.Log("LIGHT builtin: linear intensity " + GraphicsSettings.lightsUseLinearIntensity);
         }
 
         void Update()

@@ -60,8 +60,8 @@ holds and what each play proves. The scenes and their assets are made by `Editor
   sky, equator and ground. Also: a point at an object, a point that doesn't resolve, a query without a point, and
   grading's neutral constants for a camera without post-processing and its sun.
 - **lamps_builtin**: the render pipeline switched off before the first frame: `light` still computes URP's falloff,
-  with the light's colour as the engine computes it (URP turns the project's linear light intensity on; without it a
-  light's intensity counts in gamma), `grading` is neutral without `post:` values, and each query says so once in
+  with the light's colour as the engine computes it (by the project's linear light intensity setting, which the
+  game logs: on in a project made for URP, where the intensity counts as it is; off, it counts in gamma), `grading` is neutral without `post:` values, and each query says so once in
   `query_errors`.
 - **baked**: what URP draws at run time for a baked lamp (nothing: the engine leaves it out, its light is in the
   lightmaps and the light probes), a Mixed one (real time, its bounce baked) and one set to Baked but never baked
