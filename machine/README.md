@@ -40,7 +40,8 @@ and the tools open it with that patch when it is installed (`unity_editors[<vers
 `<unity_hub_editors>\<version>\Editor\Unity.exe`), else with the newest installed 6000.3 patch above it, never an older
 one and never another line's (`lib/ugf-root.ps1` `Get-UGFUnity` and `Get-UGFUnityOpening`, `lib/ugfroot.py`
 `unity_editor` and `unity_opening`, which keep the same rule; versions order as Unity releases them: the three
-numbers, then the letter a < b < f < p, then its number). A project of another line opens only on its own patch.
+numbers, then the letter a < b < f < p, then its number, and a China build's `c<n>` suffix, `6000.3.28f1c1`, counts as
+its base patch, for a project and for an installed editor alike). A project of another line opens only on its own patch.
 With none, `Get-UGFUnity` gives `$null` and a warning naming the patch to install, or any newer 6000.3 one
 (`ugfroot.py` exits with that message). An editor newer than the project's patch upgrades what it opens: Unity may
 rewrite its `ProjectVersion.txt` and package lock and re-serialize assets. The task checker and the release build open

@@ -107,10 +107,11 @@ function Get-UGFUnity {
 }
 
 # A Unity version ("6000.3.28f1") as a key that orders as Unity's releases do, as lib\ugfroot.py version_key: the
-# three numbers, then the release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1.
-# $null for a text that isn't a Unity version. Compare two keys with [string]::CompareOrdinal.
+# three numbers, then the release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1;
+# a China build's c<n> suffix counts as its base patch (6000.3.28f1c1 == 6000.3.28f1). $null for a text that isn't a
+# Unity version. Compare two keys with [string]::CompareOrdinal.
 function Get-UGFUnityKey([string]$Version) {
-    if ([string]$Version -cmatch '^\s*(\d+)\.(\d+)\.(\d+)([abfp])(\d+)\s*$') {
+    if ([string]$Version -cmatch '^\s*(\d+)\.(\d+)\.(\d+)([abfp])(\d+)(?:c\d+)?\s*$') {
         return '{0:D10}.{1:D10}.{2:D10}.{3}.{4:D10}' -f [long]$Matches[1], [long]$Matches[2], [long]$Matches[3], 'abfp'.IndexOf($Matches[4]), [long]$Matches[5]
     }
     return $null
@@ -128,8 +129,9 @@ function Get-UGFHigherUnity([string]$First, [string]$Other) {
 
 # The editor { Version; Path } that opens a project naming Unity $Version, as lib\ugfroot.py unity_opening (keep the
 # two in step): the exact patch when it is installed; else the newest installed editor of the same line (6000.3) at
-# or above it, an upgrade within one LTS line, never an older editor; a project of another line only on its own patch.
-# $null when there is none.
+# or above it, an upgrade within one LTS line, never an older editor (a China build's editor, 6000.3.28f1c1, counts as
+# its base patch; of two of one patch the later name in ordinal order); a project of another line only on its own
+# patch. $null when there is none.
 function Get-UGFUnityOpening([string]$Version, $Cfg = (Get-UGFConfig)) {
     if (-not $Version) { return $null }
     $exe = Get-UGFUnityForVersion $Version $Cfg
@@ -141,7 +143,8 @@ function Get-UGFUnityOpening([string]$Version, $Cfg = (Get-UGFConfig)) {
     foreach ($e in @(Get-UGFInstalledUnity $Cfg)) {
         $k = Get-UGFUnityKey $e.Version
         if (-not $k -or (Get-UGFUnityLine $e.Version) -ne $line -or [string]::CompareOrdinal($k, $want) -lt 0) { continue }
-        if (-not $best -or [string]::CompareOrdinal($k, (Get-UGFUnityKey $best.Version)) -gt 0) { $best = $e }
+        $vs = if ($best) { [string]::CompareOrdinal($k, (Get-UGFUnityKey $best.Version)) } else { 1 }
+        if ($vs -gt 0 -or ($vs -eq 0 -and [string]::CompareOrdinal([string]$e.Version, [string]$best.Version) -gt 0)) { $best = $e }
     }
     return $best
 }

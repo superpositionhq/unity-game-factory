@@ -12,8 +12,9 @@ import re
 
 DEFAULT_UNITY_VERSION = "6000.3"   # Unity 6.3 LTS: new games use its newest installed patch, as ugf-root.ps1
 DEFAULT_HUB_EDITORS = "C:/Program Files/Unity/Hub/Editor"
-# a Unity version as Unity names its releases: 6000.3.28f1 (major, minor, patch, the release's letter, its number)
-UNITY_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)([abfp])(\d+)$")
+# a Unity version as Unity names its releases: 6000.3.28f1 (major, minor, patch, the release's letter, its number), a
+# China build's with c<n> after it (6000.3.28f1c1)
+UNITY_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)([abfp])(\d+)(?:c\d+)?$")
 RELEASES = "abfp"  # alpha, beta, final, patch: in the order Unity releases them
 LINE = "6000.3"  # the line whose project a newer patch of it opens (unity_opening); any other only on its own patch
 
@@ -50,8 +51,8 @@ def project_unity_version(project):
 
 def version_key(version):
     """A Unity version ("6000.3.28f1") as a tuple that orders as Unity's releases do: the three numbers, then the
-    release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1. None for a text that
-    isn't a Unity version."""
+    release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1; a China build's c<n>
+    suffix counts as its base patch (6000.3.28f1c1 == 6000.3.28f1). None for a text that isn't a Unity version."""
     found = UNITY_VERSION.match((version or "").strip())
     if found is None:
         return None
@@ -79,8 +80,9 @@ def installed_unity():
 def unity_opening(version):
     """(the editor's version, its Unity.exe) that opens a project naming Unity `version`, as ugf-root.ps1
     Get-UGFUnityOpening (keep the two in step): the exact patch when it is installed; else the newest installed
-    editor of the same line (6000.3) at or above it, an upgrade within one LTS line, never an older editor; a project
-    of another line only on its own patch. ("", "") when there is none."""
+    editor of the same line (6000.3) at or above it, an upgrade within one LTS line, never an older editor (a China
+    build's editor, 6000.3.28f1c1, counts as its base patch; of two of one patch the later name in ordinal order); a
+    project of another line only on its own patch. ("", "") when there is none."""
     exe = unity_for_version(version)
     if exe or version_key(version) is None or line_of(version) != LINE:
         return (version, exe) if exe else ("", "")

@@ -1253,8 +1253,11 @@ class Resolver(unittest.TestCase):
         key = unity.ugfroot.version_key
         self.assertEqual(sorted(order, key=key), order)
         self.assertTrue(key("6000.3.28f1") > key("6000.3.26f1") > key("6000.3.9f1"))
-        for text in ("", None, "6000.3", "6000.3.x", "6000.3.28", "6000.3.28c1", "6000.3.28f1c1"):
+        for text in ("", None, "6000.3", "6000.3.x", "6000.3.28", "6000.3.28c1", "6000.3.28f1c", "6000.3.28f1d1"):
             self.assertIsNone(key(text), text)
+        self.assertEqual(key("6000.3.28f1c1"), key("6000.3.28f1"), "a China build counts as its base patch")
+        self.assertTrue(key("6000.3.26f1c1") < key("6000.3.28f1") < key("6000.3.30f1c2"))
+        self.assertEqual(unity.ugfroot.higher("6000.3.28f1", "6000.3.28f1c1"), "6000.3.28f1", "a tie keeps the first")
         self.assertEqual(unity.ugfroot.line_of("6000.3.28f1"), "6000.3")
         self.assertEqual(unity.ugfroot.higher("6000.3.26f1", "6000.3.28f1"), "6000.3.28f1")
         self.assertEqual(unity.ugfroot.higher("6000.3.28f1", "6000.3.26f1"), "6000.3.28f1")
@@ -1267,6 +1270,20 @@ class Resolver(unittest.TestCase):
         self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.26b1", "6000.3.26f2"]), "6000.3.26f2")
         self.assertEqual(self.opens("6000.3.26f1", editors=["6000.3.28f1"]), "6000.3.28f1", "unity_editors count too")
         self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.28f1"], editors=["6000.3.26f1"]), "6000.3.26f1")
+
+    def test_a_china_build_counts_as_its_base_patch_for_a_project_and_an_installed_editor(self):
+        self.assertEqual(self.opens("6000.3.28f1c1", hub=["6000.3.28f1c1", "6000.3.30f1"]), "6000.3.28f1c1", "exact")
+        self.assertEqual(self.opens("6000.3.28f1c1", hub=["6000.3.26f1", "6000.3.28f1"]), "6000.3.28f1")
+        self.assertEqual(self.opens("6000.3.28f1", hub=["6000.3.26f1", "6000.3.28f1c1"]), "6000.3.28f1c1")
+        self.assertEqual(self.opens("6000.3.26f1c1", hub=["6000.3.28f1", "6000.3.28f1c1"]), "6000.3.28f1c1",
+                         "of two of one patch, the later name in ordinal order (as the PowerShell twin picks)")
+        self.assertIn("Unity 6000.3.30f1c1 is not installed, nor any newer 6000.3 patch",
+                      self.opens("6000.3.30f1c1", hub=["6000.3.28f1", "6000.3.28f1c1"]))
+        with tempfile.TemporaryDirectory() as tmp, self.machine(tmp, ["6000.3.28f1"]):
+            folder = self.project(tmp, "6000.3.28f1c1")
+            with mock.patch.object(unity.ugfroot, "root", lambda: tmp):
+                machine = unity.Machine.for_project(folder)
+            self.assertEqual(machine.opened(folder), "project 6000.3.28f1c1, editor 6000.3.28f1", "kept as written")
 
     def test_never_an_older_editor_or_another_lines_and_none_names_the_patch_to_install(self):
         for hub in ([], ["6000.3.9f1", "6000.3.26f1"], ["6000.4.0f1", "6000.5.1f1"]):
@@ -1288,7 +1305,7 @@ class Resolver(unittest.TestCase):
         """ugf-root.ps1 can't run here: its functions are held to the Python twin's names and words."""
         text = (Path(unity.ugfroot.__file__).parent / "ugf-root.ps1").read_text(encoding="utf-8")
         for name in ("function Get-UGFUnityKey", "function Get-UGFUnityLine", "function Get-UGFHigherUnity",
-                     "function Get-UGFUnityOpening", "[string]$AtLeast", "'abfp'.IndexOf",
+                     "function Get-UGFUnityOpening", "[string]$AtLeast", "'abfp'.IndexOf", "(\\d+)(?:c\\d+)?\\s*$",
                      "is not installed, nor any newer $line patch: install it or a newer $line patch through Unity Hub"):
             self.assertIn(name, text)
 

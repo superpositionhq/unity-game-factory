@@ -977,7 +977,8 @@ station to make its desktop on: it exits 1 with a line `desk.py: ...` and the pl
   (`unity.Machine.for_project(copy, at_least=...)`); a task try opens its runs with it too, and a run whose project
   the agent moved to a newer patch is not graded (that run fails).
 - Versions order as Unity releases them: the three numbers, then the release letter (a < b < f < p), then its number
-  (`6000.3.28f1` > `6000.3.26f1` > `6000.3.9f1`; `ugfroot.version_key`).
+  (`6000.3.28f1` > `6000.3.26f1` > `6000.3.9f1`; `ugfroot.version_key`); a China build's `c<n>` suffix counts as its
+  base patch (`6000.3.28f1c1` as `6000.3.28f1`), and the result keeps the project's version as written.
 - The result says both, per side, in its `unity` (`project 6000.3.26f1, editor 6000.3.28f1`), read before any job.
 - The caveat: an upgrade open may re-import the copy and rewrite its version files (`ProjectVersion.txt`, the package
   lock), in the scratch copy only, never in the game as committed. What is read off a drawn frame can move by a
