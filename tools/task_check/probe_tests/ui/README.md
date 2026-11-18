@@ -47,7 +47,9 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   Toolkit document (`UiToolkitClicks`) counts its buttons' clicks. Among them: two buttons of one name, a button off the
   frame, one not interactable, one whose Button is disabled, one fully transparent, one under a half-transparent image
   that takes the cursor's raycast, a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
-  parent that takes clicks, an InputField and a Dropdown, a UI Toolkit button that only has a `ClickEvent` callback.
+  parent that takes clicks, an InputField and a Dropdown, a UI Toolkit button that only has a `ClickEvent` callback,
+  buttons clicked by what they read (two that read alike, one of them clicked by its exact text, one that can't be
+  clicked, one with accents and punctuation).
 - **Grey**: the camera clears to sRGB grey 64; Overlay images cover the right half with sRGB grey 192 and the top left
   corner with a white and a black box. `-uipost` turns on the camera's post-processing and a volume that doubles the
   exposure; `-uiquit` quits the game in the frame of the 1 s sample.
@@ -73,8 +75,9 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   line in `query_errors`; the rest of the query still reads.
 - `clicks`, `clicks_old`, `clicks_none`: widget clicks (each pointer event, from the enter to the exit; uGUI's under
   either module, and with no EventSystem none, as a player's click: probe.log says so and the game's log stays clean;
-  UI Toolkit's always) and cursor clicks (uGUI's only through the Input System's UI module; UI Toolkit's through it,
-  or on its own with no EventSystem).
+  UI Toolkit's always), a click by caption (the exact text first), the misses of a button shown but disabled apart
+  from those of one not shown (`inputs_missed`' why), and cursor clicks (uGUI's only through the Input System's UI
+  module; UI Toolkit's through it, or on its own with no EventSystem).
 - `screen`, `screen_post` (Grey): the values of known greys over rects of every kind (inverted, empty, on the edge,
   outside the frame, with fractional edges); after post-processing the camera's grey changes and the UI's doesn't.
 - `quit` (Grey, `-uiquit`): what the samples of the frame the game quits in hold.

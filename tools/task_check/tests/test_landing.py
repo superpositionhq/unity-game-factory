@@ -106,6 +106,38 @@ class Landing(unittest.TestCase):
         self.assertEqual(start["checks"][0]["detail"], "The hero stands on the ground. | the play's input did not land: "
                                                        "click Continue at 1 s (no visible button takes it)")
 
+    def test_a_disabled_click_on_a_button_shown_disabled_has_landed(self):
+        """A click marked disabled (a button the game disables by design) has landed when the probe found its button
+        shown but disabled; without the mark that row is a missed input, and the mark never allows a click that found
+        no button. A click by the caption as shown is sent as written."""
+        locked = "Locked: Chapter 2 (开始)"
+        shown = {"t": 2.0, "kind": "click", "target": locked, "why": "shown but disabled"}
+        gone = {**shown, "why": "no visible button matches it"}
+        marked = {"name": "open_door", "seconds": 10, "inputs": [{"t": 2.0, "widget": locked, "click": True,
+                                                                 "disabled": True}]}
+        self.assertEqual(tasks.problems(task_with(probe(play=marked))), [])
+        play = tasks.play(marked)
+        self.assertEqual(play["inputs"][0], {"t": 2.0, "widget": locked, "click": True, "disabled": True})
+        self.assertEqual(probes.missed({"inputs_missed": [shown, gone]}, play), [gone])
+        self.assertEqual(probes.missed({"inputs_missed": [shown]}, tasks.play({**marked, "inputs": [
+            {"t": 2.0, "widget": locked, "click": True}]})), [shown], "without the mark: a miss")
+        self.assertEqual(probes.missed({"inputs_missed": [shown]}, tasks.play({**marked, "inputs": [
+            {"t": 2.0, "widget": locked, "click": True, "optional": True}]})), [shown], "optional allows no disabled row")
+        task = task_with(probe(play=marked, expect={"op": ">=", "value": 0}))
+        ref, start = graded(task, [shown], [shown])
+        self.assertTrue(ref["checks"][0]["passed"], ref["checks"][0]["detail"])
+        self.assertNotIn("did not land", start["checks"][0]["detail"])
+
+    def test_a_fresh_play_is_played_as_any_play_without_after(self):
+        """A task play's `fresh` says it starts with the saved data cleared, as every play without `after` does: it
+        is played the same, and the validator refuses it together with `after`."""
+        fresh = {"name": "first_run", "seconds": 10, "fresh": True}
+        self.assertEqual(tasks.problems(task_with(probe(play=fresh))), [])
+        self.assertEqual(tasks.play(fresh), tasks.play({"name": "first_run", "seconds": 10}))
+        both = task_with(probe(play={"name": "warm", "seconds": 10}), probe("again", play=fresh))
+        both["milestones"][0]["checks"][1]["play"] = {**fresh, "after": ["warm"]}
+        self.assertTrue(any("is fresh" in p for p in tasks.problems(both)), tasks.problems(both))
+
     def test_the_checkers_own_plays_and_a_play_that_landed_are_read_as_measured(self):
         task = task_with(probe(play="look", expect={"op": ">=", "value": 0}), probe("door", play=DOOR))
         ref, start = graded(task, [], [], start_y=-5)

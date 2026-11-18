@@ -65,8 +65,8 @@ Plays and inputs:
   where a crash, a `log` measure and `log_absent` are read) and `-window-mode` its windowed 960x540; no game needs
   either as a play argument, so refusing them costs nothing.
 - Inputs (section 4): `key` (key and axis rows) is an Input System control path,
-  `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`; a widget click's `widget` is a wildcard on a name, or a type name
-  (`^[A-Za-z0-9_.*?() -]{1,120}$`); `teleport_to`'s `distance` defaults to 2 m.
+  `^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$`; a widget click's `widget` is a wildcard on a name, a type name, or a
+  button's caption as shown (1 to 120 characters, no control characters, no space at either end); `teleport_to`'s `distance` defaults to 2 m.
 
 Selects and points:
 
@@ -228,7 +228,9 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
     SpriteRenderer with a sprite, and any other renderer but an effect's: a LineRenderer, a TilemapRenderer, a
     SpriteShapeRenderer); effects (particle systems, trails, visual effects) and sprite masks are no parts. `spin`,
     `changed`, `bounds_change`, `pose_change`, `lit` and `glow` read every part; `extent_*` and `spread` the drawn ones
-    (`Find.Drawn`: enabled, active in the hierarchy, not `forceRenderingOff`) with non-empty bounds (lower LODs count:
+    (`Find.Drawn`: enabled, active in the hierarchy, not `forceRenderingOff`) with non-empty bounds (an object with
+    none writes no `extent_*`; the reading takes a matched object's or component's missing extent as 0,
+    `probes.field_of`) (lower LODs count:
     task-probes.md 2.4). `spread` counts each part by its bounds centre, and a skinned mesh whose bones carry two
     Rigidbodies or more (a ragdoll) by each body's place;
   - `speed`: the first velocity source the object has (`ObjectRead.OwnVelocity`: a non-kinematic Rigidbody's
@@ -278,7 +280,8 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   interface, `Reflect.ComponentsImplementing`, then `Reflect.IsA`); with `effect` alone, of every effect type the build
   has (`Effects.Types`: ParticleSystem, TrailRenderer, VisualEffect, DecalProjector; the last two by reflection, so the
   probe needs neither package), `effect: true` keeping the live ones (`Effects.Live`). A field reads the component as
-  an object's reads one part: `extent_*` a Renderer's, Collider's or Collider2D's world bounds; `simulating` the
+  an object's reads one part: `extent_*` a Renderer's, Collider's or Collider2D's world bounds (none for any other
+  component); `simulating` the
   Rigidbody or Rigidbody2D it is or is attached to (`Find.Simulates`); `changed`, `bounds_change`, `pose_change` a
   Renderer; `intensity` and `on` a
   Light (`Find.LightOn`, the `light` probe's test); `active` adds a ParticleSystem's playing or holding particles
@@ -557,7 +560,8 @@ build scene has woken up: that scene's objects get `Awake` and `OnEnable`, then 
 the build lacks: a `query_errors` line, and the game's own first scene plays). Every play starts from clean saved data
 but one whose spec says `keep_saves` (a task play that names `after`: `check.Side._task_play` plays the plays it names
 first, in `tasks.chain`'s order, again when another play ran since, and `probe.log` says `the saved data is kept: the
-play runs after the plays that left it`). When a play ends, the probe calls `PlayerPrefs.Save()` before it ends the
+play runs after the plays that left it`). A task play's `"fresh": true` says the first in so many words: it never
+names `after`. When a play ends, the probe calls `PlayerPrefs.Save()` before it ends the
 process (a normal quit writes them; `OnApplicationQuit` is not run). Clean means:
 the build gives the copy a company name of its own (`TaskProbe.<hash>`, section 5), the probe deletes PlayerPrefs and
 empties `persistentDataPath` when the play starts, read-only files too, leaving the folder itself (Unity makes it when
@@ -595,9 +599,11 @@ control <path>`, `inputs: no device for <path>`), never a stop.
 - widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
   and visible (the `widgets` state: a fully transparent button counts) uGUI Selectable in hierarchy order whose name (a
   wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit Button (`UiScan.Click`); when neither kind has one, the first such uGUI Selectable,
-  else UI Toolkit Button, whose caption is `widget` (`UiScan.Caption`: lower case, every run of characters that are
-  neither letters nor digits one `_`, none at either end; a Selectable's caption is its own text or the first text
-  below it that shows with it), and `probe.log` adds `by its caption`; a touch's widget spot falls back the same way
+  else UI Toolkit Button, whose caption is `widget` exactly (ordinal, spaces at either end of the caption left out),
+  else the first whose caption reads as `widget` (`UiScan.Caption`: lower case, every run of characters that are
+  neither letters nor digits one `_`, none at either end); a Selectable's caption is its own text or the first text
+  below it that shows with it, rich text tags left out, and `probe.log` adds `by its caption` (probe 1.3.0: the exact
+  caption first); a touch's widget spot falls back the same way
   (`UiScan.CaptionSpot`). A uGUI one
   gets what the Input System's UI module sends for a press and release at its centre, through `ExecuteEvents`
   (`UiScan.UguiClick`): the pointer enters; the press lets go of a selection the object wouldn't take, then pointer down
@@ -608,10 +614,16 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   clicked`, and a UI Toolkit Button is still clicked. No ray is cast, so an image over the button doesn't stop it;
   `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a player's click; a UI
   Toolkit one a `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor
-  path). `probe.log` names the widget clicked and its type, not the pattern (`clicked PushButton (Button)`), or says
-  `no visible button matches '<widget>'`. A click's `"optional": true` is the checker's alone: the probe ignores it
-  and lists the click that found nothing in `inputs_missed` as any other, and the checker leaves that row (its `t`,
-  kind `click` and the widget as its target) out of the play's missed inputs (`probes.missed`).
+  path). `probe.log` names the widget clicked and its type, not the pattern (`clicked PushButton (Button)`). When
+  nothing is clicked and a visible one that the same passes match is shown but disabled (not interactable, its
+  Selectable off, a Button not enabled in its hierarchy: `UiScan.ShownDisabled`, probe 1.3.0), `probe.log` says `<name>
+  (<type>) matches '<widget>', shown but disabled: not clicked` and the `inputs_missed` row's `why` is `shown but
+  disabled`; else it says `no visible button matches '<widget>'` and the row's `why` is `no visible button matches
+  it`. A click's `"optional": true` and `"disabled": true` are the checker's alone:
+  the probe ignores them and lists the click in `inputs_missed` as any other, and the checker leaves that row (its
+  `t`, kind `click` and the widget as its target) out of the play's missed inputs (`probes.missed`) when its `why` is
+  the one the mark allows: `no visible button matches it` for `optional`, `shown but disabled` for `disabled`. Without
+  `disabled`, a click on a disabled button is a missed input.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with

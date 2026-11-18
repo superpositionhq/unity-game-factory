@@ -574,12 +574,15 @@ Fix what you find in the task before it is packed:
   on another)_
 - **Inputs a player would make, placed from the event.** A play's inputs are as fragile as they are guessed:
   - Click by the caption a player reads, never by screen coordinates (`cursor` and `tap` points are for what has no
-    widget, at a place the start's own layout fixes). Click by caption has limits (docs/task-probes.md, section 1.1):
-    a widget whose name or type matches `widget` wins over a caption match; a caption is compared whole, in lower
-    case, with every run of characters other than letters and digits as one `_` (`"start"` does not click a button
-    reading "Start Game"); `widget` holds only letters, digits, spaces and `_ . * ? ( ) -`, so write any other
-    character of a caption as a space; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit
-    one by a submit, so a raw `ClickEvent` handler does not fire (section 8).
+    widget, at a place the start's own layout fixes). Write `widget` as the text is shown, spaces, punctuation, case
+    and any script included (`"Save & quit"`, `"开始游戏"`): a caption equal to it is clicked first. _(why: the shown
+    text is what the instruction and the player name, and an exact match never takes a button that only reads
+    alike)_ Click by caption has limits (docs/task-probes.md, section 1.1): a widget whose name or type matches
+    `widget` wins over a caption match, and `*` and `?` are wildcards on that name; a caption is compared whole
+    (`"start"` does not click a button reading "Start Game"), and when no caption is equal, one that reads the same in
+    lower case with every run of other characters as `_` is taken; a caption on two lines is written with a space at
+    the break; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit one by a submit, so a raw
+    `ClickEvent` handler does not fire (section 8).
   - A click does not scroll. A control scrolled past the screen's edge is a missed input, and one a scroll area clips
     but that lies inside the screen is clicked though a player could not reach it. So the play scrolls first, as a
     player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
@@ -589,6 +592,11 @@ Fix what you find in the task before it is packed:
     `"optional": true`: when nothing matches at that moment the click is skipped and is no missed input. Never mark a
     click the play needs optional. _(why: a needed click that may find nothing hides a play that never got where it
     should)_
+  - A click on a button the game shows disabled by design (a locked choice the instruction says stays locked) says
+    `"disabled": true`: it has landed when the button is shown but disabled, and does nothing, as a player's click on
+    it. Without the mark a click on a disabled button is a missed input. Never mark a click the play needs to press.
+    _(why: a play may show that a locked choice stays locked, and a mark on a needed click hides a press that never
+    happened)_
   - Windows and shots are fixed seconds of play time, so put the input that triggers the event at a known time and
     place the window or the shot right after it, from the recorded play of both sides, with room; never seconds
     guessed before the game ran. _(why: the event falls at another time on each build, and a window guessed in
@@ -598,7 +606,9 @@ Fix what you find in the task before it is packed:
   `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
   left; every other play starts with none. A writer that failed still counts as run, so the failure shows in the
   reader's checks. Of two writers, one names the other in its own `after`. A writer saves during its play, before
-  its time is up: `OnApplicationQuit` is not run (docs/task-probes.md, 1.1).
+  its time is up: `OnApplicationQuit` is not run (docs/task-probes.md, 1.1). A play whose check needs a first run (no
+  save, default settings) may say `"fresh": true`, never together with `after`. _(why: every play without `after`
+  already starts with the saved data cleared; the mark states it for the reader)_
 - **An ask that shows only after a contact** (a blow landing, getting hit, a stun, the last foe of a group falling) is
   staged, never left out because "no fixed play guarantees the contact": `pin` the foe or target ahead of the player
   (a target the build invents: the nearest thing a player can shove near the player) and press the task's own attack
@@ -770,7 +780,8 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a `count`, `any`, `all` or `sum` over a selector that matches no rows reads 0, so a literal `== 0` or `<= 0` compares right on both sides while it reads nothing | confirm in `probe.json` that the selector matched rows on the side where the thing exists; prefer a check that reads something the reference has (section 5, "A probe reads something") |
 | a click on a control below the visible part of a scroll area: past the screen's edge it is a missed input, clipped by the scroll area but on screen it is clicked though no player could reach it | the play scrolls first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), then clicks (section 5) |
 | a confirmation that shows only in some states (only when a save exists) is a missed input on the side where it doesn't show | click it with `"optional": true`; never mark a click the play needs optional (section 5) |
-| a click by caption takes another button whose name matches `widget` first, or never matches a button whose caption it gives only in part | a name or type match wins over a caption, and a caption is compared whole: pick a `widget` no other button's name or type matches, and write the whole caption (docs/task-probes.md, section 1.1) |
+| a click by caption takes another button whose name matches `widget` first, or never matches a button whose caption it gives only in part | a name or type match wins over a caption, and a caption is compared whole: pick a `widget` no other button's name or type matches, and write the whole caption exactly as shown (docs/task-probes.md, section 1.1) |
+| a click on a button the game disables by design is a missed input (`shown but disabled`) | when the instruction says the choice stays locked, mark the click `"disabled": true`; else wait until the game enables it (section 5) |
 | a window or a shot set at seconds guessed before the game ran reads before or after the event | put the input that triggers the event at a known time and place the window or shot right after it, from both sides' recorded plays, with room (section 5) |
 | a rubric item asks more than its sentence (a stricter look, an added detail), so a solution that does all the instruction says scores below 1 | a rubric item asks exactly what its sentence asks, in the sentence's words (section 5) |
 

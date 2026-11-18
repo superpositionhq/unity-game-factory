@@ -102,6 +102,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     `after` (listed in either order), or the validator refuses the task: a play without `after` clears the saved data
     when it starts. A writer must have saved before its play's time is up: the play ends by ending the process, so
     `OnApplicationQuit` is not run (PlayerPrefs set without `PlayerPrefs.Save()` are saved for it).
+  - `fresh` (optional, `true`): the play starts with the game's saved data cleared, as every play without `after`
+    does; say it on a play whose check needs a first run (no save, default settings). Never with `after`: the
+    validator refuses both.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
     one with a `.` or `..` part or an empty part (`//`, or a `/` at its end).
@@ -139,22 +142,27 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       a raw `ClickEvent` instead needs the cursor, below). The click casts no ray, so an image drawn over the button
       doesn't stop it. The play's `probe.log` names what it clicked and its type: `clicked RetryButton (Button)`.
       When no such widget has the name or the type, the first one that **reads** so is clicked: its caption (a uGUI
-      button's own or first text below it, a UI Toolkit Button's text) compared with `widget` in lower case, every
-      run of characters that are neither letters nor digits one `_`, none at either end, so `"New_expedition"` clicks
-      a button reading "New expedition!". A title screen the task itself adds has no name at the start, and the
-      instruction names its button by what it reads; a name still wins, and the log says which it took: `clicked
-      StartButton (Button) by its caption`. A touch's `{"widget": ...}` spot falls back the same way. With
+      button's own or first text below it, a UI Toolkit Button's text, rich text tags left out) **equal to `widget`
+      exactly as shown**, spaces, punctuation, case and any script included (`"Save & quit"`, `"Don't save"`,
+      `"开始游戏"`); else the first whose caption compares the same in lower case, every run of characters that are
+      neither letters nor digits one `_`, none at either end, so `"New_expedition"` clicks a button reading "New
+      expedition!". A title screen the task itself adds has no name at the start, and the instruction names its button
+      by what it reads: write the text as the player sees it. A name still wins, and the log says which it took:
+      `clicked StartButton (Button) by its caption`. A touch's `{"widget": ...}` spot falls back the same way. With
       no EventSystem in the scene a player's click reaches no uGUI widget, and neither does this one: `probe.log` says
       `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
       when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
       matches '<widget>'`), and the click is a row of `inputs_missed`, which fails every probe of the play (section 3).
+      A match that is shown but disabled (not interactable, its Selectable off, a UI Toolkit Button not enabled) is
+      not clicked either, as a player's click on it does nothing: its row says why `shown but disabled`, and
+      `probe.log` says `<name> (<type>) matches '<widget>', shown but disabled: not clicked`.
       What a click by caption can't do:
       - a name or a type wins: the caption is tried only when no visible, interactable widget of either kind has
         that name or type, so a `widget` that is also another button's name clicks that button;
       - a caption is compared whole: `"start"` doesn't click a button reading "Start Game";
-      - `widget` holds letters, digits, spaces and `_ . * ? ( ) -` only (the schema's pattern): write any other
-        character of a caption (`!`, `'`, `:`) as a space, which compares the same; `*` and `?` are wildcards on a
-        name;
+      - `widget` is 1 to 120 characters, with no line break or other control character and no space at either end
+        (the schema's pattern), so a caption on two lines is written with a space where the break is; `*` and `?` are
+        wildcards on a name, so a `widget` holding them may click a widget of a matching name first;
       - the widget must lie in the frame, at least in part, and the click casts no ray and scrolls nothing: a control
         scrolled past the screen's edge is a missed input, and one a scroll area clips but that lies inside the
         screen is clicked though a player couldn't reach it. A play scrolls first, as a player would: a `cursor`
@@ -165,7 +173,13 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       nothing: when no widget matches at that moment, the input is skipped and does not count as a missed input (the
       probe still lists it in `inputs_missed`; the checker leaves it out). For a control that only shows in some
       states (a confirmation shown only when a save exists), never for a control the play needs: a needed click that
-      may find nothing hides a play that never got where it should;
+      may find nothing hides a play that never got where it should. It allows only that row: a button it finds shown
+      but disabled is still a missed input;
+    - a click on a disabled button: `{"t": 6.0, "widget": "Chapter 2", "click": true, "disabled": true}` has landed
+      when its button is shown but disabled (the row the probe writes with why `shown but disabled` is left out), and
+      does nothing, as a player's click on it. For a button the game disables by design (a locked choice the
+      instruction says stays locked); a click without it on a disabled button is a missed input, and a click with it
+      that finds no button at all still is one;
     - a touch: `{"t": 1.0, "tap": [0.5, 0.6]}` or `{"t": 2.0, "drag": [{"widget": "MoveStick"}, [0.2, 0.6]], "over":
       0.3, "hold": 2.0}`, a finger on the probe's own virtual Touchscreen (section 1.3);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
@@ -607,8 +621,8 @@ renderers, else its position.
     mesh has vertices, a SkinnedMeshRenderer with a mesh, a SpriteRenderer with a sprite, a LineRenderer, a
     TilemapRenderer and the like. The box is the union of the bounds of the parts that are drawn (enabled, active, not
     forced off) and not empty. Colliders, lights, audio, effects (particle systems, trails, visual effects: they span
-    where their particles went), sprite masks and a MeshRenderer without a mesh don't count; no value when the object
-    draws nothing. A LODGroup's lower LODs stay enabled, so their renderers count here (and in `spread` and `hidden`)
+    where their particles went), sprite masks and a MeshRenderer without a mesh don't count; a matched object that
+    draws nothing reads 0 (a select that matches nothing still reads nothing). A LODGroup's lower LODs stay enabled, so their renderers count here (and in `spread` and `hidden`)
     too. World-aligned, so a rotated object's extent mixes its own axes (an object turned 90 degrees reports its width
     as `extent_z`);
   - `active` (active in the hierarchy); `hidden` (1 when it is inactive, or it has renderers and none is drawn);
@@ -743,7 +757,8 @@ name of its own; `owner` is not the object the `owner` select matched) and the c
   value into its distance to a bearing before `of` combines them, so `"of": "max"` is the one furthest off. A part
   near a point turned to face -90: `{"probe": "components", "select": {"component": "MeshRenderer", "near": {"point":
   {"xyz": [x, y, z]}, "radius": r}}, "field": "world_yaw", "to_angle": -90, "of": "max"}` with `<=` a tolerance;
-- `extent_x`, `extent_y`, `extent_z` (a Renderer's or Collider's world bounds half-size, m) and `simulating` (it is,
+- `extent_x`, `extent_y`, `extent_z` (a Renderer's or Collider's world bounds half-size, m; 0 for any other
+  component) and `simulating` (it is,
   or belongs to, a non-kinematic Rigidbody or a Dynamic Rigidbody2D; a collider by the body it is attached to; 0 in a
   project with neither Physics module, and `query_errors` says so once: `components <id>: the project has no Physics
   module: simulating reads 0`);
@@ -1580,7 +1595,8 @@ How the Lab's grader reads it:
 - **An input that didn't land fails the probe.** A probe of a task play whose play lists a row in `inputs_missed`
   (section 1.4) fails with "the play's input did not land: ..."; on the reference, or when the reference's play missed
   one too, it is the task's error. Read the reference's `inputs_missed` and `probe.log` until both are empty of misses.
-  A click marked `"optional": true` that found nothing is no miss (section 1.1).
+  A click marked `"optional": true` that found nothing, or `"disabled": true` whose button is shown but disabled, is
+  no miss (section 1.1).
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`

@@ -366,14 +366,17 @@ def clicks_for(module):
         t.eq("UI Toolkit: a ClickEvent handler: not by the widget click (2 s)", get(play, "uitk", 2.5, "UitkClicks", "prop:UiToolkitClicks.evt"), 0)
         log = play.probe_log
         # by what a button reads, when no widget has the name or the type
-        t.eq("a click by caption: the first of two that read alike, the second not",
-             [count(play, end, n, "fired") for n in ("CaptionA", "CaptionB")], [on, 0])
+        t.eq("a click by caption: the first of two that read alike (New_expedition), the second by its exact text "
+             "(new expedition)", [count(play, end, n, "fired") for n in ("CaptionA", "CaptionB")], [on, on])
+        t.eq("a click by a caption with accents and punctuation, as shown", count(play, end, "CaptionWide", "fired"), on)
         t.eq("a button of the name wins over one that reads so", [count(play, end, n, "fired") for n in ("Begin", "CaptionC")], [on, 0])
         t.eq("a button that reads so but can't be clicked isn't", count(play, end, "CaptionLocked", "fired"), 0)
-        t.ok("probe.log: no visible button matches 'sealed_door'", "no visible button matches 'sealed_door'" in log)
+        t.ok("probe.log: CaptionLocked matches 'sealed_door', shown but disabled",
+             "CaptionLocked (Button) by its caption matches 'sealed_door', shown but disabled: not clicked" in log)
         t.eq("UI Toolkit: a Button clicked by its caption", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.caption"), 1)
         t.ok("probe.log says it took the caption", "clicked UCaptionButton (Button) by its caption" in log
-             and (not on or "clicked CaptionA (Button) by its caption" in log))
+             and (not on or "clicked CaptionA (Button) by its caption" in log
+                  and "clicked CaptionB (Button) by its caption" in log))
         for widget in ("UGoButton", "UEvtButton") + (("GoButton", "Toggle") if on else ()):
             # the line names the widget clicked and its type, whether the input gave a name or a type
             t.ok(f"probe.log: clicked {widget}", re.search(rf"clicked ({widget} \(\w+\)|\S+ \({widget}\))", log))
@@ -384,8 +387,18 @@ def clicks_for(module):
             t.ok("probe.log: no uGUI widget clicked", "clicked GoButton" not in log and "(Toggle)" not in log)
             t.ok("the game's log has no exception (an InputField's pointer down throws without an EventSystem)",
                  "Exception" not in play.log)
-        for widget in ("MutedButton", "OffButton", "UNoButton", "UOffButton", "NoSuchButton"):
+        for widget in ("OffButton", "UOffButton", "NoSuchButton"):
             t.ok(f"probe.log: no visible button matches '{widget}'", f"no visible button matches '{widget}'" in log)
+        for widget, found in (("MutedButton", "MutedButton (Button)"), ("UNoButton", "UNoButton (Button)")):
+            t.ok(f"probe.log: {widget} is shown but disabled",
+                 f"{found} matches '{widget}', shown but disabled: not clicked" in log)
+        why = {m.get("target"): m.get("why") for m in play.probe.get("inputs_missed") or [] if m.get("kind") == "click"}
+        t.eq("inputs_missed: a button shown but disabled apart from one not shown",
+             [why.get(w) for w in ("MutedButton", "UNoButton", "sealed_door", "OffButton", "UOffButton", "NoSuchButton")],
+             ["shown but disabled"] * 3 + ["no visible button matches it"] * 3)
+        if on:  # without an EventSystem no uGUI click lands, so those two are misses too
+            t.ok("inputs_missed: no row for a click by its exact caption",
+                 not {"new expedition", "Prêt à partir !"} & set(why))
         t.eq("an EventSystem in the scene", get(play, "watch", 1.0, "Watch", "prop:UiClickWatch.system"), 0 if module == "none" else 1)
         t.eq("a click on a button that takes no selection leaves nothing selected", get(play, "watch", 1.5, "Watch", "prop:UiClickWatch.selected"), "")
         # UI Toolkit takes the Input System's pointer itself when the scene has no EventSystem; an EventSystem with the

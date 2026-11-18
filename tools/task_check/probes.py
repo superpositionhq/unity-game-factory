@@ -143,6 +143,17 @@ def number(value, match=None):
     return None
 
 
+EXTENTS = ("extent_x", "extent_y", "extent_z")
+
+
+def field_of(row, field):
+    """A selected row's value of `field`, as the probe wrote it; but a matched object's or component's extent the probe
+    wrote none for (an object that draws nothing, a component with no bounds) is 0, so a check of "nothing to see
+    there" reads 0 instead of nothing."""
+    value = row.get(field)
+    return 0.0 if value is None and field in EXTENTS else value
+
+
 def combine(values, of):
     """One sample's rows (objects, widgets) combined by `of`; None values left out."""
     found = [v for v in values if v is not None]
@@ -251,6 +262,9 @@ def every_match(sample, rows, field, of):
     n, nonzero, total = found.get("n"), found.get("nonzero"), found.get("sum")
     if not (_count(n) and _count(nonzero) and _count(total)):
         return ROWS
+    lacking = 0
+    if field in EXTENTS:  # a match with no extent reads 0 (field_of): every match counts
+        n, lacking = sample["total"], sample["total"] - n
     if of == "count":
         return float(nonzero)
     if of == "any":
@@ -263,8 +277,10 @@ def every_match(sample, rows, field, of):
         return None
     if of == "mean":
         return total / n
+    if of == "min" and lacking > 0:
+        return 0.0  # an extent is never below 0
     value = found.get(of)  # min, max
-    return float(value) if _count(value) else None
+    return float(value) if _count(value) else (0.0 if lacking > 0 else None)
 
 
 def aggregate(values, agg):
@@ -462,7 +478,7 @@ def series(measure, probe):
             elif whole is not ROWS:
                 out.append((s["t"], whole))
             else:
-                out.append((s["t"], combine([angled(measure, number(r.get(field), measure.get("match")))
+                out.append((s["t"], combine([angled(measure, number(field_of(r, field), measure.get("match")))
                                              for r in rows], measure["of"])))
         return out
     values = [(s["t"], s.get("value") if isinstance(s.get("value"), dict) else {}) for s in samples]
@@ -547,23 +563,30 @@ def missed(probe, play=None):
     """The inputs a play sent that didn't land (probe.json `inputs_missed`: a stage nothing took, a click no button
     took, a teleport next to nothing, an unknown key, a touch that couldn't be made), [{t, kind, target, why}]; [] when
     every one landed; None when it can't say (no probe file, or none of that list). A named screenshot is no input of
-    the game's (kind `shot`), and neither is a click task play `play` marks `optional` that found nothing (a click
-    allowed to find no widget: its row has the click's `t`, kind `click` and the widget as its target)."""
+    the game's (kind `shot`), and neither is a click task play `play` allows to miss that way: one it marks `optional`
+    that found nothing (why NOT_SHOWN), one it marks `disabled` whose button is shown disabled (why DISABLED); its row
+    has the click's `t`, kind `click` and the widget as its target."""
     rows = probe.get("inputs_missed") if isinstance(probe, dict) else None
     if not isinstance(rows, list):
         return None
-    allowed = optional_clicks(play)
+    allowed = allowed_clicks(play)
     return [r for r in rows if isinstance(r, dict) and r.get("kind") != "shot"
             and not (r.get("kind") == "click" and _count(r.get("t"))
-                     and any(abs(r["t"] - t) < 1e-6 and r.get("target") == widget for t, widget in allowed))]
+                     and any(abs(r["t"] - t) < 1e-6 and r.get("target") == widget and r.get("why") == why
+                             for t, widget, why in allowed))]
 
 
-def optional_clicks(play):
-    """[(t, widget)] of every click task play `play` marks `optional` (docs/task-probes.md, section 1.1); [] for look,
-    drive and editor."""
+NOT_SHOWN = "no visible button matches it"  # the probe's why for a click no button took (an `optional` click's)
+DISABLED = "shown but disabled"  # its why for a click whose button is shown but disabled (a `disabled` click's)
+
+
+def allowed_clicks(play):
+    """[(t, widget, why)] of every miss a click of task play `play` allows (docs/task-probes.md, section 1.1):
+    NOT_SHOWN for one marked `optional`, DISABLED for one marked `disabled`; [] for look, drive and editor."""
     found = play.get("inputs") if isinstance(play, dict) else None
-    return [(float(i["t"]), i["widget"]) for i in found or []
-            if isinstance(i, dict) and i.get("click") and i.get("optional") and isinstance(i.get("widget"), str)]
+    return [(float(i["t"]), i["widget"], why) for i in found or []
+            if isinstance(i, dict) and i.get("click") and isinstance(i.get("widget"), str)
+            for key, why in (("optional", NOT_SHOWN), ("disabled", DISABLED)) if i.get(key)]
 
 
 def missed_text(rows, limit=3):

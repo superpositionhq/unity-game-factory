@@ -195,12 +195,13 @@ def spot(value):
 
 
 def inputs(rows):
-    """A task play's inputs as the probe reads them: keys (Input System control paths), axes, clicks (`optional` only
-    when set), cursor moves, teleports (`yaw` 0 when unset: a teleport always turns the player), teleports next to an
-    object (`distance` 2 m and `offset` 0 when unset, `face` only when set), either with `hold` only when set, waits in
-    real time, named shots, scene loads and view turns; and touches (`tap`, `drag`: docs/task-probes.md, section 1.3;
-    `finger` 0 unless said, `hold` and `over` only when set); and the stages of a contact (`pin`, `damage`, `set`:
-    section 1.4; a pin's `front`, `at` and `offset`, a damage's `from` and a set's `all` only when set)."""
+    """A task play's inputs as the probe reads them: keys (Input System control paths), axes, clicks (`optional` and
+    `disabled` only when set), cursor moves, teleports (`yaw` 0 when unset: a teleport always turns the player),
+    teleports next to an object (`distance` 2 m and `offset` 0 when unset, `face` only when set), either with `hold`
+    only when set, waits in real time, named shots, scene loads and view turns; and touches (`tap`, `drag`:
+    docs/task-probes.md, section 1.3; `finger` 0 unless said, `hold` and `over` only when set); and the stages of a
+    contact (`pin`, `damage`, `set`: section 1.4; a pin's `front`, `at` and `offset`, a damage's `from` and a set's
+    `all` only when set)."""
     out = []
     for r in rows or []:
         row = {"t": float(r["t"])}
@@ -250,6 +251,8 @@ def inputs(rows):
             row.update(widget=r["widget"], click=True)
             if r.get("optional"):
                 row["optional"] = True
+            if r.get("disabled"):
+                row["disabled"] = True
         elif "axis" in r:
             row.update(key=r["key"], axis=float(r["axis"]))
         else:

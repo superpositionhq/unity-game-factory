@@ -490,6 +490,35 @@ class FairReadings(unittest.TestCase):
         self.assertEqual(read(field="y", of="first"), 1.0, "first is the first row")
         self.assertEqual(read(field="yaw", of="max"), None, "a field the summary lacks reads the rows (none here)")
 
+    def test_a_matched_object_with_no_extent_reads_0(self):
+        """An object that draws nothing, or a component with no bounds, is matched but writes no extent: it reads 0
+        there, in the rows and in the summary of every match past the rows cap; a select that matches nothing still
+        reads nothing."""
+        measure = m(probe="objects", select={"name": "Blast*"}, field="extent_x", of="max")
+        qid = probes.query_id(probes.needs(measure)[0])
+
+        def read(sample, **kw):
+            found = {**measure, **kw}
+            return probes.measured(found, {"measures": {qid: [{"t": 0.0, **sample}]}})
+
+        self.assertEqual(read({"rows": [{"name": "Blast"}]}), (0.0, None))
+        self.assertEqual(read({"rows": [{"name": "Blast", "extent_x": 2.0}, {"name": "Blast2"}]}, of="min"), (0.0, None))
+        self.assertEqual(read({"rows": []})[0], None)
+        parts = m(probe="components", select={"component": "Light"}, field="extent_y", of="max")
+        found = probes.measured(parts, {"measures": {probes.query_id(probes.needs(parts)[0]): [
+            {"t": 0.0, "rows": [{"name": "Lamp", "class": "Light", "owner": "Lamp"}]}]}})
+        self.assertEqual(found, (0.0, None))
+        rows = [{"name": "Blast", "extent_x": 1.0} for _ in range(200)]
+        full = {"extent_x": {"n": 200, "nonzero": 200, "sum": 200.0, "min": 1.0, "max": 1.0}}
+        past = {"rows": rows, "total": 250, "full": full}
+        self.assertEqual(read(past, of="min")[0], 0.0, "50 matches draw nothing")
+        self.assertEqual(read(past, of="max")[0], 1.0)
+        self.assertEqual(read(past, of="mean")[0], 200.0 / 250)
+        self.assertEqual(read(past, of="all")[0], 0.0)
+        self.assertEqual(read({"rows": [], "total": 250, "full": {"extent_x": {
+            "n": 0, "nonzero": 0, "sum": 0.0, "min": None, "max": None}}}, of="max")[0], 0.0)
+        self.assertEqual(read({"rows": [{"name": "Blast"}]}, field="y")[0], None, "only an extent reads 0")
+
     def test_values_read_through_match_or_an_angle_read_the_rows_alone(self):
         rows = [{"prop:Ore.label": "Gold", "yaw": 170.0}, {"prop:Ore.label": "Iron", "yaw": -170.0}]
         full = {"prop:Ore.label": {"n": 0, "nonzero": 0, "sum": 0.0, "min": None, "max": None},

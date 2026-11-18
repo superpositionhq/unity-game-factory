@@ -753,11 +753,17 @@
     },
     "Click": {
       "additionalProperties": false,
-      "description": "A click on the first visible, interactable uGUI Selectable or UI Toolkit Button whose name (a wildcard) or type\nmatches, as a player's click fires it.",
+      "description": "A click on the first visible, interactable uGUI Selectable or UI Toolkit Button whose name (a wildcard) or type\nmatches, else whose caption is `widget` exactly as shown (spaces, punctuation and any script included), else whose\ncaption reads as `widget` (lower case, every run of other characters one `_`), as a player's click fires it.",
       "properties": {
         "click": {
           "const": true,
           "title": "Click",
+          "type": "boolean"
+        },
+        "disabled": {
+          "default": false,
+          "description": "A click on a button the game shows disabled by design (a locked choice): it has landed when its button is shown but disabled, and does nothing, as a player's click on it. Without it, a click on a disabled button is a missed input.",
+          "title": "Disabled",
           "type": "boolean"
         },
         "optional": {
@@ -773,7 +779,7 @@
           "type": "number"
         },
         "widget": {
-          "pattern": "^[A-Za-z0-9_.*?() -]{1,120}$",
+          "pattern": "^[^\\x00-\\x20\\x7f](?:[^\\x00-\\x1f\\x7f]{0,118}[^\\x00-\\x20\\x7f])?$",
           "title": "Widget",
           "type": "string"
         }
@@ -4149,7 +4155,7 @@
     },
     "TaskPlay": {
       "additionalProperties": false,
-      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits, touches) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5). `after`: the task plays (probe or judge plays of the task) that run\nand end on the same side before it starts, for a play that reads what another writes (a save): it starts on the\nsaved data they left, where every other play starts with none; one that failed still counts as run.",
+      "description": "A task-defined scripted play: `inputs` (keys, axes, widget clicks, cursor moves, teleports, waits, touches) sent at their\ntimes during `seconds`; its own `scene` instead of the task's play_scene (null: the project's first build scene)\nand `args` on its command line instead of the task's play_args (a flag, -name, then its values, but never the\ngrader's own: the engine flags in docs/task-probes.md section 1.1, -taskProbe*), each only when the play has the\nkey; and samples every `every` seconds (default 0.5). `after`: the task plays (probe or judge plays of the task) that run\nand end on the same side before it starts, for a play that reads what another writes (a save): it starts on the\nsaved data they left, where every other play starts with none; one that failed still counts as run. `fresh`: the\nplay starts with the game's saved data cleared, as every play without `after` does; never with `after`.",
       "properties": {
         "after": {
           "anyOf": [
@@ -4191,6 +4197,12 @@
           ],
           "default": null,
           "title": "Every"
+        },
+        "fresh": {
+          "default": false,
+          "description": "The play starts with the game's saved data cleared, as every play without `after` does. Never with `after`.",
+          "title": "Fresh",
+          "type": "boolean"
         },
         "inputs": {
           "items": {

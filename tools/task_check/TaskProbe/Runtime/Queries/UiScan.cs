@@ -684,9 +684,29 @@ namespace TaskProbe
         /// takes a click). No raycast: an image over it doesn't stop it. Without an EventSystem a player's click reaches
         /// no uGUI widget, and neither does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or
         /// a type name may match several: the log names the one), or null when none. When no name and no type
-        /// matches, the first such widget whose caption is `want` (Caption) is clicked: a button the task itself adds
-        /// has no name at the start, and the instruction names it by what it reads.</summary>
-        public static string Click(string want) => Click(want, false) ?? Click(want, true);
+        /// matches, the first such widget whose caption is `want` exactly as shown (Shown) is clicked, else the first
+        /// whose caption reads as `want` (Caption): a button the task itself adds has no name at the start, and the
+        /// instruction names it by what it reads.</summary>
+        public static string Click(string want) => Click(want, By.Name, true) ?? Click(want, By.Shown, true) ?? Click(want, By.Caption, true);
+
+        /// <summary>For a click that found nothing (Click): the first visible uGUI Selectable or UI Toolkit Button that
+        /// `want` names as Click compares them, shown but disabled (not interactable, its Selectable off, a Button not
+        /// enabled in its hierarchy: a player's click on it does nothing), "name (type)"; else null. Nothing is
+        /// clicked.</summary>
+        public static string ShownDisabled(string want) =>
+            Click(want, By.Name, false) ?? Click(want, By.Shown, false) ?? Click(want, By.Caption, false);
+
+        /// <summary>How a click compares `want`: with the widget's name (a wildcard) or type; with its caption as shown,
+        /// whole and in the same case (spaces at either end of the caption left out); with its caption as Caption
+        /// compares it.</summary>
+        enum By { Name, Shown, Caption }
+
+        static bool Matches(By by, string want, string name, Type type, Func<string> caption)
+        {
+            if (by == By.Name) return Find.Wild(want, name) || Reflect.IsA(type, want);
+            var text = caption();
+            return by == By.Shown ? text != null && string.Equals(text.Trim(), want, StringComparison.Ordinal) : Reads(text, want);
+        }
 
         /// <summary>A name or a caption as a click compares them: in lower case, every run of characters that are
         /// neither letters nor digits one `_`, none at either end ("New_expedition" is a button reading
@@ -761,18 +781,21 @@ namespace TaskProbe
             return false;
         }
 
-        static string Click(string want, bool byCaption)
+        /// <summary>The first visible uGUI Selectable, else UI Toolkit Button, that `want` names (`by`): clicked when
+        /// `press` and it is interactable; when not `press`, only found, and only when it is not.</summary>
+        static string Click(string want, By by, bool press)
         {
-            var how = byCaption ? " by its caption" : "";
+            var how = by != By.Name ? " by its caption" : "";
 #if TASKPROBE_UGUI
             var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
             Find.SortByHierarchy(selectables);
             foreach (var s in selectables)
             {
                 if (s == null || Probe.IsOwn(s.gameObject)) continue;
-                if (byCaption ? !Reads(CaptionOf(s), want) : !Find.Wild(want, s.gameObject.name) && !Reflect.IsA(s.GetType(), want)) continue;
+                if (!Matches(by, want, s.gameObject.name, s.GetType(), () => CaptionOf(s))) continue;
                 var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
-                if (!s.isActiveAndEnabled || !s.IsInteractable() || !UguiVisible(s.gameObject, own)) continue;
+                if ((s.isActiveAndEnabled && s.IsInteractable()) != press || !UguiVisible(s.gameObject, own)) continue;
+                if (!press) return s.gameObject.name + " (" + s.GetType().Name + ")" + how;
                 if (EventSystem.current == null)
                 {
                     // (an InputField's pointer down would also throw into the game's log)
@@ -792,8 +815,9 @@ namespace TaskProbe
                 foreach (var e in all)
                 {
                     if (!(e is UIE.Button button)) continue;
-                    if (byCaption ? !Reads(UitkText(e), want) : !Find.Wild(want, NameOf(e)) && !Reflect.IsA(e.GetType(), want)) continue;
-                    if (!e.enabledInHierarchy || !UitkVisible(e, root.Value, false)) continue;
+                    if (!Matches(by, want, NameOf(e), e.GetType(), () => UitkText(e))) continue;
+                    if (e.enabledInHierarchy != press || !UitkVisible(e, root.Value, false)) continue;
+                    if (!press) return NameOf(e) + " (" + e.GetType().Name + ")" + how;
                     // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or
                     // pad press does; a ClickEvent callback needs a pointer's click (the cursor)
                     using (var submit = UIE.NavigationSubmitEvent.GetPooled())

@@ -283,6 +283,16 @@
    "t": 4.65,
    "widget": "START_RUN",
    "click": true
+  },
+  {
+   "t": 4.7,
+   "widget": "new expedition",
+   "click": true
+  },
+  {
+   "t": 4.75,
+   "widget": "Prêt à partir !",
+   "click": true
   }
  ]
 }

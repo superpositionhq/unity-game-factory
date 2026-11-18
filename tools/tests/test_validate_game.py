@@ -974,8 +974,12 @@ class Units(unittest.TestCase):
                 ([reads('one', ['one'])], 'names itself in its after'),
                 ([reads('one'), reads('two', ['one', 'one'])], 'task play two names one twice in its after'),
                 ([reads('one', ['two']), reads('two', ['one'])], 'a cycle'),
-                ([reads('one'), reads('two'), reads('three', ['one', 'two'])], 'neither runs after the other')):
+                ([reads('one'), reads('two'), reads('three', ['one', 'two'])], 'neither runs after the other'),
+                ([reads('one'), dict(reads('two'), play={'name': 'two', 'seconds': 10, 'after': ['one'], 'fresh': True})],
+                 'task play two is fresh (it starts with the saved data cleared), so it runs after no play')):
             self.assertTrue(any(said in e for e in vg.play_after_errors(checks)), (said, vg.play_after_errors(checks)))
+        fresh = [reads('one'), dict(reads('two'), play={'name': 'two', 'seconds': 10, 'fresh': True})]
+        self.assertEqual(vg.play_after_errors(fresh), [], 'fresh alone: as any play that names no after')
 
     def test_seen_rules(self):
         """A `seen` measure (task-probes.md 2.22), as the Lab's grader takes it: the schema's shape, then the rules
@@ -1589,6 +1593,7 @@ class Schema(unittest.TestCase):
                   {'t': 2, 'key': '<Mouse>/delta/x', 'axis': 4.0}, {'t': 2, 'key': '<Gamepad>/leftStick/x', 'axis': 1},
                   {'t': 2, 'key': '<Mouse>/scroll/y', 'axis': -1},
                   {'t': 3, 'widget': 'RetryButton', 'click': True}, {'t': 3, 'widget': 'Retry*', 'click': True},
+                  {'t': 3, 'widget': 'Save/Load: 开始!', 'click': True, 'optional': True, 'disabled': True},
                   {'t': 4, 'cursor': [0.5, 0.25]},
                   {'t': 5, 'teleport': [1, 2, 3], 'yaw': 90, 'hold': 2},
                   {'t': 6, 'teleport_to': {'component': 'Ore'}, 'distance': 2.0, 'offset': [0, 0.5, 0],
@@ -1599,7 +1604,8 @@ class Schema(unittest.TestCase):
         for bad in ({'t': 1, 'key': 'W', 'press': True}, {'t': 1, 'key': '<Keyboard>/w'},
                     {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 121, 'key': '<Keyboard>/w', 'press': True},
                     {'t': 2, 'key': 'MouseX', 'axis': 4.0}, {'t': 2, 'key': '<Mouse>/delta/x', 'axis': 1001},
-                    {'t': 3, 'widget': 'RetryButton', 'click': False}, {'t': 3, 'widget': 'Hud/Retry', 'click': True},
+                    {'t': 3, 'widget': 'RetryButton', 'click': False}, {'t': 3, 'widget': ' Retry', 'click': True},
+                    {'t': 3, 'widget': 'Re\ntry', 'click': True}, {'t': 3, 'widget': 'R' * 121, 'click': True},
                     {'t': 4, 'cursor': [1.5, 0.5]}, {'t': 4, 'cursor': [0.5]},
                     {'t': 5, 'teleport': [1, 2]}, {'t': 5, 'teleport': [1, 2, 3], 'hold': 0},
                     {'t': 5, 'teleport': [1, 2, 3], 'yaw': 361}, {'t': 6, 'teleport_to': {'actor': 'Ore'}},

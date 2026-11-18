@@ -1247,20 +1247,28 @@ def task_semantic_errors(t):
     return errs + render_errors(checks) + play_after_errors(checks)
 
 
+def fresh_after_error(name):
+    """Why task play `name` can't be both `fresh` and run `after` other plays."""
+    return f'task play {name} is fresh (it starts with the saved data cleared), so it runs after no play: drop its after'
+
+
 def play_after_errors(checks):
     """A task play's `after` (docs/task-probes.md 1.1): every name it lists is a task play of the task (a probe's play
     or a judge's own plays; never look, drive, editor or trace), named once, never the play itself, and the plays
     never wait on each other in a cycle. A play that names none starts on no saved data and clears what was there, so
     of any two plays one `after` lists, one runs after the other (itself or through the plays it names), in whichever
-    order they are listed: the checker plays them in the order their own `after` gives."""
+    order they are listed: the checker plays them in the order their own `after` gives. A play marked `fresh` names
+    none."""
     after = {}
+    errs = []
     for c in checks:
         named = [c.get('play')] if c.get('kind') == 'probe' else (c.get('plays') or [] if c.get('kind') == 'judge' else [])
         for p in named:
             if isinstance(p, dict) and isinstance(p.get('name'), str):
                 found = p.get('after')
+                if p.get('fresh') is True and found and p['name'] not in after:
+                    errs.append(fresh_after_error(p['name']))
                 after.setdefault(p['name'], [x for x in found if isinstance(x, str)] if isinstance(found, list) else [])
-    errs = []
     for name, before in after.items():
         if name in before:
             errs.append(f'task play {name} names itself in its after')

@@ -199,6 +199,12 @@ namespace TaskProbe
                     var widget = Json.Str(row, "widget");
                     var clicked = UiScan.Click(widget);
                     if (clicked != null) Probe.Log("clicked " + clicked);
+                    else if (UiScan.ShownDisabled(widget) is string disabled)
+                    {
+                        // shown, but a player's click on it does nothing: a miss of its own (a task's click may expect it)
+                        Probe.Log($"{disabled} matches '{widget}', shown but disabled: not clicked");
+                        Miss("click", widget, "shown but disabled");
+                    }
                     else
                     {
                         Probe.Log($"no visible button matches '{widget}'");

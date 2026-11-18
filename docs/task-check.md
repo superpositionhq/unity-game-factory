@@ -389,11 +389,14 @@ not land (...): the task's own fix can't be driven by its play`). An input of th
 button took, a teleport next to nothing, a stage nothing took, a key the probe has no control for, a touch on a widget
 that isn't on screen (the play's `inputs_missed` in `probe.json`, and `probe.log`). What the probe measured is of a
 play that never did what the task says, so the check fails whatever its value; on the reference it is the task's
-error. Fix the play: wait for the button to show before the click, click by the caption the start already has, drop a
-click the game already took (a second press of a button that has gone), scroll a list before clicking a control
-below its visible part, and teleport next to something that is there (task-probes.md, sections 1.1 and 1.4). A click
-on a control that shows only in some states (a confirmation shown only when a save exists) says `"optional": true`:
-when it finds nothing it is left out of the missed inputs. Never mark a click the play needs optional.
+error. Fix the play: wait for the button to show before the click, click by the caption the start already has
+(written exactly as shown), drop a click the game already took (a second press of a button that has gone), scroll a
+list before clicking a control below its visible part, and teleport next to something that is there (task-probes.md,
+sections 1.1 and 1.4). A click on a control that shows only in some states (a confirmation shown only when a save
+exists) says `"optional": true`: when it finds nothing it is left out of the missed inputs. A click whose row says
+`shown but disabled` found a button the game had disabled: wait until the game enables it, or, when the instruction
+says it stays locked, mark the click `"disabled": true`, which counts that row as landed. Never mark a click the play
+needs optional, and never mark disabled a click the play needs to press.
 
 **`no value in the window (nothing it selects was measured)`.** The selection matched nothing, or nothing it matched
 has that field, or a `player` or `camera` measure's play never found the player or the camera (name the player with
