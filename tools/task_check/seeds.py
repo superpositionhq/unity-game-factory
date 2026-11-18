@@ -149,6 +149,17 @@ def engine_of(project):
     return found.group(1) if found else ""
 
 
+def engine_at(repo, commit):
+    """m_EditorVersion of ProjectSettings/ProjectVersion.txt at `commit` of `repo`, read from its git objects (nothing
+    checked out); "" without one."""
+    try:
+        text = _git(repo, "show", f"{commit}:{VERSION_FILE}").decode("utf-8-sig", errors="replace")
+    except RuntimeError:
+        return ""
+    found = re.search(r"^\s*m_EditorVersion:\s*(\S+)", text, re.M)
+    return found.group(1) if found else ""
+
+
 def add_probe(project):
     """Add the TaskProbe package to `project` as Packages/com.taskprobe/. Raises WrongEngine when the project isn't a
     Unity 6000.3 project: a task starts from a commit that builds on 6000.3 as committed."""

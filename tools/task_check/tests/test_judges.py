@@ -203,7 +203,7 @@ class Whole(unittest.TestCase):
                     "reference": Shooting(measuring(100), folder="reference")}
         with mock.patch.object(unity, "Project", lambda folder, m, label: projects[names[Path(folder).name]]), \
                 mock.patch.object(unity.Machine, "for_project",
-                                  classmethod(lambda cls, p, d=False: cls(Path(p), None))), \
+                                  classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))), \
                 mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0):
             return check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch", Path(tmp) / "out",
                                     log=lambda *a: None, **kw), (repo, start, fix, _)
@@ -389,7 +389,7 @@ class Try(unittest.TestCase):
 
             with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
                     mock.patch.object(unity.Machine, "for_project",
-                                      classmethod(lambda cls, p, d=False: cls(Path(p), None))):
+                                      classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))):
                 result = trial.try_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
                                         Path(tmp) / "out", "claude", "claude", places=[repo], log=lambda *a: None)
             self.assertEqual((result["status"], result["solved"]), ("DONE", 1))

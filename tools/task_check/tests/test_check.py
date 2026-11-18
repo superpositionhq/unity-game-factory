@@ -410,7 +410,7 @@ class Whole(unittest.TestCase):
             return found
 
         with mock.patch.object(unity, "Project", project), \
-                mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False: cls(Path(p), None))):
+                mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))):
             return check.check_task(repo, task, raw, Path(tmp) / "scratch", Path(tmp) / "out", log=lambda *a: None)
 
     def test_a_valid_task_with_a_reference(self):
@@ -531,7 +531,7 @@ class Whole(unittest.TestCase):
                 with mock.patch.object(unity, "Project", lambda folder, machine, label, real=unity.Project: real(
                         folder, machines[Path(folder).name], label)), \
                         mock.patch.object(unity.Machine, "for_project",
-                                          classmethod(lambda cls, p, d=False: cls(Path(p), None))), \
+                                          classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))), \
                         contextlib.redirect_stderr(io.StringIO()):
                     result = check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
                                               Path(tmp) / "out", log=lambda *a: None)
@@ -576,7 +576,7 @@ class Whole(unittest.TestCase):
                 task["name"], task["seed"] = name, {**task["seed"], "commit": start, "reference": fix}
             with mock.patch.object(unity, "Project", lambda folder, machine, label: built[Path(folder).name]), \
                     mock.patch.object(unity.Machine, "for_project",
-                                      classmethod(lambda cls, p, d=False: cls(Path(p), None))), \
+                                      classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))), \
                     mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0):
                 builds = check.Builds(repo, Path(tmp) / "scratch", log=lambda *a: None)
                 verdicts = [check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "unused",
@@ -606,7 +606,7 @@ class Whole(unittest.TestCase):
             said = []
             with mock.patch.object(unity, "Project", lambda folder, machine, label: built[Path(folder).name]), \
                     mock.patch.object(unity.Machine, "for_project",
-                                      classmethod(lambda cls, p, d=False: cls(Path(p), None))), \
+                                      classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))), \
                     mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0):
                 builds = check.Builds(repo, Path(tmp) / "scratch", log=said.append)
                 verdicts = [check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "unused",
@@ -671,7 +671,7 @@ class Whole(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "make_game's repo")
     def test_a_unity_that_isnt_installed_fails_every_task_on_its_commit_alike(self):
-        def not_installed(cls, project, direct=False):
+        def not_installed(cls, project, direct=False, at_least=None):
             raise RuntimeError("Unity 6000.3.26f1 is not installed: install it through Unity Hub")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1190,10 +1190,10 @@ class Plays(unittest.TestCase):
         self.assertEqual(direct, [str(Path("C:/U/Unity.exe")), "-quit"])
 
     def test_a_unity_that_isnt_installed_is_an_error_not_an_exit(self):
-        def missing_unity(project):
+        def missing_unity(project, at_least=None):
             raise SystemExit("Unity 6000.3.26f1 is not installed: install it through Unity Hub")
 
-        with mock.patch.object(unity.ugfroot, "unity_editor", missing_unity):
+        with mock.patch.object(unity.ugfroot, "unity_editor_and_version", missing_unity):
             with self.assertRaisesRegex(RuntimeError, "6000.3.26f1 is not installed"):
                 unity.Machine.for_project(".")
 
@@ -1201,12 +1201,135 @@ class Plays(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "tools").mkdir()
             (Path(tmp) / "tools" / "unity-heavy.ps1").write_text("", encoding="utf-8")
-            with mock.patch.object(unity.ugfroot, "unity_editor", lambda project: "C:/U/Unity.exe"), \
+            with mock.patch.object(unity.ugfroot, "unity_editor_and_version",
+                                   lambda project, at_least=None: ("6000.3.28f1", "C:/U/Unity.exe")), \
                     mock.patch.object(unity.ugfroot, "root", lambda: tmp):
                 found = unity.Machine.for_project(".")
-                self.assertEqual((found.editor, found.heavy), (Path("C:/U/Unity.exe"),
-                                                               Path(tmp) / "tools" / "unity-heavy.ps1"))
+                self.assertEqual((found.editor, found.heavy, found.version),
+                                 (Path("C:/U/Unity.exe"), Path(tmp) / "tools" / "unity-heavy.ps1", "6000.3.28f1"))
                 self.assertIsNone(unity.Machine.for_project(".", direct=True).heavy)
+
+
+class Resolver(unittest.TestCase):
+    """Which installed Unity opens a project (machine/lib/ugfroot.py; its PowerShell twin ugf-root.ps1 keeps the same
+    rule): the exact patch when installed, else the newest of its line at or above it, never an older one or another
+    line's; none names the patch to install. Each test's machine config is its own, never this machine's."""
+
+    def machine(self, tmp, hub=(), editors=None):
+        """A config naming a Hub folder holding `hub` (versions) and `editors` ({version: its own Unity.exe})."""
+        folder = Path(tmp) / "Hub" / "Editor"
+        for v in hub:
+            (folder / v / "Editor").mkdir(parents=True)
+            (folder / v / "Editor" / "Unity.exe").write_text("", encoding="utf-8")
+        own = {}
+        for v in editors or ():
+            exe = Path(tmp) / "elsewhere" / v / "Unity.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_text("", encoding="utf-8")
+            own[v] = str(exe)
+        config = Path(tmp) / "config.json"
+        config.write_text(json.dumps({"unity_hub_editors": str(folder), "unity_editors": own}), encoding="utf-8")
+        return mock.patch.dict(os.environ, {"UGF_CONFIG": str(config)})
+
+    def project(self, tmp, version):
+        folder = Path(tmp) / "project"
+        (folder / "ProjectSettings").mkdir(parents=True, exist_ok=True)
+        (folder / "ProjectSettings" / "ProjectVersion.txt").write_text(f"m_EditorVersion: {version}\n",
+                                                                        encoding="utf-8")
+        return str(folder)
+
+    def opens(self, project, hub=(), editors=None, at_least=None):
+        with tempfile.TemporaryDirectory() as tmp, self.machine(tmp, hub, editors):
+            try:
+                version, exe = unity.ugfroot.unity_editor_and_version(self.project(tmp, project), at_least)
+            except SystemExit as exc:
+                return str(exc)
+            self.assertTrue(Path(exe).is_file() and version in exe, exe)
+            return version
+
+    def test_unity_versions_order_as_unity_releases_them(self):
+        order = ["6000.3.9a1", "6000.3.9b3", "6000.3.9f1", "6000.3.9f2", "6000.3.9p1", "6000.3.10f1", "6000.3.26f1",
+                 "6000.3.28f1", "6000.3.100f1", "6000.4.0a1", "6001.0.0f1"]
+        key = unity.ugfroot.version_key
+        self.assertEqual(sorted(order, key=key), order)
+        self.assertTrue(key("6000.3.28f1") > key("6000.3.26f1") > key("6000.3.9f1"))
+        for text in ("", None, "6000.3", "6000.3.x", "6000.3.28", "6000.3.28c1", "6000.3.28f1c1"):
+            self.assertIsNone(key(text), text)
+        self.assertEqual(unity.ugfroot.line_of("6000.3.28f1"), "6000.3")
+        self.assertEqual(unity.ugfroot.higher("6000.3.26f1", "6000.3.28f1"), "6000.3.28f1")
+        self.assertEqual(unity.ugfroot.higher("6000.3.28f1", "6000.3.26f1"), "6000.3.28f1")
+        self.assertEqual(unity.ugfroot.higher("6000.3.26f1", "6000.4.0f1"), "6000.3.26f1", "another line's: never")
+        self.assertEqual(unity.ugfroot.higher("2022.3.10f1", "6000.3.28f1"), "2022.3.10f1")
+
+    def test_the_exact_patch_when_installed_else_the_newest_of_its_line_above_it(self):
+        self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.26f1", "6000.3.28f1"]), "6000.3.26f1")
+        self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.9f1", "6000.3.28f1", "6000.3.27f1"]), "6000.3.28f1")
+        self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.26b1", "6000.3.26f2"]), "6000.3.26f2")
+        self.assertEqual(self.opens("6000.3.26f1", editors=["6000.3.28f1"]), "6000.3.28f1", "unity_editors count too")
+        self.assertEqual(self.opens("6000.3.26f1", hub=["6000.3.28f1"], editors=["6000.3.26f1"]), "6000.3.26f1")
+
+    def test_never_an_older_editor_or_another_lines_and_none_names_the_patch_to_install(self):
+        for hub in ([], ["6000.3.9f1", "6000.3.26f1"], ["6000.4.0f1", "6000.5.1f1"]):
+            said = self.opens("6000.3.28f1", hub=hub)
+            self.assertIn("Unity 6000.3.28f1 is not installed, nor any newer 6000.3 patch: install it or a newer "
+                          "6000.3 patch through Unity Hub", said)
+        said = self.opens("2022.3.10f1", hub=["2022.3.20f1", "6000.3.28f1"])
+        self.assertIn("Unity 2022.3.10f1 is not installed: install it", said)
+
+    def test_at_least_opens_both_sides_of_a_task_with_the_editor_for_the_higher(self):
+        hub = ["6000.3.26f1", "6000.3.28f1"]
+        self.assertEqual(self.opens("6000.3.26f1", hub=hub, at_least="6000.3.28f1"), "6000.3.28f1")
+        self.assertEqual(self.opens("6000.3.28f1", hub=hub, at_least="6000.3.26f1"), "6000.3.28f1")
+        self.assertEqual(self.opens("6000.3.26f1", hub=hub, at_least="6000.4.0f1"), "6000.3.26f1")
+        self.assertIn("Unity 6000.3.30f1 is not installed, nor any newer", self.opens("6000.3.26f1", hub=hub,
+                                                                                      at_least="6000.3.30f1"))
+
+    def test_the_powershell_twin_names_the_same_rule(self):
+        """ugf-root.ps1 can't run here: its functions are held to the Python twin's names and words."""
+        text = (Path(unity.ugfroot.__file__).parent / "ugf-root.ps1").read_text(encoding="utf-8")
+        for name in ("function Get-UGFUnityKey", "function Get-UGFUnityLine", "function Get-UGFHigherUnity",
+                     "function Get-UGFUnityOpening", "[string]$AtLeast", "'abfp'.IndexOf",
+                     "is not installed, nor any newer $line patch: install it or a newer $line patch through Unity Hub"):
+            self.assertIn(name, text)
+
+
+# The free-space floor and the scratch folder's length are the machine's: they decide no test here.
+@mock.patch.object(unity.ugfroot, "check_free", lambda *a: 100.0)
+@mock.patch.object(seeds, "MAX_FOLDER", 400)
+class SameEditor(unittest.TestCase):
+    def test_the_start_and_the_reference_are_opened_by_the_editor_for_the_higher_and_say_both(self):
+        """A thread that moved the game from 6000.3.26f1 to 6000.3.28f1: both copies are opened by the 28f1 editor,
+        each side's result saying the Unity its project names and the editor's; the game's own files are untouched."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, start, _, _ = make_game(tmp)
+            (repo / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.28f1\n",
+                                                                         encoding="utf-8")
+            git(repo, "commit", "-q", "-am", "the editor moved to 6000.3.28f1")
+            fix = git(repo, "rev-parse", "HEAD").decode().strip()
+            asked = []
+
+            def machine(cls, project, direct=False, at_least=None):
+                asked.append((Path(project).name, at_least))
+                return cls(Path("C:/U/6000.3.28f1/Unity.exe"), None, "6000.3.28f1")
+
+            projects = {start[:12]: FakeProject(measuring(-500)), fix[:12]: FakeProject(measuring(100))}
+
+            def project(folder, machine, label):
+                found = projects[Path(folder).name]
+                found.folder, found.label = Path(folder), label
+                return found
+
+            task = task_with(probe(expect={"op": ">=", "calibrate": 0.5}))
+            task["seed"] = {**task["seed"], "commit": start, "reference": fix}
+            with mock.patch.object(unity, "Project", project), \
+                    mock.patch.object(unity.Machine, "for_project", classmethod(machine)):
+                result = check.check_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
+                                          Path(tmp) / "out", log=lambda *a: None)
+            self.assertEqual(result["verdict"], "VALID", result["reasons"])
+            self.assertEqual(sorted(asked), sorted([(start[:12], "6000.3.28f1"), (fix[:12], "6000.3.28f1")]))
+            self.assertEqual(result["start"]["unity"], "project 6000.3.26f1, editor 6000.3.28f1")
+            self.assertEqual(result["reference"]["unity"], "project 6000.3.28f1, editor 6000.3.28f1")
+            self.assertEqual(git(repo, "status", "--porcelain"), b"", "the game as committed is never touched")
 
 
 class Retries(unittest.TestCase):

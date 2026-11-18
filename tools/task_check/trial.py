@@ -320,9 +320,12 @@ def discard(folder, log):
         log(f"  couldn't delete {folder} ({exc}): delete it by hand")
 
 
-def side(name, folder, task, direct, timeout, build_timeout, evidence, log):
+def side(name, folder, task, direct, timeout, build_timeout, evidence, log, at_least=None):
+    """A copy as the checker's Side, opened by the Unity for its version, or for `at_least` when that is higher (the
+    start, the reference and every run of one try are opened by the same editor)."""
     seeds.add_probe(folder)
-    machine = unity.Machine.for_project(folder, direct)
+    machine = unity.Machine.for_project(folder, direct, at_least=at_least)
+    log(f"  {name}: {machine.opened(folder)}")
     return check.Side(name, unity.Project(folder, machine, f"{task['name']} {name}"), task, timeout, build_timeout,
                       evidence, log), machine
 
@@ -365,11 +368,17 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                                                                   for i in range(1, runs + 1)]:
             seeds.check_length(folder)  # before hours of building, not after
         sides, machines = {}, {}
+        # the start and the reference (and every run) are opened by the same editor: the one for the higher version
+        opens = unity.ugfroot.higher(*[seeds.engine_at(repo, shas[k]) for k in ("commit", "reference")])
         for label, sha in (("start", shas["commit"]), ("reference", shas["reference"])):
             log(f"  {label}: materializing {sha[:12]}")
             seeds.materialize(repo, sha, scratch / label)
             sides[label], machines[label] = side(label, scratch / label, task, direct, timeout, build_timeout, evidence,
-                                                 log)
+                                                 log, at_least=opens)
+            # the editor the agent is told of: the start's alone, never the reference's (read before a build may
+            # upgrade the copy)
+            if label == "start":
+                own = unity.Machine.for_project(scratch / label, direct)
         start, reference = sides["start"], sides["reference"]
         if not start.built() and tasks.fails_at_start(task) is None:
             return finish("ERROR", [f"the start doesn't build: {start.why_unbuilt()} (run task-check.py first)"])
@@ -387,7 +396,7 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
         # and the copies' logs hold the grader's queries.
         for label in ("start", "reference"):
             seeds.remove(scratch / label)
-        prompt = brief(task, machines["start"].editor)  # the workspace's: the reference may name another 6000.3 release
+        prompt = brief(task, own.editor)  # the workspace's: the reference may name another 6000.3 release
         (evidence / "brief.md").write_text(prompt, encoding="utf-8")
         limits = limits_of(task)
         for i in range(1, runs + 1):
@@ -425,7 +434,11 @@ def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, 
                                             f"{os.path.realpath(link)}: not graded")
                 for d in BUILT:  # (one the agent made a link goes as the link: seeds.remove never follows one)
                     seeds.remove(folder / d)
-                tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log)
+                moved = seeds.engine_of(folder)  # one editor reads every copy of the try: never a newer one for a run
+                if unity.ugfroot.higher(opens, moved) != opens:
+                    raise RuntimeError(f"the agent moved the project to Unity {moved}, newer than the {opens} the "
+                                       "start and the reference were opened with: not graded")
+                tried, _ = side(label, folder, task, direct, timeout, build_timeout, evidence, log, at_least=opens)
                 grade = check.Grade(task, "reference", start, reference, thresholds, side=tried).run()
             except (seeds.WrongEngine, FileNotFoundError, RuntimeError) as exc:  # Unity version or project changed
                 if isinstance(exc, unity.MachineError) and not isinstance(exc, unity.BuildStopped):

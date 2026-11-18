@@ -26,6 +26,7 @@ function Get-UGFConfigPath {
 }
 
 $script:UGFDefaultUnityVersion = '6000.3'   # Unity 6.3 LTS: new games use its newest installed patch
+$script:UGFUpgradeLine = '6000.3'   # the line whose project a newer patch of it opens (Get-UGFUnityOpening), as ugfroot.py LINE
 
 function Get-UGFConfig {
     $cfg = [ordered]@{
@@ -74,28 +75,75 @@ function Get-UGFHooksDir($Cfg = (Get-UGFConfig)) {
     return (Join-Path $env:USERPROFILE '.unity-game-factory\hooks')
 }
 
-# Unity.exe for a project: the exact version its ProjectSettings\ProjectVersion.txt names (m_EditorVersion) picks the
-# install, so a game keeps building on the editor it was made with (an upgrade is a deliberate, committed step).
+# Unity.exe for a project, as lib\ugfroot.py unity_editor (keep the two in step): the editor that opens the version
+# its ProjectSettings\ProjectVersion.txt names (m_EditorVersion; Get-UGFUnityOpening: that patch when installed, else
+# the newest installed one of its line above it, never an older one). An editor newer than the project's patch upgrades
+# the project it opens (Unity may rewrite its ProjectVersion.txt and package lock): install a game's own patch to keep
+# the game where it is (unity-game-session skill); the task checker and the release build open copies.
 # $Project is the project folder; without one, or without a ProjectVersion.txt, the editor new games use
-# (Get-UGFUnityVersion). $null with a warning naming what to install when it is missing (none under -ErrorAction
-# SilentlyContinue / Ignore): callers decide whether that is fatal.
+# (Get-UGFUnityVersion). $AtLeast: another version of the same line the same editor must open too (the other side of
+# a task): the editor is then the one for the higher of the two. $null with a warning naming what to install when
+# there is none (none under -ErrorAction SilentlyContinue / Ignore): callers decide whether that is fatal.
 function Get-UGFUnity {
     [CmdletBinding()]
-    param([Parameter(Position = 0)][string]$Project, [Parameter(Position = 1)]$Cfg = (Get-UGFConfig))
+    param([Parameter(Position = 0)][string]$Project, [Parameter(Position = 1)]$Cfg = (Get-UGFConfig), [string]$AtLeast = '')
     $ver = ''
     if ($Project) {
         $pv = Join-Path $Project 'ProjectSettings\ProjectVersion.txt'
         if (Test-Path -LiteralPath $pv) { foreach ($l in [IO.File]::ReadAllLines($pv)) { if ($l -match '^\s*m_EditorVersion:\s*(\S+)') { $ver = $Matches[1]; break } } }
     }
     if (-not $ver) { $ver = Get-UGFUnityVersion $Cfg }
-    $exe = Get-UGFUnityForVersion $ver $Cfg
-    if ($exe) { return $exe }
+    if ($ver -and $AtLeast) { $ver = Get-UGFHigherUnity $ver $AtLeast }
+    $hit = Get-UGFUnityOpening $ver $Cfg
+    if ($hit) { return $hit.Path }
     if ($ErrorActionPreference -notin 'SilentlyContinue', 'Ignore') {
-        $what = if ($ver) { "Unity $ver is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for an older patch: version $ver" }
+        $line = Get-UGFUnityLine $ver
+        $what = if ($ver -and (Get-UGFUnityKey $ver) -and $line -eq $script:UGFUpgradeLine) { "Unity $ver is not installed, nor any newer $line patch: install it or a newer $line patch through Unity Hub (Installs > Install Editor, or Archive for an older patch: version $ver" }
+        elseif ($ver) { "Unity $ver is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for an older patch: version $ver" }
         else { "no Unity $($Cfg.unity_version) editor is installed: install the newest $($Cfg.unity_version) patch through Unity Hub (Installs > Install Editor" }
         Write-Warning "$what, with Windows Build Support (IL2CPP)), or name its Unity.exe in unity_editors in $(Get-UGFConfigPath)"
     }
     return $null
+}
+
+# A Unity version ("6000.3.28f1") as a key that orders as Unity's releases do, as lib\ugfroot.py version_key: the
+# three numbers, then the release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1.
+# $null for a text that isn't a Unity version. Compare two keys with [string]::CompareOrdinal.
+function Get-UGFUnityKey([string]$Version) {
+    if ([string]$Version -cmatch '^\s*(\d+)\.(\d+)\.(\d+)([abfp])(\d+)\s*$') {
+        return '{0:D10}.{1:D10}.{2:D10}.{3}.{4:D10}' -f [long]$Matches[1], [long]$Matches[2], [long]$Matches[3], 'abfp'.IndexOf($Matches[4]), [long]$Matches[5]
+    }
+    return $null
+}
+
+# The line a Unity version is of ("6000.3" for 6000.3.28f1): its first two numbers, as lib\ugfroot.py line_of.
+function Get-UGFUnityLine([string]$Version) { return ((([string]$Version).Trim() -split '\.') | Select-Object -First 2) -join '.' }
+
+# The higher of $First and $Other when both are Unity versions of the same line, else $First (lib\ugfroot.py higher).
+function Get-UGFHigherUnity([string]$First, [string]$Other) {
+    $a = Get-UGFUnityKey $First; $b = Get-UGFUnityKey $Other
+    if ($a -and $b -and (Get-UGFUnityLine $First) -eq (Get-UGFUnityLine $Other) -and [string]::CompareOrdinal($b, $a) -gt 0) { return $Other }
+    return $First
+}
+
+# The editor { Version; Path } that opens a project naming Unity $Version, as lib\ugfroot.py unity_opening (keep the
+# two in step): the exact patch when it is installed; else the newest installed editor of the same line (6000.3) at
+# or above it, an upgrade within one LTS line, never an older editor; a project of another line only on its own patch.
+# $null when there is none.
+function Get-UGFUnityOpening([string]$Version, $Cfg = (Get-UGFConfig)) {
+    if (-not $Version) { return $null }
+    $exe = Get-UGFUnityForVersion $Version $Cfg
+    if ($exe) { return [pscustomobject]@{ Version = $Version; Path = $exe } }
+    $want = Get-UGFUnityKey $Version
+    $line = Get-UGFUnityLine $Version
+    if (-not $want -or $line -ne $script:UGFUpgradeLine) { return $null }
+    $best = $null
+    foreach ($e in @(Get-UGFInstalledUnity $Cfg)) {
+        $k = Get-UGFUnityKey $e.Version
+        if (-not $k -or (Get-UGFUnityLine $e.Version) -ne $line -or [string]::CompareOrdinal($k, $want) -lt 0) { continue }
+        if (-not $best -or [string]::CompareOrdinal($k, (Get-UGFUnityKey $best.Version)) -gt 0) { $best = $e }
+    }
+    return $best
 }
 
 # Unity.exe for an exact editor version: "unity_editors" in the config, else

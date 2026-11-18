@@ -39,7 +39,12 @@ start from the reference, never that it reads what the instruction asks)_
   validate, and the validator is seconds while a check is many minutes)_
 - **Unity Hub is signed in with an active licence.** Without one every build and the editor pass exit 198 and the
   check is an ERROR, never a verdict. _(why: a machine that can't run Unity says nothing about the task)_
-- The project's Unity 6000.3 editor is installed, both commits' Git LFS objects are in the local store
+- A Unity 6000.3 editor at or above the patch both commits name is installed: the start and the reference are
+  opened by the same one, the patch the higher of their two `ProjectVersion.txt` versions names, else the newest
+  installed 6000.3 patch above it, never an older one; with none, the check is an ERROR naming the patch to install.
+  It opens a scratch copy of each commit, never the game, so a newer editor rewriting a copy's version files leaves
+  the game as committed; a reading of what is drawn can move by a patch, the same for both sides. _(why: the two
+  cases are compared only when one editor reads both)_ Both commits' Git LFS objects are in the local store
   (`git -C <UGF_ROOT>\games\<slug> lfs fetch origin <commit>`), the repo's drive has room above the machine's floor
   (50 GB unless the machine config says otherwise), and the session is an interactive Windows session (the plays run
   on a desktop of their own).

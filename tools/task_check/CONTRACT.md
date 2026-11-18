@@ -27,8 +27,8 @@ a field means is there; this file holds what an implementer needs beyond it.
 | `xz`, `y_min`/`y_max`/`y_relative` | a ground measure's point on the horizontal plane; a near's band of heights, `y_relative` making it relative to the point's height |
 | player build | Windows x64, Mono, non-development, of the scratch copy (section 5) |
 | play | the built player, windowed 960x540, started by the checker on a Windows desktop of its own (`desk.py`): nothing on the user's screen, no keyboard or cursor taken, the game counts itself focused throughout, the frame identical to a normal window's. Only a player started by hand on the user's own desktop has its window moved off every screen and never activated, by the probe (`Window.cs`) |
-| engine | Unity 6.3 LTS: `ProjectSettings/ProjectVersion.txt` `m_EditorVersion: 6000.3.*`; task `"engine": "unity-6000.3"` |
-| machine | `UGF_ROOT`, `ugfroot` (`machine/lib/ugfroot.py`: `root()`, `unity_editor(project)` for the Unity.exe a project's `ProjectVersion.txt` names, `check_free(path, what)`), `unity-heavy.ps1` (`machine/tools/`, run as `<root>\tools\unity-heavy.ps1`), `UGF_NO_RECORDING` (the task try sets it for its agent, and `GF_NO_RECORDING`, which another factory's recording hooks on the same machine read; this factory's hooks skip on either) |
+| engine | Unity 6.3 LTS: `ProjectSettings/ProjectVersion.txt` `m_EditorVersion: 6000.3.*`, any patch; task `"engine": "unity-6000.3"`. A project is opened with the machine's 6000.3 editor at or above its patch, never an older one (section 5, "The editor a copy is opened with") |
+| machine | `UGF_ROOT`, `ugfroot` (`machine/lib/ugfroot.py`: `root()`, `unity_editor(project, at_least)` for the Unity.exe that opens a project: the patch its `ProjectVersion.txt` names, else the newest installed 6000.3 one above it, `check_free(path, what)`), `unity-heavy.ps1` (`machine/tools/`, run as `<root>\tools\unity-heavy.ps1`), `UGF_NO_RECORDING` (the task try sets it for its agent, and `GF_NO_RECORDING`, which another factory's recording hooks on the same machine read; this factory's hooks skip on either) |
 
 Forward vector from a camera row: `[cos(pitch) * sin(yaw), -sin(pitch), cos(pitch) * cos(yaw)]` (degrees in; the
 probe's own `{"camera": true}` point uses the camera's `transform.forward`, the same direction). "Height" is `y`
@@ -967,6 +967,23 @@ folder deleted; the checker keeps those files and the play's spec (`unity.SPEC`)
 station to make its desktop on: it exits 1 with a line `desk.py: ...` and the player never runs) the play raises
 `unity.NoDesktop`, a machine error: the task reads ERROR, never a play with no samples.
 
+**The editor a copy is opened with.** Any Unity 6000.3 project is checked, whatever its patch:
+
+- A copy is opened with the 6000.3 patch its `ProjectVersion.txt` names when the machine has it, else the newest
+  installed 6000.3 patch above it: an upgrade within one LTS line, never an older editor (`ugfroot.unity_editor`). With
+  none installed the task is an ERROR (the machine's, never INVALID) naming the patch to install, or any newer 6000.3
+  one. A project of another line is the task's (`seeds.WrongEngine`).
+- The start and the reference of one task are opened by the same editor: the one for the higher of their two patches
+  (`unity.Machine.for_project(copy, at_least=...)`); a task try opens its runs with it too, and a run whose project
+  the agent moved to a newer patch is not graded (that run fails).
+- Versions order as Unity releases them: the three numbers, then the release letter (a < b < f < p), then its number
+  (`6000.3.28f1` > `6000.3.26f1` > `6000.3.9f1`; `ugfroot.version_key`).
+- The result says both, per side, in its `unity` (`project 6000.3.26f1, editor 6000.3.28f1`), read before any job.
+- The caveat: an upgrade open may re-import the copy and rewrite its version files (`ProjectVersion.txt`, the package
+  lock), in the scratch copy only, never in the game as committed. What is read off a drawn frame can move by a
+  patch; the start and the reference are read by the same editor in the same check, so calibrated thresholds stay
+  consistent.
+
 **The build** (`unity.Project.build`, `TaskProbe.EditorTools.Build.Player`; one command, in the copy):
 
 ```
@@ -974,7 +991,8 @@ station to make its desktop on: it exits 1 with a line `desk.py: ...` and the pl
     -executeMethod TaskProbe.EditorTools.Build.Player -taskProbeBuild <copy>\Logs\TaskProbe\build_request.json
 ```
 
-`<Unity.exe>` is the one the copy's `ProjectVersion.txt` names (`ugfroot.unity_editor`), through
+`<Unity.exe>` is the one that opens the copy (`ugfroot.unity_editor`; the same for the start and the reference of a
+task: "The editor a copy is opened with" above), through
 `unity-heavy.ps1 -Label "task-check build <commit[:12]>"` when the machine has it, with a timeout of `--build-timeout`
 (3600 s). The request (the reference's; a copy built for several tasks of a run lists every scene asked of it so far,
 and a build that failed serves only the scenes it was given: `check.Built`):
@@ -1090,9 +1108,9 @@ root's `.task-check` when it is on the repo's drive, else a `.task-check` beside
   committed. An IDE's `obj`, `bin`, `.vs` and `__pycache__` in the package folder are left out.
 - Refused (`seeds.WrongEngine`, the task INVALID) when `ProjectVersion.txt` isn't `6000.3.*`: `<side>:
   ProjectSettings/ProjectVersion.txt names Unity <version>: a task's commits must be Unity 6000.3 projects as
-  committed`. Unity fails on paths past 260 characters and a project's own deepest paths take most of them, so the
-  checker refuses a run whose copies' folders would be longer than 90 characters and says to pass `--scratch`
-  (`seeds.MAX_FOLDER`).
+  committed`. Any 6000.3 patch is checked ("The editor a copy is opened with"). Unity fails on paths past 260 characters
+  and a project's own deepest paths take most of them, so the checker refuses a run whose copies' folders would be
+  longer than 90 characters and says to pass `--scratch` (`seeds.MAX_FOLDER`).
 - Deleted with what its plays left outside it (`seeds.forget_saves`, names of the form `TaskProbe.<12 hex>` alone):
   the registry key `HKCU\Software\TaskProbe.<hash>` (PlayerPrefs), `TaskProbe_<hash>` in LocalLow and in the temp
   folder (persistent data, the cache) and the crash handler's `TaskProbe.<hash>` in the temp folder.

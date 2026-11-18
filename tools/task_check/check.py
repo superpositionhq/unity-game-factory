@@ -172,11 +172,20 @@ class Builds:
     def __init__(self, repo, scratch, direct=False, log=print):
         self.repo, self.scratch, self.direct, self.log = repo, Path(scratch), direct, log
         self.copies = {}  # sha -> (Built, info) or the seeds.WrongEngine its probe package refused
+        self.opens = {}  # sha -> the version its copy's editor was chosen for (the higher of its task's two)
 
-    def get(self, sha, needed=()):
+    def get(self, sha, needed=(), at_least=None):
         """(Built, info) for commit `sha`; raises seeds.WrongEngine for a project that isn't Unity 6000.3, RuntimeError
-        when the Unity it names isn't installed, and seeds.PathTooLong for a scratch folder Unity can't build in. When
-        the disk is below the machine's floor, copies other than `needed` (this task's commits) are deleted first."""
+        when no installed Unity opens it, and seeds.PathTooLong for a scratch folder Unity can't build in. `at_least`:
+        the other side's version of the same task, so both are opened by the same editor (unity.Machine.for_project);
+        a copy made for another editor is made again. When the disk is below the machine's floor, copies other than
+        `needed` (this task's commits) are deleted first."""
+        own = seeds.engine_at(self.repo, sha)
+        opens = unity.ugfroot.higher(own, at_least) if at_least else own
+        if sha in self.copies and self.opens.get(sha) != opens:
+            self.log(f"  {sha[:12]}: its copy was opened for Unity {self.opens.get(sha) or '?'}, this task's sides "
+                     f"for Unity {opens or '?'}: making it again")
+            self.release(sha)
         if sha in self.copies:
             self.log(f"  {sha[:12]}: reusing the copy already made in this run")
         else:
@@ -186,14 +195,17 @@ class Builds:
             made = seeds.materialize(self.repo, sha, folder)
             try:
                 seeds.add_probe(folder)
-                machine = unity.Machine.for_project(folder, self.direct)
+                machine = unity.Machine.for_project(folder, self.direct, at_least=at_least)
             except (seeds.WrongEngine, RuntimeError) as exc:  # (a Unity that isn't installed) every task on it alike
                 self.copies[sha] = exc
-            else:
+            else:  # read before any job: an upgrade open may rewrite the copy's ProjectVersion.txt
+                opened = machine.opened(folder)
+                self.log(f"  {sha[:12]}: {opened}")
                 self.copies[sha] = (Built(unity.Project(folder, machine, sha[:12]), self.log),
                                     {"files": made["files"], "lfs_linked": made["linked"],
-                                     "lfs_copied": made["copied"], "engine": str(machine.editor),
+                                     "lfs_copied": made["copied"], "engine": str(machine.editor), "unity": opened,
                                      "slots": "unity-heavy" if machine.heavy else "direct"})
+            self.opens[sha] = opens
         found = self.copies[sha]
         if isinstance(found, Exception):
             raise found
@@ -808,9 +820,11 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
             except RuntimeError:
                 return finish("INVALID", [f"seed.{'commit' if side == 'start' else 'reference'} {commit[:12]} isn't a "
                                           f"commit of {Path(repo).name} (fetch it, or fix the task)"])
+        # the start and the reference are opened by the same editor: the one for the higher of their two versions
+        opens = unity.ugfroot.higher(*[seeds.engine_at(repo, sha) for sha in shas.values()])
         for side, sha in shas.items():
             try:
-                project, info = builds.get(sha, shas.values())
+                project, info = builds.get(sha, shas.values(), at_least=opens)
             except seeds.WrongEngine as exc:
                 return finish("INVALID", [f"{side}: {exc}"])
             sides[side] = Side(side, project, task, timeout, build_timeout, evidence, log)

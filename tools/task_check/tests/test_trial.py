@@ -96,7 +96,7 @@ def faked(agent, projects=None, editor="C:/U/Unity.exe", kill=False):
 
     with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
             mock.patch.object(unity.Machine, "for_project",
-                              classmethod(lambda cls, p, d=False: cls(Path(editor), None))), \
+                              classmethod(lambda cls, p, d=False, **_: cls(Path(editor), None))), \
             mock.patch.object(trial, "kill_left_behind", trial.kill_left_behind if kill else lambda folder: []):
         yield projects
 
@@ -399,7 +399,7 @@ class Whole(unittest.TestCase):
 
             with mock.patch.object(unity, "Project", project), mock.patch.object(trial, "run_agent", agent), \
                     mock.patch.object(unity.Machine, "for_project",
-                                      classmethod(lambda cls, p, d=False: cls(Path("C:/U/Unity.exe"), None))):
+                                      classmethod(lambda cls, p, d=False, **_: cls(Path("C:/U/Unity.exe"), None))):
                 result = trial.try_task(repo, task, json.dumps(task).encode(), Path(tmp) / "scratch",
                                         Path(tmp) / "out", "claude", "claude", runs=2, places=[repo],
                                         log=lambda *a: None)
@@ -470,12 +470,12 @@ class Whole(unittest.TestCase):
                       "Build/Game.exe", "Assets/Scripts/Fix.cs", text="the agent's")
                 return answered(argv, cwd, prompt, transcript, minutes)
 
-            def graded(name, folder, *rest):
+            def graded(name, folder, *rest, **named):
                 if name.startswith("run"):
                     at_grade[name] = sorted(p.relative_to(folder).as_posix() for d in ("Library", "Temp", "Build")
                                             for p in (Path(folder) / d).rglob("*") if p.is_file())
                     at_grade["work"] = (Path(folder) / "Assets" / "Scripts" / "Fix.cs").is_file()
-                return original(name, folder, *rest)
+                return original(name, folder, *rest, **named)
 
             original = trial.side
             with faked(agent), mock.patch.object(trial, "side", graded):
@@ -510,13 +510,39 @@ class Whole(unittest.TestCase):
             repo, task = tried(tmp)
             editors = {"start": "C:/Unity/6000.3.26f1/Editor/Unity.exe",
                        "reference": "C:/Unity/6000.3.28f1/Editor/Unity.exe"}
-            machine = classmethod(lambda cls, p, d=False: cls(Path(editors.get(Path(p).name, "C:/U/Unity.exe")), None))
+            machine = classmethod(lambda cls, p, d=False, **_: cls(Path(editors.get(Path(p).name, "C:/U/Unity.exe")), None))
             with faked(answered), mock.patch.object(unity.Machine, "for_project", machine):
                 result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
                                         "claude", log=lambda *a: None)
             self.assertEqual(result["status"], "DONE", result["reasons"])
             brief = (Path(tmp) / "out" / "probe-task" / "brief.md").read_text(encoding="utf-8")
             self.assertIn(str(Path(editors["start"])), brief)
+            self.assertNotIn("6000.3.28f1", brief)
+
+    @mock.patch.object(seeds, "MAX_FOLDER", 400)  # the scratch folder's length is the machine's: it decides nothing here
+    def test_the_start_the_reference_and_every_run_are_opened_by_the_editor_for_the_higher_version(self):
+        """A thread that moved the game from 6000.3.26f1 to 6000.3.28f1: every copy of the try is opened by the editor
+        for 28f1 (the same readings on each), while the brief still names the start's own editor."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, task = tried(tmp)
+            (repo / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.28f1\n",
+                                                                         encoding="utf-8")
+            git(repo, "commit", "-q", "-am", "the editor moved to 6000.3.28f1")
+            task["seed"]["reference"] = git(repo, "rev-parse", "HEAD").strip()
+            asked = []
+
+            def machine(cls, project, direct=False, at_least=None):
+                asked.append((Path(project).name, at_least))
+                return cls(Path(f"C:/Unity/{at_least or '6000.3.26f1'}/Editor/Unity.exe"), None, at_least or "")
+
+            with faked(answered), mock.patch.object(unity.Machine, "for_project", classmethod(machine)):
+                result = trial.try_task(repo, task, b"{}", Path(tmp) / "scratch", Path(tmp) / "out", "claude",
+                                        "claude", log=lambda *a: None)
+            self.assertEqual(result["status"], "DONE", result["reasons"])
+            self.assertEqual(asked, [("start", "6000.3.28f1"), ("start", None), ("reference", "6000.3.28f1"),
+                                     (task["seed"]["game"], "6000.3.28f1")])
+            brief = (Path(tmp) / "out" / "probe-task" / "brief.md").read_text(encoding="utf-8")
+            self.assertIn(str(Path("C:/Unity/6000.3.26f1/Editor/Unity.exe")), brief)
             self.assertNotIn("6000.3.28f1", brief)
 
     def test_a_run_whose_unity_isnt_installed_is_not_solved_and_the_try_goes_on(self):
@@ -531,8 +557,8 @@ class Whole(unittest.TestCase):
                 (Path(cwd) / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: 6000.3.99f1\n")
                 return answered(argv, cwd, prompt, transcript, minutes)
 
-            def machine(cls, project, direct=False):
-                return real(project, direct) if Path(project).parent.name.startswith("run") else \
+            def machine(cls, project, direct=False, at_least=None):
+                return real(project, direct, at_least) if Path(project).parent.name.startswith("run") else \
                     cls(Path("C:/U/Unity.exe"), None)
 
             with faked(agent), mock.patch.object(unity.Machine, "for_project", classmethod(machine)), \
@@ -794,11 +820,11 @@ class CleanUp(unittest.TestCase):
                 _winapi.CreateJunction(str(outside["deep"]), str(Path(cwd) / "Build" / "cache"))
                 return answered(argv, cwd, prompt, transcript, minutes)
 
-            def graded(name, folder, *rest):
+            def graded(name, folder, *rest, **named):
                 if name.startswith("run"):
                     at_grade.update(temp=os.path.lexists(Path(folder) / "Temp"),
                                     build=(Path(folder) / "Build").exists())
-                return original(name, folder, *rest)
+                return original(name, folder, *rest, **named)
 
             original = trial.side
             with faked(agent), mock.patch.object(trial, "side", graded):
@@ -961,10 +987,10 @@ class CleanUp(unittest.TestCase):
             script = ("import json, os; open('agent was here.txt', 'w').write(os.getcwd()); "
                       "print(json.dumps({'type': 'result', 'num_turns': 3}))")
 
-            def graded(name, folder, *rest):
+            def graded(name, folder, *rest, **named):
                 if name.startswith("run"):
                     seen["cwd"] = (Path(folder) / "agent was here.txt").read_text()
-                return original(name, folder, *rest)
+                return original(name, folder, *rest, **named)
 
             original = trial.side
             with faked(trial.run_agent, kill=True), mock.patch.object(trial, "side", graded), \

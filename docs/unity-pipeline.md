@@ -38,8 +38,8 @@ pipeline's scripts are `tools/unity-pipeline/` (Windows PowerShell 5.1).
 
 `%UGF_ROOT%` is the machine root: env `UGF_ROOT`, else `root` in `%USERPROFILE%\.unity-game-factory\config.json`
 (written by `machine/bootstrap.ps1`), else `%USERPROFILE%\UnityWork`; `machine/lib/ugf-root.ps1` resolves it, and the
-same file gives each project's editor: exactly the version its `ProjectSettings/ProjectVersion.txt` names
-(`Get-UGFUnity`; Unity Hub's folder `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe`, config
+same file gives each project's editor: the version its `ProjectSettings/ProjectVersion.txt` names when installed,
+else the newest installed 6000.3 patch above it, never an older one (`Get-UGFUnity`; Unity Hub's folder `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe`, config
 `unity_hub_editors`, or `unity_editors` for an editor installed elsewhere) and `ugb` (default `C:\UGB`: the release
 builds' private clones and their temp folder, outside the user profile). See
 [../machine/README.md](../machine/README.md).
@@ -194,7 +194,8 @@ Dynamic guards on top of the counts:
    the `git lfs fetch` to run. Uncommitted work is not built.
 3. The player as the commit builds it: the game's own `Assets/Editor/Tools/BuildPlayer.cs` names the method
    (`<Project>.EditorTools.BuildPlayer.BuildWindows`) and the exe (`<Project>.exe`), and the editor is the one its
-   `ProjectSettings/ProjectVersion.txt` names (`Get-UGFUnity`; not installed: the build fails and says which).
+   `ProjectSettings/ProjectVersion.txt` names, else the newest installed 6000.3 patch above it, which opens the clone
+   only (`Get-UGFUnity`; none installed: the build fails and says which patch to install).
    `Unity.exe -batchmode -nographics -quit -logFile <logs>\<stamp>-player.log -projectPath <clone> -executeMethod
    <method> -buildOut builds\<slug>\<sha8>\Windows [-backend il2cpp|mono]` runs through the limiter, at below-normal
    priority, with `TEMP` and `TMP` in `<ugb>\tmp`: the release player, IL2CPP unless `-Backend mono` (a machine

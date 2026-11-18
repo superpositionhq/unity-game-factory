@@ -12,6 +12,10 @@ import re
 
 DEFAULT_UNITY_VERSION = "6000.3"   # Unity 6.3 LTS: new games use its newest installed patch, as ugf-root.ps1
 DEFAULT_HUB_EDITORS = "C:/Program Files/Unity/Hub/Editor"
+# a Unity version as Unity names its releases: 6000.3.28f1 (major, minor, patch, the release's letter, its number)
+UNITY_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)([abfp])(\d+)$")
+RELEASES = "abfp"  # alpha, beta, final, patch: in the order Unity releases them
+LINE = "6000.3"  # the line whose project a newer patch of it opens (unity_opening); any other only on its own patch
 
 
 def config_path():
@@ -42,6 +46,56 @@ def project_unity_version(project):
             if m:
                 return m.group(1)
     return ""
+
+
+def version_key(version):
+    """A Unity version ("6000.3.28f1") as a tuple that orders as Unity's releases do: the three numbers, then the
+    release's letter (a < b < f < p) and its number, so 6000.3.28f1 > 6000.3.26f1 > 6000.3.9f1. None for a text that
+    isn't a Unity version."""
+    found = UNITY_VERSION.match((version or "").strip())
+    if found is None:
+        return None
+    major, minor, patch, letter, number = found.groups()
+    return int(major), int(minor), int(patch), RELEASES.index(letter), int(number)
+
+
+def line_of(version):
+    """The line a Unity version is of ("6000.3" for 6000.3.28f1): its first two numbers."""
+    return ".".join((version or "").strip().split(".")[:2])
+
+
+def installed_unity():
+    """{version: Unity.exe} of every editor installed: <unity_hub_editors>/<version>/Editor/Unity.exe and every
+    "unity_editors" entry that is a file, as ugf-root.ps1 Get-UGFInstalledUnity. Forward slashes."""
+    c = config()
+    hub = (c.get("unity_hub_editors") or DEFAULT_HUB_EDITORS).replace("\\", "/").rstrip("/")
+    found = {d: "%s/%s/Editor/Unity.exe" % (hub, d) for d in (os.listdir(hub) if os.path.isdir(hub) else [])
+             if os.path.isfile("%s/%s/Editor/Unity.exe" % (hub, d))}
+    found.update({d: p.replace("\\", "/") for d, p in (c.get("unity_editors") or {}).items()
+                  if p and os.path.isfile(p)})
+    return found
+
+
+def unity_opening(version):
+    """(the editor's version, its Unity.exe) that opens a project naming Unity `version`, as ugf-root.ps1
+    Get-UGFUnityOpening (keep the two in step): the exact patch when it is installed; else the newest installed
+    editor of the same line (6000.3) at or above it, an upgrade within one LTS line, never an older editor; a project
+    of another line only on its own patch. ("", "") when there is none."""
+    exe = unity_for_version(version)
+    if exe or version_key(version) is None or line_of(version) != LINE:
+        return (version, exe) if exe else ("", "")
+    want = version_key(version)
+    above = [(version_key(v), v, p) for v, p in installed_unity().items()
+             if line_of(v) == line_of(version) and version_key(v) is not None and version_key(v) >= want]
+    return max(above)[1:] if above else ("", "")
+
+
+def higher(*versions):
+    """The highest of `versions` of the first one's line (version_key); the first one when no other is higher or none
+    is a Unity version."""
+    first = versions[0] if versions else ""
+    same = [v for v in versions if version_key(v) is not None and line_of(v) == line_of(first)]
+    return max(same, key=version_key) if same and version_key(first) is not None else first
 
 
 def unity_for_version(version):
@@ -75,14 +129,27 @@ def unity_version():
     return max(finals)[2] if finals else ""
 
 
-def unity_editor(project=None):
-    """Unity.exe for a project, as ugf-root.ps1 Get-UGFUnity (keep the two in step): the exact version its
-    ProjectVersion.txt names, else unity_version(). Exits naming what to install when it is missing."""
+def unity_editor(project=None, at_least=None):
+    """Unity.exe for a project, as ugf-root.ps1 Get-UGFUnity (keep the two in step): the editor that opens the version
+    its ProjectVersion.txt names (unity_opening: that patch, else the newest installed one of its line above it), else
+    unity_version(). `at_least`: another version of the same line the same editor must open too (the other side of a
+    task): the editor is then the one for the higher of the two. Exits naming what to install when there is none."""
+    return unity_editor_and_version(project, at_least)[1]
+
+
+def unity_editor_and_version(project=None, at_least=None):
+    """(the editor's version, its Unity.exe) of unity_editor."""
     import sys
     ver = project_unity_version(project) or unity_version()
-    exe = unity_for_version(ver)
+    if ver and at_least:
+        ver = higher(ver, at_least)
+    have, exe = unity_opening(ver)
     if not exe:
-        if ver:
+        if ver and version_key(ver) is not None and line_of(ver) == LINE:
+            what = ("Unity %s is not installed, nor any newer %s patch: install it or a newer %s patch through Unity "
+                    "Hub (Installs > Install Editor, or Archive for an older patch: version %s"
+                    % (ver, line_of(ver), line_of(ver), ver))
+        elif ver:
             what = ("Unity %s is not installed: install it through Unity Hub (Installs > Install Editor, or Archive for "
                     "an older patch: version %s" % (ver, ver))
         else:
@@ -91,7 +158,7 @@ def unity_editor(project=None):
                     "Install Editor" % (series, series))
         sys.exit("%s, with Windows Build Support (IL2CPP)), or name its Unity.exe in unity_editors in %s"
                  % (what, config_path()))
-    return exe
+    return have, exe
 
 
 def org():

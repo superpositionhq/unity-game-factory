@@ -98,7 +98,8 @@ Try-Check 'Unity 6.3 LTS editor' {
     elseif ($android.Ok) { Add-Result PASS 'Android toolchain (mobile games)' "$ver has Android Build Support with OpenJDK, SDK and NDK" }
     else { Add-Result WARN 'Android toolchain (mobile games)' "not found for $ver" "only for a mobile game's APK (its release build skips the APK without it): Unity Hub > Installs > $ver > Add modules > Android Build Support, with OpenJDK and Android SDK & NDK Tools (docs/new-machine.md, `"Mobile games`")" }
 }
-# A game builds, tests and plays only on the exact editor its ProjectSettings\ProjectVersion.txt names (Get-UGFUnity).
+# A game builds, tests and plays on the editor its ProjectSettings\ProjectVersion.txt names, else the newest installed
+# one of its line above it, never an older one (Get-UGFUnity, Get-UGFUnityOpening).
 Try-Check 'Unity editors of the games' {
     $need = [ordered]@{}
     foreach ($g in @(Get-ChildItem (Join-Path $Root 'games') -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '_*' })) {
@@ -107,9 +108,9 @@ Try-Check 'Unity editors of the games' {
         if (-not $need.Contains($Matches[1])) { $need[$Matches[1]] = @() }
         $need[$Matches[1]] += $g.Name
     }
-    $missing = @($need.Keys | Where-Object { -not (Get-UGFUnityForVersion $_ $cfg) })
+    $missing = @($need.Keys | Where-Object { -not (Get-UGFUnityOpening $_ $cfg) })
     if (-not $missing) { Add-Result PASS 'Unity editors of the games' $(if ($need.Count) { "installed: $(@($need.Keys) -join ', ')" } else { 'no game projects yet' }) }
-    else { Add-Result WARN 'Unity editors of the games' "not installed: $(($missing | ForEach-Object { "$_ ($($need[$_] -join ', '))" }) -join '; ')" 'needed only to build, test or play those games: Unity Hub > Installs > Install Editor > Archive > that exact version, with Windows Build Support (IL2CPP)' }
+    else { Add-Result WARN 'Unity editors of the games' "not installed: $(($missing | ForEach-Object { "$_ ($($need[$_] -join ', '))" }) -join '; ')" 'needed only to build, test or play those games: Unity Hub > Installs > Install Editor > that version or a newer patch of its line (Archive for an older patch), with Windows Build Support (IL2CPP)' }
 }
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 Try-Check 'C++ tools for IL2CPP' {

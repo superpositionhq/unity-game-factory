@@ -187,10 +187,14 @@ its ends.
 
 ### Starts on the engine
 
-The checker opens a start exactly as committed, with the Unity version its `ProjectSettings/ProjectVersion.txt` names
-(6000.3.x): it never upgrades, patches or rewrites a game, and it refuses a start that isn't a 6000.3 project. So
-`seed.commit` and `seed.reference` must both be 6000.3 commits that compile and build as they are (the validator
-checks the version). When a thread's real start can't be used as it is (it predates a package upgrade the reference
+Any Unity 6000.3 project can be a task's start or reference, whatever its patch. The checker works on a scratch copy
+of each commit and opens the start and the reference with one editor: the 6000.3 patch the higher of their two
+`ProjectSettings/ProjectVersion.txt` versions names when it is installed, else the newest installed 6000.3 patch above
+it, never an older one. It never patches or rewrites the game: a newer editor may re-import its copy and rewrite the
+copy's version files (`ProjectVersion.txt`, the package lock), never the game's. It refuses a start that isn't a 6000.3
+project. So `seed.commit` and `seed.reference` must both be 6000.3 commits that compile and build as they are (the
+validator checks the version). _(why: one editor for both sides gives the start and the reference the same readings,
+and what is drawn can read a little differently from one patch to the next)_ When a thread's real start can't be used as it is (it predates a package upgrade the reference
 depends on, or an unrelated later fix is needed for it to compile), give it a made start:
 
 - **B** = main's head. **S** (`seed.commit`) = B with the thread's change taken back out of the game itself

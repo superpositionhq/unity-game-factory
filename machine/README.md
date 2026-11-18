@@ -35,11 +35,18 @@ its zip next to the game repo, or where its `--out` says, and keeps each deliver
 `package-log.jsonl` and its run lock in `<out>\<slug>\`) and `min_free_gb` (env `UGF_MIN_FREE_GB`, default 50: the task
 check, the task try, the creation replay and the dataset packager refuse to start on a drive with less free).
 
-Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its editor (`m_EditorVersion: 6000.3.28f1`),
-and the tools use exactly that install (`lib/ugf-root.ps1` `Get-UGFUnity`, `lib/ugfroot.py` `unity_editor`):
-`unity_editors[<version>]` if set, else `<unity_hub_editors>\<version>\Editor\Unity.exe`; a missing version gives
-`$null` and a warning naming the version to install through Unity Hub (`ugfroot.py` exits with that message), so a
-project never silently opens in another editor, which would re-serialize its assets. Without a project, the version new
+Editor per project: a project's `ProjectSettings\ProjectVersion.txt` names its version (`m_EditorVersion: 6000.3.26f1`),
+and the tools open it with that patch when it is installed (`unity_editors[<version>]` if set, else
+`<unity_hub_editors>\<version>\Editor\Unity.exe`), else with the newest installed 6000.3 patch above it, never an older
+one and never another line's (`lib/ugf-root.ps1` `Get-UGFUnity` and `Get-UGFUnityOpening`, `lib/ugfroot.py`
+`unity_editor` and `unity_opening`, which keep the same rule; versions order as Unity releases them: the three
+numbers, then the letter a < b < f < p, then its number). A project of another line opens only on its own patch.
+With none, `Get-UGFUnity` gives `$null` and a warning naming the patch to install, or any newer 6000.3 one
+(`ugfroot.py` exits with that message). An editor newer than the project's patch upgrades what it opens: Unity may
+rewrite its `ProjectVersion.txt` and package lock and re-serialize assets. The task checker and the release build open
+copies, so the game is never touched there; a game session installs its game's own patch instead of letting a newer
+one move the game (unity-game-session skill). The task checker opens a task's start and reference with the same
+editor, the one for the higher of their two versions (`unity_editor(project, at_least)`, `Get-UGFUnity -AtLeast`). Without a project, the version new
 games use: `Get-UGFUnityVersion` (`ugfroot.py` `unity_version`), which turns the series `6000.3` into its newest
 installed final patch and gives `''` when none is installed (Unity Hub installs each patch beside the others, so a
 pinned default would go stale). `Get-UGFNewestUnity -Series 6000.3` gives the newest installed 6.3 LTS patch as

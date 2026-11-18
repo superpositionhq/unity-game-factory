@@ -1,7 +1,9 @@
 """Unity for the checker: build a scratch copy's player with the TaskProbe package, play it, run the editor pass over its
 assets. Every job goes through the machine's `<root>\\tools\\unity-heavy.ps1` when it has one (the machine's shared
 CPU/GPU slots: the timeout then counts from when the job starts, never the wait for a slot), else runs directly. The
-editor is the one the project's ProjectSettings/ProjectVersion.txt names (machine/lib/ugfroot.py `unity_editor`).
+editor is the one that opens the version the project's ProjectSettings/ProjectVersion.txt names (machine/lib/ugfroot.py
+`unity_editor`: that patch, else the newest installed one of its line above it), the same for the start and the
+reference of a task (`at_least`: the higher of their two versions); an upgrade open re-imports the scratch copy only.
 Unity locks a project while it has it open, so a scratch copy runs one job at a time (the checker is sequential).
 
 - build: Unity.exe -batchmode -nographics -quit -projectPath <copy> -logFile <copy>/Logs/TaskProbe/build.log
@@ -230,22 +232,30 @@ def _ps_quote(value):
 
 @dataclass
 class Machine:
-    """Where Unity is and how jobs run: `editor` (the project's Unity.exe), `heavy` (the slot limiter, or None to run
-    directly)."""
+    """Where Unity is and how jobs run: `editor` (the Unity.exe that opens the project), `heavy` (the slot limiter, or
+    None to run directly), `version` (the editor's version, "" when not known)."""
 
     editor: Path
     heavy: Path | None
+    version: str = ""
 
     @classmethod
-    def for_project(cls, project, direct=False):
-        """The machine for a scratch copy: the Unity its ProjectVersion.txt names. Raises RuntimeError naming the
-        version to install when that Unity isn't installed."""
+    def for_project(cls, project, direct=False, at_least=None):
+        """The machine for a scratch copy: the Unity that opens the version its ProjectVersion.txt names (that patch,
+        else the newest installed one of its line above it, never an older one). `at_least`: the other side's version
+        of the same task, so the start and the reference are opened by the same editor (the one for the higher of the
+        two). Raises RuntimeError naming the version to install when there is none."""
         try:
-            editor = Path(ugfroot.unity_editor(str(project)))
+            version, editor = ugfroot.unity_editor_and_version(str(project), at_least)
         except SystemExit as exc:  # ugfroot exits, as a command line would; the checker reports it per task
             raise RuntimeError(str(exc)) from None
         heavy = Path(ugfroot.root()) / "tools" / "unity-heavy.ps1"
-        return cls(editor=editor, heavy=None if direct or not heavy.is_file() else heavy)
+        return cls(editor=Path(editor), heavy=None if direct or not heavy.is_file() else heavy, version=version)
+
+    def opened(self, project):
+        """What the record says of `project` opened here: "project <P>, editor <E>" (the Unity its ProjectVersion.txt
+        names, the editor's version)."""
+        return f"project {ugfroot.project_unity_version(str(project)) or '?'}, editor {self.version or '?'}"
 
     def job(self, label, argv, cwd, timeout, gpu=False):
         """`argv` as one Unity job: through unity-heavy.ps1 when the machine has it (in a GPU slot too when `gpu`),

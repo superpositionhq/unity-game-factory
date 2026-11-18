@@ -49,13 +49,18 @@ grader allows, or `--timeout` when that is shorter, and a task play's waits on t
 
 ## Requirements
 
-- Windows with the Unity editor the project names: each commit's `ProjectSettings/ProjectVersion.txt`
-  (`m_EditorVersion: 6000.3.x`) picks the install through the machine config (`unity_editors` in
-  `%USERPROFILE%\.unity-game-factory\config.json`, or in the file the environment variable `UGF_CONFIG` names, else
-  `<unity_hub_editors>\<version>\Editor\Unity.exe`; [machine/README.md](../machine/README.md)). A version that isn't
-  installed is an ERROR naming it: install it through Unity Hub. Every start and reference must be a Unity 6.3 LTS
-  (`6000.3.*`) project as committed: the checker never upgrades, ports or patches a game, and refuses any other
-  version. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
+- Windows with a Unity 6000.3 editor that opens the task's commits. Any 6000.3 patch is checked: the start and the
+  reference of one task are opened by the same editor, the one for the higher of the two versions their
+  `ProjectSettings/ProjectVersion.txt` name (`m_EditorVersion: 6000.3.x`): that patch when it is installed, else the
+  newest installed 6000.3 patch above it, never an older one (`machine/lib/ugfroot.py` `unity_editor`; the installs
+  are found through the machine config: `unity_editors` in `%USERPROFILE%\.unity-game-factory\config.json`, or in the
+  file the environment variable `UGF_CONFIG` names, and `<unity_hub_editors>\<version>\Editor\Unity.exe`;
+  [machine/README.md](../machine/README.md)). With none installed the task is an ERROR naming the patch to install
+  (or any newer 6000.3 one). Every start and reference must be a Unity 6.3 LTS (`6000.3.*`) project as committed: the
+  checker never ports or patches a game, and refuses any other version. It works on scratch copies: a newer editor may
+  re-import a copy and rewrite its version files (`ProjectVersion.txt`, the package lock), never the game's own. What
+  is read off a drawn frame can move by a patch; the start and the reference are read by the same editor in the same
+  check, so a calibrated threshold stays consistent. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
 - **An active Unity licence** (Unity Hub, signed in). A batchmode Unity run without one exits with code 198 (its log
   says `No valid Unity Editor license`) and the check of that task stops with an ERROR: sign in to Unity Hub again and
   rerun. It is never a game bug.
@@ -295,7 +300,8 @@ without), so this is for drafts only.
   - `start` and `reference`: the side's `commit`, whether it `built`, its `missing_assets` (`{}` when nothing is
     missing; else, per scene the task plays, the asset GUIDs it names that the commit has no asset for, and how many
     assets it names), and how its copy was made (`files`, `lfs_linked`, `lfs_copied`, `engine`: the Unity.exe used,
-    `slots`: `unity-heavy` or `direct`);
+    `unity`: `project 6000.3.26f1, editor 6000.3.28f1`, the version the commit names and the editor's, `slots`:
+    `unity-heavy` or `direct`);
   - `probes`: an object keyed by each probe check's name: its milestone (`group`), `required`, `op`, `expect`, the
     `start` and `reference` measures (null where that side measured nothing, which is not a measured 0), the
     `threshold` (null when uncalibrated), and whether each side passed (`start_passed`, `reference_passed`);
@@ -511,8 +517,11 @@ is the task, set `"fails_at_start": true` on the build check (then no threshold 
 build: Unity stopped twice ...` below.
 
 **`start: ProjectSettings/ProjectVersion.txt names Unity ...: a task's commits must be Unity 6000.3 projects as
-committed`** (or `reference: ...`). That commit was made on another Unity, and the checker never upgrades a project.
-Pick a start and a reference from the part of the game's history made on 6000.3.
+committed`** (or `reference: ...`). That commit was made on another Unity line, and the checker never moves a project
+to another line. Pick a start and a reference from the part of the game's history made on 6000.3 (any patch).
+
+**`Unity 6000.3.x is not installed, nor any newer 6000.3 patch: ...`** (an ERROR, not a verdict): the machine has no
+editor that opens the task's commits. Install that patch, or a newer 6000.3 one, through Unity Hub and run again.
 
 **`... LFS object(s) ... aren't in ...'s local store`** (an ERROR line, not a verdict): fetch them,
 `git -C <repo> lfs fetch origin <commit>`, and run again.

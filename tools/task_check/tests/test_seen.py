@@ -193,7 +193,7 @@ class Whole(unittest.TestCase):
             return found
 
         with mock.patch.object(unity, "Project", project), \
-                mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False: cls(Path(p), None))):
+                mock.patch.object(unity.Machine, "for_project", classmethod(lambda cls, p, d=False, **_: cls(Path(p), None))):
             return check.check_task(repo, task, json.dumps(task).encode(), Path(self.tmp.name) / "scratch",
                                     Path(self.tmp.name) / "out", log=lambda *a: None)
 

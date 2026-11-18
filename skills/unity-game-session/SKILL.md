@@ -97,8 +97,11 @@ by hand under these rules, or ask.
 
 ## Engine and content
 
-- **Unity 6.3 LTS** (`6000.3.x`, pinned in `ProjectSettings/ProjectVersion.txt`; the tools pick each project's editor
-  from that file) for every game; never upgrade a game's editor version without the coordinator. **URP** (Universal
+- **Unity 6.3 LTS** (`6000.3.x`, pinned in `ProjectSettings/ProjectVersion.txt`; the tools open each project with the
+  patch that file names when installed, else the newest installed 6000.3 patch above it, never an older one) for
+  every game; never upgrade a game's editor version without the coordinator: install the game's own patch (Unity Hub,
+  Archive) rather than let a newer one open it. _(why: a newer patch opening the game rewrites its
+  `ProjectVersion.txt` and may re-serialize assets, a change nobody asked for in the game's history)_ **URP** (Universal
   Render Pipeline) with the Universal Renderer, Linear colour space, the **Input System** package as the only active
   input handling, **Cinemachine 3** for cameras. The template's first open sets these up.
 - **C# for gameplay** (`Assets/Scripts/`, in its own assembly definition: a test assembly cannot reference Unity's

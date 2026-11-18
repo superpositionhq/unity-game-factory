@@ -174,10 +174,12 @@ mobile game is delivered with its APK, so `tools/package-dataset.py` refuses a b
 
 ## Toolchain notes
 
-- A project opens and builds only with the **exact** editor version in its `ProjectSettings\ProjectVersion.txt`
-  (`m_EditorVersion`); the tools never upgrade a project silently. Moving a game to a newer 6000.3 patch is a
-  deliberate step: open it once with the new editor in batchmode, commit the changed `ProjectVersion.txt` and the
-  re-serialized files together.
+- A project opens and builds with the editor version in its `ProjectSettings\ProjectVersion.txt` (`m_EditorVersion`)
+  when it is installed, else with the newest installed 6000.3 patch above it, never an older one
+  ([machine/README.md](../machine/README.md)). A newer patch upgrades the project it opens (Unity rewrites
+  `ProjectVersion.txt` and may re-serialize files), so install each game's own patch: moving a game to a newer 6000.3
+  patch is a deliberate step, its changed `ProjectVersion.txt` and re-serialized files committed together. The task
+  checker and the release build open copies, never the game.
 - Each project's `Library\` folder is a local cache (git-ignored) that the first open rebuilds: a fresh clone's first
   editor run takes several minutes, run it through `unity-heavy.ps1` like any heavy job.
 - The editor keeps its own log in `%LOCALAPPDATA%\Unity\Editor\Editor.log` and Unity Hub its logs in
