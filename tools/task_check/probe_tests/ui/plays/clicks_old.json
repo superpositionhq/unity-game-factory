@@ -1,5 +1,5 @@
 {
- "seconds": 6,
+ "seconds": 7,
  "shots": 0,
  "every": 0.5,
  "scene": "Assets/ProbeTests/ui/Made/ClicksOld.unity",
@@ -286,11 +286,6 @@
    "press": false
   },
   {
-   "t": 4.4,
-   "widget": "GoDropdown",
-   "click": true
-  },
-  {
    "t": 4.5,
    "widget": "New_expedition",
    "click": true
@@ -378,6 +373,11 @@
   {
    "t": 5.6,
    "widget": "UVeiledButton",
+   "click": true
+  },
+  {
+   "t": 6.0,
+   "widget": "GoDropdown",
    "click": true
   }
  ]

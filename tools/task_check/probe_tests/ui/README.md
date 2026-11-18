@@ -48,7 +48,7 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   (`UiClickCount`; `UiTriggerCount` for EventTrigger entries; `UiClickWatch` reads the EventSystem's selection); the UI
   Toolkit document (`UiToolkitClicks`) counts its buttons' clicks. Among them: two buttons of one name, a button off the
   frame, one not interactable, one whose Button is disabled, one fully transparent, one under a half-transparent image
-  that takes the cursor's raycast (`BlockedButton`) and one under an image that takes none (`VeiledButton`), a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
+  that takes the cursor's raycast (`BlockedButton` under `CoverPanel`) and one under an image that takes none (`VeiledButton`), a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
   parent that takes clicks, an InputField and a Dropdown, a UI Toolkit button that only has a `ClickEvent` callback,
   buttons clicked by what they read (two that read alike, one of them clicked by its exact text, one that can't be
   clicked, one with accents and punctuation), and scroll areas 60 px tall (a ScrollRect whose viewport is a
@@ -86,7 +86,8 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   visible until a click on it scrolls its own area to it and then lands (a uGUI area only with an EventSystem), one
   outside a mask that is no scroll area a miss, a button something that takes the pointer is drawn over a miss
   ("covered by another control"; uGUI's only where an EventSystem raycasts) and one under something that takes no
-  pointer clicked, the widgets field `covered`, and cursor clicks (uGUI's only through the Input System's UI
+  pointer clicked, the widgets field `covered`, and cursor clicks; the Dropdown is clicked last (6 s), since its
+  open list puts Unity's own full-screen `Blocker` over every other control (uGUI's only through the Input System's UI
   module; UI Toolkit's through it, or on its own with no EventSystem).
 - `events` (Hud, sampled every 0.1 s): shots that wait for their event (`when`): a panel going away at 0.5 s (a
   widgets `visible`), a row's box leaving at 1 s (a widgets count), the frame counter at 45 (an objects `prop:`), the

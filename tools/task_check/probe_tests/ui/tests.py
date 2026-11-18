@@ -446,11 +446,13 @@ def clicks_for(module):
              ["covered by another control" if on else "no visible button matches it", "covered by another control",
               None if on else "no visible button matches it", None])
         if on:
-            t.ok("probe.log: BlockedButton is under Blocker",
-                 "BlockedButton (Button) matches 'BlockedButton', but Blocker (Image) is over it: not clicked" in log)
+            t.ok("probe.log: BlockedButton is under CoverPanel",
+                 "BlockedButton (Button) matches 'BlockedButton', but CoverPanel (Image) is over it: not clicked" in log)
+            # the Dropdown is opened last (6 s): its list's own full-screen Blocker would cover every click after it
+            t.ok("probe.log: no click before the Dropdown opens is covered by its Blocker", "but Blocker (Image)" not in log)
         t.ok("probe.log: UCoveredButton is under UCover",
              "UCoveredButton (Button) matches 'UCoveredButton', but UCover (VisualElement) is over it: not clicked" in log)
-        t.eq("widgets covered at 1 s: under the Blocker, under the Veil, in the open (no value without an EventSystem)",
+        t.eq("widgets covered at 1 s: under CoverPanel, under the Veil, in the open (no value without an EventSystem)",
              [get(play, "cover", 1.0, n, "covered") for n in ("BlockedButton", "VeiledButton", "GoButton")],
              [1, 0, 0] if on else [None] * 3)
         t.eq("widgets covered at 1 s, UI Toolkit: under UCover, under UVeil, in the open",
@@ -467,7 +469,8 @@ def clicks_for(module):
              count(play, end, "BlockedButton", "downs"), 0)
         if system:
             t.eq("widget click on an InputField: focused", get(play, "field", 1.0, "GoField", "prop:InputField.isFocused"), 1)
-            t.eq("widget click on a Dropdown: its list is open", get(play, "dropdown", end, "GoDropdown", "prop:Dropdown.m_Dropdown"), 1)
+            # clicked last, at 6 s: an open list puts Unity's full-screen Blocker over every other control
+            t.eq("widget click on a Dropdown: its list is open", get(play, "dropdown", 6.5, "GoDropdown", "prop:Dropdown.m_Dropdown"), 1)
     return check
 
 
