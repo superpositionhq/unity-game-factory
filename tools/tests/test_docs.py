@@ -651,6 +651,7 @@ LOGGED = (  # keys and values of probe.json's samples, which the page names "for
 NOT_OURS = ('true', 'false', 'null',        # JSON's own words
             'materials',                    # Unity's Renderer.materials, which a prop: reads as sharedMaterials
             'display', 'visibility',        # UI Toolkit style properties ("display: none")
+            'overflow: hidden',             # the UI Toolkit style of an element that clips its children
             'h:mm:ss', 'm:ss')              # the forms of a clock on screen
 
 
