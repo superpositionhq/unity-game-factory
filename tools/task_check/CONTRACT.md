@@ -683,7 +683,17 @@ control <path>`, `inputs: no device for <path>`), never a stop.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with
-  the old StandaloneInputModule neither, as it reads the Input Manager; the game through `Mouse.current`).
+  the old StandaloneInputModule neither, as it reads the Input Manager; the game through `Mouse.current`). The virtual
+  mouse is the game's own Input System mouse (`Mouse.current` and `Pointer.current`: it is made current with every
+  change), so a game that reads where the mouse is from it (a HUD's hit boxes, a menu painted on a canvas or in
+  `OnGUI` that tests `Mouse.current.position` and `leftButton`) finds it at the cursor, and a press there clicks it.
+  IMGUI (`OnGUI`: `Event.current`, its `mousePosition` and MouseDown, `GUI.Button`) and the old Input Manager
+  (`Input.mousePosition`, `Input.GetMouseButtonDown`) take the mouse from the operating system's own events, which the
+  probe neither moves nor presses: a control IMGUI draws is never clicked and gets no MouseDown (the ui probe tests'
+  `gui` play). Nothing in Unity hands IMGUI a mouse event in a built player but the operating system: the
+  system's pointer can't be moved from a desktop that isn't the input desktop (a play's desktop of its own on
+  Windows), moving it under a Linux X server would still press nothing, and a press needs the system's input
+  injection, which takes the real desktop's pointer; so the limit is stated, not worked around.
 - teleport: `{"t", "teleport": [x, y, z], "yaw": deg, "hold": s}`; teleport_to: `{"t", "teleport_to": <object select>,
   "distance": 2.0, "offset": [x, y, z], "face": <Point>, "hold": s}`. The probe sets the player's transform, its pivot,
   to the point (`Inputs.Place`), through its CharacterController (disabled for the move), its NavMeshAgent (`Warp`, on

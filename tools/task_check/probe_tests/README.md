@@ -124,7 +124,7 @@ ASSETS = {"measures": "measures.json", "check": saved}    # one editor pass: {"<
 | `contact` | the stages of a contact (`pin`, `damage`, `set`), `inputs_missed`, a select's `where` and `"player": false`, `damage_taken`, `frozen`, `world` |
 | `world` | `camera`, `spawns`, `pieces`, `ground` |
 | `objects` | `objects` and `components`: every field, `lit` and `glow`, change over time |
-| `ui` | `widgets`, `ui`, `screen`, clicks on widgets |
+| `ui` | `widgets`, `ui`, `screen`, clicks on widgets, a menu drawn in OnGUI |
 | `ocr` | the frame text reader behind `ui` |
 | `light` | `light`, `grading`, `audio` |
 | `drawn` | `drawn`, and what its renders leave behind |

@@ -1,4 +1,4 @@
-# ui: widgets, ui, screen, widget and cursor clicks
+# ui: widgets, ui, screen, widget and cursor clicks, an OnGUI menu
 
 The queries that read the UI: `widgets` (a uGUI or UI Toolkit widget's own state), `ui` (every element on screen in
 the frame drawn after a sample, whatever UI system drew it), `screen` (the frame's brightness), and the inputs that
@@ -56,6 +56,8 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   of the view but still on the frame; a RectMask2D that is no scroll area with a button outside it (`PlainOutButton`)
   and a UI Toolkit box that clips with one outside it (`UClipOutButton`); a UI Toolkit button under a box that takes the
   pointer (`UCoveredButton`) and one under a box that doesn't (`UVeiledButton`).
+- **Gui**: a menu drawn in OnGUI (`GuiBoard`, `UiGuiBoard`): a GUI.Button at 600, 400 and a box at 780, 400, each
+  120 x 40 px, whose clicks it counts by the Input System's mouse and by IMGUI's own MouseDown.
 - **Grey**: the camera clears to sRGB grey 64; Overlay images cover the right half with sRGB grey 192 and the top left
   corner with a white and a black box. `-uipost` turns on the camera's post-processing and a volume that doubles the
   exposure; `-uiquit` quits the game in the frame of the 1 s sample.
@@ -95,6 +97,9 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   one whose event doesn't come within its `within` and one whose event never comes are `inputs_missed` rows of kind
   `shot_when`. Measures whose window and `at` count from an event (`since`), read by the checker's own reduction from
   the play's samples.
+- `gui` (Gui): a cursor click on the OnGUI box counts by the Input System's mouse, one elsewhere and one on the
+  GUI.Button don't; the GUI.Button is never clicked and OnGUI gets no MouseDown (IMGUI takes the operating system's
+  mouse, which the probe doesn't move or press).
 - `screen`, `screen_post` (Grey): the values of known greys over rects of every kind (inverted, empty, on the edge,
   outside the frame, with fractional edges); after post-processing the camera's grey changes and the UI's doesn't.
 - `quit` (Grey, `-uiquit`): what the samples of the frame the game quits in hold.

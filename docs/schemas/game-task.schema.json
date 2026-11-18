@@ -1155,7 +1155,7 @@
     },
     "Cursor": {
       "additionalProperties": false,
-      "description": "The virtual mouse moved to a viewport point (fractions 0-1, y down from the top); a following <Mouse>/leftButton\npress and release clicks there.",
+      "description": "The virtual mouse moved to a viewport point (fractions 0-1, y down from the top); a following <Mouse>/leftButton\npress and release clicks there. It is the game's own Input System mouse (Mouse.current), so a hit box the game\ntests against it is clicked there too; a control drawn by IMGUI (OnGUI) is never clicked (probe 1.6.0).",
       "properties": {
         "cursor": {
           "items": {

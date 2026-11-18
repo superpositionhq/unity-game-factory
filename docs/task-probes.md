@@ -207,7 +207,13 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       through an EventSystem with an `InputSystemUIInputModule`, UI Toolkit through that module or, when the scene has
       no EventSystem, on its own, and the game through `Mouse.current` (an EventSystem with the old
       `StandaloneInputModule` reads the Input Manager, which the probe can't drive: there the cursor clicks neither
-      uGUI nor UI Toolkit);
+      uGUI nor UI Toolkit). The virtual mouse is the game's own Input System mouse (`Mouse.current`,
+      `Pointer.current`), so a hit box the game tests against it (a HUD or a menu painted on a canvas or in `OnGUI`
+      that reads `Mouse.current.position` and `leftButton`) is clicked where the cursor is. A control drawn by IMGUI
+      itself (`GUI.Button`, `GUI.TextField`, a click read from `Event.current` in `OnGUI`) is never clicked or typed
+      into: IMGUI takes the mouse and the keys from the operating system, which a play doesn't move or press _(why:
+      a play runs on a desktop of its own, where the system's pointer can't be moved and no press can be injected
+      without taking the real desktop's)_;
     - a teleport: `{"t": 0.2, "teleport": [x, y, z], "yaw": 90}` puts the player's own position (its pivot) at that
       point (m), facing `yaw` (degrees; 0 when left out: a teleport always turns the player), at once: the game's
       scripts of that frame already find the player there (a key reaches them a frame later). Reach a test spot by an
@@ -1780,6 +1786,11 @@ task is void.
   Input System devices. A game that reads `UnityEngine.Input` (the old Input Manager: `Input.GetKey`, `Input.GetAxis`)
   sees none of them; teleports, widget clicks and waits still work, as they don't go through the Input System. Check
   the game's input code at the seed before writing a task play.
+- **An IMGUI menu takes no click and no typing.** `GUI.Button`, `GUI.TextField` and anything `OnGUI` reads from
+  `Event.current` take the operating system's mouse and keys, which a play never moves or presses. Reach the state
+  another way (a key the game binds in its Input System actions, a scenario, a teleport, a `set`), or read the
+  outcome without the click. A hit box the game itself tests against `Mouse.current` is clicked by `cursor` and
+  `<Mouse>/leftButton` as any. _(why: a click no play can make is a check no build can pass)_
 - **Check that a play really reaches the situation.** A probe of a moment the play never reaches measures nothing
   useful. Teleport to the spot (`teleport` input), use a scenario (`scene`/`args`) that starts there, or click past a
   title screen by the button's caption as a player would, and check on the fix that the play gets there before

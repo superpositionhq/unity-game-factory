@@ -1,6 +1,6 @@
 // The ui family's scenes (probe_tests/ui): uGUI and UI Toolkit widgets of every kind widgets and ui read, each at a
 // known place, the ways a widget is or isn't on screen, buttons for widget and cursor clicks under each input module,
-// a frame of known greys for screen, and a HUD of 500 texts.
+// a menu drawn in OnGUI, a frame of known greys for screen, and a HUD of 500 texts.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -39,6 +39,7 @@ namespace ProbeTests.Ui
             Clicks("Clicks", Module.InputSystem);
             Clicks("ClicksOld", Module.Standalone);
             Clicks("ClicksNone", Module.None);
+            Gui();
             Grey();
             Crowd();
         }
@@ -524,6 +525,17 @@ namespace ProbeTests.Ui
             new GameObject("Watch").AddComponent<UiClickWatch>();
             Document("UitkClicks", Made<PanelSettings>("UiPanel.asset")).AddComponent<UiToolkitClicks>();
             Save(scene, sceneName);
+        }
+
+        // ---------------------------------------------------------------- a menu drawn in OnGUI
+
+        // A GUI.Button and a box drawn in OnGUI (GuiBoard), and nothing else: what the cursor reaches of IMGUI.
+        static void Gui()
+        {
+            var scene = New();
+            MainCamera(new Color(0.15f, 0.15f, 0.15f));
+            new GameObject("GuiBoard").AddComponent<UiGuiBoard>();
+            Save(scene, "Gui");
         }
 
         // A ScrollRect of 120 x 60 at (x, y) whose viewport clips by a RectMask2D, or (`stencil`) by a Mask that hides

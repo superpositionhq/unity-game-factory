@@ -1,12 +1,14 @@
 """The ui family: widgets (uGUI and UI Toolkit widgets' own state), ui (the UI on screen in the frame drawn after a
-sample), screen (the frame's brightness) and the clicks (widget clicks, and cursor clicks under each input module)."""
+sample), screen (the frame's brightness), the clicks (widget clicks, and cursor clicks under each input module), and a
+menu drawn in OnGUI."""
 
 import math
 import re
 
 MADE = "Assets/ProbeTests/ui/Made/"
 SETUP = ["ProbeTests.Ui.UiScenes.Build"]
-SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "Grey", "Crowd")]
+SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "Gui", "Grey",
+                                              "Crowd")]
 W, H = 960, 540  # the frame
 FLOAT = 1e-5  # a float of the game widened to a double
 TURNED = 1e-4  # a rectangle turned or projected in floats
@@ -519,6 +521,23 @@ def events(t, play):
     t.ok("since an event that never came: no value, and why", value is None and why.startswith("its event never happened"), why)
 
 
+# ---------------------------------------------------------------- a menu drawn in OnGUI
+
+def gui(t, play):
+    """A cursor move goes to the game's Input System mouse, so a hit box an OnGUI menu paints and the game reads from
+    that mouse is clicked where the cursor is, and only there. IMGUI itself takes the mouse from the operating system,
+    which the probe doesn't move or press: a GUI.Button is never clicked, and OnGUI gets no MouseDown."""
+    def board(what):
+        return get(play, "gui", 2.0, "GuiBoard", "prop:UiGuiBoard." + what)
+
+    t.eq("the box clicked once (0.5 s), a press elsewhere (1.0 s) and one on the GUI.Button (1.5 s) not",
+         [board("boxClicks"), board("missed")], [1, 2])
+    t.near("the game's mouse is where the last cursor went: x", board("mouseX"), 660.0, 1e-3)
+    t.near("... and y from the bottom", board("mouseY"), 120.0, 1e-3)
+    t.eq("GUI.Button: not clicked (IMGUI's mouse is the operating system's)", board("guiClicks"), 0)
+    t.eq("OnGUI: no MouseDown event", board("eventClicks"), 0)
+
+
 # ---------------------------------------------------------------- screen
 
 def screen_for(post):
@@ -616,6 +635,7 @@ PLAYS = {
     "clicks_old": {"check": clicks_for("old")},
     "clicks_none": {"check": clicks_for("none")},
     "events": {"check": events},
+    "gui": {"check": gui},
     "screen": {"check": screen_for(False)},
     "screen_post": {"check": screen_for(True), "args": ["-uipost"]},
     "quit": {"check": quit_check, "args": ["-uiquit"], "ended": "shutdown"},

@@ -1,0 +1,76 @@
+{
+ "seconds": 2,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/Gui.unity",
+ "queries": [
+  {
+   "id": "gui",
+   "kind": "objects",
+   "select": {
+    "name": "GuiBoard"
+   },
+   "fields": [
+    "prop:UiGuiBoard.guiClicks",
+    "prop:UiGuiBoard.eventClicks",
+    "prop:UiGuiBoard.boxClicks",
+    "prop:UiGuiBoard.missed",
+    "prop:UiGuiBoard.mouseX",
+    "prop:UiGuiBoard.mouseY"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.5,
+   "cursor": [
+    0.875,
+    0.777778
+   ]
+  },
+  {
+   "t": 0.55,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 0.6,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 1.0,
+   "cursor": [
+    0.5,
+    0.95
+   ]
+  },
+  {
+   "t": 1.05,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 1.1,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 1.5,
+   "cursor": [
+    0.6875,
+    0.777778
+   ]
+  },
+  {
+   "t": 1.55,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 1.6,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  }
+ ]
+}

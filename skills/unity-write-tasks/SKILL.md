@@ -124,7 +124,8 @@ A thread qualifies only when all of these hold (the validator enforces the numbe
    (`play_scene` and `play_args` at the seed) that triggers the moment, or a task play whose scripted inputs reach it
    (Input System control paths, mouse buttons, mouse axes and the cursor included, widget clicks, teleports, and
    touches: `tap` and `drag`, docs/task-probes.md section 1.3). The plays drive the Input System only: a game that
-   reads the old Input Manager (`Input.GetKey`) takes no keys in them. A mobile game (its root has a `Platform.json`)
+   reads the old Input Manager (`Input.GetKey`) takes no keys in them, and a menu drawn with `OnGUI` (`GUI.Button`,
+   `GUI.TextField`) takes no click or key. A mobile game (its root has a `Platform.json`)
    is played at the phone's size and driven by touch: the unity-mobile-game skill, "Tasks on a mobile game".
    A thread no probe can measure is not a task. One issue of a compound thread that no probe can measure fairly
    stays in the brief and gets a required `looks_as_asked` rubric item (section 5), never one of the required probes.
@@ -747,6 +748,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a lamp drawn by an emissive material rather than a Light reads dark to `on`, `intensity` and `light` | object or component `lit` (any Light that is on or glowing renderer; `glow` calibrated or relative to the start) |
 | a HUD made with UI Toolkit reads as absent to a uGUI widget select (or the reverse) | `ui`: what the UI shows on screen, whatever draws it (text with `match`, counts by `kind` and `rect`) |
 | a lamp whose glow comes from a Shader Graph's own nodes has no reading from its material | `lit` and `glow` as they are: a renderer whose shader lacks the standard emission interface, or whose colour has a texture, is read as rendered |
+| a menu drawn with `OnGUI` (`GUI.Button`, `GUI.TextField`, a click read from `Event.current`) takes no click or key in a play | reach the state another way (a key bound in the game's Input System actions, a scenario, a teleport, a `set`) or grade an outcome that needs no click; a hit box the game tests against `Mouse.current` is clicked by `cursor` and `<Mouse>/leftButton` |
 | a readout drawn with `OnGUI`, `GL` lines or a custom mesh reads as absent to `ui`'s element rows | `ui` `text` with `match` on a `select` of `"kind": "text"` with a `rect` around the readout (read from the frame as drawn); there are no line elements, so if it still doesn't read, grade another outcome |
 | text drawn by a script, a shader or a texture that `ui` and its frame reader can't read has no reading | a `seen` probe on a `shot` input of its own play, with a loose `rect` (a tight one fails a build that draws it elsewhere); a visual check besides the task's required probes, never in their place |
 | a task needs a readout to keep updating, and it may be drawn by any UI system | `ui` `signature` with `"agg": "changes"` on a `select` with a `rect` around the readout (calibrated or relative to the start) |

@@ -462,7 +462,9 @@ values to the turn you need.
 **Keys do nothing.** The probe drives the Input System only. A game that reads the old Input Manager
 (`Input.GetKey`, `Input.GetAxis`) takes no input in a play; the `track` in `probe.json` stays put through the
 `drive`. Such a game's tasks can only use what goes around the Input System (teleports, widget clicks, waits and idle
-plays), or a start that reads the Input System.
+plays), or a start that reads the Input System. The same holds for a menu drawn with `OnGUI`: a `GUI.Button` is never
+clicked and a `GUI.TextField` never typed into, as IMGUI takes the operating system's mouse and keys (task-probes.md,
+section 1.1, the cursor).
 
 **A mobile game's `drive` moves nothing** (the `track` in `probe.json` stays put through the drive). The drive by touch
 puts a left thumb down at the lower left of the screen (`[0.15, 0.75]`) and pushes it, and taps the lower right
