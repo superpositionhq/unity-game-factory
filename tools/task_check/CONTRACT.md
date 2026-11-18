@@ -334,13 +334,20 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   viewport fractions, y down from the top, whatever render mode or panel scale placed it. `visible` (`UiScan.UguiShown`,
   `UitkVisible`) is the widget's state: active, every Canvas up the chain enabled, the widget's own graphic enabled,
   the CanvasGroups' alpha above 0.004 (`UiScan.AlphaFloor`), on a canvas drawn on the screen (not an overlay canvas on
-  another display, nor a camera canvas whose camera is off or renders into a texture or on another display) and inside
-  the frame; for a UI Toolkit element, displayed all the way up, its own resolved visibility visible, of an opacity
-  above 0.004 down the tree, in a panel drawn on the screen (a panel drawn into a texture gives no rectangle) and inside
-  the frame. Its colour, its size, clipping and its Selectable's enabled flag don't count. On screen (`ui` below,
-  `UiScan.UguiDrawn`) means drawn: visible so on a screen-space canvas, and also the graphic's colour and CanvasRenderer
-  alpha above 0.004 with the CanvasGroups', not culled by a RectMask2D nor wholly outside an enabled Mask, and of some
-  size. How text is read: task-probes.md 2.6.
+  another display, nor a camera canvas whose camera is off or renders into a texture or on another display), inside
+  the frame, and not clipped: at least partly inside the rectangle of every enabled `RectMask2D` and every enabled
+  `Mask` (its graphic's rectangle; the shape its image cuts isn't read) on an object above it, up to a Canvas that
+  overrides sorting, which uGUI doesn't mask by a mask above it (`UiScan.Within`); for a UI Toolkit element,
+  displayed all the way up, its own resolved visibility visible, of an opacity above 0.004 down the tree, in a panel
+  drawn on the screen (a panel drawn into a texture gives no rectangle), inside the frame, and at least partly inside
+  the `worldBound` of every element above it that clips (`UiScan.UitkClips`: UI Toolkit's own internal
+  `VisualElement.ShouldClip`, an overflow other than visible with its clipping not turned off, as a ScrollView's
+  viewport; a Unity without that method clips nothing, and `probe.log` says so once). A widget is visible only when
+  it and every parent show it, so an item scrolled out of a scroll area's view is not visible while it lies inside the
+  screen (probe 1.4.0). Its colour, its size and its Selectable's enabled flag don't count. On screen (`ui` below,
+  `UiScan.UguiDrawn`) means drawn: visible so on a screen-space canvas (so not wholly outside an enabled Mask, nor a
+  UI Toolkit element outside one that clips), and also the graphic's colour and CanvasRenderer alpha above 0.004
+  with the CanvasGroups', not culled by a RectMask2D, and of some size. How text is read: task-probes.md 2.6.
 - **ui** (`UiQuery`, `UiScan`, `UiOcr`): the elements on
   screen in the frame drawn right after the sample (`FrameNeed`: the sample is completed once that frame is drawn; one
   whose frame never came has no `rows` key). uGUI graphics on screen-space canvases (Overlay or Camera; text: `Text`,
@@ -597,7 +604,8 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   impulses (the pointer is placed by a cursor row, in fractions of the frame); `<Gamepad>/leftStick/x|y`,
   `rightStick/x|y`, `leftTrigger` and `rightTrigger` keep their value until set again.
 - widget click: `{"t", "widget": "RetryButton", "click": true}`: the first enabled (`isActiveAndEnabled`), interactable
-  and visible (the `widgets` state: a fully transparent button counts) uGUI Selectable in hierarchy order whose name (a
+  and visible (the `widgets` state: a fully transparent button counts, one scrolled out of its scroll area's view
+  doesn't) uGUI Selectable in hierarchy order whose name (a
   wildcard) or type (base types and interfaces too) matches, else such a UI Toolkit Button (`UiScan.Click`); when neither kind has one, the first such uGUI Selectable,
   else UI Toolkit Button, whose caption is `widget` exactly (ordinal, spaces at either end of the caption left out),
   else the first whose caption reads as `widget` (`UiScan.Caption`: lower case, every run of characters that are
@@ -623,7 +631,9 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   the probe ignores them and lists the click in `inputs_missed` as any other, and the checker leaves that row (its
   `t`, kind `click` and the widget as its target) out of the play's missed inputs (`probes.missed`) when its `why` is
   the one the mark allows: `no visible button matches it` for `optional`, `shown but disabled` for `disabled`. Without
-  `disabled`, a click on a disabled button is a missed input.
+  `disabled`, a click on a disabled button is a missed input. The click scrolls nothing: a button scrolled out of its
+  scroll area's view, inside the screen or not, is not visible, so a click on it is a missed input (`no visible button
+  matches it`, probe 1.4.0); the play scrolls first, as a player would.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with

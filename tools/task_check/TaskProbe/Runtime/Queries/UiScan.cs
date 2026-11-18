@@ -4,9 +4,11 @@
 // them. Two rules say whether a widget shows. Visible (the widgets field and select, and the widget click) is a state:
 // active, every Canvas up the chain enabled, its graphic enabled, the CanvasGroups' alpha above
 // 0.004 (in UI Toolkit: displayed all the way up, its own visibility visible, an opacity above 0.004 down the tree),
-// on a canvas or panel drawn on the screen, and inside the frame; its colour, its size and clipping don't count. On
-// screen (a ui element) is drawn: visible on a screen canvas or panel, and also its colour and CanvasRenderer alpha
-// above 0.004 with the CanvasGroups', not culled by a RectMask2D nor outside an enabled Mask, and of some size.
+// on a canvas or panel drawn on the screen, inside the frame, and not wholly outside a RectMask2D or an enabled Mask up
+// the chain (in UI Toolkit: an element up the tree that clips, overflow: hidden, as a ScrollView's viewport does): a
+// control scrolled out of its scroll area is not visible; its colour and its size don't count. On screen (a ui
+// element) is drawn: visible on a screen canvas or panel, and also its colour and CanvasRenderer alpha above 0.004
+// with the CanvasGroups', not culled by a RectMask2D, and of some size.
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -54,8 +56,12 @@ namespace TaskProbe
         static bool OnScreen(double x, double y, double w, double h) => w > 0.0 && h > 0.0 && x + w > 0.0 && x < 1.0 && y + h > 0.0 && y < 1.0;
 
         /// <summary>A rectangle inside the frame, at least partly; one without a size by its place.</summary>
-        static bool InFrame(double x, double y, double w, double h) =>
-            x < 1.0 && y < 1.0 && (w > 0.0 ? x + w > 0.0 : x >= 0.0) && (h > 0.0 ? y + h > 0.0 : y >= 0.0);
+        static bool InFrame(double x, double y, double w, double h) => Within(x, y, w, h, 0.0, 0.0, 1.0, 1.0);
+
+        /// <summary>A rectangle inside the rectangle (cx, cy, cw, ch), at least partly; one without a size by its place.
+        /// Nothing is inside a rectangle without a size.</summary>
+        static bool Within(double x, double y, double w, double h, double cx, double cy, double cw, double ch) =>
+            cw > 0.0 && ch > 0.0 && x < cx + cw && y < cy + ch && (w > 0.0 ? x + w > cx : x >= cx) && (h > 0.0 ? y + h > cy : y >= cy);
 
         static object RectField(string f, double x, double y, double w, double h) => f == "x" ? x : f == "y" ? y : f == "w" ? w : h;
 
@@ -148,9 +154,11 @@ namespace TaskProbe
 
         /// <summary>Visible, a state: active, every Canvas up the chain enabled, `graphic` (when it has
         /// one) enabled, the CanvasGroups' alpha above the floor (up to one that ignores its parents), on a canvas drawn
-        /// on the screen (a world-space one through the player's camera, unless `screenOnly`) and inside the frame. Its
-        /// colour, its size and clipping don't count. `alpha` is the CanvasGroups' product, `canvas` its canvas, the
-        /// rectangle its own.</summary>
+        /// on the screen (a world-space one through the player's camera, unless `screenOnly`), inside the frame, and
+        /// not clipped: at least partly inside the rectangle of every enabled RectMask2D and enabled Mask on an object
+        /// above it (a scroll area's viewport; a stencil Mask is taken as its rectangle), up to a Canvas that overrides
+        /// sorting (uGUI doesn't mask what such a canvas holds by a mask above it). Its colour and its size don't count.
+        /// `alpha` is the CanvasGroups' product, `canvas` its canvas, the rectangle its own.</summary>
         static bool UguiShown(GameObject go, Graphic graphic, bool screenOnly, out float alpha, out Canvas canvas,
                               out double x, out double y, out double w, out double h)
         {
@@ -175,19 +183,29 @@ namespace TaskProbe
                     if (g.ignoreParentGroups) groupsDone = true;
                 }
             }
-            return alpha > AlphaFloor && RectOf(go.transform as RectTransform, canvas, screenOnly, out x, out y, out w, out h) && InFrame(x, y, w, h);
+            if (!(alpha > AlphaFloor) || !RectOf(go.transform as RectTransform, canvas, screenOnly, out x, out y, out w, out h) || !InFrame(x, y, w, h))
+                return false;
+            for (var p = go.transform; p != null; p = p.parent)
+            {
+                if (p != go.transform
+                    && ((p.TryGetComponent<RectMask2D>(out var rectMask) && rectMask.enabled) || (p.TryGetComponent<Mask>(out var mask) && mask.MaskEnabled()))
+                    && RectOf(p as RectTransform, canvas, screenOnly, out var mx, out var my, out var mw, out var mh) && !Within(x, y, w, h, mx, my, mw, mh))
+                    return false;
+                if (p.TryGetComponent<Canvas>(out var own) && own.overrideSorting) break;
+            }
+            return true;
         }
 
         /// <summary>Visible (UguiShown): a widget's visible, and what the widget click takes.</summary>
         static bool UguiVisible(GameObject go, Graphic graphic) => UguiShown(go, graphic, false, out _, out _, out _, out _, out _, out _);
 
-        /// <summary>Drawn on screen (a ui element): visible on a screen canvas, and its colour and CanvasRenderer alpha
-        /// above the floor with the CanvasGroups', not culled by a RectMask2D, of some size, and not wholly outside an
-        /// enabled Mask up the chain (a stencil Mask, as on uGUI's Scroll View and Dropdown list, draws nothing outside
-        /// its rect and, unlike a RectMask2D, never culls). The rectangle is the graphic's.</summary>
+        /// <summary>Drawn on screen (a ui element): visible on a screen canvas (so not wholly outside an enabled Mask up
+        /// the chain: a stencil Mask, as on uGUI's Scroll View and Dropdown list, draws nothing outside its rect and,
+        /// unlike a RectMask2D, never culls), and its colour and CanvasRenderer alpha above the floor with the
+        /// CanvasGroups', not culled by a RectMask2D, of some size. The rectangle is the graphic's.</summary>
         static bool UguiDrawn(Graphic graphic, out double x, out double y, out double w, out double h)
         {
-            if (!UguiShown(graphic.gameObject, graphic, true, out var alpha, out var canvas, out x, out y, out w, out h)) return false;
+            if (!UguiShown(graphic.gameObject, graphic, true, out var alpha, out _, out x, out y, out w, out h)) return false;
             alpha *= graphic.color.a;
             var cr = graphic.canvasRenderer;
             if (cr != null)
@@ -195,13 +213,7 @@ namespace TaskProbe
                 if (cr.cull) return false;
                 alpha *= cr.GetAlpha();
             }
-            if (!(alpha > AlphaFloor) || !OnScreen(x, y, w, h)) return false;
-            for (var p = graphic.transform.parent; p != null; p = p.parent)
-                if (p.TryGetComponent<Mask>(out var mask) && mask.MaskEnabled()
-                    && RectOf(p as RectTransform, canvas, true, out var mx, out var my, out var mw, out var mh)
-                    && !(x < mx + mw && mx < x + w && y < my + mh && my < y + h))
-                    return false;
-            return true;
+            return alpha > AlphaFloor && OnScreen(x, y, w, h);
         }
 
         static bool IsTmpPart(Graphic g)
@@ -323,7 +335,8 @@ namespace TaskProbe
         /// <summary>Visible in a panel on the screen (`onScreen`): displayed all the way up (display: none takes an
         /// element and everything under it out), visible (visibility is inherited, and a child may be visible again
         /// under a hidden parent: its own resolved value decides), of an opacity above the floor down the tree, inside
-        /// the frame; `drawn` (a ui element): of some size there too.</summary>
+        /// the frame, and at least partly inside the box of every element up the tree that clips (UitkClips: a
+        /// ScrollView's viewport); `drawn` (a ui element): of some size there too.</summary>
         static bool UitkVisible(UIE.VisualElement e, bool onScreen, bool drawn)
         {
             if (!onScreen || e?.panel == null || e.resolvedStyle.visibility != UIE.Visibility.Visible) return false;
@@ -334,7 +347,36 @@ namespace TaskProbe
                 if (s.display == UIE.DisplayStyle.None) return false;
                 opacity *= s.opacity;
             }
-            return opacity > AlphaFloor && RectOf(e, out var x, out var y, out var w, out var h) && (drawn ? OnScreen(x, y, w, h) : InFrame(x, y, w, h));
+            if (!(opacity > AlphaFloor) || !RectOf(e, out var x, out var y, out var w, out var h) || !(drawn ? OnScreen(x, y, w, h) : InFrame(x, y, w, h)))
+                return false;
+            var b = e.worldBound;
+            for (var p = e.hierarchy.parent; p != null; p = p.hierarchy.parent)
+            {
+                if (!UitkClips(p)) continue;
+                var c = p.worldBound;
+                if (!Within(b.x, b.y, b.width, b.height, c.x, c.y, c.width, c.height)) return false;
+            }
+            return true;
+        }
+
+        static System.Reflection.MethodInfo shouldClip;
+        static bool shouldClipLooked;
+
+        /// <summary>Whether `p` clips what it holds to its box, by UI Toolkit's own rule (VisualElement.ShouldClip,
+        /// internal: an overflow other than visible, its clipping not turned off; a ScrollView's viewport clips, its
+        /// content container doesn't). A Unity without that method clips nothing here, and probe.log says so
+        /// once.</summary>
+        static bool UitkClips(UIE.VisualElement p)
+        {
+            if (!shouldClipLooked)
+            {
+                shouldClipLooked = true;
+                shouldClip = typeof(UIE.VisualElement).GetMethod("ShouldClip", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                                                                 null, Type.EmptyTypes, null);
+                if (shouldClip != null && shouldClip.ReturnType != typeof(bool)) shouldClip = null;
+                if (shouldClip == null) Probe.Log("UI Toolkit: no VisualElement.ShouldClip in this Unity, so an element that clips hides no widget");
+            }
+            return shouldClip != null && (bool)shouldClip.Invoke(p, null);
         }
 
         static UnityEngine.Object BackgroundAsset(UIE.Background b)
@@ -681,12 +723,13 @@ namespace TaskProbe
         /// <summary>Clicks the first visible, interactable uGUI Selectable whose object's name matches `want` (a wildcard)
         /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it
         /// (pressed, released, clicked). Visible is the widgets' state (a fully transparent button
-        /// takes a click). No raycast: an image over it doesn't stop it. Without an EventSystem a player's click reaches
-        /// no uGUI widget, and neither does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or
-        /// a type name may match several: the log names the one), or null when none. When no name and no type
-        /// matches, the first such widget whose caption is `want` exactly as shown (Shown) is clicked, else the first
-        /// whose caption reads as `want` (Caption): a button the task itself adds has no name at the start, and the
-        /// instruction names it by what it reads.</summary>
+        /// takes a click; one scrolled out of its scroll area's viewport doesn't: no scrolling is done). No raycast: an
+        /// image over it doesn't stop it. Without an EventSystem a player's click reaches no uGUI widget, and neither
+        /// does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or a type name may match
+        /// several: the log names the one), or null when none. When no name and no type matches, the first such widget
+        /// whose caption is `want` exactly as shown (Shown) is clicked, else the first whose caption reads as `want`
+        /// (Caption): a button the task itself adds has no name at the start, and the instruction names it by what it
+        /// reads.</summary>
         public static string Click(string want) => Click(want, By.Name, true) ?? Click(want, By.Shown, true) ?? Click(want, By.Caption, true);
 
         /// <summary>For a click that found nothing (Click): the first visible uGUI Selectable or UI Toolkit Button that

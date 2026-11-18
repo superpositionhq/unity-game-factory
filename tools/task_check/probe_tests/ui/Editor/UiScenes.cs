@@ -509,9 +509,36 @@ namespace ProbeTests.Ui
             Control(DefaultControls.CreateSlider(skin), "HeldSlider", holder.transform, 0, 5, 200, 20);
             // a half-transparent image on a canvas above, over BlockedButton: it takes the cursor's raycast
             Box("Blocker", NewCanvas("BlockCanvas", 10), 0, 210, 200, 50, new Color(0f, 0f, 0f, 0.5f));
+            // scroll areas, each with a button in view and one scrolled out of the viewport but still on the frame: a
+            // click on that one is a miss
+            ScrollArea(skin, "ClipArea", canvas, 300, 270, false, "ClipInButton", "ClipOutButton");
+            ScrollArea(skin, "MaskArea", canvas, 440, 270, true, "MaskInButton", "MaskOutButton");
             new GameObject("Watch").AddComponent<UiClickWatch>();
             Document("UitkClicks", Made<PanelSettings>("UiPanel.asset")).AddComponent<UiToolkitClicks>();
             Save(scene, sceneName);
+        }
+
+        // A ScrollRect of 120 x 60 at (x, y) whose viewport clips by a RectMask2D, or (`stencil`) by a Mask that hides
+        // its own image. Its content, 300 px tall from the viewport's top, holds `inside` 10 px down (in view) and
+        // `outside` 200 px down (scrolled out: 140 px below the viewport, on the frame).
+        static void ScrollArea(DefaultControls.Resources skin, string name, Transform parent, float x, float y, bool stencil, string inside, string outside)
+        {
+            var area = Ui(name, parent, x, y, 120, 60, typeof(ScrollRect));
+            var viewport = Ui(name + "Viewport", area.transform, 0, 0, 120, 60);
+            if (stencil)
+            {
+                viewport.AddComponent<Image>();
+                viewport.AddComponent<Mask>().showMaskGraphic = false;
+            }
+            else viewport.AddComponent<RectMask2D>();
+            var content = Ui(name + "Content", viewport.transform, 0, 0, 120, 300);
+            MakeButton(skin, inside, content.transform, 0, 10, 120, 30, inside.ToUpperInvariant());
+            MakeButton(skin, outside, content.transform, 0, 200, 120, 30, outside.ToUpperInvariant());
+            var scroll = area.GetComponent<ScrollRect>();
+            scroll.viewport = (RectTransform)viewport.transform;
+            scroll.content = (RectTransform)content.transform;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
         }
 
         // ---------------------------------------------------------------- screen

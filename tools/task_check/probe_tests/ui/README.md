@@ -9,9 +9,10 @@ read, and that a line an element already reads isn't read twice).
 Two rules say whether a widget shows, and the scenes pin both. `visible` (the `widgets` field and select, and what the
 widget click takes) is a state: the object active, every Canvas up the chain enabled, its graphic
 enabled, the CanvasGroups' alpha above 0.004 (UI Toolkit: displayed, its own visibility visible, the opacity above
-0.004), on a canvas or panel drawn on the screen, inside the frame; its colour, its size and clipping don't count. A
-`ui` element is drawn: visible so, and its colour and CanvasRenderer alpha above 0.004 too, not culled by a RectMask2D
-nor outside an enabled Mask, and of some size. Both read every element of a UI Toolkit panel, the parts a control
+0.004), on a canvas or panel drawn on the screen, inside the frame, and inside every RectMask2D, enabled Mask or UI
+Toolkit element that clips above it (each at least in part); its colour and its size don't count. A `ui` element is
+drawn: visible so, and its colour and CanvasRenderer alpha above 0.004 too, not culled by a RectMask2D, and of some
+size. Both read every element of a UI Toolkit panel, the parts a control
 builds inside itself too (a Slider's tracker and dragger, a ProgressBar's bar), each named by its name or, unnamed, by
 its type, so a `name` wildcard such as `Vis*` also matches an unnamed part (`VisualElement`).
 
@@ -38,7 +39,8 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   a UI Toolkit document (`UiToolkitHud`): a label in rich text counting frames, an image, boxes made by a background and
   by a border, a progress bar counting frames, sliders, a toggle, a dropdown, text fields with a value and with only a
   placeholder, a scroller, buttons, the `VisUitk*` ways an element is or isn't on screen (display none, visibility
-  hidden, a visible child of a hidden parent, opacity 0 and 0.004, off the frame, width 0, disabled), a turned box, a
+  hidden, a visible child of a hidden parent, opacity 0 and 0.004, off the frame, width 0, disabled, inside and outside
+  a box that clips with `overflow: hidden`), a turned box, a
   label without a name, a password field, a label inside a Box and a box that moves at 1 s; a second document on a
   panel scaled from 1920x1080, a third on a panel drawn into a render texture, and a document without panel settings.
 - **Clicks**, **ClicksOld**, **ClicksNone**: the same buttons under the Input System's UI module, under the old
@@ -49,7 +51,9 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   that takes the cursor's raycast, a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
   parent that takes clicks, an InputField and a Dropdown, a UI Toolkit button that only has a `ClickEvent` callback,
   buttons clicked by what they read (two that read alike, one of them clicked by its exact text, one that can't be
-  clicked, one with accents and punctuation).
+  clicked, one with accents and punctuation), and scroll areas 60 px tall (a ScrollRect whose viewport is a
+  RectMask2D, one whose viewport is a Mask, a UI Toolkit ScrollView), each with a button in view and one scrolled out
+  of the view but still on the frame.
 - **Grey**: the camera clears to sRGB grey 64; Overlay images cover the right half with sRGB grey 192 and the top left
   corner with a white and a black box. `-uipost` turns on the camera's post-processing and a volume that doubles the
   exposure; `-uiquit` quits the game in the frame of the 1 s sample.
@@ -76,7 +80,8 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
 - `clicks`, `clicks_old`, `clicks_none`: widget clicks (each pointer event, from the enter to the exit; uGUI's under
   either module, and with no EventSystem none, as a player's click: probe.log says so and the game's log stays clean;
   UI Toolkit's always), a click by caption (the exact text first), the misses of a button shown but disabled apart
-  from those of one not shown (`inputs_missed`' why), and cursor clicks (uGUI's only through the Input System's UI
+  from those of one not shown (`inputs_missed`' why), a button scrolled out of its scroll area's view reading not
+  visible and its click a miss while the one in view is visible and clicked, and cursor clicks (uGUI's only through the Input System's UI
   module; UI Toolkit's through it, or on its own with no EventSystem).
 - `screen`, `screen_post` (Grey): the values of known greys over rects of every kind (inverted, empty, on the edge,
   outside the frame, with fractional edges); after post-processing the camera's grey changes and the UI's doesn't.

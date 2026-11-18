@@ -81,6 +81,16 @@ namespace ProbeTests.Ui
             Add(new VisualElement(), "VisUitkZero", 840, 300, 0, 20).style.backgroundColor = Color.blue;
             Add(new UnityEngine.UIElements.Button { text = "NOPE" }, "VisUitkDisabled", 620, 300, 100, 25).SetEnabled(false);
             Add(new UnityEngine.UIElements.Button { text = "GO" }, "UitkButton", 730, 300, 100, 25);
+            // a box that clips (overflow: hidden, as a ScrollView's viewport) at (620, 440): a child inside it and one
+            // outside it, still on the frame
+            var clip = Add(new VisualElement(), "VisUitkClip", 620, 440, 100, 40);
+            clip.style.overflow = Overflow.Hidden;
+            var clippedIn = At(new VisualElement { name = "VisUitkClippedIn" }, 10, 10, 40, 20);
+            clippedIn.style.backgroundColor = Color.cyan;
+            clip.Add(clippedIn);
+            var clipped = At(new VisualElement { name = "VisUitkClipped" }, 150, 10, 40, 20);
+            clipped.style.backgroundColor = Color.cyan;
+            clip.Add(clipped);
 
             // turned 45 degrees about its centre, at (900, 360)
             var turned = Add(new VisualElement(), "RectUitkTurned", 870, 330, 60, 60);

@@ -72,13 +72,13 @@ def no_rect(t, what, row):
 
 # ---------------------------------------------------------------- widgets
 
-VISIBLE = {  # widgets' visible, a state: a widget's colour, size and clipping don't count (ui's do)
+VISIBLE = {  # widgets' visible, a state: a widget's colour and size don't count (ui's do); a mask's clipping does
     "VisUnder": 1, "VisClear": 1, "VisFaint": 1, "VisDim": 1, "VisHalf": 1, "VisHalfText": 1, "VisZero": 1, "VisOff": 0,
-    "VisEdge": 1, "VisClip": 1, "VisClipped": 1, "VisClippedIn": 1, "VisOffCanvas": 0, "VisOffCanvasText": 0,
+    "VisEdge": 1, "VisClip": 1, "VisClipped": 0, "VisClippedIn": 1, "VisOffCanvas": 0, "VisOffCanvasText": 0,
     "VisOffGraphic": 0, "VisMuted": 1, "VisLocked": 1, "VisHidden": 0, "VisHiddenText": 0, "VisInactive": 0,
-    "VisInactiveText": 0, "VisMask": 1, "VisMaskedText": 1, "VisMaskedOut": 1, "VisUitkHidden": 0, "VisUitkInvisible": 0,
+    "VisInactiveText": 0, "VisMask": 1, "VisMaskedText": 1, "VisMaskedOut": 0, "VisUitkHidden": 0, "VisUitkInvisible": 0,
     "VisUitkHiddenParent": 0, "VisUitkShownChild": 1, "VisUitkClear": 0, "VisUitkFaint": 0, "VisUitkOff": 0,
-    "VisUitkZero": 1, "VisUitkDisabled": 1,
+    "VisUitkZero": 1, "VisUitkDisabled": 1, "VisUitkClip": 1, "VisUitkClipped": 0, "VisUitkClippedIn": 1,
 }
 WHY = {
     "VisUnder": "under another canvas's box", "VisClear": "a text of alpha 0", "VisFaint": "a text of alpha 0.004",
@@ -93,7 +93,8 @@ WHY = {
     "VisUitkInvisible": "visibility: hidden", "VisUitkHiddenParent": "visibility: hidden, with a visible child",
     "VisUitkShownChild": "visibility: visible under a hidden parent", "VisUitkClear": "opacity 0",
     "VisUitkFaint": "opacity 0.004", "VisUitkOff": "off the frame", "VisUitkZero": "width 0",
-    "VisUitkDisabled": "a disabled Button",
+    "VisUitkDisabled": "a disabled Button", "VisUitkClip": "overflow: hidden, no paint",
+    "VisUitkClipped": "outside an overflow: hidden parent, on the frame", "VisUitkClippedIn": "inside an overflow: hidden parent",
 }
 RECTS = {
     "RectTurned": turned(520, 360, 60), "RectScaled": (0.3, 0.8, 0.1, 0.1), "RectCam": frac(20, 420, 240, 60),
@@ -236,13 +237,14 @@ UI_KINDS = {  # (name, kind) of elements on screen
     ("RectTurned", "box"), ("VisDim", "text"), ("VisHalfText", "text"), ("VisEdge", "box"), ("VisClippedIn", "box"),
     ("VisMaskedText", "text"), ("TmpSprite", "text"), ("UitkLabel", "text"), ("UitkBox", "box"), ("UitkBorder", "box"),
     ("UitkImage", "image"), ("UitkButton", "box"), ("UitkButton", "text"), ("VisUitkShownChild", "box"),
-    ("RectUitkScaled", "box"), ("RectUitkTurned", "box"), ("VisUitkDisabled", "box"),
+    ("RectUitkScaled", "box"), ("RectUitkTurned", "box"), ("VisUitkDisabled", "box"), ("VisUitkClippedIn", "box"),
 }
 UI_ABSENT = (  # not on screen, or not UI
     "RectWorld", "RectBack", "RectTv", "RectUitkTv", "EmptyFill", "VisClear", "VisFaint", "VisZero", "VisOff",
     "VisClipped", "VisOffCanvasText", "VisOffGraphic", "VisHidden", "VisHiddenText", "VisInactive", "VisInactiveText",
     "VisMask", "UitkPlain", "VisUitkHidden", "VisUitkInvisible", "VisUitkHiddenParent", "VisUitkClear", "VisUitkFaint",
-    "VisUitkOff", "VisUitkZero", "StaleText", "VisMaskedOut", "RectCamOff", "NotShown", "BarePanel",
+    "VisUitkOff", "VisUitkZero", "StaleText", "VisMaskedOut", "RectCamOff", "NotShown", "BarePanel", "VisUitkClip",
+    "VisUitkClipped",
 )
 
 
@@ -399,6 +401,23 @@ def clicks_for(module):
         if on:  # without an EventSystem no uGUI click lands, so those two are misses too
             t.ok("inputs_missed: no row for a click by its exact caption",
                  not {"new expedition", "Prêt à partir !"} & set(why))
+        # a button scrolled out of its scroll area's viewport, still on the frame, isn't visible: a click on it is a miss
+        # (no scrolling is done); the one in view is visible and clicked
+        t.eq("widgets visible: in view and scrolled out of a RectMask2D, a Mask and a UI Toolkit ScrollView viewport",
+             [get(play, "scrolled", 1.0, n, "visible") for n in ("ClipInButton", "ClipOutButton", "MaskInButton", "MaskOutButton",
+                                                                 "UScrollInButton", "UScrollOutButton")], [1, 0, 1, 0, 1, 0])
+        t.eq("clicked in view, not scrolled out (RectMask2D, Mask)",
+             [count(play, end, n, f) for n in ("ClipInButton", "ClipOutButton", "MaskInButton", "MaskOutButton") for f in ("downs", "fired")],
+             [on, on, 0, 0, on, on, 0, 0])
+        t.eq("UI Toolkit: clicked in view, not scrolled out of a ScrollView",
+             [get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("scrollIn", "scrollOut")], [1, 0])
+        for widget in ("ClipOutButton", "MaskOutButton", "UScrollOutButton"):
+            t.ok(f"probe.log: no visible button matches '{widget}'", f"no visible button matches '{widget}'" in log)
+        t.eq("inputs_missed: a button scrolled out is not shown",
+             [why.get(w) for w in ("ClipOutButton", "MaskOutButton", "UScrollOutButton", "UScrollInButton")],
+             ["no visible button matches it"] * 3 + [None])
+        if on:
+            t.ok("inputs_missed: no row for a button in view", not {"ClipInButton", "MaskInButton"} & set(why))
         t.eq("an EventSystem in the scene", get(play, "watch", 1.0, "Watch", "prop:UiClickWatch.system"), 0 if module == "none" else 1)
         t.eq("a click on a button that takes no selection leaves nothing selected", get(play, "watch", 1.5, "Watch", "prop:UiClickWatch.selected"), "")
         # UI Toolkit takes the Input System's pointer itself when the scene has no EventSystem; an EventSystem with the

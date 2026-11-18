@@ -43,7 +43,9 @@
     "prop:UiToolkitClicks.no",
     "prop:UiToolkitClicks.off",
     "prop:UiToolkitClicks.cursor",
-    "prop:UiToolkitClicks.caption"
+    "prop:UiToolkitClicks.caption",
+    "prop:UiToolkitClicks.scrollIn",
+    "prop:UiToolkitClicks.scrollOut"
    ]
   },
   {
@@ -97,6 +99,17 @@
    },
    "fields": [
     "prop:Dropdown.m_Dropdown"
+   ]
+  },
+  {
+   "id": "scrolled",
+   "kind": "widgets",
+   "select": {
+    "component": "Button",
+    "visible": false
+   },
+   "fields": [
+    "visible"
    ]
   }
  ],
@@ -292,6 +305,36 @@
   {
    "t": 4.75,
    "widget": "Prêt à partir !",
+   "click": true
+  },
+  {
+   "t": 4.8,
+   "widget": "ClipInButton",
+   "click": true
+  },
+  {
+   "t": 4.82,
+   "widget": "ClipOutButton",
+   "click": true
+  },
+  {
+   "t": 4.84,
+   "widget": "MaskInButton",
+   "click": true
+  },
+  {
+   "t": 4.86,
+   "widget": "MaskOutButton",
+   "click": true
+  },
+  {
+   "t": 4.88,
+   "widget": "UScrollInButton",
+   "click": true
+  },
+  {
+   "t": 4.9,
+   "widget": "UScrollOutButton",
    "click": true
   }
  ]

@@ -453,8 +453,9 @@ player sees: on-screen text read with a loose match (`ui`, a regular expression 
 see, never an exact string it doesn't quote), objects by a tag or a type the start already has, a place reached by
 `teleport_to` or by pinning an object, never by raw coordinates. **"Shown" means on screen**: a `widgets` select reads
 the widgets on screen, so one hidden instead of removed is not shown when it is inactive, under a disabled Canvas or
-a CanvasGroup at alpha 0, has its own graphic disabled, or lies outside the frame. A widget hidden another way (its
-colour's alpha at 0, scale 0, an empty text, a mask) still reads on screen: what is really drawn is `ui`'s to read.
+a CanvasGroup at alpha 0, has its own graphic disabled, lies outside the frame, or lies wholly outside a scroll area's
+view (a `RectMask2D`, a `Mask` or a UI Toolkit `overflow: hidden` above it). A widget hidden another way (its colour's
+alpha at 0, scale 0, an empty text) still reads on screen: what is really drawn is `ui`'s to read.
 Write `"visible": false` only when the check really means "exists while hidden". **Measure the effect the player sees, never one way of building it**: not a global such as the game's time scale
 for "twice as fast" (read how far the thing gets in a time), not a part's offset from its parent (a correct fix
 that re-parents it reads otherwise: read where it is in the world), not the root object's rotation when a child does
@@ -583,9 +584,9 @@ Fix what you find in the task before it is packed:
     lower case with every run of other characters as `_` is taken; a caption on two lines is written with a space at
     the break; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit one by a submit, so a raw
     `ClickEvent` handler does not fire (section 8).
-  - A click does not scroll. A control scrolled past the screen's edge is a missed input, and one a scroll area clips
-    but that lies inside the screen is clicked though a player could not reach it. So the play scrolls first, as a
-    player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
+  - A click does not scroll. A control scrolled past the screen's edge, or out of its scroll area's view while still
+    inside the screen, is not visible: a click on it is a missed input. _(why: no player can click what the scroll
+    area hides)_ So the play scrolls first, as a player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
     "axis": -120}`, one frame each: send as many as the list needs), or on a mobile game a `drag` across the list
     instead; then the click. Check in the screenshots that the control is in view when it is clicked.
   - A control that shows only in some states (a confirmation shown only when a save exists) is clicked with
@@ -702,7 +703,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | checks or log patterns shown in the brief | the agent gets the brief only |
 | an ask in the brief that no check reads (the Lab's review sends the game back for it) | read each task against its checks before packing (section 5, "Every ask has a check") |
 | a probe or its play relies on something only the reference has and the instruction never says (a widget or member name, a scene, an exact on-screen string, a teleport coordinate, a click or tap at a fixed screen point, a count of key presses that solves the reference's layout, a count of the parts the reference is made of): a correct solution built another way reads "nothing it selects was measured" or another number | everything a required probe or its play relies on is at the start commit or in the instruction's own words; else read what the player sees (section 5) |
-| a "must not be shown" check fails a solution that hides the widget instead of removing it, and a hidden widget passes a "must be shown" check | "shown" means on screen: `widgets` reads the widgets on screen (not inactive, not under a disabled Canvas or a CanvasGroup at alpha 0, inside the frame); what is drawn is `ui`'s; `"visible": false` only for "exists while hidden" |
+| a "must not be shown" check fails a solution that hides the widget instead of removing it, and a hidden widget passes a "must be shown" check | "shown" means on screen: `widgets` reads the widgets on screen (not inactive, not under a disabled Canvas or a CanvasGroup at alpha 0, inside the frame, not scrolled out of a scroll area's view); what is drawn is `ui`'s; `"visible": false` only for "exists while hidden" |
 | a check written without running the game fails on the reference: an invented threshold, a window that misses the event, a click when no button is shown, a judge asking for what the frames don't show | run every check on both builds and read what it measured before handing the task in (section 5) |
 | an instruction asks for what no play can show (how a sound sounds, the packaged build, a frame rate on given hardware, a given screen size) | never an ask; saving across plays is checked with `after` |
 | a model judge misreads screenshots and fails a correct fix (or passes a wrong one) | required probes for what can be measured; only the brief's own looks in a required judge (`looks_as_asked`, still-looks in `still_works`), each item concrete and decidable from the screenshots; every other judge `"required": false` |
@@ -721,7 +722,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a light's turn read relative to its own object | `world_yaw:`/`world_pitch:`/`forward:` read the Light's part in the world |
 | a part's direction read by a name only the reference has | `components` `world_yaw`/`world_pitch` of the part picked by `near`, `component` or `owner`, with `to_angle` |
 | a lamp switched off (Light disabled, its object inactive, intensity 0) reads as lit | the `light` probe counts only Lights that are on; a lamp's `on` and `intensity` are `components` fields |
-| a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object) still counts as shown | `"visible": true` in a widget select counts only what the game shows (its state: a fully transparent widget still counts), `ui` only what is drawn on screen |
+| a hidden panel (CanvasGroup alpha 0, `display: none`, an inactive object, an item scrolled out of its list's view) still counts as shown | `"visible": true` in a widget select counts only what the game shows (its state: a fully transparent widget still counts), `ui` only what is drawn on screen |
 | a sound judged by its AudioSource being enabled, not by what the player hears | `audio`: sources playing at their volume at the listener, and the mix's `level`; volumes and level calibrated or relative to the start |
 | relief judged by the height of one spot | `ground` over a box: `range`, calibrated or relative to the start |
 | a teleport to fixed coordinates misses what each build places itself | `teleport_to` an object select (nearest match), facing it or a point |
@@ -778,7 +779,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a required check of something the instruction never asks | every required check traces back to an ask or a keep; drop it or put the ask in the instruction |
 | a task VALID in both cases whose checks don't decide what the instruction asks (the Lab's review marks it) | VALID is needed, never enough: read each check's whole definition (plays, selectors, thresholds, rubric) against the instruction and the game's code (section 0) |
 | a `count`, `any`, `all` or `sum` over a selector that matches no rows reads 0, so a literal `== 0` or `<= 0` compares right on both sides while it reads nothing | confirm in `probe.json` that the selector matched rows on the side where the thing exists; prefer a check that reads something the reference has (section 5, "A probe reads something") |
-| a click on a control below the visible part of a scroll area: past the screen's edge it is a missed input, clipped by the scroll area but on screen it is clicked though no player could reach it | the play scrolls first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), then clicks (section 5) |
+| a click on a control below the visible part of a scroll area: past the screen's edge or clipped by the scroll area, it is a missed input (`no visible button matches it`) | the play scrolls first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), then clicks (section 5) |
 | a confirmation that shows only in some states (only when a save exists) is a missed input on the side where it doesn't show | click it with `"optional": true`; never mark a click the play needs optional (section 5) |
 | a click by caption takes another button whose name matches `widget` first, or never matches a button whose caption it gives only in part | a name or type match wins over a caption, and a caption is compared whole: pick a `widget` no other button's name or type matches, and write the whole caption exactly as shown (docs/task-probes.md, section 1.1) |
 | a click on a button the game disables by design is a missed input (`shown but disabled`) | when the instruction says the choice stays locked, mark the click `"disabled": true`; else wait until the game enables it (section 5) |

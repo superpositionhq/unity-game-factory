@@ -163,12 +163,13 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       - `widget` is 1 to 120 characters, with no line break or other control character and no space at either end
         (the schema's pattern), so a caption on two lines is written with a space where the break is; `*` and `?` are
         wildcards on a name, so a `widget` holding them may click a widget of a matching name first;
-      - the widget must lie in the frame, at least in part, and the click casts no ray and scrolls nothing: a control
-        scrolled past the screen's edge is a missed input, and one a scroll area clips but that lies inside the
-        screen is clicked though a player couldn't reach it. A play scrolls first, as a player would: a `cursor`
-        input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y", "axis": -120}`, a
-        one-frame impulse: send as many as the list needs), or on a mobile game a `drag` across the list; then the
-        click;
+      - the widget must be visible (section 2.6): in the frame and inside its scroll area's view, each at least in
+        part. The click casts no ray and scrolls nothing: a control scrolled past the screen's edge, or out of its
+        scroll area's view while still inside the screen, is a missed input (`no visible button matches it`), as no
+        player could reach it. _(why: a click no player could make is no play of the game)_ A play scrolls first, as
+        a player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
+        "axis": -120}`, a one-frame impulse: send as many as the list needs), or on a mobile game a `drag` across the
+        list; then the click;
     - an optional click: `{"t": 6.0, "widget": "Overwrite", "click": true, "optional": true}` is a click that may find
       nothing: when no widget matches at that moment, the input is skipped and does not count as a missed input (the
       probe still lists it in `inputs_missed`; the checker leaves it out). For a control that only shows in some
@@ -863,14 +864,18 @@ Limits:
   while hidden", a text set before its panel opens); `"visible": true` says the default out loud. A measure of the
   `visible` field itself, with no `visible` in its select, reads them on screen or not too: it asks which are.
   `visible` is the widget's state: the object active, every Canvas up the chain enabled, its own graphic enabled, the CanvasGroups' alpha above
-  0.004, on a canvas drawn on the screen and inside the frame; in UI Toolkit, displayed all the way up, its own
+  0.004, on a canvas drawn on the screen, inside the frame, and inside the rectangle of every enabled `RectMask2D`
+  and enabled `Mask` above it (a Scroll View's viewport); in UI Toolkit, displayed all the way up, its own
   visibility visible (a child may be visible again under a hidden parent), an opacity above 0.004 down the tree, in a
-  panel drawn on the screen and inside the frame. Its colour, its size and clipping don't count: a shown panel whose
-  own image is transparent, or whose root has no size, reads visible like its children, and so does an item scrolled
-  out of a Scroll View's view while inside the frame. Never visible: an inactive widget, one whose own graphic is
-  disabled, one under an inactive object, a disabled Canvas or a CanvasGroup at alpha 0, one entirely outside the
-  frame, one on a canvas drawn into a texture, on another display or by a camera that is off. Not tested: whether
-  another widget or a 3D object covers it, whether a mask or a scroll view clips it, its own colour's alpha and its
+  panel drawn on the screen, inside the frame, and inside the box of every element above it that clips
+  (`overflow: hidden`, as a ScrollView's viewport). Inside means at least in part. A widget counts as visible only
+  when it and every parent show it. _(why: an item scrolled out of a list's view is not what the player sees, though
+  it lies inside the screen)_ Its colour and its size don't count: a shown panel whose own image is transparent, or
+  whose root has no size, reads visible like its children. Never visible: an inactive widget, one whose own graphic
+  is disabled, one under an inactive object, a disabled Canvas or a CanvasGroup at alpha 0, one entirely outside the
+  frame, one wholly outside a masking parent's rectangle (an item scrolled out of a Scroll View's view), one on a
+  canvas drawn into a texture, on another display or by a camera that is off. Not tested: whether another widget or
+  a 3D object covers it, the shape a stencil `Mask`'s image cuts inside its rectangle, its own colour's alpha and its
   size. So `count` counts what the game shows (a warning bar's shown messages, not the ones it keeps hidden); what
   is drawn on screen, pixel for pixel, is `ui`'s (section 2.18). A disabled button whose image still draws is visible: whether it can be pressed is `interactable`.
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
@@ -1316,7 +1321,8 @@ percent, a sprite).
   CanvasGroup at an alpha of 0.004 or less, a UI Toolkit element with `display: none` or at an opacity that low, and
   everything under them, are not read; nor is a UI Toolkit element whose own visibility is hidden (a child may show
   again under a hidden parent), a disabled graphic, one whose own colour is that transparent, one culled by a
-  RectMask2D or wholly outside an enabled Mask (an item scrolled out of a Scroll View), a blank text, an Image filled
+  RectMask2D or wholly outside an enabled Mask (an item scrolled out of a Scroll View), a UI Toolkit element wholly
+  outside an element above it that clips (`overflow: hidden`, a ScrollView's viewport), a blank text, an Image filled
   to 0, an element of no size or entirely off the frame, or anything on a canvas or in a panel drawn into a texture or
   on another display, or on a camera canvas whose camera is off. No value when no frame is drawn. Should the scan
   of the uGUI canvases or of the UI Toolkit panels fail, that sample misses their elements and the play's
