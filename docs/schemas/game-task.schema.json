@@ -319,7 +319,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -497,7 +497,7 @@
           "type": "string"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -672,7 +672,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -795,7 +795,7 @@
           "type": "boolean"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -1027,7 +1027,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -1169,7 +1169,7 @@
           "type": "array"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -1204,7 +1204,7 @@
           "default": null
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -1266,7 +1266,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -1280,7 +1280,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -1291,7 +1291,7 @@
           "title": "Over"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -1342,7 +1342,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -1567,7 +1567,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -1676,7 +1676,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -1822,7 +1822,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -2158,7 +2158,7 @@
           "type": "boolean"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -2209,7 +2209,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -2669,7 +2669,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -2959,7 +2959,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -3103,7 +3103,7 @@
         },
         "hold": {
           "exclusiveMinimum": 0,
-          "maximum": 120,
+          "maximum": 300,
           "title": "Hold",
           "type": "number"
         },
@@ -3120,7 +3120,7 @@
           "$ref": "#/$defs/Select"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -3171,7 +3171,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -3505,7 +3505,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -3647,7 +3647,7 @@
           "type": "string"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -3698,7 +3698,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -4101,7 +4101,7 @@
           "type": "string"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -4141,7 +4141,7 @@
           "type": "string"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -4202,7 +4202,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -4384,7 +4384,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -4395,7 +4395,7 @@
           "title": "Hold"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -4550,7 +4550,7 @@
           "title": "Scene"
         },
         "seconds": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 5,
           "title": "Seconds",
           "type": "integer"
@@ -4571,7 +4571,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -4582,7 +4582,7 @@
           "title": "Hold"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -4647,7 +4647,7 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
-              "maximum": 120,
+              "maximum": 300,
               "type": "number"
             },
             {
@@ -4667,7 +4667,7 @@
           "type": "array"
         },
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -4749,7 +4749,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -4975,7 +4975,7 @@
       "description": "At `t` the player turns to the yaw and the main camera to `view` [pitch, yaw] in degrees (pitch -89 to 89), for a\nshot that faces a given way (docs/task-probes.md, section 1.1).",
       "properties": {
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -5002,7 +5002,7 @@
       "description": "At `t` the play's clock holds for `wait` seconds of real time while the game runs on, paced to real time (each\nframe waits for the wall clock to catch up with the game's own time), for what runs on the wall clock (a menu that\npages on real time). No samples, inputs or screenshots meanwhile; then the play goes on from `t` (docs/task-probes.md, section 1.1).",
       "properties": {
         "t": {
-          "maximum": 120,
+          "maximum": 300,
           "minimum": 0,
           "title": "T",
           "type": "number"
@@ -5163,7 +5163,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },
@@ -5341,7 +5341,7 @@
           "anyOf": [
             {
               "items": {
-                "maximum": 120,
+                "maximum": 300,
                 "minimum": 0,
                 "type": "number"
               },

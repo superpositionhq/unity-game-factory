@@ -1632,7 +1632,7 @@ class Schema(unittest.TestCase):
         play = {'name': 'route', 'seconds': 30, 'every': 0.5, 'inputs': inputs, 'scene': None, 'args': []}
         self.assertEqual(self.ok(play, 'TaskPlay'), [])
         for bad in ({'t': 1, 'key': 'W', 'press': True}, {'t': 1, 'key': '<Keyboard>/w'},
-                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 121, 'key': '<Keyboard>/w', 'press': True},
+                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 301, 'key': '<Keyboard>/w', 'press': True},
                     {'t': 2, 'key': 'MouseX', 'axis': 4.0}, {'t': 2, 'key': '<Mouse>/delta/x', 'axis': 1001},
                     {'t': 3, 'widget': 'RetryButton', 'click': False}, {'t': 3, 'widget': ' Retry', 'click': True},
                     {'t': 3, 'widget': 'Re\ntry', 'click': True}, {'t': 3, 'widget': 'R' * 121, 'click': True},
@@ -1646,6 +1646,24 @@ class Schema(unittest.TestCase):
         self.assertNotEqual(self.ok(dict(play, args=['-x'] * 17), 'TaskPlay'), [])
         self.assertNotEqual(self.ok(dict(play, args=['x' * 61]), 'TaskPlay'), [])
         self.assertEqual(self.ok(dict(play, args=self.ARGS, scene=self.SCENE), 'TaskPlay'), [])
+
+    def test_a_play_lasts_up_to_300_seconds(self):
+        """A task play and every time in it go up to 300 s: its seconds, an input's t, a hold, a touch's hold and
+        spread, an `at` and an event's within; one more is refused. A wait stays 300 s of real time."""
+        late = [{'t': 299, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 300},
+                {'t': 1, 'tap': [0.5, 0.5], 'hold': 300}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 300},
+                {'t': 298, 'shot': 'late', 'when': {'measure': {'probe': 'objects', 'select': {'name': 'Boss'},
+                                                                'field': 'count'},
+                                                    'expect': {'op': '==', 'value': 0}, 'within': 300}}]
+        play = {'name': 'long', 'seconds': 300, 'inputs': late}
+        self.assertEqual(self.ok(play, 'TaskPlay'), [])
+        self.assertNotEqual(self.ok(dict(play, seconds=301), 'TaskPlay'), [])
+        for bad in ({'t': 300.5, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 301},
+                    {'t': 1, 'tap': [0.5, 0.5], 'hold': 301}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 301}):
+            self.assertNotEqual(self.ok(dict(play, inputs=[bad]), 'TaskPlay'), [], bad)
+        measure = {'probe': 'player', 'field': 'z', 'at': [299.5]}
+        self.assertEqual(self.ok(measure, 'PlayerMeasure'), [])
+        self.assertNotEqual(self.ok(dict(measure, at=[300.5]), 'PlayerMeasure'), [])
 
     def test_task_level(self):
         S = self.S

@@ -45,6 +45,7 @@ and what each play is for.
 | `hold_wait` | A hold lasts through a wait: no frame of the game finds the player anywhere else. Also: the probe's `Update` runs before the game's. |
 | `wait` | A wait holds the clock for its seconds of real time while the game runs; the sample of the frame it starts in is taken first; the inputs after it wait. |
 | `shots` | Screenshots: their number, 960x540, no alpha channel, the UI in them. |
+| `long` | A play of 300 s, the longest a task play may be (Stage): samples every 0.5 s to 300.5 s, a key at 295 s moving the hero, the evenly spaced shot at 150 s and a named one at 298 s, a tap held 150 s lifting after 150 s, and the checker's own reading of an `at` and a window near the end. It takes some minutes. |
 | `first` | A play without a scene plays the first build scene. A spec that can't be read (no file, another format): the player says why and exits with 2. |
 | `missing_scene` | A scene that isn't in the build: an error, and the first build scene is played. |
 | `keeper` | An object the first scene marks `DontDestroyOnLoad` in `Awake` is there in the play's scene. |

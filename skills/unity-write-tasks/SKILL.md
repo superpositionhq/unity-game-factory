@@ -399,7 +399,9 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   `<Keyboard>/space` at 9 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s), a task play `{"name": ..., "seconds":
   ..., "inputs": [{"t", "key", "press"}]}` with Input System control paths (`<Keyboard>/f2`, `<Mouse>/leftButton`,
   `<Gamepad>/buttonSouth`) when the outcome needs other keys (F2, a fire button, a menu key), or `editor` for asset
-  facts.
+  facts. A task play lasts 5 to 300 s, and every time in it (an input's `t`, a hold, an `at`, an event's `within`)
+  stays within 300 s. Make it as long as the asked moment needs and no longer. _(why: a moment that comes only after
+  minutes of play can be reached; every second of a play is paid on both sides of every check run)_
 - `measure.probe`: `player` (track: x/y/z/speed/moved/dist), `camera` (distance/height/pitch/yaw/fov/occluded/
   player_on_screen), `objects` (select by component type, tag, layer, name, near, `has`; count, transform, extent,
   active, hidden, collision, speed, lit, `prop:<Component>.<member>` by reflection, `anim:<Parameter>`), `components`

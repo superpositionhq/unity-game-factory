@@ -456,7 +456,7 @@ namespace TaskProbe
             var t = new Touching
             {
                 Kind = drag ? "drag" : "tap", Finger = (int)Math.Round(Json.Num(row, "finger", 0.0)), Start = elapsed,
-                Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 120.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 120.0),
+                Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 300.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 300.0),
             };
             var at = FormattableString.Invariant($"at {Json.Num(row, "t", 0.0):F2} s");
             if (t.Finger < 0 || t.Finger > 9) { probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} (a finger is 0 to 9)"); Miss(t.Kind, "finger " + t.Finger, "a finger is 0 to 9"); return; }

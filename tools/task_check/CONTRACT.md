@@ -570,6 +570,14 @@ screenshots and look's queries, and look reads its first 20.5 s, as far as a loo
 every 0.5 s (a task play's `every`, 0.1-1.0). `play_args` apply to every play (look, drive, boot, task plays); a task
 play's `args` key replaces them, its `scene` key the `play_scene` (`tasks.place`).
 
+A task play lasts 5 to 300 s of play time (probe 1.6.0; 120 before), and so does every time in it: an input's `t`, a
+hold (a teleport's, a pin's, a tap's, a drag's), a drag's `over`, an `at` time and an event's `within`. A boot check
+keeps its own 5-600 s and a play's waits their 300 s of real time in all. Nothing in a play is cut short by its length:
+the probe takes `seconds` up to 600 and keeps every sample, track and camera row however many (`Probe.cs`), a tap's or
+drag's `hold` and `over` up to 300 s and a teleport's or pin's `hold` up to 600 s (`Inputs.StartTouch`, `StartHold`,
+`Stages`), and the play's time limit is its seconds and 300 s more, plus its waits (`check.play_timeout`). The
+checker's own plays keep their lengths (look 20 s, drive 22 s).
+
 The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast as
 the machine renders (`Application.targetFrameRate` -1, set by the probe in every frame, a wait's too; the capture frame
 rate and vertical sync off set again before the game's scripts and after them, since a game that sets them in its own

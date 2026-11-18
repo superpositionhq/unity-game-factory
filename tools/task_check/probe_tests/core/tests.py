@@ -179,6 +179,38 @@ def shots(t, play):
         t.ok(f"{name}: and not in the middle", shot.at(480, 270) != (255, 0, 255), shot.at(480, 270))
 
 
+def long_play(t, play):
+    """A play of 300 s, the longest a task play may be, samples to its end: every 0.5 s from the first frame to 300.5 s,
+    a key pressed at 295 s moves the hero then, a named shot at 298 s and the evenly spaced one at 150 s are taken,
+    and a tap held 150 s lifts after 150 s (a touch's hold was cut at 120 s before probe 1.6.0). The checker's own
+    reduction reads a window and an `at` near the end from these samples."""
+    probe = play.probe
+    t.near("seconds: the play's 300 s and half a second more", probe.get("seconds"), 300.5, 1e-9)
+    t.eq("the samples' times: the first frame, then every 0.5 s to 300.5 s", times(play),
+         [round(1 / 30, 6)] + [round(k / 2, 6) for k in range(1, 602)])
+    t.near("W went down at 295 s and the game saw it the frame after: z at 295 s", play.track(295.0)[3], 0.0, FLOAT)
+    t.near("W held 295 to 296 s, 30 frames at 2 m/s: z at 296 s", play.track(296.0)[3], 2.0, FLOAT)
+    for when in (299.0, 300.5):
+        t.near(f"z at {when} s", play.track(when)[3], 2.0, FLOAT)
+    t.eq("screenshots: the evenly spaced one at 150 s, then the named one", probe.get("screenshots"),
+         ["shot_00.png", "shot_late.png"])
+    log = play.probe_log
+    t.ok("probe.log: shot_late.png taken at 298.00 s", "screenshot shot_late.png at 298.00 s" in log)
+    t.ok("shot_late.png written", "shot_late.png" in play.files)
+    t.ok("the tap lifted after its 150 s hold", "tap: finger 0 lifts at pixel (480, 270) after 150.00 s" in log)
+    t.eq("inputs_sent counts every input", probe.get("inputs_sent"), 4)
+    t.eq("no input missed", probe.get("inputs_missed"), [])
+    from task_check import probes, tasks  # the checker's reading, as task-check.py reads a play
+
+    def z(**picked):
+        return probes.measured(tasks.measure({"probe": "player", "field": "z", **picked}), probe)[0]
+
+    t.near("the checker: z at 295 s", z(at=[295]), 0.0, FLOAT)
+    t.near("the checker: z at 299 s", z(at=[299]), 2.0, FLOAT)
+    t.near("the checker: the most z over the window [295, 300]", z(window=[295, 300], agg="max"), 2.0, FLOAT)
+    t.near("the checker: the least z over the window [296.5, 300.5]", z(window=[296.5, 300.5], agg="min"), 2.0, FLOAT)
+
+
 def first(t, play):
     """A play without a scene plays the game's first build scene. A play whose spec can't be read doesn't run as a
     game until someone kills it: the player says why and exits with code 2."""
@@ -449,6 +481,8 @@ PLAYS = {
     "hold_wait": {"check": hold_wait, "args": ["-coredrift"], "varies": True},
     "wait": {"check": wait, "varies": True},
     "shots": {"check": shots},
+    # the longest a task play may be: some real minutes of the player
+    "long": {"check": long_play, "timeout": 600},
     "first": {"check": first},
     "missing_scene": {"check": missing_scene, "errors": [r"^the play's scene Assets/ProbeTests/core/Made/NoSuch\.unity isn't in the build"]},
     "keeper": {"check": keeper, "args": ["-corekeeper"]},

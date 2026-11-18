@@ -86,7 +86,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
   - `name`: lowercase letters, digits and `_`, at most 32, and not `look`, `drive`, `editor` or `trace`. A check
     can't point at another check's play by its name: every check that reads a task play carries the whole play, and
     plays with the same name in one task must be identical (the play then runs once per side for all of them).
-  - `seconds`: a whole number, 5-120. No input at or after the end.
+  - `seconds`: a whole number, 5-300. No input at or after the end. Every time in the play (an input's `t`, a hold, a
+    touch's `over`, an `at`, an event's `within`) is within 300 s too; a boot check keeps its own 5-600 s. _(why: some
+    asked moments come only after minutes of play: a late wave, a night that falls late)_
   - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
@@ -115,7 +117,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
     `single-instance`, `window-mode`, any flag starting with `screen-` or `force-`, nor the probe's own (any flag
     starting with `taskprobe`); `tools/validate-game.py` lists what it refuses.
-  - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-120). Keys,
+  - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-300). Keys,
     buttons and axes go through the **Input System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game
     that reads the old Input Manager (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued
     before the game's scripts run and processed by the Input System at the next frame's start, so the game reads it
@@ -231,7 +233,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       each one did,
       `teleported next to <name>: asked (x, y, z) yaw <degrees>, now at (x, y, z)` or
       `teleport_to skipped (no object matches)`: check it in the fix's play;
-    - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 120) puts the player back
+    - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 300) puts the player back
       at the spot (its position; its view stays free) after every frame's game logic for that many seconds of play:
       after the scripts' `Update` and again after their `LateUpdate`, so a camera that follows the player in
       `LateUpdate` frames the spot; a hold lasts through a `wait` and a scene load. For a game that sets its player's
@@ -243,7 +245,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       the play's clock holds while the game keeps running, paced to real time (each frame waits for the wall clock to
       catch up with the game's own time), until `wait` real seconds and `wait` seconds of game time have both passed;
       nothing is sampled, sent or screenshot meanwhile; then the play goes on from `t`. A play's waits add at most
-      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 120 s;
+      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 300 s;
     - a named screenshot: `{"t": 6.0, "shot": "pause_menu"}` (a letter or `_` first, then letters, digits, `_`; up to
       32) takes `shot_pause_menu.png` at that moment, with the UI, beside the evenly spaced ones. Each name once in a
       play, 20 at most. A picture never passes or fails anything by itself: it is for a judge (section 3.2), for a
@@ -518,7 +520,7 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: se
 
 ### 2.1 Common fields
 
-- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-120; the
+- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-300; the
   sample nearest each time, when one is within 0.26 s of it) or `"end"` (the last sample); not both. Default: the
   whole play. With `since` (section 2.23) both count from the moment of an event instead of the play's start.
 - `agg`: how the samples reduce to one number: `min`, `max`, `mean`, `first`, `last`, `delta` (last minus first),

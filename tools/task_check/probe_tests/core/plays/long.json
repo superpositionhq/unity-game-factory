@@ -1,0 +1,32 @@
+{
+ "seconds": 300,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/core/Made/Stage.unity",
+ "queries": [],
+ "inputs": [
+  {
+   "t": 10,
+   "tap": [
+    0.5,
+    0.5
+   ],
+   "finger": 0,
+   "hold": 150
+  },
+  {
+   "t": 295,
+   "key": "<Keyboard>/w",
+   "press": true
+  },
+  {
+   "t": 296,
+   "key": "<Keyboard>/w",
+   "press": false
+  },
+  {
+   "t": 298,
+   "shot": "late"
+  }
+ ]
+}
