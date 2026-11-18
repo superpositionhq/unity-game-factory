@@ -1,5 +1,5 @@
 {
- "seconds": 5,
+ "seconds": 6,
  "shots": 1,
  "every": 0.5,
  "scene": "Assets/ProbeTests/ui/Made/Clicks.unity",
@@ -45,7 +45,10 @@
     "prop:UiToolkitClicks.cursor",
     "prop:UiToolkitClicks.caption",
     "prop:UiToolkitClicks.scrollIn",
-    "prop:UiToolkitClicks.scrollOut"
+    "prop:UiToolkitClicks.scrollOut",
+    "prop:UiToolkitClicks.clipOut",
+    "prop:UiToolkitClicks.covered",
+    "prop:UiToolkitClicks.veiled"
    ]
   },
   {
@@ -110,6 +113,16 @@
    },
    "fields": [
     "visible"
+   ]
+  },
+  {
+   "id": "cover",
+   "kind": "widgets",
+   "select": {
+    "component": "Button"
+   },
+   "fields": [
+    "covered"
    ]
   }
  ],
@@ -335,6 +348,36 @@
   {
    "t": 4.9,
    "widget": "UScrollOutButton",
+   "click": true
+  },
+  {
+   "t": 5.1,
+   "widget": "PlainOutButton",
+   "click": true
+  },
+  {
+   "t": 5.2,
+   "widget": "BlockedButton",
+   "click": true
+  },
+  {
+   "t": 5.3,
+   "widget": "VeiledButton",
+   "click": true
+  },
+  {
+   "t": 5.4,
+   "widget": "UClipOutButton",
+   "click": true
+  },
+  {
+   "t": 5.5,
+   "widget": "UCoveredButton",
+   "click": true
+  },
+  {
+   "t": 5.6,
+   "widget": "UVeiledButton",
    "click": true
   }
  ]

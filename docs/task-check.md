@@ -327,8 +327,9 @@ without), so this is for drafts only.
   every query the play's probes asked; and `query_errors`, the lines of what the probe couldn't read (only when
   there are some). `inputs_sent` counts the play's input rows as they were sent (one whose control the probe doesn't
   know counts too, and is a `query_errors` line); `inputs_missed` lists every input that didn't land (a stage of a
-  contact nothing took, a click no button took, a teleport next to nothing, an unknown key, a touch on a widget that
-  isn't on screen: docs/task-probes.md, section 1.4), each with its time, kind, target and why. A key of `measures` is a query's id, `q` and ten hex digits made
+  contact nothing took, a click no button took, a click or tap on a control something else is drawn over, a teleport
+  next to nothing, an unknown key, a touch on a widget that isn't on screen, a shot whose event never came:
+  docs/task-probes.md, section 1.4), each with its time, kind, target and why. A key of `measures` is a query's id, `q` and ten hex digits made
   from what the query selects (its kind with its select, point or rect), so a query has the same id in every play and
   on both sides, and probes that read other fields of one selection share one query. The file doesn't name the
   checks: `play_spec.json` beside it gives each id's kind and select, which you match with the check's measure in the
@@ -386,13 +387,17 @@ doesn't stop a play: the probe plays the game's own first scene instead, and its
 
 **`the play's input did not land: click X at N s (...)`** (or `task error: ... in the reference's play X, an input did
 not land (...): the task's own fix can't be driven by its play`). An input of the task play missed: a click no visible
-button took, a teleport next to nothing, a stage nothing took, a key the probe has no control for, a touch on a widget
-that isn't on screen (the play's `inputs_missed` in `probe.json`, and `probe.log`). What the probe measured is of a
+button took, a click or tap on a control something else is drawn over (`covered by another control`), a teleport next
+to nothing, a stage nothing took, a key the probe has no control for, a touch on a widget that isn't on screen, a shot
+whose event never came (kind `shot_when`, `its event never happened`) (the play's `inputs_missed` in `probe.json`, and
+`probe.log`). What the probe measured is of a
 play that never did what the task says, so the check fails whatever its value; on the reference it is the task's
 error. Fix the play: wait for the button to show before the click, click by the caption the start already has
-(written exactly as shown), drop a click the game already took (a second press of a button that has gone), scroll a
-list before clicking a control below its visible part, and teleport next to something that is there (task-probes.md,
-sections 1.1 and 1.4). A click on a control that shows only in some states (a confirmation shown only when a save
+(written exactly as shown), drop a click the game already took (a second press of a button that has gone), open the
+menu, tab or screen a button is on before clicking it (a click scrolls its own scroll area, nothing else), click what
+covers a button first when a player would (close the dialog, dismiss the overlay) or, when the cover is the game's
+bug, leave it to fail on the start, give a shot's event a `within` the reference meets, and teleport next to
+something that is there (task-probes.md, sections 1.1, 1.4 and 2.23). A click on a control that shows only in some states (a confirmation shown only when a save
 exists) says `"optional": true`: when it finds nothing it is left out of the missed inputs. A click whose row says
 `shown but disabled` found a button the game had disabled: wait until the game enables it, or, when the instruction
 says it stays locked, mark the click `"disabled": true`, which counts that row as landed. Never mark a click the play

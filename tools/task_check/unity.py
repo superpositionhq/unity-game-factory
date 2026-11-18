@@ -393,7 +393,7 @@ class Project:
         mobile = self.mobile()
         width, height = MOBILE_SIZE[mobile] if mobile else SHOT_SIZE
         spec = {"format": SPEC_FORMAT, "out": out.as_posix(), "seconds": seconds, "shots": shots, "every": every,
-                "scene": scene, "sound": probes.paced(queries), "player": player, "inputs": list(inputs or []),
+                "scene": scene, "sound": probes.paced(queries), "player": player, "inputs": probes.probe_inputs(inputs),
                 "queries": queries or {"format": probes.QUERIES_FORMAT, "every": every, "queries": []}}
         if keep_saves:
             spec["keep_saves"] = True

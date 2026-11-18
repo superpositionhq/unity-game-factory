@@ -5,9 +5,13 @@
 // visit several places and scenes and picture each. Each device's whole state is sent with every change, so two
 // inputs in one frame never undo each other. And touches, as a phone's screen sends them (a tap, a long press, a drag,
 // several fingers at once: docs/task-probes.md, section 1.3), through the probe's own virtual Touchscreen: the Input
-// System's UI module, its on-screen controls and a game's own touch code read it as they read a phone's.
+// System's UI module, its on-screen controls and a game's own touch code read it as they read a phone's. A click or a
+// tap on a control scrolled out of its scroll area scrolls the area to it first and lands the next frame; one on a
+// control something is drawn over doesn't land. A shot may wait for an event (`when`): it is taken in the first frame
+// at or after its time whose reading meets the event's expect.
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using UnityEngine;
 #if TASKPROBE_INPUTSYSTEM
 using UnityEngine.InputSystem;
@@ -128,23 +132,38 @@ namespace TaskProbe
 
         // ---------------------------------------------------------------- the play's frames
 
-        /// <summary>Sends every input due at play time `elapsed`; stops at a wait (the inputs after it wait for its end).</summary>
+        /// <summary>A click or a tap whose control was scrolled into view: sent again in the next frame of the clock,
+        /// once the layout has followed; the inputs after it wait for it, so their order stays.</summary>
+        Dictionary<string, object> again;
+
+        /// <summary>Sends every input due at play time `elapsed`; stops at a wait (the inputs after it wait for its end),
+        /// and at a click or tap that scrolled (the inputs after it wait for the next frame).</summary>
         public void Send(double elapsed)
         {
             MoveTouches(elapsed);  // the fingers already down: the part of each due by now
-            while (!Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
+            if (again != null)
             {
-                var row = rows[next++];
-                sending = At(row);
-                try { SendOne(row, elapsed); }
-                catch (Exception e)
-                {
-                    probe.Failed("inputs: {0} sending an input", e);
-                    var kind = Kind(row);
-                    if (kind == "pin" || kind == "damage" || kind == "set") probe.Missed(sending, kind, "stage", "it threw " + e.GetType().Name);
-                    Probe.Log("the input was " + Json.Write(row));
-                }
+                var row = again;
+                again = null;
+                Try(row, elapsed, true);
+            }
+            while (again == null && !Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
+            {
+                Try(rows[next++], elapsed, false);
                 Sent++;
+            }
+        }
+
+        void Try(Dictionary<string, object> row, double elapsed, bool retry)
+        {
+            sending = At(row);
+            try { SendOne(row, elapsed, retry); }
+            catch (Exception e)
+            {
+                probe.Failed("inputs: {0} sending an input", e);
+                var kind = Kind(row);
+                if (kind == "pin" || kind == "damage" || kind == "set") probe.Missed(sending, kind, "stage", "it threw " + e.GetType().Name);
+                Probe.Log("the input was " + Json.Write(row));
             }
         }
 
@@ -177,7 +196,12 @@ namespace TaskProbe
         /// <summary>The input being sent didn't land: a row of probe.json "inputs_missed".</summary>
         void Miss(string kind, string target, string why) => probe.Missed(sending, kind, target, why);
 
-        void SendOne(Dictionary<string, object> row, double elapsed)
+        const string Covered = "covered by another control";  // the why of a click or tap on a control something is drawn over
+        const string NeverHappened = "its event never happened";  // the why of a shot whose event didn't come in time
+
+        /// <summary>One input; `retry`: a click or tap sent again after its control was scrolled into view (it scrolls no
+        /// more).</summary>
+        void SendOne(Dictionary<string, object> row, double elapsed, bool retry)
         {
             switch (Kind(row))
             {
@@ -192,18 +216,31 @@ namespace TaskProbe
                     break;
                 case "tap":
                 case "drag":
-                    StartTouch(row, elapsed);
+                    StartTouch(row, elapsed, retry);
                     break;
                 case "click":
                 {
                     var widget = Json.Str(row, "widget");
-                    var clicked = UiScan.Click(widget);
-                    if (clicked != null) Probe.Log("clicked " + clicked);
-                    else if (UiScan.ShownDisabled(widget) is string disabled)
+                    var clicked = UiScan.Click(widget, out var covered);
+                    if (clicked != null && covered == null) Probe.Log("clicked " + clicked);
+                    else if (clicked != null)
+                    {
+                        // a player's pointer lands on what is drawn over it: no excuse (optional, disabled) covers this
+                        Probe.Log($"{clicked} matches '{widget}', but {covered}: not clicked");
+                        Miss("click", widget, Covered);
+                    }
+                    else if (UiScan.ShownDisabled(widget, out covered) is string disabled)
                     {
                         // shown, but a player's click on it does nothing: a miss of its own (a task's click may expect it)
-                        Probe.Log($"{disabled} matches '{widget}', shown but disabled: not clicked");
-                        Miss("click", widget, "shown but disabled");
+                        Probe.Log(covered == null ? $"{disabled} matches '{widget}', shown but disabled: not clicked"
+                                                  : $"{disabled} matches '{widget}', shown but disabled, and {covered}: not clicked");
+                        Miss("click", widget, covered == null ? "shown but disabled" : Covered);
+                    }
+                    else if (!retry && UiScan.Scroll(widget) is string scrolled)
+                    {
+                        // a player scrolls its own scroll area to it first; the click lands once the layout has followed
+                        Probe.Log($"scrolled {scrolled} for the click on '{widget}'");
+                        again = row;
                     }
                     else
                     {
@@ -229,7 +266,8 @@ namespace TaskProbe
                     break;
                 }
                 case "shot":
-                    probe.Shot(Json.Str(row, "shot"));
+                    if (Json.Obj(row, "when") is Dictionary<string, object> when) StartWatch(row, when);
+                    else probe.Shot(Json.Str(row, "shot"));
                     break;
                 case "scene":
                     probe.LoadScene(Json.Str(row, "scene"));
@@ -371,10 +409,11 @@ namespace TaskProbe
         /// <summary>Where a spot is on the screen, in pixels from the bottom left: a viewport point [fx, fy] (fractions,
         /// y down from the top), or {"widget": name}: the centre of the first visible widget of that name (a wildcard)
         /// or type, whatever its kind, as it is laid out now, else the first button that reads so (UiScan.Caption).
-        /// False for a widget that isn't on screen.</summary>
-        static bool Spot(object spot, out Vector2 at, out string named)
+        /// False for a widget that isn't on screen. `target`: the widget's object or element (null for a point).</summary>
+        static bool Spot(object spot, out Vector2 at, out string named, out object target)
         {
             at = default;
+            target = null;
             if (Json.TryNumbers(spot, 2, out var xy))
             {
                 var fx = Math.Min(Math.Max(xy[0], 0.0), 1.0);
@@ -393,10 +432,11 @@ namespace TaskProbe
                         || !(w.Field("h") is double height) || width <= 0.0 || height <= 0.0) continue;  // never laid out: nothing a finger could touch
                     at = new Vector2((float)((x + width / 2) * Screen.width), (float)((1.0 - (y + height / 2)) * Screen.height));
                     named = w.Name + " (" + w.Class + ")";
+                    target = w.Target;
                     return true;
                 }
             // then a button by what it reads (one the task itself adds has no name at the start)
-            if (UiScan.CaptionSpot(named, out var cx, out var cy, out var cw, out var ch, out var captioned))
+            if (UiScan.CaptionSpot(named, out var cx, out var cy, out var cw, out var ch, out var captioned, out target))
             {
                 at = new Vector2((float)((cx + cw / 2) * Screen.width), (float)((1.0 - (cy + ch / 2)) * Screen.height));
                 named = captioned;
@@ -407,8 +447,10 @@ namespace TaskProbe
 
         /// <summary>A finger goes down: its spots are resolved now, its first part is sent, and MoveTouches sends the
         /// rest. A touch that can't be made (a widget that isn't on screen, a finger still down, no touch screen) is a
-        /// miss: one line of the play's query_errors, and nothing is touched.</summary>
-        void StartTouch(Dictionary<string, object> row, double elapsed)
+        /// miss: one line of the play's query_errors, and nothing is touched. A tap on a widget scrolled out of its scroll
+        /// area scrolls the area to it and is sent again the next frame (`retry`); one on a widget something is drawn
+        /// over is a miss.</summary>
+        void StartTouch(Dictionary<string, object> row, double elapsed, bool retry)
         {
             var drag = row.ContainsKey("drag");
             var t = new Touching
@@ -422,10 +464,24 @@ namespace TaskProbe
             if (spots == null || spots.Count < (drag ? 2 : 1) || spots.Count > 16) { probe.Error($"inputs: the {t.Kind} {at} missed: it names no spots"); Miss(t.Kind, "spots", "it names no spots"); return; }
             foreach (var spot in spots)
             {
-                if (!Spot(spot, out var point, out var named))
+                if (!Spot(spot, out var point, out var named, out var target))
                 {
+                    if (!drag && !retry && spot is Dictionary<string, object> && UiScan.ScrollToWidget(named) is string scrolled)
+                    {
+                        // a player scrolls its own scroll area to it first; the tap lands once the layout has followed
+                        Probe.Log($"scrolled {scrolled} for the tap on '{named}'");
+                        again = row;
+                        return;
+                    }
                     probe.Error($"inputs: the {t.Kind} {at} missed: no visible widget matches '{named}'");
                     Miss(t.Kind, named, "no visible widget matches it");
+                    return;
+                }
+                if (!drag && target != null && UiScan.Covered(target, point, out var over))
+                {
+                    // the finger lands on what is drawn over it
+                    probe.Error($"inputs: the tap {at} on {named} missed: {over} is over it");
+                    Miss(t.Kind, named, Covered);
                     return;
                 }
                 t.Points.Add(point);
@@ -484,6 +540,174 @@ namespace TaskProbe
             InputSystem.QueueStateEvent(screen, new TouchState { touchId = t.Finger + 1, phase = phase, position = t.Last, pressure = 1f });
         }
 #endif
+
+        // ---------------------------------------------------------------- shots that wait for an event
+
+        /// <summary>A shot whose `when` holds it until its event: its own query (the one its event's measure needs, made
+        /// as the play's are: Probe.NewQuery), read every frame of the clock from its time on, reduced as the checker
+        /// reduces a sample (Reading) and compared with the event's expect.</summary>
+        sealed class Watch
+        {
+            public string Name, Field, Of, Op;
+            public double T, Until, Value;
+            public Regex Match;
+            public Query Query;
+        }
+
+        readonly List<Watch> watches = new List<Watch>();
+
+        /// <summary>A `shot` input with `when` ({"query", "field", "of", "match", "op", "value", "within"}, as the checker
+        /// writes it): waits from its time for its event, at most `within` seconds when it says (else to the play's
+        /// end). One whose query can't be made is a miss at once.</summary>
+        void StartWatch(Dictionary<string, object> row, Dictionary<string, object> when)
+        {
+            var w = new Watch
+            {
+                Name = Json.Str(row, "shot"), T = At(row), Field = Json.Str(when, "field", "count"), Of = Json.Str(when, "of", "count"),
+                Op = Json.Str(when, "op", ">="), Value = Json.Num(when, "value", 1.0),
+            };
+            w.Until = Json.TryNum(when, "within", out var within) ? w.T + within : double.MaxValue;
+            var pattern = Json.Str(when, "match");
+            var query = Json.Obj(when, "query");
+            if (pattern != null) w.Match = Find.Pattern(pattern);
+            if (pattern != null && w.Match == null) probe.Error("inputs: the shot " + w.Name + "'s event: the match regex " + pattern + " doesn't compile");
+            else if (query != null) w.Query = probe.NewQuery("when_" + w.Name, query);
+            if (w.Query == null)
+            {
+                Miss("shot_when", w.Name, "its event can't be read (probe.log)");
+                return;
+            }
+            watches.Add(w);
+            Probe.Log(FormattableString.Invariant($"the shot {w.Name} waits for its event ({w.Field} {w.Op} {w.Value:G})")
+                      + (w.Until < double.MaxValue ? FormattableString.Invariant($" until {w.Until:F2} s") : " until the play's end"));
+        }
+
+        /// <summary>After the frame's game logic, in a frame of the play's clock: each shot waiting for its event is taken
+        /// in this frame when its reading meets the expect; one whose time is up without it is a miss.</summary>
+        public void Watches(double elapsed)
+        {
+            for (var i = 0; i < watches.Count; i++)
+            {
+                var w = watches[i];
+                double? read = null;
+                try { read = Reading(w, elapsed); }
+                catch (Exception e) { probe.Failed("inputs: {0} reading the event of shot " + w.Name, e); }
+                if (read is double v && Holds(v, w.Op, w.Value))
+                {
+                    Probe.Log(FormattableString.Invariant($"the shot {w.Name}'s event: {w.Field} reads {v:G}"));
+                    probe.Shot(w.Name);
+                }
+                else if (elapsed > w.Until + 1e-9) probe.Missed(w.T, "shot_when", w.Name, NeverHappened);
+                else continue;
+                watches.RemoveAt(i--);
+            }
+        }
+
+        /// <summary>At the play's end: every shot still waiting for its event is a miss.</summary>
+        public void Unfired()
+        {
+            foreach (var w in watches) probe.Missed(w.T, "shot_when", w.Name, NeverHappened);
+            watches.Clear();
+        }
+
+        /// <summary>A watch's reading now, as the checker reduces one sample of its measure (tools/task_check/probes.py
+        /// series): `count` how many its query matched; any other field each row's number (a string 1 or 0 by `match`,
+        /// else left out) combined by `of`, or, when more matched than the rows hold, from the sample's summary of every
+        /// match. Null when nothing gives a value.</summary>
+        static double? Reading(Watch w, double elapsed)
+        {
+            var sample = new Dictionary<string, object>(StringComparer.Ordinal) { ["t"] = elapsed };
+            w.Query.Sample(elapsed, sample);
+            if (w.Query.Needs != FrameNeed.None) w.Query.FrameDrawn(null, sample);  // a ui query's rows: the elements now
+            var rows = Json.Arr(sample, "rows");
+            if (rows == null) return null;
+            var total = Math.Max(Json.Num(sample, "total", rows.Count), rows.Count);
+            if (w.Field == "count") return total;
+            if (total > rows.Count && w.Match == null && w.Of != "first" && Json.Obj(Json.Obj(sample, "full"), w.Field) is Dictionary<string, object> full)
+                return Summed(full, w.Of);
+            var values = new List<double>();
+            foreach (var item in rows)
+            {
+                if (!(item is Dictionary<string, object> row) || !row.TryGetValue(w.Field, out var value)) continue;
+                if (value is double d) { if (!double.IsNaN(d) && !double.IsInfinity(d)) values.Add(d); }
+                else if (value is bool b) values.Add(b ? 1.0 : 0.0);
+                else if (value is string text && w.Match != null) values.Add(w.Match.IsMatch(text) ? 1.0 : 0.0);
+            }
+            return Combine(values, w.Of);
+        }
+
+        /// <summary>`of` over every match from a sample's summary of one field (n, nonzero, sum, min, max).</summary>
+        static double? Summed(Dictionary<string, object> full, string of)
+        {
+            double n = Json.Num(full, "n"), nonzero = Json.Num(full, "nonzero"), sum = Json.Num(full, "sum");
+            switch (of)
+            {
+                case "count": return nonzero;
+                case "any": return nonzero > 0 ? 1.0 : 0.0;
+                case "all": return n > 0 && nonzero == n ? 1.0 : 0.0;
+                case "sum": return sum;
+            }
+            if (n == 0) return null;
+            if (of == "mean") return sum / n;
+            return Json.TryNum(full, of, out var v) ? v : (double?)null;  // min, max
+        }
+
+        /// <summary>One sample's row values combined by `of`, as the checker's combine.</summary>
+        static double? Combine(List<double> values, string of)
+        {
+            switch (of)
+            {
+                case "count": return values.FindAll(v => v != 0.0).Count;
+                case "any": return values.Exists(v => v != 0.0) ? 1.0 : 0.0;
+                case "all": return values.Count > 0 && values.TrueForAll(v => v != 0.0) ? 1.0 : 0.0;
+                case "sum":
+                {
+                    var sum = 0.0;
+                    foreach (var v in values) sum += v;
+                    return sum;
+                }
+            }
+            if (values.Count == 0) return null;
+            switch (of)
+            {
+                case "min":
+                {
+                    var min = values[0];
+                    foreach (var v in values) min = Math.Min(min, v);
+                    return min;
+                }
+                case "max":
+                {
+                    var max = values[0];
+                    foreach (var v in values) max = Math.Max(max, v);
+                    return max;
+                }
+                case "mean":
+                {
+                    var sum = 0.0;
+                    foreach (var v in values) sum += v;
+                    return sum / values.Count;
+                }
+                default: return values[0];  // first
+            }
+        }
+
+        /// <summary>A reading against the expect, as the checker compares a value with a threshold (== and != within
+        /// 1e-9).</summary>
+        static bool Holds(double value, string op, double limit)
+        {
+            var equal = Math.Abs(value - limit) <= Math.Max(1e-9, 1e-9 * Math.Max(Math.Abs(value), Math.Abs(limit)));
+            switch (op)
+            {
+                case ">": return value > limit;
+                case ">=": return value >= limit;
+                case "<": return value < limit;
+                case "<=": return value <= limit;
+                case "==": return equal;
+                case "!=": return !equal;
+                default: return false;
+            }
+        }
 
         // ---------------------------------------------------------------- teleports
 

@@ -927,7 +927,8 @@ def task_play_errors(n, play, plays):
     look/drive/editor/trace, no input at or after its end, no touch that ends after it or begins less than TOUCH_GAP
     after its finger lifts, no flag of the checker's own, a scene path without dotted segments, waits of at most 300 s
     in all, its named shots each named once (20 at most), a view's pitch within -89 to
-    89, scene loads without dotted segments, no pin on the player and none both `front` and `at`, and identical to every other task play of its name in the task (`plays`:
+    89, scene loads without dotted segments, no pin on the player and none both `front` and `at`, a shot's `when` an
+    event's rules (event_errors), and identical to every other task play of its name in the task (`plays`:
     those seen so far, by name)."""
     errs, pname = [], play.get('name')
     if pname in ('look', 'drive', 'editor', 'trace'):
@@ -960,6 +961,8 @@ def task_play_errors(n, play, plays):
             errs.append(f'check {n}: play {pname} pins the player: a pin holds another object (a teleport holds the player)')
         if 'pin' in i and i.get('front') is not None and i.get('at') is not None:
             errs.append(f'check {n}: play {pname} pins an object `front` of the player or `at` a point, not both')
+        if isinstance(i.get('when'), dict):
+            errs += event_errors(n, i['when'], f"play {pname}: shot {i.get('shot')}'s when", True)
     down = {}   # finger -> when its last touch lifts
     touches = [i for i in play.get('inputs') or [] if isinstance(i, dict) and ('tap' in i or 'drag' in i)
                and isinstance(i.get('t'), (int, float))]
@@ -1026,7 +1029,8 @@ def probe_errors(c, seed, ref, plays):
     has y_min < y_max and `y_relative` only with one of them; a task play's waits add at most 300 s; regular
     expressions that compile; a ui measure takes `match` exactly when it reads text, `agg` changes, any, all or count
     when it reads its signature, and a select rect [x0, y0, x1, y1] with x0 < x1 and y0 < y1; a seen measure's rules
-    (seen_errors); a calibrated threshold needs seed.reference and a start-relative one a seed."""
+    (seen_errors); a measure's `since` an event's rules (event_errors); a calibrated threshold needs seed.reference and
+    a start-relative one a seed."""
     errs, n = [], c.get('name')
     play = c.get('play')
     measure = c.get('measure') if isinstance(c.get('measure'), dict) else {}
@@ -1123,6 +1127,8 @@ def probe_errors(c, seed, ref, plays):
             errs.append(f"check {n}: a ui select's `text` picks text elements: its kind is text or unset")
     if probe == 'seen':
         errs.extend(seen_errors(n, play, measure))
+    if isinstance(measure.get('since'), dict):
+        errs.extend(event_errors(n, measure['since'], 'its since', False))
     if rel and expect.get('op') in ('==', '!='):
         errs.append(f'check {n}: == and != take a literal value, never a calibrated threshold')
     if rel == 'calibrate' and not ref:
@@ -1133,6 +1139,47 @@ def probe_errors(c, seed, ref, plays):
 
 
 SEEN_RECT = 0.02   # a seen rect's least width and height, in frame fractions (the Lab's grader)
+# the measures read from samples of a play: what an event (a measure's `since`, a shot's `when`) may read
+SAMPLED_PROBES = ('player', 'camera', 'objects', 'widgets', 'components', 'pieces', 'screen', 'light', 'grading',
+                  'spawns', 'audio', 'ground', 'ui', 'drawn', 'render', 'world')
+# what the probe reads itself, every frame, for a shot's `when` (and an objects measure's prop: fields)
+WHEN_FIELDS = {'ui': ('count', 'text'), 'widgets': ('count', 'visible'),
+               'objects': ('count', 'x', 'y', 'z', 'active', 'hidden')}
+
+
+def event_errors(n, event, label, shot):
+    """An event's rules beyond the schema (docs/task-probes.md, section 2.23), for check `n`; `label` names it in the
+    words ("its since", "shot NAME's when"): its measure is one the probe samples (never log, asset, trace or seen,
+    nor audio sounds or repeats, which are read over a window), takes no window, at, agg or since of its own (the event
+    is the first sample, or frame, whose reading meets its expect), and keeps every rule of a measure (probe_errors,
+    its expect a literal value). A shot's `when` is read by the probe itself every frame, so its measure is one of
+    WHEN_FIELDS (or an objects prop: field), its ui select has no rect (the frame isn't read for it) and it takes no
+    to_angle or to_axis."""
+    at = f'check {n}: {label}'
+    measure = event.get('measure') if isinstance(event.get('measure'), dict) else {}
+    probe, field = measure.get('probe'), measure.get('field')
+    if probe not in SAMPLED_PROBES or (probe == 'audio' and field in ('sounds', 'repeats')):
+        return [f'{at}: its measure is read from samples of the play, so it is one the probe samples (never log, '
+                'asset, trace or seen, nor audio sounds or repeats)']
+    errs = []
+    own = [k for k in ('window', 'at', 'agg', 'since') if measure.get(k) is not None]
+    if own:
+        errs.append(f"{at}: its measure takes no {', '.join(own)} of its own: the event is the first moment its "
+                    'reading meets its expect')
+    if shot:
+        if not (field in WHEN_FIELDS.get(probe, ()) or (probe == 'objects' and str(field).startswith('prop:'))):
+            errs.append(f'{at}: the probe reads a shot\'s event itself every frame, so it reads ui count or text, '
+                        'widgets count or visible, or objects count, x, y, z, active, hidden or a prop: member')
+        sel = measure.get('select') if isinstance(measure.get('select'), dict) else {}
+        if probe == 'ui' and sel.get('rect') is not None:
+            errs.append(f"{at}: the probe reads a shot's event from the UI's elements, never the frame, so its ui "
+                        'select takes no rect')
+        if measure.get('to_angle') is not None or measure.get('to_axis') is not None:
+            errs.append(f"{at}: a shot's event takes no to_angle or to_axis")
+    expect = event.get('expect') if isinstance(event.get('expect'), dict) else {}
+    return errs + probe_errors({'name': f'{n} ({label})', 'play': None, 'measure': measure, 'expect': expect},
+                               None, None, {})
+
 
 
 def seen_errors(n, play, measure):

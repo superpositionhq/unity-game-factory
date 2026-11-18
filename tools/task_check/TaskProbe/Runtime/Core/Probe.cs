@@ -214,8 +214,12 @@ namespace TaskProbe
             Application.targetFrameRate = realTime || sound ? Fps : -1;
         }
 
-        void LoadQueries()
+        static Dictionary<string, Type> queryKinds;
+
+        /// <summary>Every query kind, by the name its [ProbeQuery] gives it.</summary>
+        static Dictionary<string, Type> Kinds()
         {
+            if (queryKinds != null) return queryKinds;
             var kinds = new Dictionary<string, Type>(StringComparer.Ordinal);
             Type[] types;
             try { types = typeof(Probe).Assembly.GetTypes(); }
@@ -225,6 +229,37 @@ namespace TaskProbe
                 var mark = type?.GetCustomAttribute<ProbeQueryAttribute>();
                 if (mark != null && typeof(Query).IsAssignableFrom(type) && !type.IsAbstract) kinds[mark.Kind] = type;
             }
+            return queryKinds = kinds;
+        }
+
+        /// <summary>A query of an input's own (a shot that waits for its event: Inputs.StartWatch), made and loaded as
+        /// the play's queries are but never sampled with them; null, with an error, when its kind is unknown or it
+        /// can't load.</summary>
+        internal Query NewQuery(string id, Dictionary<string, object> def)
+        {
+            var kind = Json.Str(def, "kind", "");
+            if (!Kinds().TryGetValue(kind, out var type))
+            {
+                Error("query '" + id + "': unknown kind '" + kind + "'");
+                return null;
+            }
+            try
+            {
+                var q = (Query)Activator.CreateInstance(type);
+                Fill(q, id, kind, def);
+                q.Load();
+                return q;
+            }
+            catch (Exception e)
+            {
+                Failed(kind + " " + id + ": {0} in Load", e);
+                return null;
+            }
+        }
+
+        void LoadQueries()
+        {
+            var kinds = Kinds();
             var file = Json.Obj(spec, "queries");
             if (file == null)
             {
@@ -550,6 +585,7 @@ namespace TaskProbe
             var t = Elapsed;
             HoldPlayer();  // after every frame's game logic, the clock running or not: a hold lasts through a wait
             if (!counted) return;  // a frame of a wait or of a scene loading: the clock stands still
+            inputs.Watches(t);  // a shot whose event came in this frame is taken at its end
             if (t >= nextSample - 1e-9)
             {
                 nextSample += every;
@@ -685,6 +721,7 @@ namespace TaskProbe
         void Finish(string reason, bool quit = true)
         {
             done = true;
+            inputs?.Unfired();
             var who = Player;
             var result = new Dictionary<string, object>(StringComparer.Ordinal)
             {

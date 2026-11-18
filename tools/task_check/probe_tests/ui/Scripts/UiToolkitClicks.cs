@@ -5,12 +5,14 @@ namespace ProbeTests.Ui
 {
     /// <summary>The Clicks scene's UI Toolkit buttons, each counting its clicks: UGoButton (Button.clicked), UEvtButton
     /// (a ClickEvent callback only), UNoButton (disabled), UOffButton (off the frame), UCursorButton (for the
-    /// cursor), UCaptionButton (clicked by what it reads), and in a ScrollView 60 px tall UScrollInButton (in view) and
-    /// UScrollOutButton (below a 150 px spacer: scrolled out of the viewport, still on the frame).</summary>
+    /// cursor), UCaptionButton (clicked by what it reads), in a ScrollView 60 px tall UScrollInButton (in view) and
+    /// UScrollOutButton (below a 150 px spacer: scrolled out of the viewport, still on the frame), UClipOutButton
+    /// outside a box that clips (overflow: hidden) and is no ScrollView, UCoveredButton under a box that takes the
+    /// pointer (UCover) and UVeiledButton under one that doesn't (UVeil).</summary>
     [RequireComponent(typeof(UIDocument))]
     public sealed class UiToolkitClicks : MonoBehaviour
     {
-        public int go, evt, no, off, cursor, caption, scrollIn, scrollOut;
+        public int go, evt, no, off, cursor, caption, scrollIn, scrollOut, clipOut, covered, veiled;
         VisualElement root;
 
         Button Add(Button button, string name, float x, float y, float w, float h)
@@ -23,6 +25,18 @@ namespace ProbeTests.Ui
             button.style.height = h;
             root.Add(button);
             return button;
+        }
+
+        static VisualElement Box(string name, float x, float y, float w, float h, Color colour, PickingMode picking)
+        {
+            var box = new VisualElement { name = name, pickingMode = picking };
+            box.style.position = Position.Absolute;
+            box.style.left = x;
+            box.style.top = y;
+            box.style.width = w;
+            box.style.height = h;
+            box.style.backgroundColor = colour;
+            return box;
         }
 
         void Start()
@@ -53,6 +67,19 @@ namespace ProbeTests.Ui
             outOfView.style.flexShrink = 0f;
             view.Add(outOfView);
             root.Add(view);
+            var clip = Box("UClipBox", 620, 420, 120, 40, new Color(0.3f, 0.3f, 0.3f, 1f), PickingMode.Position);
+            clip.style.overflow = Overflow.Hidden;
+            root.Add(clip);
+            var clipped = new Button(() => clipOut++) { name = "UClipOutButton", text = "U CLIPPED" };
+            clipped.style.position = Position.Absolute;
+            clipped.style.top = 60f;
+            clipped.style.width = 120f;
+            clipped.style.height = 30f;
+            clip.Add(clipped);
+            Add(new Button(() => covered++) { text = "UCOVERED" }, "UCoveredButton", 760, 420, 120, 30);
+            root.Add(Box("UCover", 750, 410, 140, 50, new Color(0f, 0f, 0f, 0.5f), PickingMode.Position));
+            Add(new Button(() => veiled++) { text = "UVEILED" }, "UVeiledButton", 760, 470, 120, 30);
+            root.Add(Box("UVeil", 750, 465, 140, 40, new Color(0f, 0f, 0f, 0.5f), PickingMode.Ignore));
         }
     }
 }

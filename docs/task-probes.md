@@ -139,8 +139,8 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       click at its centre (enter, down, up, click, exit) as the Input System's UI module sends them (the press lets go
       of a selection the clicked object wouldn't take; a Slider takes the value at its centre, an InputField is
       focused, a Dropdown opens), a UI Toolkit Button a submit event, which fires `Button.clicked` (a game that handles
-      a raw `ClickEvent` instead needs the cursor, below). The click casts no ray, so an image drawn over the button
-      doesn't stop it. The play's `probe.log` names what it clicked and its type: `clicked RetryButton (Button)`.
+      a raw `ClickEvent` instead needs the cursor, below). The play's `probe.log` names what it clicked and its type:
+      `clicked RetryButton (Button)`.
       When no such widget has the name or the type, the first one that **reads** so is clicked: its caption (a uGUI
       button's own or first text below it, a UI Toolkit Button's text, rich text tags left out) **equal to `widget`
       exactly as shown**, spaces, punctuation, case and any script included (`"Save & quit"`, `"Don't save"`,
@@ -156,6 +156,25 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       A match that is shown but disabled (not interactable, its Selectable off, a UI Toolkit Button not enabled) is
       not clicked either, as a player's click on it does nothing: its row says why `shown but disabled`, and
       `probe.log` says `<name> (<type>) matches '<widget>', shown but disabled: not clicked`.
+      **A click reaches only what a player's pointer would.** Where a player's pointer at the centre of the
+      button's visible part lands on something else first (a modal panel, a dimming overlay, an image that takes
+      the pointer, laid over it; in UI Toolkit an element that takes the pointer), the button is not clicked: its row
+      says why `covered by another control`, and `probe.log` names what is over it (`<name> (<type>) matches
+      '<widget>', but Blocker (Image) is over it: not clicked`). `optional` and `disabled` never allow that row.
+      _(why: a player's click lands on what is drawn over the button, and a game that leaves a panel over its button
+      can't be played)_ An overlay that takes no pointer (an image with Raycast Target off, a CanvasGroup that
+      doesn't block raycasts, a UI Toolkit element whose picking mode is Ignore) doesn't stop it. uGUI's pointer is
+      read through the scene's EventSystem: with none, no uGUI click lands anyway. A UI Toolkit button is read in its
+      own panel only.
+      **A click scrolls its own scroll area first.** A button scrolled out of its scroll area's view (a uGUI Scroll
+      View's viewport, a UI Toolkit ScrollView) is not visible, but when it is the only reason it isn't, the click
+      scrolls that area to it, as a player would, and clicks it once the layout has followed (the next frame):
+      `probe.log` says `scrolled ShopList (ScrollRect) to show BuyButton (Button) for the click on 'BuyButton'`. The
+      area moves only as far as it can (its own clamping), only along the ways it scrolls. A click does nothing else
+      to find its button: it opens no menu, changes no tab and brings up no screen, and a button hidden any other way
+      (inactive, transparent, outside a mask that is no scroll area, outside the screen) is still a missed input.
+      _(why: scrolling a list to the item is part of what a player does to click it; opening a menu is a step of the
+      play, which the task writes)_
       What a click by caption can't do:
       - a name or a type wins: the caption is tried only when no visible, interactable widget of either kind has
         that name or type, so a `widget` that is also another button's name clicks that button;
@@ -163,13 +182,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       - `widget` is 1 to 120 characters, with no line break or other control character and no space at either end
         (the schema's pattern), so a caption on two lines is written with a space where the break is; `*` and `?` are
         wildcards on a name, so a `widget` holding them may click a widget of a matching name first;
-      - the widget must be visible (section 2.6): in the frame and inside its scroll area's view, each at least in
-        part. The click casts no ray and scrolls nothing: a control scrolled past the screen's edge, or out of its
-        scroll area's view while still inside the screen, is a missed input (`no visible button matches it`), as no
-        player could reach it. _(why: a click no player could make is no play of the game)_ A play scrolls first, as
-        a player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
-        "axis": -120}`, a one-frame impulse: send as many as the list needs), or on a mobile game a `drag` across the
-        list; then the click;
+      - the widget must be visible (section 2.6), or visible but for its own scroll areas (above), and nothing else
+        may be drawn over it. A play that tests scrolling itself (a list that pages, a wheel the game reads) still
+        scrolls with the mouse: a `cursor` input over the list, then the wheel (`{"t": 3.0, "key":
+        "<Mouse>/scroll/y", "axis": -120}`, a one-frame impulse: send as many as the list needs), or on a mobile game a
+        `drag` across the list;
     - an optional click: `{"t": 6.0, "widget": "Overwrite", "click": true, "optional": true}` is a click that may find
       nothing: when no widget matches at that moment, the input is skipped and does not count as a missed input (the
       probe still lists it in `inputs_missed`; the checker leaves it out). For a control that only shows in some
@@ -230,7 +247,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     - a named screenshot: `{"t": 6.0, "shot": "pause_menu"}` (a letter or `_` first, then letters, digits, `_`; up to
       32) takes `shot_pause_menu.png` at that moment, with the UI, beside the evenly spaced ones. Each name once in a
       play, 20 at most. A picture never passes or fails anything by itself: it is for a judge (section 3.2), for a
-      `seen` probe that reads its text (section 2.22) and for whoever reviews a run;
+      `seen` probe that reads its text (section 2.22) and for whoever reviews a run. A shot may wait for the moment
+      itself: `{"t": 2.0, "shot": "victory", "when": {"measure": {"probe": "ui", "field": "count", "select": {"kind":
+      "text", "text": "^VICTORY$"}}, "expect": {"op": ">=", "value": 1}, "within": 8}}` is taken in the first frame at
+      or after `t` whose reading meets `expect` (section 2.23); when it doesn't come within `within` seconds of `t`
+      (else by the play's end), no picture is taken and the shot is a missed input (`its event never happened`);
     - a scene load: `{"t": 10.0, "scene": "Assets/Scenes/Yard.unity"}` loads that scene of the build, as the game's own
       load does; the play's clock stands still while it loads;
     - a view turn: `{"t": 10.5, "view": [-15, 90]}` turns the player to the yaw and the main camera to that pitch and
@@ -358,7 +379,9 @@ reads them as it reads a phone's: the UI module's pointer events (a uGUI Button,
 EnhancedTouch for touches on the world. Like a key, a touch sent at `t` reaches the game one frame later. A touch that
 can't be made is a miss: a line in the play's `query_errors` (`inputs: the tap at 2.00 s missed: no visible widget
 matches 'FireButton'`; a finger still down from an earlier touch; a project without the Input System package), and
-nothing is touched. Android's back button is the key `<Keyboard>/escape`. A desktop game takes touches too when it
+nothing is touched. A tap on a widget is a click's finger: one scrolled out of its own scroll area's view is scrolled
+into view first and tapped the next frame, and one something that takes the pointer is drawn over is a miss, why
+`covered by another control` (section 1.1, the widget click). A drag's spots are taken as they are. Android's back button is the key `<Keyboard>/escape`. A desktop game takes touches too when it
 reads them, so they are allowed in any task; a mobile game is played by touch, so its tasks' plays drive it with
 touches and the back button, never with another key, the mouse or a gamepad.
 
@@ -409,7 +432,9 @@ object or no member takes. **A play with such a row measured no staged contact: 
 side, whatever its samples say** (`a stage of the play did not land (...)`), so "it took no damage" never passes
 because nothing was hit. On the reference that makes the task invalid: fix the play.
 
-Every other input that didn't land is listed there too: a click no visible button took, a teleport without a player
+Every other input that didn't land is listed there too: a click no visible button took, a click or tap on a control
+something else is drawn over (`covered by another control`), a shot whose event never came (kind `shot_when`, `its
+event never happened`), a teleport without a player
 or next to an object nothing matches, a key the probe has no control for, a touch on a widget that isn't on screen.
 **A probe of a task play whose input didn't land fails, whatever it measured** (`the play's input did not land:
 ...`), as in the Lab's grader: what it measured is of a play that never did what the task says. When the reference's
@@ -495,7 +520,7 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: se
 
 - `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-120; the
   sample nearest each time, when one is within 0.26 s of it) or `"end"` (the last sample); not both. Default: the
-  whole play.
+  whole play. With `since` (section 2.23) both count from the moment of an event instead of the play's start.
 - `agg`: how the samples reduce to one number: `min`, `max`, `mean`, `first`, `last`, `delta` (last minus first),
   `any` (1 if any sample is non-zero), `all` (1 if every sample is non-zero), `count` (number of non-zero samples),
   `sum`, `range` (max minus min), `std` (standard deviation), `changes` (how many times the value changes between
@@ -873,10 +898,10 @@ Limits:
   it lies inside the screen)_ Its colour and its size don't count: a shown panel whose own image is transparent, or
   whose root has no size, reads visible like its children. Never visible: an inactive widget, one whose own graphic
   is disabled, one under an inactive object, a disabled Canvas or a CanvasGroup at alpha 0, one entirely outside the
-  frame, one wholly outside a masking parent's rectangle (an item scrolled out of a Scroll View's view), one on a
-  canvas drawn into a texture, on another display or by a camera that is off. Not tested: whether another widget or
-  a 3D object covers it, the shape a stencil `Mask`'s image cuts inside its rectangle, its own colour's alpha and its
-  size. So `count` counts what the game shows (a warning bar's shown messages, not the ones it keeps hidden); what
+  frame, one wholly outside a masking parent's rectangle (an item scrolled out of a Scroll View's view, until
+  something scrolls it), one on a canvas drawn into a texture, on another display or by a camera that is off. Not
+  tested by `visible`: whether another widget covers it (that is `covered`, below), the shape a stencil `Mask`'s
+  image cuts inside its rectangle, its own colour's alpha and its size. So `count` counts what the game shows (a warning bar's shown messages, not the ones it keeps hidden); what
   is drawn on screen, pixel for pixel, is `ui`'s (section 2.18). A disabled button whose image still draws is visible: whether it can be pressed is `interactable`.
 - `field`: `count`; `visible`; `text` (a Text's, a TextMeshPro's or a TextElement's text, with `match`: rich text tags
   stripped, a TextMeshPro typewriter reveal (`maxVisibleCharacters`) honoured; an input field's (`InputField`,
@@ -895,6 +920,13 @@ Limits:
   panel not drawn on the screen).
 - A project without the TextMeshPro essential resources draws no TMP text, but `widgets` and `ui` still report its
   `.text`.
+
+- `covered`: 1 when a player's pointer at the centre of the widget's visible part would land on something else
+  first (a panel, an overlay or an image that takes the pointer, drawn over it), 0 when it lands on the widget (or
+  its label); no value when the widget isn't visible, when the scene has no EventSystem (a uGUI widget), when nothing
+  takes the pointer there, or when the widget itself takes none there. A UI Toolkit widget is read in its own panel.
+  The test a click and a tap on a widget make (section 1.1): `"field": "covered"` with `"expect": {"op": "==",
+  "value": 0}` checks "the Continue button is not hidden under the dialog". `visible` doesn't change with it.
 
 ### 2.7 `light`: light reaching a point, as the engine computes it
 
@@ -1577,6 +1609,40 @@ How the Lab's grader reads it:
   reads them blind ([task-check.md](task-check.md)): their answer is the two sides' measures, reduced the way the Lab
   reduces a reading. Until both sides are answered the probe measures nothing, and a task with a required one isn't
   VALID.
+
+### 2.23 Events: `since` on a measure, `when` on a shot
+
+A moment the play reaches at a time the build decides (a door that finishes opening, a level that loads, a boss that
+appears) is an **event**: an object of `measure` (a measure), `expect` (an `op` and a literal `value`) and, optionally,
+`within` (seconds): the first moment at which `measure`, read as one sample, meets `expect`.
+
+- On a measure, `"since": <event>` counts its `window` and `at` from that moment instead of from the play's start; with
+  neither, it reads the samples from the moment on, and `"at": "end"` the last sample when it isn't before it.
+  `"within"` (optional): the event counts only that many seconds into the play. The grader reads the event from the
+  play's own samples (the play samples its measure too), so it is known to the play's `every`: give a play of a fast
+  event `"every": 0.1`. When the event never happens the measure has no value, `its event never happened (...)`,
+  which fails it as any measure that reads nothing; on the reference that makes the task invalid.
+
+```json
+{"probe": "objects", "select": {"name": "Gate"}, "field": "y", "of": "first", "window": [0.5, 2.0], "agg": "max",
+ "since": {"measure": {"probe": "objects", "select": {"name": "Lever"}, "field": "prop:Lever.pulled", "of": "first"},
+           "expect": {"op": "==", "value": 1}}}
+```
+
+- On a `shot` input, `"when": <event>` takes the picture in the first frame at or after the shot's `t` whose reading
+  meets `expect`; `"within"` (optional): seconds after `t` (else to the play's end). The probe reads the event itself,
+  every frame, so a shot's event reads only: `ui` `count` or `text` (with `match`; a select without `rect`),
+  `widgets` `count` or `visible`, `objects` `count`, `x`, `y`, `z`, `active`, `hidden` or a `prop:` member, with `of`
+  as any measure's, and no `to_angle` or `to_axis`. When it never comes, no picture is taken and the shot is a missed
+  input (kind `shot_when`, why `its event never happened`), which fails every probe of the play.
+- The event's measure takes no `window`, `at`, `agg` or `since` of its own, never reads `log`, `asset`, `trace`,
+  `seen` or audio `sounds` and `repeats`, keeps every rule of a measure, and its `expect` is a literal value; the
+  validator refuses anything else, in plain words. _(why: an event is one reading of one sample compared with a number;
+  a window or a threshold made from the start has no meaning there)_
+- Tie a window or a shot to the event when its time is the build's: an animation that may run faster or slower, a
+  load, an enemy's arrival, a menu that appears after the game's own delay. Keep fixed seconds when the play itself
+  makes the moment (the input at 2 s, read at 3 s). _(why: a fixed second picks a moment of one build; another correct
+  build reaches it earlier or later and is read at the wrong time)_
 
 ## 3. What gates, and how a probe fails
 

@@ -104,7 +104,7 @@ Measures:
   and `hand.L`); a `bone:`'s component is a plain type name, so `bone:Animator.hand.L.y` splits at its first and its
   last dot.
 - `components` fields include `prop:<path>` (on the component itself); the measure takes `match` (a `prop:` string).
-- The schema lists every kind's fields: `widgets` has `value` and `interactable` among them, `camera`
+- The schema lists every kind's fields: `widgets` has `value`, `interactable` and `covered` among them, `camera`
   `player_on_screen`, `pieces` `objects`, `audio` `level` and the started fields (`started`, `started_audible`,
   `sounds`, `repeats`); a `ground` measure reads at a point `xz` or over a `box`.
 - `grading`: `post:<Component>.<parameter>` and `post:<Component>.<parameter>.<channel>`
@@ -125,6 +125,11 @@ The validator's rules beyond the schema include (`probe_errors`, `task_semantic_
   saved has neither, and no `has`;
 - a screen rect has x0 < x1 and y0 < y1; a player measure's `dist` has its `to`; a measure sets `to_angle` or
   `to_axis`, not both, and `window` or `at`, not both;
+- an event (a measure's `since`, a shot's `when`: `event_errors`) reads a measure the probe samples (never `log`,
+  `asset`, `trace` or `seen`, nor audio `sounds` or `repeats`), with no `window`, `at`, `agg` or `since` of its own,
+  under every rule of a measure, its `expect` a literal value; a shot's `when` reads only what the probe reads itself
+  every frame: `ui` `count` or `text` (no select `rect`), `widgets` `count` or `visible`, `objects` `count`, `x`, `y`,
+  `z`, `active`, `hidden` or a `prop:` member, with no `to_angle` or `to_axis`;
 - every regular expression of a measure compiles (`match`, a log's `pattern`, a select's `text`), so none can stop the
   task check;
 - the task's `player` select names no `player` and no point on the player (it says which object the player is);
@@ -155,10 +160,12 @@ The task check's own rules, each closing a case that would otherwise read wrongl
 - the reference passes every required check the checker runs, `log_absent`, `file_exists` and `package` too (a
   `package` check fails closed on every side, `check.NO_PACKAGE`, as the Lab's grader has no package step for a Unity
   game); only checks that aren't required are notes (`verdict.verdict`);
-- a probe of a task play whose play missed an input (`inputs_missed`, kind `shot` aside: `probes.missed`) fails, "the
-  play's input did not land: ..."; when the reference's play of it missed one too, or the probe is calibrated and the
-  reference's play missed one, it is "task error: ..." (`check.Grade.landing`, `reference_unlanded`), as the Lab's
-  grader reads a play; only the plays a side already made are read, none is played for it;
+- a probe of a task play whose play missed an input (`inputs_missed`, kind `shot` aside: `probes.missed`; a click
+  or tap on a control something is drawn over, and a shot whose event never came, are missed inputs whatever the
+  click's marks) fails, "the play's input did not land: ..."; when the reference's play of it missed one too, or the
+  probe is calibrated and the reference's play missed one, it is "task error: ..." (`check.Grade.landing`,
+  `reference_unlanded`), as the Lab's grader reads a play; only the plays a side already made are read, none is played
+  for it;
 - a required judge decides on the writer's blind scores of its saved shots (`judges.kept`, `judges.decide`): unscored,
   or a reference that fails it, or a start that passes a required item (fails it, for a judge in `still_works`), keeps
   the task from VALID; a side's scores stand while its pictures' sha256 (`pictures.json`) are the same;
@@ -186,9 +193,17 @@ A `file_exists` glob leaves out Unity's generated folders (`Library`, `Temp`, `O
 
 What each field means, for a task's author, is `docs/task-probes.md` section 2, and this section doesn't repeat it.
 It says, kind by kind, where the probe reads the measure (the class, its constants), what it writes for the logs
-beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, `of`, `match`, `to_angle`,
+beyond the fields, and what was measured. The reduction (`since`, `window`, `at`, `agg`, `of`, `match`, `to_angle`,
 `to_axis`; every match counted past the 200 rows through the sample's `total` and `full`) is the checker's
 (`probes.py`).
+
+A measure's `since` (probe 1.5.0) is read by the checker alone: the play samples its event's measure with its own
+(`probes.all_needs`, at the play's `every`), and the event's time is the first sample whose value, reduced as that
+measure is (`series`), meets its `expect` (`probes.event_time`; no later than `within` s of play time when it says).
+The measure's `window` and `at` then count from that time, `at` `"end"` takes the last sample only when it is not
+before it, and with neither the samples from it on are read (`probes.pick`). When no sample meets it the measure has
+no value, `its event never happened (its <probe> <field> never read <op> <value>[ in the play's first <within> s])`.
+The event is known to the play's sampling: a play of fast events samples every 0.1 s.
 
 - **Selects and rows** (`Find`, `Reflect`, `RowSet`). Matches come in hierarchy order, as the Hierarchy window lists a
   playing game (`Find.SortByHierarchy`): the scenes in the order they were loaded (SceneManager's list), the
@@ -344,7 +359,13 @@ beyond the fields, and what was measured. The reduction (`window`, `at`, `agg`, 
   `VisualElement.ShouldClip`, an overflow other than visible with its clipping not turned off, as a ScrollView's
   viewport; a Unity without that method clips nothing, and `probe.log` says so once). A widget is visible only when
   it and every parent show it, so an item scrolled out of a scroll area's view is not visible while it lies inside the
-  screen (probe 1.4.0). Its colour, its size and its Selectable's enabled flag don't count. On screen (`ui` below,
+  screen (probe 1.4.0) until something scrolls it into view. Its colour, its size and its Selectable's enabled flag
+  don't count. `covered` (probe 1.5.0, `UiScan.CoverField`): 1 when a pointer at the centre of the widget's visible
+  part (its rectangle within the frame and every mask above it) reaches something else first and the widget further
+  down, 0 when it reaches the widget or something under it; no value when the widget isn't visible, when a uGUI
+  widget's scene has no EventSystem, when nothing is hit there, or when the widget itself takes no pointer there
+  (`UiScan.UguiCover`: `EventSystem.RaycastAll`, the UI module's own raycasters; `UitkCover`: its panel's
+  `IPanel.PickAll`, that panel only). On screen (`ui` below,
   `UiScan.UguiDrawn`) means drawn: visible so on a screen-space canvas (so not wholly outside an enabled Mask, nor a
   UI Toolkit element outside one that clips), and also the graphic's colour and CanvasRenderer alpha above 0.004
   with the CanvasGroups', not culled by a RectMask2D, and of some size. How text is read: task-probes.md 2.6.
@@ -619,8 +640,14 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   the pointer exit (the module follows its own pointer's hover, so the object would never get one). With no EventSystem
   in the scene no uGUI widget is clicked, as a player's click reaches none (an InputField's pointer down would also
   throw into the game's log): `probe.log` says `no EventSystem: a click reaches no uGUI widget, so <name> isn't
-  clicked`, and a UI Toolkit Button is still clicked. No ray is cast, so an image over the button doesn't stop it;
-  `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a player's click; a UI
+  clicked`, and a UI Toolkit Button is still clicked. It is clicked only when a player's pointer at the centre of its
+  visible part would reach it (probe 1.5.0, `UiScan.UguiOver`, `UitkOver`, as `covered` reads it): when something else
+  is hit first there (an image that takes the raycast, a panel; a UI Toolkit element that takes the pointer), nothing is
+  clicked, `probe.log` says `<name> (<type>) matches '<widget>', but <what> (<type>) is over it: not clicked` (or `the
+  pointer at its centre reaches <what> and never it`), and the `inputs_missed` row's `why` is `covered by another
+  control`; an image that takes no raycast (`raycastTarget` off, a CanvasGroup that blocks no raycasts) or an element
+  that ignores the pointer doesn't stop it, and with no EventSystem, or nothing hit there, no cover is read. A shown
+  but disabled button under something gets that why too. `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a player's click; a UI
   Toolkit one a `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor
   path). `probe.log` names the widget clicked and its type, not the pattern (`clicked PushButton (Button)`). When
   nothing is clicked and a visible one that the same passes match is shown but disabled (not interactable, its
@@ -631,9 +658,19 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   the probe ignores them and lists the click in `inputs_missed` as any other, and the checker leaves that row (its
   `t`, kind `click` and the widget as its target) out of the play's missed inputs (`probes.missed`) when its `why` is
   the one the mark allows: `no visible button matches it` for `optional`, `shown but disabled` for `disabled`. Without
-  `disabled`, a click on a disabled button is a missed input. The click scrolls nothing: a button scrolled out of its
-  scroll area's view, inside the screen or not, is not visible, so a click on it is a missed input (`no visible button
-  matches it`, probe 1.4.0); the play scrolls first, as a player would.
+  `disabled`, a click on a disabled button is a missed input, and no mark allows `covered by another control`. When no
+  visible button matches, but one the same passes match is hidden only by the scroll areas it is in (probe 1.5.0,
+  `UiScan.Scroll`: every mask that clips it is the view of an enabled `ScrollRect` above it whose content holds it, that
+  view inside the frame; in UI Toolkit, every element that clips it is a `ScrollView` whose content container holds it,
+  or a part of one between them), the click scrolls those areas to it, innermost first, as a player would: a
+  `ScrollRect`'s content moved the least way that shows the button whole (its start when it is larger than the view),
+  only along the axes the area scrolls and, unless its movement is unrestricted, as far as the content still covers
+  the view (`UiScan.ScrollInto`, `Shift`); a `ScrollView` by `ScrollTo`. `probe.log` says `scrolled <area> (ScrollRect)
+  to show <name> (<type>) for the click on '<widget>'`, and the click is made again in the next frame of the clock,
+  once the layout has followed, scrolling no more; the inputs after it wait for it. A uGUI area is scrolled only with
+  an EventSystem (without one a player can't scroll it either). A button hidden any other way (inactive, transparent,
+  a disabled canvas, outside a mask that is no scroll area, outside the frame once scrolled) is not clicked, and a
+  click doesn't open a menu, change a tab or bring up a screen to find its button.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with
@@ -661,7 +698,10 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   changed (its path covered evenly over `over`), `Ended` once `over` plus `hold` have passed, never in the frame it
   went down. Finger n is touch id n + 1 for the whole play. A miss (a finger outside 0-9, a widget not on screen, a
   finger still down, no Input System) is one `query_errors` line, `inputs: the tap at 2.00 s missed: ...`, and
-  nothing is sent; `probe.log` names what each finger went down on and where it lifted.
+  nothing is sent; `probe.log` names what each finger went down on and where it lifted. A tap on a widget (probe
+  1.5.0): one hidden only by the scroll areas it is in is scrolled into view as a click's is (`UiScan.ScrollToWidget`)
+  and the tap is made in the next frame; one whose spot something else is drawn over (`UiScan.Covered`, as a click's)
+  is a miss, `why` `covered by another control`. A drag's spots are taken as they are.
 - pin, damage, set (`Stages`): the stages of a contact. Each takes the match of its select nearest to the player
   (`Stages.Nearest`: the player itself for `{"player": true}`, else never the player nor an object under it; with no
   player, the first match in hierarchy order).
@@ -700,6 +740,17 @@ control <path>`, `inputs: no device for <path>`), never a stop.
     checker gives no value to any probe of a play with such a row (`probes.stage_missed`): the play staged no contact.
 - wait: `{"t", "wait": s}`: the play's clock holds while the game runs paced to real time, until `wait` seconds of both
   real and game time have passed; the inputs after it wait for its end. The frame it starts in takes its sample first.
+- shot: `{"t", "shot": "name"}`: a screenshot of the frame as drawn, `shot_<name>.png`. With `when` (probe 1.5.0), as
+  the checker hands it (`probes.probe_inputs`), its `when` holds `query` (the one query its event's measure needs,
+  with its id), `field`, `of`, `match`, `op`, `value` and `within` (only when set): the shot waits from `t` for its event (`Inputs.StartWatch`). In every frame
+  of the clock from then on, after the game's LateUpdates (`Inputs.Watches`), the probe samples that query itself
+  (`Probe.NewQuery`: made as the play's queries are, never written to `measures`; a `ui` query reads the elements
+  then), reduces the sample as the checker reduces one (`Inputs.Reading`: `count` the matches, `total` past the rows;
+  another field each row's number, a string 1 or 0 by `match`, combined by `of`, or past the rows from `full`) and
+  compares it with `op` and `value` (`==` and `!=` within 1e-9). In the first frame it holds the shot is taken, at
+  that frame's end, and `probe.log` says `the shot <name>'s event: <field> reads <v>`; when `within` seconds after `t`
+  pass without it, or the play ends first, it is an `inputs_missed` row of kind `shot_when`, the shot's name its
+  target, `why` `its event never happened`.
 
 ## 5. Files the probe and the checker exchange
 
@@ -780,8 +831,10 @@ first two track and camera rows (of 18) and the first sample of each query:
   set's path); a click no visible button took (click, the widget's name); a teleport without a player (teleport or
   teleport_to, target `player`), or next to an object no select matches (teleport_to, target `select`); a key, button
   or axis the probe has no control for, or any of them in a project without the Input System package (key, the
-  control path); a touch that couldn't be made (tap, drag: the widget's name, or the finger). The key and touch
-  misses are `query_errors` lines as well.
+  control path); a touch that couldn't be made (tap, drag: the widget's name, or the finger); a click or tap on a
+  control something else is drawn over (click or tap, `covered by another control`); a shot whose event never came
+  (`shot_when`, the shot's name, `its event never happened`). The key and touch misses are `query_errors` lines as
+  well.
   `screenshots`: 960x540 PNGs of the frame as displayed, UI included, without alpha, taken at the middle of each of
   `shots` equal parts of the play (none in a project without the ImageConversion module: a `query_errors` line says so).
 - Samples fall on frames: the first at 1/30 s (the clock's first frame), then every `every` s, on the frame that

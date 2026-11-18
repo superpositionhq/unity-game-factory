@@ -588,7 +588,8 @@ def undocumented(text):
             continue
         num, props = ks[kind][0], DEFS[name]['properties']
         need(f'{kind} field', field_words(props.get('field') or props.get('fact') or props['read']), num)   # seen: read
-        need(f'{kind} key', set(props) - {'probe', 'field', 'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis'},
+        need(f'{kind} key', set(props) - {'probe', 'field', 'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis',
+                                          'since'},
              num)
         sel = props.get('select', {}).get('$ref', '').rsplit('/', 1)[-1]
         if sel and sel != 'Select':
@@ -596,7 +597,7 @@ def undocumented(text):
     obj = DEFS['ObjectsMeasure']['properties']
     if 'objects' in ks:     # the object select is documented with the kind that introduces it
         need('object select key', set(DEFS['Select']['properties']) | set(DEFS['Has']['properties']), ks['objects'][0])
-    need('common key', {'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis'}, '2.1')
+    need('common key', {'window', 'at', 'agg', 'of', 'match', 'to_angle', 'to_axis', 'since'}, '2.1')
     need('agg', {v for s in obj['agg']['anyOf'] for v in s.get('enum', [])}, '2.1')
     need('of', set(obj['of']['enum']), '2.1')
     need('point key', {k for _, d in POINTS for k in DEFS[d]['properties']}, '2.13')

@@ -584,11 +584,18 @@ Fix what you find in the task before it is packed:
     lower case with every run of other characters as `_` is taken; a caption on two lines is written with a space at
     the break; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit one by a submit, so a raw
     `ClickEvent` handler does not fire (section 8).
-  - A click does not scroll. A control scrolled past the screen's edge, or out of its scroll area's view while still
-    inside the screen, is not visible: a click on it is a missed input. _(why: no player can click what the scroll
-    area hides)_ So the play scrolls first, as a player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
-    "axis": -120}`, one frame each: send as many as the list needs), or on a mobile game a `drag` across the list
-    instead; then the click. Check in the screenshots that the control is in view when it is clicked.
+  - A click (and a tap on a widget) scrolls its control's own scroll area into view first, as a player would, and
+    clicks it the next frame; it does not open a menu, change a tab or bring up a screen, and a control hidden any
+    other way (inactive, outside the screen, outside a mask that is no scroll area) is still a missed input. So the
+    play opens the menu, tab or screen first, then clicks. _(why: scrolling a list to an item is part of a player's
+    click on it; opening a screen is a step of the play the task must write)_ The manual scroll inputs stay for what
+    tests scrolling itself (a list that pages, a wheel the game reads): a `cursor` input over the list, then the mouse
+    wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y", "axis": -120}`, one frame each), or on a mobile game a `drag` across
+    the list.
+  - A click lands only where a player's pointer would: a control under a dialog, a dimming overlay or any image that
+    takes the pointer is not clicked, and the row says `covered by another control`; `optional` and `disabled` never
+    allow it. Close what covers it first, as a player would. _(why: a player's click lands on what is drawn over the
+    button)_ To check that a control is not hidden under another, read the widgets field `covered`.
   - A control that shows only in some states (a confirmation shown only when a save exists) is clicked with
     `"optional": true`: when nothing matches at that moment the click is skipped and is no missed input. Never mark a
     click the play needs optional. _(why: a needed click that may find nothing hides a play that never got where it
@@ -598,10 +605,14 @@ Fix what you find in the task before it is packed:
     it. Without the mark a click on a disabled button is a missed input. Never mark a click the play needs to press.
     _(why: a play may show that a locked choice stays locked, and a mark on a needed click hides a press that never
     happened)_
-  - Windows and shots are fixed seconds of play time, so put the input that triggers the event at a known time and
-    place the window or the shot right after it, from the recorded play of both sides, with room; never seconds
-    guessed before the game ran. _(why: the event falls at another time on each build, and a window guessed in
-    advance reads before or after it)_
+  - Windows and shots count fixed seconds of play time unless they are tied to the event itself. When the play makes
+    the moment (the input at 2 s), put the input at a known time and place the window or the shot right after it,
+    from the recorded play of both sides, with room. When the build decides when it comes (an animation's length, a
+    load, an enemy's arrival, a dialog after the game's own delay), tie them to it: a measure's `since` counts its
+    `window` and `at` from the first sample whose reading meets the event's `expect`, and a shot's `when` takes the
+    picture in the first frame it does (docs/task-probes.md, section 2.23); give a play of a fast event `"every":
+    0.1`, and an event a `within` that the reference meets with room. Never seconds guessed before the game ran.
+    _(why: the event falls at another time on each build, and a window guessed in advance reads before or after it)_
 - **A play that reads what another play writes names it in `after`. Never rely on the checker's order.** A task play
   that reads a save (a level reached, a profile filled in) lists the plays that write it:
   `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
@@ -779,7 +790,10 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a required check of something the instruction never asks | every required check traces back to an ask or a keep; drop it or put the ask in the instruction |
 | a task VALID in both cases whose checks don't decide what the instruction asks (the Lab's review marks it) | VALID is needed, never enough: read each check's whole definition (plays, selectors, thresholds, rubric) against the instruction and the game's code (section 0) |
 | a `count`, `any`, `all` or `sum` over a selector that matches no rows reads 0, so a literal `== 0` or `<= 0` compares right on both sides while it reads nothing | confirm in `probe.json` that the selector matched rows on the side where the thing exists; prefer a check that reads something the reference has (section 5, "A probe reads something") |
-| a click on a control below the visible part of a scroll area: past the screen's edge or clipped by the scroll area, it is a missed input (`no visible button matches it`) | the play scrolls first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), then clicks (section 5) |
+| a click on a control in a menu, tab or screen the play never opened is a missed input (`no visible button matches it`): a click scrolls its own scroll area, nothing else | the play opens the menu, tab or screen first, then clicks (section 5) |
+| a click on a control under a dialog or an overlay that takes the pointer is a missed input (`covered by another control`), whatever its marks | the play closes what covers it first, as a player would; to check a control isn't hidden, read `covered` (section 5) |
+| a window or a shot at fixed seconds reads before or after an event whose time the build decides | tie it to the event: `since` on the measure, `when` on the shot, a play with `"every": 0.1` (section 5) |
+| a shot's event never comes (`its event never happened`, kind `shot_when`): no picture, a missed input | the event's measure reads what the reference shows at that moment, and its `within` leaves room |
 | a confirmation that shows only in some states (only when a save exists) is a missed input on the side where it doesn't show | click it with `"optional": true`; never mark a click the play needs optional (section 5) |
 | a click by caption takes another button whose name matches `widget` first, or never matches a button whose caption it gives only in part | a name or type match wins over a caption, and a caption is compared whole: pick a `widget` no other button's name or type matches, and write the whole caption exactly as shown (docs/task-probes.md, section 1.1) |
 | a click on a button the game disables by design is a missed input (`shown but disabled`) | when the instruction says the choice stays locked, mark the click `"disabled": true`; else wait until the game enables it (section 5) |

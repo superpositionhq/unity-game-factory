@@ -361,6 +361,17 @@
         "select": {
           "$ref": "#/$defs/AudioSelect"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -698,6 +709,17 @@
           "title": "Probe",
           "type": "string"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -753,7 +775,7 @@
     },
     "Click": {
       "additionalProperties": false,
-      "description": "A click on the first visible, interactable uGUI Selectable or UI Toolkit Button whose name (a wildcard) or type\nmatches, else whose caption is `widget` exactly as shown (spaces, punctuation and any script included), else whose\ncaption reads as `widget` (lower case, every run of other characters one `_`), as a player's click fires it.",
+      "description": "A click on the first visible, interactable uGUI Selectable or UI Toolkit Button whose name (a wildcard) or type\nmatches, else whose caption is `widget` exactly as shown (spaces, punctuation and any script included), else whose\ncaption reads as `widget` (lower case, every run of other characters one `_`), as a player's click fires it. A\ncontrol scrolled out of its own scroll area's view is scrolled into it first, as a player scrolls to it; one\nsomething else is drawn over, where a player's pointer would land on that instead, is not clicked.",
       "properties": {
         "click": {
           "const": true,
@@ -1066,6 +1088,17 @@
         "select": {
           "$ref": "#/$defs/ComponentSelect"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -1369,6 +1402,17 @@
           "title": "Probe",
           "type": "string"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -1420,6 +1464,125 @@
         "field"
       ],
       "title": "DrawnMeasure",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "description": "A moment of the play its reading decides: the first sample (a measure's `since`) or the first frame (a shot's\n`when`) at which `measure`, read as one sample (no window, at, agg or since of its own), meets `expect`. `within`:\nit counts only that many seconds from the play's start (`since`) or from the shot's `t` (`when`); else to the\nplay's end. A measure's `since` counts its `window` and `at` from that moment, and reads nothing when it never\ncomes (docs/task-probes.md, section 2.23).",
+      "properties": {
+        "expect": {
+          "$ref": "#/$defs/Value"
+        },
+        "measure": {
+          "discriminator": {
+            "mapping": {
+              "asset": "#/$defs/AssetMeasure",
+              "audio": "#/$defs/AudioMeasure",
+              "camera": "#/$defs/CameraMeasure",
+              "components": "#/$defs/ComponentsMeasure",
+              "drawn": "#/$defs/DrawnMeasure",
+              "grading": "#/$defs/GradingMeasure",
+              "ground": "#/$defs/GroundMeasure",
+              "light": "#/$defs/LightMeasure",
+              "log": "#/$defs/LogMeasure",
+              "objects": "#/$defs/ObjectsMeasure",
+              "pieces": "#/$defs/PiecesMeasure",
+              "player": "#/$defs/PlayerMeasure",
+              "render": "#/$defs/RenderMeasure",
+              "screen": "#/$defs/ScreenMeasure",
+              "seen": "#/$defs/SeenMeasure",
+              "spawns": "#/$defs/SpawnsMeasure",
+              "trace": "#/$defs/TraceMeasure",
+              "ui": "#/$defs/UiMeasure",
+              "widgets": "#/$defs/WidgetsMeasure",
+              "world": "#/$defs/WorldMeasure"
+            },
+            "propertyName": "probe"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PlayerMeasure"
+            },
+            {
+              "$ref": "#/$defs/CameraMeasure"
+            },
+            {
+              "$ref": "#/$defs/ObjectsMeasure"
+            },
+            {
+              "$ref": "#/$defs/WidgetsMeasure"
+            },
+            {
+              "$ref": "#/$defs/ComponentsMeasure"
+            },
+            {
+              "$ref": "#/$defs/PiecesMeasure"
+            },
+            {
+              "$ref": "#/$defs/ScreenMeasure"
+            },
+            {
+              "$ref": "#/$defs/LightMeasure"
+            },
+            {
+              "$ref": "#/$defs/GradingMeasure"
+            },
+            {
+              "$ref": "#/$defs/SpawnsMeasure"
+            },
+            {
+              "$ref": "#/$defs/LogMeasure"
+            },
+            {
+              "$ref": "#/$defs/AssetMeasure"
+            },
+            {
+              "$ref": "#/$defs/TraceMeasure"
+            },
+            {
+              "$ref": "#/$defs/AudioMeasure"
+            },
+            {
+              "$ref": "#/$defs/GroundMeasure"
+            },
+            {
+              "$ref": "#/$defs/UiMeasure"
+            },
+            {
+              "$ref": "#/$defs/DrawnMeasure"
+            },
+            {
+              "$ref": "#/$defs/RenderMeasure"
+            },
+            {
+              "$ref": "#/$defs/WorldMeasure"
+            },
+            {
+              "$ref": "#/$defs/SeenMeasure"
+            }
+          ],
+          "title": "Measure"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 120,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Within"
+        }
+      },
+      "required": [
+        "measure",
+        "expect"
+      ],
+      "title": "Event",
       "type": "object"
     },
     "FileExists": {
@@ -1556,6 +1719,17 @@
           "const": "grading",
           "title": "Probe",
           "type": "string"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [
@@ -1713,6 +1887,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Select"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
             },
             {
               "type": "null"
@@ -2073,6 +2258,17 @@
           "const": "light",
           "title": "Probe",
           "type": "string"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [
@@ -2534,6 +2730,17 @@
         "select": {
           "$ref": "#/$defs/Select"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -2791,6 +2998,17 @@
         "select": {
           "$ref": "#/$defs/PieceSelect"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -2988,6 +3206,17 @@
           "const": "player",
           "title": "Probe",
           "type": "string"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to": {
           "anyOf": [
@@ -3309,6 +3538,17 @@
           "title": "Probe",
           "type": "string"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -3500,6 +3740,17 @@
           "minItems": 4,
           "title": "Rect",
           "type": "array"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [
@@ -3882,7 +4133,7 @@
     },
     "Shot": {
       "additionalProperties": false,
-      "description": "A screenshot at `t` with the UI, as the player sees it, named `shot` (shot_<name>.png beside the evenly spaced\nones): the grader's own picture of a moment, for a judge, for a `seen` probe that reads its text (section 2.22) and for\nwhoever reviews a run (docs/task-probes.md, section 1.1). Never a pass or fail by itself.",
+      "description": "A screenshot at `t` with the UI, as the player sees it, named `shot` (shot_<name>.png beside the evenly spaced\nones): the grader's own picture of a moment, for a judge, for a `seen` probe that reads its text (section 2.22) and for\nwhoever reviews a run (docs/task-probes.md, section 1.1). Never a pass or fail by itself. `when`: taken in the first\nframe at or after `t` at which its event comes; a missed input when it doesn't come in time.",
       "properties": {
         "shot": {
           "pattern": "^[a-z_][a-z0-9_]{0,31}$",
@@ -3894,6 +4145,17 @@
           "minimum": 0,
           "title": "T",
           "type": "number"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3976,6 +4238,17 @@
           "const": "spawns",
           "title": "Probe",
           "type": "string"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [
@@ -4547,6 +4820,17 @@
         "select": {
           "$ref": "#/$defs/UiSelect"
         },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "to_angle": {
           "anyOf": [
             {
@@ -4911,7 +5195,8 @@
             "x",
             "y",
             "w",
-            "h"
+            "h",
+            "covered"
           ],
           "title": "Field",
           "type": "string"
@@ -4952,6 +5237,17 @@
         },
         "select": {
           "$ref": "#/$defs/WidgetSelect"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [
@@ -5076,6 +5372,17 @@
           "const": "world",
           "title": "Probe",
           "type": "string"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Event"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "to_angle": {
           "anyOf": [

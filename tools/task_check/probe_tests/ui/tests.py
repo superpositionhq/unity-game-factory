@@ -348,7 +348,8 @@ def clicks_for(module):
         system = module == "system"
         on = 0 if module == "none" else 1  # a widget click reaches uGUI
         end = 5.0
-        for name in ("GoButton", "TriggerButton", "LockedButton2", "BlockedButton", "GhostButton"):
+        last = 6.0  # after the clicks of 5.1 to 5.6 s
+        for name in ("GoButton", "TriggerButton", "LockedButton2", "GhostButton"):
             t.eq(f"widget click on {name}: pointer enter, down, up, click, exit once, and onClick once",
                  [count(play, end, name, f) for f in ("enters", "downs", "ups", "clicks", "exits", "fired")], [on] * 6)
         t.eq("widget click by type (Toggle): the first Toggle switched off", get(play, "toggle", 1.0, "GoToggle", "value"), 1 - on)
@@ -401,23 +402,59 @@ def clicks_for(module):
         if on:  # without an EventSystem no uGUI click lands, so those two are misses too
             t.ok("inputs_missed: no row for a click by its exact caption",
                  not {"new expedition", "Prêt à partir !"} & set(why))
-        # a button scrolled out of its scroll area's viewport, still on the frame, isn't visible: a click on it is a miss
-        # (no scrolling is done); the one in view is visible and clicked
-        t.eq("widgets visible: in view and scrolled out of a RectMask2D, a Mask and a UI Toolkit ScrollView viewport",
+        # a button scrolled out of its scroll area's viewport, still on the frame, isn't visible until something scrolls
+        # it; a click on it scrolls its own area to it first, as a player would, and lands the next frame (a uGUI area
+        # only with an EventSystem: without one a player can't scroll it either); the one in view is clicked as is
+        t.eq("widgets visible at 1 s, before any click: in view and scrolled out of a RectMask2D, a Mask and a UI "
+             "Toolkit ScrollView viewport",
              [get(play, "scrolled", 1.0, n, "visible") for n in ("ClipInButton", "ClipOutButton", "MaskInButton", "MaskOutButton",
                                                                  "UScrollInButton", "UScrollOutButton")], [1, 0, 1, 0, 1, 0])
-        t.eq("clicked in view, not scrolled out (RectMask2D, Mask)",
+        t.eq("clicked in view, and scrolled out once its area is scrolled to it (RectMask2D, Mask)",
              [count(play, end, n, f) for n in ("ClipInButton", "ClipOutButton", "MaskInButton", "MaskOutButton") for f in ("downs", "fired")],
-             [on, on, 0, 0, on, on, 0, 0])
-        t.eq("UI Toolkit: clicked in view, not scrolled out of a ScrollView",
-             [get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("scrollIn", "scrollOut")], [1, 0])
-        for widget in ("ClipOutButton", "MaskOutButton", "UScrollOutButton"):
-            t.ok(f"probe.log: no visible button matches '{widget}'", f"no visible button matches '{widget}'" in log)
-        t.eq("inputs_missed: a button scrolled out is not shown",
+             [on] * 8)
+        t.eq("UI Toolkit: clicked in view, and scrolled out once its ScrollView is scrolled to it",
+             [get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("scrollIn", "scrollOut")], [1, 1])
+        scrolled = [("ClipArea (ScrollRect)", "ClipOutButton")] * on + [("MaskArea (ScrollRect)", "MaskOutButton")] * on + \
+            [("UScrollView (ScrollView)", "UScrollOutButton")]
+        for area, widget in scrolled:
+            line = f"scrolled {area} to show {widget} (Button) for the click on '{widget}'"
+            t.ok(f"probe.log: {line}", line in log)
+            t.ok(f"probe.log: clicked {widget} after the scroll", f"clicked {widget} (Button)" in log)
+        if not on:
+            t.ok("probe.log: no uGUI area scrolled without an EventSystem", "(ScrollRect)" not in log)
+        t.eq("inputs_missed: no row for a button scrolled into view (uGUI's only with an EventSystem)",
              [why.get(w) for w in ("ClipOutButton", "MaskOutButton", "UScrollOutButton", "UScrollInButton")],
-             ["no visible button matches it"] * 3 + [None])
+             [None if on else "no visible button matches it"] * 2 + [None, None])
         if on:
             t.ok("inputs_missed: no row for a button in view", not {"ClipInButton", "MaskInButton"} & set(why))
+        # outside a mask that is no scroll area: nothing scrolls it, the click is a miss
+        t.eq("not clicked: outside a RectMask2D that is no scroll area, and outside a UI Toolkit box that clips",
+             [count(play, last, "PlainOutButton", "fired"), get(play, "uitk", last, "UitkClicks", "prop:UiToolkitClicks.clipOut")], [0, 0])
+        t.eq("inputs_missed: outside a mask that is no scroll area is not shown",
+             [why.get(w) for w in ("PlainOutButton", "UClipOutButton")], ["no visible button matches it"] * 2)
+        t.ok("probe.log: nothing scrolled for them", "for the click on 'PlainOutButton'" not in log
+             and "for the click on 'UClipOutButton'" not in log)
+        # covered: a pointer at the button's centre reaches what is drawn over it (where an EventSystem raycasts for
+        # uGUI; a UI Toolkit panel's picking always); one under an image that takes no raycast is clicked
+        t.eq("not clicked: BlockedButton under an image that takes the raycast (none of its pointer events)",
+             [count(play, last, "BlockedButton", f) for f in ("enters", "downs", "ups", "clicks", "exits", "fired")], [0] * 6)
+        t.eq("clicked: VeiledButton under an image that takes no raycast", [count(play, last, "VeiledButton", f) for f in ("downs", "fired")], [on, on])
+        t.eq("UI Toolkit: a Button under a box that takes the pointer not clicked, one under a box that doesn't clicked",
+             [get(play, "uitk", last, "UitkClicks", "prop:UiToolkitClicks." + f) for f in ("covered", "veiled")], [0, 1])
+        t.eq("inputs_missed: covered by another control (uGUI's only with an EventSystem: else not clicked at all)",
+             [why.get(w) for w in ("BlockedButton", "UCoveredButton", "VeiledButton", "UVeiledButton")],
+             ["covered by another control" if on else "no visible button matches it", "covered by another control",
+              None if on else "no visible button matches it", None])
+        if on:
+            t.ok("probe.log: BlockedButton is under Blocker",
+                 "BlockedButton (Button) matches 'BlockedButton', but Blocker (Image) is over it: not clicked" in log)
+        t.ok("probe.log: UCoveredButton is under UCover",
+             "UCoveredButton (Button) matches 'UCoveredButton', but UCover (VisualElement) is over it: not clicked" in log)
+        t.eq("widgets covered at 1 s: under the Blocker, under the Veil, in the open (no value without an EventSystem)",
+             [get(play, "cover", 1.0, n, "covered") for n in ("BlockedButton", "VeiledButton", "GoButton")],
+             [1, 0, 0] if on else [None] * 3)
+        t.eq("widgets covered at 1 s, UI Toolkit: under UCover, under UVeil, in the open",
+             [get(play, "cover", 1.0, n, "covered") for n in ("UCoveredButton", "UVeiledButton", "UGoButton")], [1, 0, 0])
         t.eq("an EventSystem in the scene", get(play, "watch", 1.0, "Watch", "prop:UiClickWatch.system"), 0 if module == "none" else 1)
         t.eq("a click on a button that takes no selection leaves nothing selected", get(play, "watch", 1.5, "Watch", "prop:UiClickWatch.selected"), "")
         # UI Toolkit takes the Input System's pointer itself when the scene has no EventSystem; an EventSystem with the
@@ -426,12 +463,55 @@ def clicks_for(module):
         t.eq("cursor click on a uGUI button", count(play, end, "CursorButton", "fired"), cursor)
         t.eq("cursor click on a UI Toolkit button", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.cursor"), uitk_cursor)
         t.eq("cursor click on a UI Toolkit ClickEvent handler", get(play, "uitk", end, "UitkClicks", "prop:UiToolkitClicks.evt"), uitk_cursor)
-        t.eq("cursor click on BlockedButton: the image over it takes it (the widget click's down only)",
-             count(play, end, "BlockedButton", "downs"), on)
+        t.eq("cursor click on BlockedButton: the image over it takes it (and the widget click didn't land)",
+             count(play, end, "BlockedButton", "downs"), 0)
         if system:
             t.eq("widget click on an InputField: focused", get(play, "field", 1.0, "GoField", "prop:InputField.isFocused"), 1)
             t.eq("widget click on a Dropdown: its list is open", get(play, "dropdown", end, "GoDropdown", "prop:Dropdown.m_Dropdown"), 1)
     return check
+
+
+# ---------------------------------------------------------------- events
+
+FRAMES = {"probe": "objects", "select": {"name": "HudDriver"}, "field": "prop:UiHudDriver.frames", "of": "first"}
+SCORE = {"probe": "objects", "select": {"name": "HudDriver"}, "field": "prop:UiHudDriver.score", "of": "first"}
+SCORE_690 = {"probe": "ui", "select": {"kind": "text", "text": "SCORE 690$"}, "field": "count"}
+
+
+def events(t, play):
+    """Shots that wait for their event (`when`, read by the probe every frame from the shot's time: a widget's visible,
+    a widgets count, an objects prop:, a ui text; the HudDriver's frame k is play time k / 30), and measures whose
+    window and at count from an event (`since`, read by the checker from the samples)."""
+    log = play.probe_log
+    taken = [("when_stale", "0.50"), ("when_gone", "1.00"), ("when_prop", "1.50"), ("when_text", "2.30"),
+             ("when_late", "3.00")]
+    t.eq("screenshots: the shots whose event came, in the order they came", play.probe.get("screenshots"),
+         [f"shot_{name}.png" for name, _ in taken])
+    for name, at in taken:
+        t.ok(f"probe.log: shot_{name}.png taken at {at} s", f"screenshot shot_{name}.png at {at} s" in log)
+        t.ok(f"shot_{name}.png written", f"shot_{name}.png" in play.files)
+    missed = sorted((m.get("t"), m.get("kind"), m.get("target"), m.get("why")) for m in play.probe.get("inputs_missed") or [])
+    t.eq("inputs_missed: the shots whose event never came (one within 1 s of its time, one to the play's end)", missed,
+         [(1.0, "shot_when", "when_within", "its event never happened"),
+          (2.0, "shot_when", "when_never", "its event never happened")])
+    t.ok("no shot of an event that never came", "shot_when_within.png" not in play.files and "shot_when_never.png" not in play.files)
+    # since: the checker reads the event from the play's own samples (every 0.1 s here); its own query ids
+    from task_check import probes, tasks  # the checker's reading, as task-check.py reads a play
+    ids = {probes.query_id(probes.needs(tasks.measure(FRAMES))[0]): "driver",
+           probes.query_id(probes.needs(tasks.measure(SCORE_690))[0]): "score690"}
+    probe = {**play.probe, "measures": {qid: play.samples(own) for qid, own in ids.items()}}
+
+    def since(event, **outer):
+        return tasks.measure({**SCORE, **outer, "since": {"measure": event, "expect": {"op": ">=", "value": 1}}})
+
+    frames45 = {"measure": FRAMES, "expect": {"op": ">=", "value": 45}}
+    t.eq("since: the event's time (frames 45 at 1.5 s)", probes.event_time(tasks.event(frames45), probe), (1.5, None))
+    for outer, want in (({"at": [0]}, 450), ({"window": [0.5, 1.0], "agg": "first"}, 600),
+                        ({"window": [0.5, 1.0], "agg": "last"}, 750)):
+        t.eq(f"since frames 45, {outer}: the score", probes.measured(tasks.measure({**SCORE, **outer, "since": frames45}), probe)[0], want)
+    t.eq("since a ui text (SCORE 690 at 2.3 s), at [0]: the score", probes.measured(since(SCORE_690, at=[0]), probe)[0], 690)
+    value, why = probes.measured(since({**SCORE_690, "select": {"kind": "text", "text": "NEVER SHOWN"}}, at=[0]), probe)
+    t.ok("since an event that never came: no value, and why", value is None and why.startswith("its event never happened"), why)
 
 
 # ---------------------------------------------------------------- screen
@@ -530,6 +610,7 @@ PLAYS = {
     "clicks": {"check": clicks_for("system")},
     "clicks_old": {"check": clicks_for("old")},
     "clicks_none": {"check": clicks_for("none")},
+    "events": {"check": events},
     "screen": {"check": screen_for(False)},
     "screen_post": {"check": screen_for(True), "args": ["-uipost"]},
     "quit": {"check": quit_check, "args": ["-uiquit"], "ended": "shutdown"},

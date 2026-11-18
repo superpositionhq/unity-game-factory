@@ -507,12 +507,20 @@ namespace ProbeTests.Ui
             // a Slider under a parent that takes clicks: the Slider takes the press, the parent the click
             var holder = Ui("SliderHolder", canvas, 300, 220, 200, 30, typeof(UiClickCount));
             Control(DefaultControls.CreateSlider(skin), "HeldSlider", holder.transform, 0, 5, 200, 20);
-            // a half-transparent image on a canvas above, over BlockedButton: it takes the cursor's raycast
-            Box("Blocker", NewCanvas("BlockCanvas", 10), 0, 210, 200, 50, new Color(0f, 0f, 0f, 0.5f));
+            // a half-transparent image on a canvas above, over BlockedButton: it takes the cursor's raycast, so a widget
+            // click on BlockedButton is covered; one that takes no raycast, over VeiledButton: a click goes through
+            var blockCanvas = NewCanvas("BlockCanvas", 10);
+            Box("Blocker", blockCanvas, 0, 210, 200, 50, new Color(0f, 0f, 0f, 0.5f));
+            MakeButton(skin, "VeiledButton", canvas, 160, 420, 120, 30, "VEILED");
+            Box("Veil", blockCanvas, 150, 410, 140, 50, new Color(0f, 0f, 0f, 0.5f)).raycastTarget = false;
             // scroll areas, each with a button in view and one scrolled out of the viewport but still on the frame: a
-            // click on that one is a miss
+            // click on that one scrolls its area to it first
             ScrollArea(skin, "ClipArea", canvas, 300, 270, false, "ClipInButton", "ClipOutButton");
             ScrollArea(skin, "MaskArea", canvas, 440, 270, true, "MaskInButton", "MaskOutButton");
+            // a RectMask2D that is no scroll area, and a button outside it (below it, on the frame): nothing scrolls it
+            // into view, so a click on it is a miss
+            var plain = Ui("PlainClip", canvas, 20, 420, 120, 40, typeof(RectMask2D));
+            MakeButton(skin, "PlainOutButton", plain.transform, 0, 60, 120, 30, "PLAIN OUT");
             new GameObject("Watch").AddComponent<UiClickWatch>();
             Document("UitkClicks", Made<PanelSettings>("UiPanel.asset")).AddComponent<UiToolkitClicks>();
             Save(scene, sceneName);

@@ -48,12 +48,14 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   (`UiClickCount`; `UiTriggerCount` for EventTrigger entries; `UiClickWatch` reads the EventSystem's selection); the UI
   Toolkit document (`UiToolkitClicks`) counts its buttons' clicks. Among them: two buttons of one name, a button off the
   frame, one not interactable, one whose Button is disabled, one fully transparent, one under a half-transparent image
-  that takes the cursor's raycast, a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
+  that takes the cursor's raycast (`BlockedButton`) and one under an image that takes none (`VeiledButton`), a button that takes no selection (`NavNoneButton`), a Slider, a Slider under a
   parent that takes clicks, an InputField and a Dropdown, a UI Toolkit button that only has a `ClickEvent` callback,
   buttons clicked by what they read (two that read alike, one of them clicked by its exact text, one that can't be
   clicked, one with accents and punctuation), and scroll areas 60 px tall (a ScrollRect whose viewport is a
   RectMask2D, one whose viewport is a Mask, a UI Toolkit ScrollView), each with a button in view and one scrolled out
-  of the view but still on the frame.
+  of the view but still on the frame; a RectMask2D that is no scroll area with a button outside it (`PlainOutButton`)
+  and a UI Toolkit box that clips with one outside it (`UClipOutButton`); a UI Toolkit button under a box that takes the
+  pointer (`UCoveredButton`) and one under a box that doesn't (`UVeiledButton`).
 - **Grey**: the camera clears to sRGB grey 64; Overlay images cover the right half with sRGB grey 192 and the top left
   corner with a white and a black box. `-uipost` turns on the camera's post-processing and a volume that doubles the
   exposure; `-uiquit` quits the game in the frame of the 1 s sample.
@@ -81,8 +83,17 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   either module, and with no EventSystem none, as a player's click: probe.log says so and the game's log stays clean;
   UI Toolkit's always), a click by caption (the exact text first), the misses of a button shown but disabled apart
   from those of one not shown (`inputs_missed`' why), a button scrolled out of its scroll area's view reading not
-  visible and its click a miss while the one in view is visible and clicked, and cursor clicks (uGUI's only through the Input System's UI
+  visible until a click on it scrolls its own area to it and then lands (a uGUI area only with an EventSystem), one
+  outside a mask that is no scroll area a miss, a button something that takes the pointer is drawn over a miss
+  ("covered by another control"; uGUI's only where an EventSystem raycasts) and one under something that takes no
+  pointer clicked, the widgets field `covered`, and cursor clicks (uGUI's only through the Input System's UI
   module; UI Toolkit's through it, or on its own with no EventSystem).
+- `events` (Hud, sampled every 0.1 s): shots that wait for their event (`when`): a panel going away at 0.5 s (a
+  widgets `visible`), a row's box leaving at 1 s (a widgets count), the frame counter at 45 (an objects `prop:`), the
+  score's text reading 690 (a ui text, 2.3 s), one asked for after its event already came (taken at its own time, 3 s);
+  one whose event doesn't come within its `within` and one whose event never comes are `inputs_missed` rows of kind
+  `shot_when`. Measures whose window and `at` count from an event (`since`), read by the checker's own reduction from
+  the play's samples.
 - `screen`, `screen_post` (Grey): the values of known greys over rects of every kind (inverted, empty, on the edge,
   outside the frame, with fractional edges); after post-processing the camera's grey changes and the UI's doesn't.
 - `quit` (Grey, `-uiquit`): what the samples of the frame the game quits in hold.

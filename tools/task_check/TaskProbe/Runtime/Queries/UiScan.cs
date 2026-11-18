@@ -8,7 +8,9 @@
 // the chain (in UI Toolkit: an element up the tree that clips, overflow: hidden, as a ScrollView's viewport does): a
 // control scrolled out of its scroll area is not visible; its colour and its size don't count. On screen (a ui
 // element) is drawn: visible on a screen canvas or panel, and also its colour and CanvasRenderer alpha above 0.004
-// with the CanvasGroups', not culled by a RectMask2D, and of some size.
+// with the CanvasGroups', not culled by a RectMask2D, and of some size. A click on a control scrolled out of its own
+// scroll area first scrolls that area to it, as a player would (Scroll), and a click reaches a control only when a
+// pointer at its centre would (Covered: nothing drawn over it takes the pointer first).
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -40,6 +42,11 @@ namespace TaskProbe
         public abstract object Field(string field);
         public abstract bool Visible();
         public abstract string Text();
+        /// <summary>The uGUI object or the UI Toolkit element it is (what Covered reads).</summary>
+        internal abstract object Target { get; }
+        /// <summary>When it is visible but for the scroll areas it is in (Scrolled), those scrolled to it; what was
+        /// scrolled, for probe.log, else null.</summary>
+        internal abstract string ScrollIntoView();
     }
 
     public static class UiScan
@@ -158,9 +165,12 @@ namespace TaskProbe
         /// not clipped: at least partly inside the rectangle of every enabled RectMask2D and enabled Mask on an object
         /// above it (a scroll area's viewport; a stencil Mask is taken as its rectangle), up to a Canvas that overrides
         /// sorting (uGUI doesn't mask what such a canvas holds by a mask above it). Its colour and its size don't count.
-        /// `alpha` is the CanvasGroups' product, `canvas` its canvas, the rectangle its own.</summary>
+        /// `alpha` is the CanvasGroups' product, `canvas` its canvas, the rectangle its own. With `scrolls`: whether it
+        /// would be visible but for the scroll areas it is in, those listed there (innermost first): a mask that clips
+        /// it is the view of an enabled ScrollRect above it whose content holds it (ScrollOf), that view inside the
+        /// frame; the widget itself may be outside the frame (scrolled there).</summary>
         static bool UguiShown(GameObject go, Graphic graphic, bool screenOnly, out float alpha, out Canvas canvas,
-                              out double x, out double y, out double w, out double h)
+                              out double x, out double y, out double w, out double h, List<ScrollRect> scrolls = null)
         {
             alpha = 1f;
             canvas = null;
@@ -183,17 +193,156 @@ namespace TaskProbe
                     if (g.ignoreParentGroups) groupsDone = true;
                 }
             }
-            if (!(alpha > AlphaFloor) || !RectOf(go.transform as RectTransform, canvas, screenOnly, out x, out y, out w, out h) || !InFrame(x, y, w, h))
+            if (!(alpha > AlphaFloor) || !RectOf(go.transform as RectTransform, canvas, screenOnly, out x, out y, out w, out h)
+                || (scrolls == null && !InFrame(x, y, w, h)))
                 return false;
             for (var p = go.transform; p != null; p = p.parent)
             {
                 if (p != go.transform
                     && ((p.TryGetComponent<RectMask2D>(out var rectMask) && rectMask.enabled) || (p.TryGetComponent<Mask>(out var mask) && mask.MaskEnabled()))
                     && RectOf(p as RectTransform, canvas, screenOnly, out var mx, out var my, out var mw, out var mh) && !Within(x, y, w, h, mx, my, mw, mh))
-                    return false;
+                {
+                    var area = scrolls != null ? ScrollOf(p, go.transform) : null;
+                    if (area == null || !InFrame(mx, my, mw, mh)) return false;
+                    if (!scrolls.Contains(area)) scrolls.Add(area);
+                }
                 if (p.TryGetComponent<Canvas>(out var own) && own.overrideSorting) break;
             }
             return true;
+        }
+
+        /// <summary>The ScrollRect whose view is `clip` (its viewport, or itself without one), at `clip` or above it,
+        /// enabled, scrolling some way, its content holding `control`; else null.</summary>
+        static ScrollRect ScrollOf(Transform clip, Transform control)
+        {
+            for (var p = clip; p != null; p = p.parent)
+                if (p.TryGetComponent<ScrollRect>(out var area) && area.isActiveAndEnabled && (area.horizontal || area.vertical)
+                    && area.content != null && control.IsChildOf(area.content)
+                    && (area.viewport != null ? area.viewport == clip : area.transform == clip))
+                    return area;
+            return null;
+        }
+
+        static readonly List<ScrollRect> ScrollsUp = new List<ScrollRect>();
+
+        /// <summary>A uGUI widget visible but for the scroll areas it is in (UguiShown with scrolls), scrolled into view as
+        /// a player scrolls to it: each area, innermost first, the least way that shows it whole (its start when it is
+        /// larger than the view), along the axes the area scrolls and as far as its movement type lets the content go
+        /// (ScrollInto). Only with an EventSystem: without one a player can't scroll a uGUI area either. What was
+        /// scrolled, "Area (ScrollRect) to show `named`", else null.</summary>
+        static string UguiScroll(GameObject go, Graphic graphic, string named)
+        {
+            if (EventSystem.current == null) return null;
+            ScrollsUp.Clear();
+            if (!UguiShown(go, graphic, false, out _, out _, out _, out _, out _, out _, ScrollsUp) || ScrollsUp.Count == 0) return null;
+            var areas = new List<string>();
+            foreach (var area in ScrollsUp)
+            {
+                ScrollInto(area, (RectTransform)go.transform);
+                areas.Add(area.gameObject.name + " (ScrollRect)");
+            }
+            return string.Join(", ", areas) + " to show " + named;
+        }
+
+        /// <summary>The ScrollRect's content moved so `target` shows inside its view (Shift on each axis it scrolls, in
+        /// the view's own space), its movement stopped.</summary>
+        static void ScrollInto(ScrollRect area, RectTransform target)
+        {
+            var view = area.viewport != null ? area.viewport : (RectTransform)area.transform;
+            var content = area.content;
+            BoundsIn(target, view, out var lo, out var hi);
+            BoundsIn(content, view, out var clo, out var chi);
+            var r = view.rect;
+            var shift = Vector2.zero;
+            if (area.horizontal) shift.x = Shift(lo.x, hi.x, r.xMin, r.xMax, clo.x, chi.x, false, area.movementType);
+            if (area.vertical) shift.y = Shift(lo.y, hi.y, r.yMin, r.yMax, clo.y, chi.y, true, area.movementType);
+            if (shift == Vector2.zero) return;
+            var world = view.TransformVector(shift);
+            var parent = content.parent;
+            var local = parent != null ? parent.InverseTransformVector(world) : world;
+            area.StopMovement();
+            content.anchoredPosition += new Vector2(local.x, local.y);
+        }
+
+        /// <summary>A RectTransform's corners in `space`'s local coordinates: their least and greatest.</summary>
+        static void BoundsIn(RectTransform rt, Transform space, out Vector2 lo, out Vector2 hi)
+        {
+            rt.GetWorldCorners(Corners);
+            lo = new Vector2(float.MaxValue, float.MaxValue);
+            hi = new Vector2(float.MinValue, float.MinValue);
+            for (var i = 0; i < 4; i++)
+            {
+                Vector2 p = space.InverseTransformPoint(Corners[i]);
+                lo = Vector2.Min(lo, p);
+                hi = Vector2.Max(hi, p);
+            }
+        }
+
+        /// <summary>How far the content moves along one axis so a target [lo, hi] shows inside the view [vlo, vhi]: not
+        /// at all when it shows whole; else the least way that shows it whole, or so its start shows (the top: `fromHigh`;
+        /// the left) when it is larger than the view. Unless the movement is unrestricted, the content [clo, chi] still
+        /// covers the view after it (a content no larger than the view doesn't move).</summary>
+        static float Shift(float lo, float hi, float vlo, float vhi, float clo, float chi, bool fromHigh, ScrollRect.MovementType movement)
+        {
+            float d;
+            if (hi - lo > vhi - vlo) d = fromHigh ? vhi - hi : vlo - lo;
+            else if (lo < vlo) d = vlo - lo;
+            else if (hi > vhi) d = vhi - hi;
+            else return 0f;
+            if (movement == ScrollRect.MovementType.Unrestricted) return d;
+            if (chi - clo <= vhi - vlo) return 0f;
+            return Mathf.Clamp(d, vhi - chi, vlo - clo);
+        }
+
+        static readonly List<RaycastResult> Hits = new List<RaycastResult>();
+
+        /// <summary>The centre of a uGUI widget's visible part, viewport fractions (y down): its rectangle within the
+        /// frame and within every enabled RectMask2D and Mask above it (as UguiShown reads them). False when none of it
+        /// is visible.</summary>
+        static bool UguiCentre(GameObject go, out double cx, out double cy)
+        {
+            cx = cy = 0.0;
+            var canvas = go.GetComponentInParent<Canvas>();
+            if (!RectOf(go.transform as RectTransform, canvas, false, out var x, out var y, out var w, out var h)) return false;
+            double x0 = Math.Max(x, 0.0), y0 = Math.Max(y, 0.0), x1 = Math.Min(x + w, 1.0), y1 = Math.Min(y + h, 1.0);
+            for (var p = go.transform; p != null; p = p.parent)
+            {
+                if (p != go.transform
+                    && ((p.TryGetComponent<RectMask2D>(out var rectMask) && rectMask.enabled) || (p.TryGetComponent<Mask>(out var mask) && mask.MaskEnabled()))
+                    && RectOf(p as RectTransform, canvas, false, out var mx, out var my, out var mw, out var mh))
+                {
+                    x0 = Math.Max(x0, mx);
+                    y0 = Math.Max(y0, my);
+                    x1 = Math.Min(x1, mx + mw);
+                    y1 = Math.Min(y1, my + mh);
+                }
+                if (p.TryGetComponent<Canvas>(out var own) && own.overrideSorting) break;
+            }
+            if (!(x1 >= x0 && y1 >= y0)) return false;
+            cx = (x0 + x1) / 2.0;
+            cy = (y0 + y1) / 2.0;
+            return true;
+        }
+
+        /// <summary>Whether a player's pointer at (fx, fy) (viewport fractions, y down) reaches `go`: the first hit of the
+        /// EventSystem's raycasters there (EventSystem.RaycastAll, as the UI module takes it) is `go` or an object under
+        /// it (its label). 0 when it is; 1 when another object is hit first and `go` further down (drawn under it); 2
+        /// when another is hit and `go` not at all (it takes no pointer there); -1 when it can't be told: no EventSystem
+        /// (no pointer reaches a uGUI widget then), or nothing is hit there. `over`: what is hit first, "name (type)".</summary>
+        static int UguiCover(GameObject go, double fx, double fy, out string over)
+        {
+            over = null;
+            var events = EventSystem.current;
+            if (events == null) return -1;
+            var data = new PointerEventData(events) { position = new Vector2((float)(fx * Screen.width), (float)((1.0 - fy) * Screen.height)) };
+            events.RaycastAll(data, Hits);
+            if (Hits.Count == 0 || Hits[0].gameObject == null) return -1;
+            var top = Hits[0].gameObject;
+            if (top.transform.IsChildOf(go.transform)) return 0;
+            over = top.name + " (" + (top.TryGetComponent<Graphic>(out var g) ? g.GetType().Name : "GameObject") + ")";
+            foreach (var hit in Hits)
+                if (hit.gameObject != null && hit.gameObject.transform.IsChildOf(go.transform)) return 1;
+            return 2;
         }
 
         /// <summary>Visible (UguiShown): a widget's visible, and what the widget click takes.</summary>
@@ -336,8 +485,11 @@ namespace TaskProbe
         /// element and everything under it out), visible (visibility is inherited, and a child may be visible again
         /// under a hidden parent: its own resolved value decides), of an opacity above the floor down the tree, inside
         /// the frame, and at least partly inside the box of every element up the tree that clips (UitkClips: a
-        /// ScrollView's viewport); `drawn` (a ui element): of some size there too.</summary>
-        static bool UitkVisible(UIE.VisualElement e, bool onScreen, bool drawn)
+        /// ScrollView's viewport); `drawn` (a ui element): of some size there too. With `views`: whether it would be
+        /// visible but for the ScrollViews it is in, those listed there (innermost first): an element that clips it is
+        /// a ScrollView whose content holds it, or a part of one between it and its content (ScrollViewOf), inside the
+        /// frame; the element itself may be outside the frame (scrolled there).</summary>
+        static bool UitkVisible(UIE.VisualElement e, bool onScreen, bool drawn, List<UIE.ScrollView> views = null)
         {
             if (!onScreen || e?.panel == null || e.resolvedStyle.visibility != UIE.Visibility.Visible) return false;
             var opacity = 1f;
@@ -347,16 +499,98 @@ namespace TaskProbe
                 if (s.display == UIE.DisplayStyle.None) return false;
                 opacity *= s.opacity;
             }
-            if (!(opacity > AlphaFloor) || !RectOf(e, out var x, out var y, out var w, out var h) || !(drawn ? OnScreen(x, y, w, h) : InFrame(x, y, w, h)))
+            if (!(opacity > AlphaFloor) || !RectOf(e, out var x, out var y, out var w, out var h)
+                || (views == null && !(drawn ? OnScreen(x, y, w, h) : InFrame(x, y, w, h))))
                 return false;
             var b = e.worldBound;
             for (var p = e.hierarchy.parent; p != null; p = p.hierarchy.parent)
             {
                 if (!UitkClips(p)) continue;
                 var c = p.worldBound;
-                if (!Within(b.x, b.y, b.width, b.height, c.x, c.y, c.width, c.height)) return false;
+                if (Within(b.x, b.y, b.width, b.height, c.x, c.y, c.width, c.height)) continue;
+                var view = views != null ? ScrollViewOf(p, e) : null;
+                if (view == null || !RectOf(p, out var vx, out var vy, out var vw, out var vh) || !InFrame(vx, vy, vw, vh)) return false;
+                if (!views.Contains(view)) views.Add(view);
             }
             return true;
+        }
+
+        /// <summary>The ScrollView that clips `e` at `clip`: the first ScrollView at `clip` or above it, when its content
+        /// container holds `e` and `clip` is the ScrollView or lies between it and that container (its viewport); else
+        /// null.</summary>
+        static UIE.ScrollView ScrollViewOf(UIE.VisualElement clip, UIE.VisualElement e)
+        {
+            for (var p = clip; p != null; p = p.hierarchy.parent)
+                if (p is UIE.ScrollView view)
+                {
+                    var content = view.contentContainer;
+                    var between = clip == view || (view.Contains(clip) && (clip == content || clip.Contains(content)));
+                    return content != null && content.Contains(e) && between ? view : null;
+                }
+            return null;
+        }
+
+        static readonly List<UIE.ScrollView> ViewsUp = new List<UIE.ScrollView>();
+
+        /// <summary>A UI Toolkit element visible but for the ScrollViews it is in (UitkVisible with views), each
+        /// scrolled to it by ScrollView.ScrollTo, innermost first. What was scrolled, "View (ScrollView) to show
+        /// `named`", else null.</summary>
+        static string UitkScroll(UIE.VisualElement e, bool onScreen, string named)
+        {
+            ViewsUp.Clear();
+            if (!UitkVisible(e, onScreen, false, ViewsUp) || ViewsUp.Count == 0) return null;
+            var views = new List<string>();
+            foreach (var view in ViewsUp)
+            {
+                view.ScrollTo(e);
+                views.Add(NameOf(view) + " (ScrollView)");
+            }
+            return string.Join(", ", views) + " to show " + named;
+        }
+
+        static readonly List<UIE.VisualElement> Picked = new List<UIE.VisualElement>();
+
+        /// <summary>The centre of an element's visible part, viewport fractions (y down): its box within its panel and
+        /// within every element above it that clips. False when none of it is visible.</summary>
+        static bool UitkCentre(UIE.VisualElement e, out double cx, out double cy)
+        {
+            cx = cy = 0.0;
+            if (e?.panel == null) return false;
+            var whole = e.panel.visualTree.worldBound;
+            var b = e.worldBound;
+            float x0 = Mathf.Max(b.xMin, whole.xMin), y0 = Mathf.Max(b.yMin, whole.yMin), x1 = Mathf.Min(b.xMax, whole.xMax), y1 = Mathf.Min(b.yMax, whole.yMax);
+            for (var p = e.hierarchy.parent; p != null; p = p.hierarchy.parent)
+            {
+                if (!UitkClips(p)) continue;
+                var c = p.worldBound;
+                x0 = Mathf.Max(x0, c.xMin);
+                y0 = Mathf.Max(y0, c.yMin);
+                x1 = Mathf.Min(x1, c.xMax);
+                y1 = Mathf.Min(y1, c.yMax);
+            }
+            if (!(x1 >= x0 && y1 >= y0) || !(whole.width > 0f) || !(whole.height > 0f)) return false;
+            cx = ((x0 + x1) / 2f - whole.x) / whole.width;
+            cy = ((y0 + y1) / 2f - whole.y) / whole.height;
+            return true;
+        }
+
+        /// <summary>Whether a player's pointer at (fx, fy) (viewport fractions, y down) reaches `e` in its panel: the
+        /// element the panel picks there (IPanel.PickAll, the topmost that takes the pointer) is `e` or one under it. 0
+        /// when it is; 1 when another is picked and `e` further down; 2 when another is picked and `e` not at all; -1 when
+        /// nothing is picked there. Only `e`'s own panel is read. `over`: what is picked, "name (type)".</summary>
+        static int UitkCover(UIE.VisualElement e, double fx, double fy, out string over)
+        {
+            over = null;
+            if (e?.panel == null) return -1;
+            var whole = e.panel.visualTree.worldBound;
+            Picked.Clear();
+            var top = e.panel.PickAll(new Vector2((float)(whole.x + fx * whole.width), (float)(whole.y + fy * whole.height)), Picked);
+            if (top == null) return -1;
+            if (top == e || e.Contains(top)) return 0;
+            over = NameOf(top) + " (" + top.GetType().Name + ")";
+            foreach (var v in Picked)
+                if (v == e || e.Contains(v)) return 1;
+            return 2;
         }
 
         static System.Reflection.MethodInfo shouldClip;
@@ -565,6 +799,8 @@ namespace TaskProbe
             }
 
             public override bool Visible() => UguiVisible(go, graphic);
+            internal override object Target => go;
+            internal override string ScrollIntoView() => UguiScroll(go, graphic, Name + " (" + Class + ")");
 
             public override string Text()
             {
@@ -609,6 +845,8 @@ namespace TaskProbe
                         return null;
                     case "interactable":
                         return selectable != null ? (selectable.IsInteractable() && selectable.enabled ? 1.0 : 0.0) : (object)null;
+                    case "covered":
+                        return Visible() && UguiCentre(go, out var cx, out var cy) ? CoverField(UguiCover(go, cx, cy, out _)) : null;
                     case "has_brush":
                     case "brush":
                         UnityEngine.Object brush;
@@ -677,6 +915,8 @@ namespace TaskProbe
 
             public override bool Visible() => UitkVisible(e, onScreen, false);
             public override string Text() => UitkText(e);
+            internal override object Target => e;
+            internal override string ScrollIntoView() => UitkScroll(e, onScreen, Name + " (" + Class + ")");
 
             static double Share(double value, double low, double high) => high != low ? (value - low) / (high - low) : 0.0;
 
@@ -702,6 +942,8 @@ namespace TaskProbe
                         if (e is UIE.DropdownField dd) return (double)dd.index;
                         return null;
                     case "interactable": return e.enabledInHierarchy ? 1.0 : 0.0;
+                    case "covered":
+                        return Visible() && UitkCentre(e, out var cx, out var cy) ? CoverField(UitkCover(e, cx, cy, out _)) : null;
                     case "has_brush": return UitkBrush(e) != null ? 1.0 : 0.0;
                     case "brush":
                         var brush = UitkBrush(e);
@@ -718,26 +960,107 @@ namespace TaskProbe
         }
 #endif
 
+        // ---------------------------------------------------------------- what a pointer reaches, and scrolling to a control
+
+        /// <summary>The widgets field `covered`: 1 when a pointer at the centre of its visible part reaches something
+        /// drawn over it first (it is hit further down), 0 when it reaches the widget; no value when that can't be
+        /// told (no EventSystem for a uGUI widget, nothing hit there, or the widget itself takes no pointer there).</summary>
+        static object CoverField(int cover) => cover == 0 ? 0.0 : cover == 1 ? 1.0 : (object)null;
+
+        /// <summary>Whether a player's pointer at `pixel` (screen pixels from the bottom left) would reach something other
+        /// than `target` first (a uGUI object: UguiCover; a UI Toolkit element: UitkCover): `over` says what, for
+        /// probe.log. False when it reaches `target`, or when that can't be told (no EventSystem for a uGUI object,
+        /// nothing hit there).</summary>
+        public static bool Covered(object target, Vector2 pixel, out string over)
+        {
+            over = null;
+            double fx = Screen.width > 0 ? pixel.x / Screen.width : 0.0, fy = Screen.height > 0 ? 1.0 - pixel.y / Screen.height : 0.0;
+#if TASKPROBE_UGUI
+            if (target is GameObject go) return UguiCover(go, fx, fy, out over) > 0;
+#endif
+#if TASKPROBE_UITK
+            if (target is UIE.VisualElement e) return UitkCover(e, fx, fy, out over) > 0;
+#endif
+            return false;
+        }
+
+        /// <summary>For a click that found nothing (Click, ShownDisabled): the first uGUI Selectable, else UI Toolkit
+        /// Button, that `want` names as Click compares them and that is hidden only by the scroll areas it is in, scrolled
+        /// into their view as a player scrolls to it (UguiScroll: only with an EventSystem; UitkScroll). Nothing is
+        /// clicked: the click is made again once the layout has followed (the next frame: Inputs). What was scrolled,
+        /// for probe.log, else null.</summary>
+        public static string Scroll(string want) => Scroll(want, By.Name) ?? Scroll(want, By.Shown) ?? Scroll(want, By.Caption);
+
+        /// <summary>For a tap on a widget that isn't on screen (Inputs.Spot): the first widget of that name (a wildcard),
+        /// else of that type, whatever its kind, else the first button that reads so (Caption), that is hidden only by
+        /// the scroll areas it is in, scrolled into their view. What was scrolled, for probe.log, else null.</summary>
+        public static string ScrollToWidget(string named)
+        {
+            foreach (var byType in new[] { false, true })
+                foreach (var w in Widgets(byType ? named : null, byType ? null : named, null, false))
+                {
+                    var scrolled = w.ScrollIntoView();
+                    if (scrolled != null) return scrolled;
+                }
+            return Scroll(named, By.Caption);
+        }
+
+        static string Scroll(string want, By by)
+        {
+            var how = by != By.Name ? " by its caption" : "";
+#if TASKPROBE_UGUI
+            var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
+            Find.SortByHierarchy(selectables);
+            foreach (var s in selectables)
+            {
+                if (s == null || Probe.IsOwn(s.gameObject)) continue;
+                if (!Matches(by, want, s.gameObject.name, s.GetType(), () => CaptionOf(s))) continue;
+                var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
+                var scrolled = UguiScroll(s.gameObject, own, s.gameObject.name + " (" + s.GetType().Name + ")" + how);
+                if (scrolled != null) return scrolled;
+            }
+#endif
+#if TASKPROBE_UITK
+            var all = new List<UIE.VisualElement>();
+            foreach (var root in UitkRoots())
+            {
+                all.Clear();
+                Walk(root.Key, all);
+                foreach (var e in all)
+                {
+                    if (!(e is UIE.Button)) continue;
+                    if (!Matches(by, want, NameOf(e), e.GetType(), () => UitkText(e))) continue;
+                    var scrolled = UitkScroll(e, root.Value, NameOf(e) + " (" + e.GetType().Name + ")" + how);
+                    if (scrolled != null) return scrolled;
+                }
+            }
+#endif
+            return null;
+        }
+
         // ---------------------------------------------------------------- widget click
 
         /// <summary>Clicks the first visible, interactable uGUI Selectable whose object's name matches `want` (a wildcard)
         /// or whose type is named `want`, else such a UI Toolkit Button: as a player's click fires it
         /// (pressed, released, clicked). Visible is the widgets' state (a fully transparent button
-        /// takes a click; one scrolled out of its scroll area's viewport doesn't: no scrolling is done). No raycast: an
-        /// image over it doesn't stop it. Without an EventSystem a player's click reaches no uGUI widget, and neither
-        /// does this one (probe.log says so). What it clicked, "name (type)" (a wildcard or a type name may match
-        /// several: the log names the one), or null when none. When no name and no type matches, the first such widget
-        /// whose caption is `want` exactly as shown (Shown) is clicked, else the first whose caption reads as `want`
-        /// (Caption): a button the task itself adds has no name at the start, and the instruction names it by what it
-        /// reads.</summary>
-        public static string Click(string want) => Click(want, By.Name, true) ?? Click(want, By.Shown, true) ?? Click(want, By.Caption, true);
+        /// takes a click; one scrolled out of its scroll area's viewport doesn't: Scroll brings it into view first).
+        /// It is clicked only when a player's pointer at the centre of its visible part reaches it (UguiCover through
+        /// the EventSystem's raycasters, UitkCover through its panel's picking): when something drawn over it takes
+        /// the pointer first, nothing is clicked and `covered` says what ("X (Image) is over it"), and the control is
+        /// still returned. Without an EventSystem a player's click reaches no uGUI widget, and neither does this one
+        /// (probe.log says so). What it clicked, "name (type)" (a wildcard or a type name may match several: the log
+        /// names the one), or null when none. When no name and no type matches, the first such widget whose caption is
+        /// `want` exactly as shown (Shown) is clicked, else the first whose caption reads as `want` (Caption): a button
+        /// the task itself adds has no name at the start, and the instruction names it by what it reads.</summary>
+        public static string Click(string want, out string covered) =>
+            Click(want, By.Name, true, out covered) ?? Click(want, By.Shown, true, out covered) ?? Click(want, By.Caption, true, out covered);
 
         /// <summary>For a click that found nothing (Click): the first visible uGUI Selectable or UI Toolkit Button that
         /// `want` names as Click compares them, shown but disabled (not interactable, its Selectable off, a Button not
         /// enabled in its hierarchy: a player's click on it does nothing), "name (type)"; else null. Nothing is
-        /// clicked.</summary>
-        public static string ShownDisabled(string want) =>
-            Click(want, By.Name, false) ?? Click(want, By.Shown, false) ?? Click(want, By.Caption, false);
+        /// clicked. `covered`: as Click's, when something drawn over it takes the pointer first.</summary>
+        public static string ShownDisabled(string want, out string covered) =>
+            Click(want, By.Name, false, out covered) ?? Click(want, By.Shown, false, out covered) ?? Click(want, By.Caption, false, out covered);
 
         /// <summary>How a click compares `want`: with the widget's name (a wildcard) or type; with its caption as shown,
         /// whole and in the same case (spaces at either end of the caption left out); with its caption as Caption
@@ -787,11 +1110,12 @@ namespace TaskProbe
 
         /// <summary>Where the first visible, interactable uGUI Selectable or UI Toolkit Button whose caption is `want`
         /// is on the screen (fractions, y down), for a finger: a tap's spot when no widget has the name or the
-        /// type.</summary>
-        public static bool CaptionSpot(string want, out double x, out double y, out double w, out double h, out string named)
+        /// type. `target`: its object or element (Covered).</summary>
+        public static bool CaptionSpot(string want, out double x, out double y, out double w, out double h, out string named, out object target)
         {
             x = y = w = h = 0.0;
             named = null;
+            target = null;
 #if TASKPROBE_UGUI
             var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
             Find.SortByHierarchy(selectables);
@@ -802,6 +1126,7 @@ namespace TaskProbe
                 if (!s.isActiveAndEnabled || !s.IsInteractable() || !UguiVisible(s.gameObject, own)) continue;
                 if (!RectOf(s.transform as RectTransform, s.GetComponentInParent<Canvas>(), false, out x, out y, out w, out h) || w <= 0.0 || h <= 0.0) continue;
                 named = s.gameObject.name + " (" + s.GetType().Name + ") by its caption";
+                target = s.gameObject;
                 return true;
             }
 #endif
@@ -817,6 +1142,7 @@ namespace TaskProbe
                     if (!e.enabledInHierarchy || !UitkVisible(e, root.Value, false)) continue;
                     if (!RectOf(e, out x, out y, out w, out h) || w <= 0.0 || h <= 0.0) continue;
                     named = NameOf(e) + " (" + e.GetType().Name + ") by its caption";
+                    target = e;
                     return true;
                 }
             }
@@ -825,9 +1151,11 @@ namespace TaskProbe
         }
 
         /// <summary>The first visible uGUI Selectable, else UI Toolkit Button, that `want` names (`by`): clicked when
-        /// `press` and it is interactable; when not `press`, only found, and only when it is not.</summary>
-        static string Click(string want, By by, bool press)
+        /// `press` and it is interactable, unless something drawn over it takes the pointer first (`covered` says what;
+        /// it is returned, not clicked); when not `press`, only found, and only when it is not.</summary>
+        static string Click(string want, By by, bool press, out string covered)
         {
+            covered = null;
             var how = by != By.Name ? " by its caption" : "";
 #if TASKPROBE_UGUI
             var selectables = new List<Selectable>(UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
@@ -838,15 +1166,21 @@ namespace TaskProbe
                 if (!Matches(by, want, s.gameObject.name, s.GetType(), () => CaptionOf(s))) continue;
                 var own = s.targetGraphic != null && s.targetGraphic.gameObject == s.gameObject ? s.targetGraphic : null;
                 if ((s.isActiveAndEnabled && s.IsInteractable()) != press || !UguiVisible(s.gameObject, own)) continue;
-                if (!press) return s.gameObject.name + " (" + s.GetType().Name + ")" + how;
+                var found = s.gameObject.name + " (" + s.GetType().Name + ")" + how;
+                if (!press)
+                {
+                    covered = UguiOver(s.gameObject);
+                    return found;
+                }
                 if (EventSystem.current == null)
                 {
                     // (an InputField's pointer down would also throw into the game's log)
                     Probe.Log("no EventSystem: a click reaches no uGUI widget, so " + s.gameObject.name + " isn't clicked");
                     break;
                 }
-                UguiClick(s);
-                return s.gameObject.name + " (" + s.GetType().Name + ")" + how;
+                covered = UguiOver(s.gameObject);
+                if (covered == null) UguiClick(s);
+                return found;
             }
 #endif
 #if TASKPROBE_UITK
@@ -860,7 +1194,8 @@ namespace TaskProbe
                     if (!(e is UIE.Button button)) continue;
                     if (!Matches(by, want, NameOf(e), e.GetType(), () => UitkText(e))) continue;
                     if (e.enabledInHierarchy != press || !UitkVisible(e, root.Value, false)) continue;
-                    if (!press) return NameOf(e) + " (" + e.GetType().Name + ")" + how;
+                    covered = UitkOver(e);
+                    if (!press || covered != null) return NameOf(e) + " (" + e.GetType().Name + ")" + how;
                     // a submit is what Button reacts to with its clicked (Clickable.SimulateSingleClick), as a keyboard or
                     // pad press does; a ClickEvent callback needs a pointer's click (the cursor)
                     using (var submit = UIE.NavigationSubmitEvent.GetPooled())
@@ -875,7 +1210,28 @@ namespace TaskProbe
             return null;
         }
 
+#if TASKPROBE_UITK
+        /// <summary>What a UI Toolkit control's panel picks first at the centre of its visible part (UitkCover), in words
+        /// for probe.log; null when it picks the control, or nothing.</summary>
+        static string UitkOver(UIE.VisualElement e)
+        {
+            if (!UitkCentre(e, out var cx, out var cy)) return null;
+            var cover = UitkCover(e, cx, cy, out var over);
+            return cover == 1 ? over + " is over it" : cover == 2 ? "the pointer at its centre reaches " + over + " and never it" : null;
+        }
+#endif
+
 #if TASKPROBE_UGUI
+        /// <summary>What takes a player's pointer first at the centre of a uGUI control's visible part (UguiCover), in
+        /// words for probe.log ("X (Image) is over it"); null when the pointer reaches the control, or that can't be
+        /// told.</summary>
+        static string UguiOver(GameObject go)
+        {
+            if (!UguiCentre(go, out var cx, out var cy)) return null;
+            var cover = UguiCover(go, cx, cy, out var over);
+            return cover == 1 ? over + " is over it" : cover == 2 ? "the pointer at its centre reaches " + over + " and never it" : null;
+        }
+
         /// <summary>A pointer's click at the selectable's centre as the Input System's UI module makes it, through
         /// ExecuteEvents: the pointer enters; the press lets go of a selection the pressed object wouldn't take, then
         /// pointer down and the start of a possible drag; the release pointer up and click; the pointer leaves. onClick,

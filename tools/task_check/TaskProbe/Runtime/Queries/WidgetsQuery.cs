@@ -5,7 +5,9 @@
 // "rows": [{"name", "class", <field>: value}] for every widget the select matches (select: component, a type name of
 // a component on the object, or of the element, base types included, and with a name one above it too; name, a
 // wildcard on the object's or element's name, which alone also finds an object of a canvas with no graphic; text, a
-// regex its text must match, a Selectable's being its label's; visible: false, the widgets not on screen too).
+// regex its text must match, a Selectable's being its label's; visible: false, the widgets not on screen too). `covered`:
+// 1 when a pointer at the centre of the widget's visible part reaches something drawn over it first, 0 when it reaches
+// the widget, no value when that can't be told (UiScan.Covered).
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -17,7 +19,7 @@ namespace TaskProbe
     {
         static readonly HashSet<string> Known = new HashSet<string>(StringComparer.Ordinal)
         {
-            "count", "visible", "text", "percent", "value", "interactable", "has_brush", "brush", "x", "y", "w", "h",
+            "count", "visible", "text", "percent", "value", "interactable", "has_brush", "brush", "x", "y", "w", "h", "covered",
         };
         string component, name;
         Regex text;

@@ -981,6 +981,36 @@ class Units(unittest.TestCase):
         fresh = [reads('one'), dict(reads('two'), play={'name': 'two', 'seconds': 10, 'fresh': True})]
         self.assertEqual(vg.play_after_errors(fresh), [], 'fresh alone: as any play that names no after')
 
+    def test_event_rules(self):
+        """A measure's `since` and a shot's `when` (task-probes.md 2.23): an event's measure is one the probe samples,
+        with no window, at, agg or since of its own, and every rule of a measure; a shot's is one the probe reads every
+        frame itself."""
+        frames = {'probe': 'objects', 'select': {'name': 'HudDriver'}, 'field': 'prop:UiHudDriver.frames', 'of': 'first'}
+
+        def since(measure):
+            return {'name': 'p', 'kind': 'probe', 'describe': 'x', 'play': 'look', 'expect': {'op': '>=', 'value': 1},
+                    'measure': dict(frames, at=[0], since={'measure': measure, 'expect': {'op': '>=', 'value': 45}})}
+
+        def when(measure):
+            play = {'name': 'events', 'seconds': 10, 'inputs': [
+                {'t': 1, 'shot': 'win', 'when': {'measure': measure, 'expect': {'op': '>=', 'value': 1}, 'within': 3}}]}
+            return {'name': 'p', 'kind': 'probe', 'describe': 'x', 'play': play, 'expect': {'op': '>=', 'value': 1},
+                    'measure': frames}
+        self.assertEqual(vg.probe_errors(since(frames), None, None, {}), [])
+        self.assertEqual(vg.probe_errors(when(frames), None, None, {}), [])
+        for measure, said in ((dict(frames, window=[0, 1]), 'check p: its since: its measure takes no window of its own'),
+                              (dict(frames, agg='max'), 'its measure takes no agg of its own'),
+                              ({'probe': 'log', 'pattern': 'x'}, 'its measure is read from samples of the play'),
+                              ({'probe': 'ui', 'field': 'text'}, 'a ui measure takes `match` exactly when its field is text')):
+            found = vg.probe_errors(since(measure), None, None, {})
+            self.assertTrue(any(said in e for e in found), (said, found))
+        for measure, said in (({'probe': 'player', 'field': 'x'}, "the probe reads a shot's event itself every frame"),
+                              ({'probe': 'ui', 'field': 'count', 'select': {'rect': [0, 0, 0.5, 0.5]}},
+                               'its ui select takes no rect'),
+                              (dict(frames, to_axis=90), "a shot's event takes no to_angle or to_axis")):
+            found = vg.probe_errors(when(measure), None, None, {})
+            self.assertTrue(any("check p: play events: shot win's when: " in e and said in e for e in found), (said, found))
+
     def test_seen_rules(self):
         """A `seen` measure (task-probes.md 2.22), as the Lab's grader takes it: the schema's shape, then the rules
         beyond it, each with the grader's words."""

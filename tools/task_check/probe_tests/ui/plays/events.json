@@ -1,0 +1,156 @@
+{
+ "seconds": 4,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/ProbeTests/ui/Made/Hud.unity",
+ "queries": [
+  {
+   "id": "driver",
+   "kind": "objects",
+   "select": {
+    "name": "HudDriver"
+   },
+   "fields": [
+    "prop:UiHudDriver.frames",
+    "prop:UiHudDriver.score"
+   ]
+  },
+  {
+   "id": "score690",
+   "kind": "ui",
+   "select": {
+    "kind": "text",
+    "text": "SCORE 690$"
+   },
+   "fields": []
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.1,
+   "shot": "when_stale",
+   "when": {
+    "measure": {
+     "probe": "widgets",
+     "select": {
+      "name": "StalePanel",
+      "visible": false
+     },
+     "field": "visible",
+     "of": "any"
+    },
+    "expect": {
+     "op": "==",
+     "value": 0
+    }
+   }
+  },
+  {
+   "t": 0.2,
+   "shot": "when_gone",
+   "when": {
+    "measure": {
+     "probe": "widgets",
+     "select": {
+      "name": "LayoutA"
+     },
+     "field": "count"
+    },
+    "expect": {
+     "op": "==",
+     "value": 0
+    }
+   }
+  },
+  {
+   "t": 0.5,
+   "shot": "when_prop",
+   "when": {
+    "measure": {
+     "probe": "objects",
+     "select": {
+      "name": "HudDriver"
+     },
+     "field": "prop:UiHudDriver.frames",
+     "of": "first"
+    },
+    "expect": {
+     "op": ">=",
+     "value": 45
+    }
+   }
+  },
+  {
+   "t": 1.0,
+   "shot": "when_text",
+   "when": {
+    "measure": {
+     "probe": "ui",
+     "select": {
+      "kind": "text",
+      "text": "SCORE 690$"
+     },
+     "field": "count"
+    },
+    "expect": {
+     "op": ">=",
+     "value": 1
+    }
+   }
+  },
+  {
+   "t": 1.0,
+   "shot": "when_within",
+   "when": {
+    "measure": {
+     "probe": "ui",
+     "select": {
+      "kind": "text",
+      "text": "NEVER SHOWN"
+     },
+     "field": "count"
+    },
+    "expect": {
+     "op": ">=",
+     "value": 1
+    },
+    "within": 1.0
+   }
+  },
+  {
+   "t": 2.0,
+   "shot": "when_never",
+   "when": {
+    "measure": {
+     "probe": "objects",
+     "select": {
+      "name": "NoSuchThing"
+     },
+     "field": "count"
+    },
+    "expect": {
+     "op": ">=",
+     "value": 1
+    }
+   }
+  },
+  {
+   "t": 3.0,
+   "shot": "when_late",
+   "when": {
+    "measure": {
+     "probe": "objects",
+     "select": {
+      "name": "HudDriver"
+     },
+     "field": "prop:UiHudDriver.frames",
+     "of": "first"
+    },
+    "expect": {
+     "op": ">=",
+     "value": 45
+    }
+   }
+  }
+ ]
+}
