@@ -535,14 +535,19 @@ namespace TaskProbe
         }
 
         /// <summary>After every script's Update and before any LateUpdate: a held player goes back to its spot, so a
-        /// camera that follows it in LateUpdate stands where it stands for a player at the spot.</summary>
+        /// camera that follows it in LateUpdate stands where it stands for a player at the spot; and the keys of an
+        /// earlier frame go to the control that has the keyboard focus.</summary>
         IEnumerator AfterUpdates()
         {
             while (!done)
             {
                 yield return null;
                 Stamp++;
-                if (started && !done) HoldPlayer();
+                if (!started || done) continue;
+                HoldPlayer();
+                // a key sent in an earlier frame, to the control that has the keyboard focus (Inputs.TypeKeys)
+                try { inputs.TypeKeys(); }
+                catch (Exception e) { Failed("inputs: {0} handing a key to the control that has the keyboard focus", e); }
             }
         }
 

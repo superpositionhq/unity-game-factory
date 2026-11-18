@@ -2146,7 +2146,7 @@
     },
     "Key": {
       "additionalProperties": false,
-      "description": "A key pressed or released (Input System control paths on <Keyboard>, <Mouse> or <Gamepad>: <Keyboard>/w,\n<Keyboard>/space, <Mouse>/leftButton, <Gamepad>/buttonSouth).",
+      "description": "A key pressed or released (Input System control paths on <Keyboard>, <Mouse> or <Gamepad>: <Keyboard>/w,\n<Keyboard>/space, <Mouse>/leftButton, <Gamepad>/buttonSouth). A keyboard key also types its character\n(Keyboard.onTextInput) and goes to the text field being edited (a uGUI InputField or TMP_InputField, a UI Toolkit\nTextField) as a player's key does, and to the game's own actions whatever has the focus (probe 1.6.0).",
       "properties": {
         "key": {
           "pattern": "^<(Keyboard|Mouse|Gamepad)>/[A-Za-z0-9/]{1,40}$",

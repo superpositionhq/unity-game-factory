@@ -1,0 +1,110 @@
+{
+ "seconds": 2,
+ "shots": 0,
+ "every": 0.1,
+ "scene": "Assets/ProbeTests/ui/Made/KeysNone.unity",
+ "queries": [
+  {
+   "id": "fields",
+   "kind": "widgets",
+   "select": {
+    "name": "Key*"
+   },
+   "fields": [
+    "text"
+   ]
+  },
+  {
+   "id": "uitk",
+   "kind": "objects",
+   "select": {
+    "name": "KeyDoc"
+   },
+   "fields": [
+    "prop:UiKeyText.changes",
+    "prop:UiKeyText.enters",
+    "prop:UiKeyText.submits"
+   ]
+  },
+  {
+   "id": "game",
+   "kind": "objects",
+   "select": {
+    "name": "KeyGame"
+   },
+   "fields": [
+    "prop:UiKeyGame.aPresses",
+    "prop:UiKeyGame.typed"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.3,
+   "key": "<Keyboard>/a",
+   "press": true
+  },
+  {
+   "t": 0.35,
+   "key": "<Keyboard>/a",
+   "press": false
+  },
+  {
+   "t": 0.5,
+   "cursor": [
+    0.125,
+    0.342593
+   ]
+  },
+  {
+   "t": 0.55,
+   "key": "<Mouse>/leftButton",
+   "press": true
+  },
+  {
+   "t": 0.6,
+   "key": "<Mouse>/leftButton",
+   "press": false
+  },
+  {
+   "t": 0.8,
+   "key": "<Keyboard>/a",
+   "press": true
+  },
+  {
+   "t": 0.85,
+   "key": "<Keyboard>/a",
+   "press": false
+  },
+  {
+   "t": 0.9,
+   "key": "<Keyboard>/b",
+   "press": true
+  },
+  {
+   "t": 0.95,
+   "key": "<Keyboard>/b",
+   "press": false
+  },
+  {
+   "t": 1.0,
+   "key": "<Keyboard>/1",
+   "press": true
+  },
+  {
+   "t": 1.05,
+   "key": "<Keyboard>/1",
+   "press": false
+  },
+  {
+   "t": 1.1,
+   "key": "<Keyboard>/enter",
+   "press": true
+  },
+  {
+   "t": 1.15,
+   "key": "<Keyboard>/enter",
+   "press": false
+  }
+ ]
+}

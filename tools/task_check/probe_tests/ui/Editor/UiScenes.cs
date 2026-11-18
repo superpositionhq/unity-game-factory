@@ -1,6 +1,6 @@
 // The ui family's scenes (probe_tests/ui): uGUI and UI Toolkit widgets of every kind widgets and ui read, each at a
 // known place, the ways a widget is or isn't on screen, buttons for widget and cursor clicks under each input module,
-// a menu drawn in OnGUI, a frame of known greys for screen, and a HUD of 500 texts.
+// a menu drawn in OnGUI, text fields that keys type into, a frame of known greys for screen, and a HUD of 500 texts.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -40,6 +40,8 @@ namespace ProbeTests.Ui
             Clicks("ClicksOld", Module.Standalone);
             Clicks("ClicksNone", Module.None);
             Gui();
+            Keys("Keys", true);
+            Keys("KeysNone", false);
             Grey();
             Crowd();
         }
@@ -536,6 +538,35 @@ namespace ProbeTests.Ui
             MainCamera(new Color(0.15f, 0.15f, 0.15f));
             new GameObject("GuiBoard").AddComponent<UiGuiBoard>();
             Save(scene, "Gui");
+        }
+
+        // ---------------------------------------------------------------- keys
+
+        // Text fields that keys type into, and the game's own reading of the same keys: with an EventSystem (`events`,
+        // the Input System's UI module) a uGUI InputField (KeyField) and a TMP_InputField (KeyTmpField), each counting
+        // what it fires, and a UI Toolkit TextField (KeyText); with none, the UI Toolkit field alone (UI Toolkit's own
+        // event system). KeyGame counts the A key's presses through an InputAction
+        // and the characters the keyboards' text input gave.
+        static void Keys(string sceneName, bool events)
+        {
+            var scene = New();
+            MainCamera(new Color(0.15f, 0.15f, 0.15f));
+            if (events)
+            {
+                new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+                var skin = Skin();
+                var tmpSkin = new TMP_DefaultControls.Resources
+                {
+                    standard = skin.standard, background = skin.background, inputField = skin.inputField, knob = skin.knob,
+                    checkmark = skin.checkmark, dropdown = skin.dropdown, mask = skin.mask,
+                };
+                var canvas = NewCanvas("KeyCanvas");
+                Control(DefaultControls.CreateInputField(skin), "KeyField", canvas, 20, 20, 200, 30).AddComponent<UiFieldCount>();
+                Control(TMP_DefaultControls.CreateInputField(tmpSkin), "KeyTmpField", canvas, 20, 70, 200, 30).AddComponent<UiFieldCount>();
+            }
+            Document("KeyDoc", Made<PanelSettings>("UiPanel.asset")).AddComponent<UiKeyText>();
+            new GameObject("KeyGame").AddComponent<UiKeyGame>();
+            Save(scene, sceneName);
         }
 
         // A ScrollRect of 120 x 60 at (x, y) whose viewport clips by a RectMask2D, or (`stencil`) by a Mask that hides

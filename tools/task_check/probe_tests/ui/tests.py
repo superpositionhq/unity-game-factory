@@ -1,14 +1,14 @@
 """The ui family: widgets (uGUI and UI Toolkit widgets' own state), ui (the UI on screen in the frame drawn after a
-sample), screen (the frame's brightness), the clicks (widget clicks, and cursor clicks under each input module), and a
-menu drawn in OnGUI."""
+sample), screen (the frame's brightness), the clicks (widget clicks, and cursor clicks under each input module), keys
+typed into text fields, and a menu drawn in OnGUI."""
 
 import math
 import re
 
 MADE = "Assets/ProbeTests/ui/Made/"
 SETUP = ["ProbeTests.Ui.UiScenes.Build"]
-SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "Gui", "Grey",
-                                              "Crowd")]
+SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "Gui", "Keys", "KeysNone",
+                                              "Grey", "Crowd")]
 W, H = 960, 540  # the frame
 FLOAT = 1e-5  # a float of the game widened to a double
 TURNED = 1e-4  # a rectangle turned or projected in floats
@@ -521,7 +521,61 @@ def events(t, play):
     t.ok("since an event that never came: no value, and why", value is None and why.startswith("its event never happened"), why)
 
 
-# ---------------------------------------------------------------- a menu drawn in OnGUI
+# ---------------------------------------------------------------- keys
+
+def field(play, t, name, what):
+    return get(play, "counts", t, name, "prop:UiFieldCount." + what)
+
+
+def key_text(play, t, what):
+    return get(play, "uitk", t, "KeyDoc", "prop:UiKeyText." + what)
+
+
+def game(play, t, what):
+    return get(play, "game", t, "KeyGame", "prop:UiKeyGame." + what)
+
+
+def keys(t, play):
+    """Keys typed into the field that has the keyboard focus, as a player's keyboard types them, and into the game
+    too: an A before any field has the focus types nothing; a widget click focuses a uGUI InputField, then A, B,
+    Backspace, B, 1 type "ab1" and Enter submits it and ends the edit; the same in a TMP_InputField (A, B, 1, Enter);
+    a cursor click focuses a UI Toolkit TextField and A, B, 1 type "ab1", Enter reaching it as a key (and as the UI
+    module's submit). Every key also reaches the game's own InputAction and its text input, focused field or not."""
+    t.eq("before any focus: the A key typed into no field", [get(play, "fields", 0.4, n, "text") for n in
+                                                            ("KeyField", "KeyTmpField", "KeyText")], ["", "", ""])
+    t.eq("... but the game's InputAction saw it, and its text input read it", [game(play, 0.4, "aPresses"),
+                                                                             game(play, 0.4, "typed")], [1, "a"])
+    t.eq("KeyField: being edited after its widget click", field(play, 0.6, "KeyField", "focused"), 1)
+    t.eq("KeyField: A, B, Backspace, B, 1 typed ab1", get(play, "fields", 1.4, "KeyField", "text"), "ab1")
+    t.eq("KeyField: five changes, Enter submitted and ended the edit once, no longer edited",
+         [field(play, 1.4, "KeyField", f) for f in ("changes", "submits", "ends", "focused")], [5, 1, 1, 0])
+    t.eq("KeyTmpField: being edited after its widget click", field(play, 1.6, "KeyTmpField", "focused"), 1)
+    t.eq("KeyTmpField: A, B, 1 typed ab1", get(play, "fields", 2.2, "KeyTmpField", "text"), "ab1")
+    t.eq("KeyTmpField: three changes, Enter submitted and ended the edit once, no longer edited",
+         [field(play, 2.2, "KeyTmpField", f) for f in ("changes", "submits", "ends", "focused")], [3, 1, 1, 0])
+    t.eq("KeyField untouched by the keys after it lost the focus", [get(play, "fields", 3.5, "KeyField", "text"),
+                                                                   field(play, 3.5, "KeyField", "ends")], ["ab1", 1])
+    t.eq("KeyText (UI Toolkit): A, B, 1 typed ab1", get(play, "fields", 3.5, "KeyText", "text"), "ab1")
+    t.eq("KeyText: three changes, Enter reached it once as a key and once as the UI module's submit",
+         [key_text(play, 3.5, f) for f in ("changes", "enters", "submits")], [3, 1, 1])
+    t.eq("the game's InputAction saw every A, focused field or not", game(play, 3.5, "aPresses"), 4)
+    t.eq("the game's text input read every character typed", game(play, 3.5, "typed"), "aabb1ab1ab1")
+    log = play.probe_log
+    for line in ("key <Keyboard>/a to KeyField (InputField)", "key <Keyboard>/enter to KeyField (InputField)",
+                 "key <Keyboard>/1 to KeyTmpField (TMP_InputField)"):
+        t.ok(f"probe.log: {line}", line in log)
+
+
+def keys_none(t, play):
+    """With no EventSystem UI Toolkit takes keys itself: a cursor click focuses KeyText, and A, B, 1, Enter type "ab1"
+    into it and reach it once as a key (and once as the Input System's submit); the game sees every key."""
+    t.eq("before any focus: the A key typed into no field", get(play, "fields", 0.4, "KeyText", "text"), "")
+    t.eq("KeyText: A, B, 1 typed ab1", get(play, "fields", 1.5, "KeyText", "text"), "ab1")
+    t.eq("KeyText: three changes, Enter reached it once as a key and once as a submit",
+         [key_text(play, 1.5, f) for f in ("changes", "enters", "submits")], [3, 1, 1])
+    t.eq("the game's InputAction saw both A keys", game(play, 1.5, "aPresses"), 2)
+    t.eq("the game's text input read every character typed", game(play, 1.5, "typed"), "aab1")
+
 
 def gui(t, play):
     """A cursor move goes to the game's Input System mouse, so a hit box an OnGUI menu paints and the game reads from
@@ -635,6 +689,8 @@ PLAYS = {
     "clicks_old": {"check": clicks_for("old")},
     "clicks_none": {"check": clicks_for("none")},
     "events": {"check": events},
+    "keys": {"check": keys},
+    "keys_none": {"check": keys_none},
     "gui": {"check": gui},
     "screen": {"check": screen_for(False)},
     "screen_post": {"check": screen_for(True), "args": ["-uipost"]},

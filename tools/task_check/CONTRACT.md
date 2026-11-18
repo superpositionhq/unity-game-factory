@@ -629,6 +629,29 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   `buttonEast`, `buttonWest`, `leftShoulder`, `rightShoulder`, `start`, `select`, `leftStickPress`, `rightStickPress`,
   `dpad/up` and the other three); any other control, an alias such as `<Gamepad>/a` among them, is a `query_errors` line
   and presses nothing.
+  A keyboard key also gives what a real one gives besides its state (probe 1.6.0, `Inputs.Typed`, `Inputs.TypeKeys`,
+  `UiScan.TypeKey`). On its press, the character it types (`Inputs.Character`: a US layout, the Shift keys held, num
+  lock on, caps lock off; none while Ctrl, Alt or a Meta key is held) as the Input System's text event
+  (`InputSystem.QueueTextEvent`, read through `Keyboard.onTextInput`), queued with its state. And the key as IMGUI
+  gives it to the UI (`Inputs.UiKey`: on the press a KeyDown with its KeyCode, that character, Enter's `\n`, and
+  the modifiers held, the function-key one as `Event.KeyboardEvent` sets it; on the release a KeyUp with no
+  character), handed over in the next frame after the game's Updates (the frame its state reaches the game, once
+  the EventSystem has run), to the control that has the keyboard focus: with an EventSystem, the uGUI InputField or TMP_InputField it has selected while that is being
+  edited, as its `OnUpdateSelected` takes a key from IMGUI's queue (its protected `KeyPressed`; when that ends the
+  edit, Enter on a single line or Escape, its `onSubmit` unless Escape cancelled it, on a field that has one, then
+  `DeactivateInputField`, which ends the edit and puts the text back after Escape; else its label updated; a key up
+  does nothing), else the focused element of the UI Toolkit panel the EventSystem has selected (its
+  `PanelEventHandler`'s), a `KeyDownEvent` or `KeyUpEvent` made from that IMGUI event and sent to the innermost focused
+  element (a TextField's text input); with no EventSystem, the focused element of the UI Toolkit panel that has one,
+  else every panel drawn over the screen's root, the highest sorting order first, until one stops the event or takes
+  the focus, as UI Toolkit's own event system sends a key. `probe.log` says `key <path> to <name> (<type>)`. A real
+  key reaches all of these from IMGUI's queue, never from the Input System's device state, so before probe 1.6.0 a
+  key typed nothing. Nothing is held back from the game: in Unity a real key reaches the game's Input System actions
+  and `Keyboard.current` whatever has the focus (a game that wants a focused field to keep a key from its actions
+  checks the focus itself), so the key's state goes as before, and with it the UI module's own submit, cancel and
+  move, which a field being edited takes in that frame's selection update as with a real key. Not sent: a modifier
+  key itself as a UI event, a held key's repeats, IME composition, and anything to IMGUI (`OnGUI`, `GUI.TextField`)
+  or the old Input Manager (`Input.inputString`).
 - axis: `{"t", "key": "<Mouse>/delta/x", "axis": 4.0}`: `<Mouse>/delta/x|y` and `<Mouse>/scroll/x|y` are one-frame
   impulses (the pointer is placed by a cursor row, in fractions of the frame); `<Gamepad>/leftStick/x|y`,
   `rightStick/x|y`, `leftTrigger` and `rightTrigger` keep their value until set again.

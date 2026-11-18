@@ -13,6 +13,7 @@
 // pointer at its centre would (Covered: nothing drawn over it takes the pointer first).
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEngine;
 #if TASKPROBE_UGUI
@@ -1284,6 +1285,137 @@ namespace TaskProbe
             // the pointer goes again: the UI module follows its own pointer's hover, so this object would never get an exit
             ExecuteEvents.ExecuteHierarchy(go, data, ExecuteEvents.pointerExitHandler);
             data.pointerEnter = null;
+        }
+#endif
+
+        // ---------------------------------------------------------------- a key to the control with the keyboard focus
+
+        const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+#if TASKPROBE_UGUI || TASKPROBE_UITK
+        /// <summary>A keyboard key (`key`: a KeyDown or KeyUp as IMGUI gives a real key, its key code, the character
+        /// it types and its modifiers) to the control that has the keyboard focus, as the UI takes a real key: from
+        /// IMGUI's event queue, which the Input System's device state never reaches. With an EventSystem: the uGUI
+        /// InputField or TMP_InputField it has selected, while that is being edited (Edit), else the focused element of
+        /// the UI Toolkit panel it has selected (its PanelEventHandler's), as a KeyDownEvent or KeyUpEvent. With none:
+        /// the focused element of the UI Toolkit panel that has one, else every panel drawn over the screen, the
+        /// highest sorting order first, until one stops the event or takes the focus, as UI Toolkit's own event
+        /// system sends a key. What took it, "name (type)", else null.</summary>
+        public static string TypeKey(Event key)
+        {
+#if TASKPROBE_UGUI
+            var events = EventSystem.current;
+            var selected = events != null ? events.currentSelectedGameObject : null;
+            if (selected != null && selected.TryGetComponent<InputField>(out var field) && field.isFocused)
+            {
+                Edit(field, key, () => field.DeactivateInputField(), field.ForceLabelUpdate);
+                return selected.name + " (InputField)";
+            }
+#if TASKPROBE_TMP
+            if (selected != null && selected.TryGetComponent<TMPro.TMP_InputField>(out var tmp) && tmp.isFocused)
+            {
+                Edit(tmp, key, () => tmp.DeactivateInputField(), tmp.ForceLabelUpdate);
+                return selected.name + " (TMP_InputField)";
+            }
+#endif
+#endif
+#if TASKPROBE_UITK
+            var panels = new List<KeyValuePair<UIE.IPanel, float>>();
+            foreach (var d in UnityEngine.Object.FindObjectsByType<UIE.UIDocument>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                var panel = d != null && d.isActiveAndEnabled && !Probe.IsOwn(d.gameObject) ? d.rootVisualElement?.panel : null;
+                if (panel == null || panels.Exists(p => p.Key == panel)) continue;
+                var settings = d.panelSettings;
+                // drawn over the screen (UI Toolkit's own event system sends a key nobody has focused to these alone)
+                var overlay = settings != null && settings.renderMode == UIE.PanelRenderMode.ScreenSpaceOverlay;
+                panels.Add(new KeyValuePair<UIE.IPanel, float>(panel, overlay ? settings.sortingOrder : float.NaN));
+            }
+#if TASKPROBE_UGUI
+            if (events != null)
+            {
+                var handler = selected != null ? selected.GetComponent<UIE.PanelEventHandler>() : null;
+                if (handler == null || handler.panel == null || !panels.Exists(p => p.Key == handler.panel)) return null;
+                var at = Focused(handler.panel);
+                SendKey(handler.panel, at, key);
+                return at != null ? FocusName(at) : "the panel of " + selected.name;
+            }
+#endif
+            foreach (var p in panels)
+            {
+                var at = Focused(p.Key);
+                if (at == null) continue;
+                SendKey(p.Key, at, key);
+                return FocusName(at);
+            }
+            panels.RemoveAll(p => float.IsNaN(p.Value));
+            panels.Sort((a, b) => b.Value.CompareTo(a.Value));  // stable enough: a sort of a few panels by their order
+            foreach (var p in panels)
+            {
+                if (SendKey(p.Key, null, key)) return "the panel " + p.Key.visualTree.name + " (it stopped the key)";
+                if (Focused(p.Key) is UIE.Focusable now) return FocusName(now);
+            }
+            return panels.Count > 0 ? "every panel (none took the key)" : null;
+#else
+            return null;
+#endif
+        }
+#endif
+
+#if TASKPROBE_UGUI
+        /// <summary>A key into a uGUI InputField or TMP_InputField being edited, as its OnUpdateSelected takes one from
+        /// IMGUI's queue: a key down through its KeyPressed; when that ends the edit (Enter on a single line, Escape),
+        /// its onSubmit unless Escape cancelled it (a field without onSubmit submits as the edit ends), then the edit
+        /// ended (DeactivateInputField: Escape puts the text back); else its label shown again. A key up does
+        /// nothing, as there.</summary>
+        static void Edit(Selectable field, Event key, Action deactivate, Action label)
+        {
+            if (key.type != EventType.KeyDown) return;
+            var type = field.GetType();
+            var pressed = type.GetMethod("KeyPressed", Members, null, new[] { typeof(Event) }, null);
+            if (pressed == null)
+            {
+                Probe.Active?.Error("inputs: " + type.Name + " has no KeyPressed, so a key types nothing into it");
+                return;
+            }
+            var state = pressed.Invoke(field, new object[] { key });
+            if (state != null && state.ToString() == "Finish")
+            {
+                var canceled = type.GetProperty("wasCanceled", Members)?.GetValue(field) is bool c && c;
+                if (!canceled && type.GetProperty("onSubmit", BindingFlags.Instance | BindingFlags.Public) != null)
+                    type.GetMethod("SendOnSubmit", Members, null, Type.EmptyTypes, null)?.Invoke(field, null);
+                deactivate();
+                return;
+            }
+            for (var t = type; t != null; t = t.BaseType)  // TMP_InputField's own flag, as its OnUpdateSelected sets it
+                t.GetField("m_IsTextComponentUpdateRequired", Members | BindingFlags.DeclaredOnly)?.SetValue(field, true);
+            label();
+        }
+#endif
+
+#if TASKPROBE_UITK
+        /// <summary>The element of a panel that has the keyboard focus: the innermost (a TextField's text input, not
+        /// the field), as UI Toolkit sends a key to it; null when none has.</summary>
+        static UIE.Focusable Focused(UIE.IPanel panel)
+        {
+            var focus = panel.focusController;
+            if (focus == null) return null;
+            var leaf = typeof(UIE.FocusController).GetMethod("GetLeafFocusedElement", Members, null, Type.EmptyTypes, null);
+            return (leaf != null ? leaf.Invoke(focus, null) as UIE.Focusable : null) ?? focus.focusedElement;
+        }
+
+        static string FocusName(UIE.Focusable at) =>
+            at is UIE.VisualElement e ? NameOf(e) + " (" + e.GetType().Name + ")" : at.GetType().Name;
+
+        /// <summary>A key to `at` (null: the panel's root) as a KeyDownEvent or KeyUpEvent made from the IMGUI event, as
+        /// UI Toolkit makes one from a real key's. Whether it was stopped.</summary>
+        static bool SendKey(UIE.IPanel panel, UIE.Focusable at, Event key)
+        {
+            using (var e = key.type == EventType.KeyDown ? (UIE.EventBase)UIE.KeyDownEvent.GetPooled(key) : UIE.KeyUpEvent.GetPooled(key))
+            {
+                e.target = (UIE.IEventHandler)at ?? panel.visualTree;
+                panel.visualTree.SendEvent(e);
+                return e.isPropagationStopped;
+            }
         }
 #endif
     }

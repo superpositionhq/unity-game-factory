@@ -1,4 +1,4 @@
-# ui: widgets, ui, screen, widget and cursor clicks, an OnGUI menu
+# ui: widgets, ui, screen, widget and cursor clicks, keys into text fields
 
 The queries that read the UI: `widgets` (a uGUI or UI Toolkit widget's own state), `ui` (every element on screen in
 the frame drawn after a sample, whatever UI system drew it), `screen` (the frame's brightness), and the inputs that
@@ -58,6 +58,12 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   pointer (`UCoveredButton`) and one under a box that doesn't (`UVeiledButton`).
 - **Gui**: a menu drawn in OnGUI (`GuiBoard`, `UiGuiBoard`): a GUI.Button at 600, 400 and a box at 780, 400, each
   120 x 40 px, whose clicks it counts by the Input System's mouse and by IMGUI's own MouseDown.
+- **Keys**, **KeysNone**: text fields for keys to type into. Keys, under the Input System's UI module: a uGUI
+  InputField (`KeyField`, 20, 20) and a TMP_InputField (`KeyTmpField`, 20, 70), each counting what it fires
+  (`UiFieldCount`: onValueChanged, onEndEdit, onSubmit, and whether it is being edited), and a UI Toolkit TextField
+  (`KeyText`, 20, 170, 200 x 30, `UiKeyText`: its value's changes, the Enter keys and the submits that reach it).
+  KeysNone, with no EventSystem: the UI Toolkit field alone. In both, `KeyGame` (`UiKeyGame`) counts the A key's presses through an InputAction and
+  keeps the characters the keyboards' text input gave.
 - **Grey**: the camera clears to sRGB grey 64; Overlay images cover the right half with sRGB grey 192 and the top left
   corner with a white and a black box. `-uipost` turns on the camera's post-processing and a volume that doubles the
   exposure; `-uiquit` quits the game in the frame of the 1 s sample.
@@ -97,6 +103,11 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   one whose event doesn't come within its `within` and one whose event never comes are `inputs_missed` rows of kind
   `shot_when`. Measures whose window and `at` count from an event (`since`), read by the checker's own reduction from
   the play's samples.
+- `keys` (Keys, sampled every 0.1 s): an A before any focus types into no field; a widget click focuses KeyField and
+  A, B, Backspace, B, 1 type `ab1`, Enter submits it and ends the edit; the same in KeyTmpField (A, B, 1, Enter); a
+  cursor click focuses KeyText and A, B, 1 type `ab1`, Enter reaching it as a key and as the UI module's submit; the
+  game's InputAction and its text input see every key, focused field or not.
+- `keys_none` (KeysNone): the same into the UI Toolkit field through UI Toolkit's own event system.
 - `gui` (Gui): a cursor click on the OnGUI box counts by the Input System's mouse, one elsewhere and one on the
   GUI.Button don't; the GUI.Button is never clicked and OnGUI gets no MouseDown (IMGUI takes the operating system's
   mouse, which the probe doesn't move or press).

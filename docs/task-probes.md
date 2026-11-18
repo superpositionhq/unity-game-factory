@@ -130,7 +130,15 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       name (`w`, `space`, `leftShift`, `f2`, `escape`); on `<Mouse>/`, `leftButton`, `rightButton`, `middleButton`,
       `forwardButton`, `backButton`; on `<Gamepad>/`, `buttonSouth`, `buttonEast`, `buttonWest`, `buttonNorth`,
       `leftShoulder`, `rightShoulder`, `start`, `select`, `leftStickPress`, `rightStickPress`, `dpad/up`, `dpad/down`,
-      `dpad/left`, `dpad/right`. Any other control is a line in the play's `query_errors`, and nothing is pressed;
+      `dpad/left`, `dpad/right`. Any other control is a line in the play's `query_errors`, and nothing is pressed.
+      A keyboard key gives what a player's key gives (probe 1.6.0): its state to the Input System (the game's
+      actions and `Keyboard.current` see it whatever has the focus, as with a real key), the character it types to
+      `Keyboard.onTextInput` (a US layout with the Shift keys held, so `leftShift` down then `a` types `A`; none while
+      Ctrl, Alt or a Meta key is held), and the key itself to the text field being edited: a uGUI `InputField` or
+      `TMP_InputField` the EventSystem has selected, or the focused element of a UI Toolkit panel (a `TextField`).
+      So a widget click on an input field (a UI Toolkit `TextField`: a cursor click on it), then one key at a time
+      (`a`, `b`, `1`), types `ab1`; `backspace` deletes, `enter` submits a single-line field and ends the edit,
+      `escape` ends it and puts the text back. A key held down types once (no key repeat);
     - an axis event: `{"t": 2.0, "key": "<Mouse>/delta/x", "axis": 40.0}` (`axis` -1000 to 1000), on `<Mouse>/`
       `delta/x`, `delta/y`, `scroll/x`, `scroll/y` or `<Gamepad>/` `leftStick/x`, `leftStick/y`, `rightStick/x`,
       `rightStick/y`, `leftTrigger`, `rightTrigger`. The mouse's delta and scroll are one-frame impulses; a stick or a

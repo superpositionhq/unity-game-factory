@@ -5,7 +5,9 @@
 // visit several places and scenes and picture each. Each device's whole state is sent with every change, so two
 // inputs in one frame never undo each other. And touches, as a phone's screen sends them (a tap, a long press, a drag,
 // several fingers at once: docs/task-probes.md, section 1.3), through the probe's own virtual Touchscreen: the Input
-// System's UI module, its on-screen controls and a game's own touch code read it as they read a phone's. A click or a
+// System's UI module, its on-screen controls and a game's own touch code read it as they read a phone's. A key also
+// gives what a real key gives besides its state: the character it types (the Input System's text event) and, in the
+// next frame, the key itself to the control that has the keyboard focus (a text field being edited). A click or a
 // tap on a control scrolled out of its scroll area scrolls the area to it first and lands the next frame; one on a
 // control something is drawn over doesn't land. A shot may wait for an event (`when`): it is taken in the first frame
 // at or after its time whose reading meets the event's expect.
@@ -93,6 +95,7 @@ namespace TaskProbe
         GamepadState pad;
         bool padUsed;
         Touchscreen screen;
+        readonly HashSet<Key> held = new HashSet<Key>();  // the keyboard's keys down now: the modifiers a key types with
 #endif
         readonly bool touchPlay;  // the play's spec says `touch` (a mobile game's): the touch screen is there from the start
 
@@ -358,6 +361,7 @@ namespace TaskProbe
                 keys.Set(found.keyCode, value != 0f);
                 InputSystem.QueueStateEvent(keyboard, keys);
                 keyboard.MakeCurrent();
+                if (!isAxis) Typed(path, found.keyCode, value != 0f);
                 return;
             }
             if (device == "<Mouse>" && mouse != null)
@@ -389,6 +393,119 @@ namespace TaskProbe
             Miss("key", path, "no such device");
 #else
             Miss("key", path, "the project has no Input System package");
+#endif
+        }
+
+        // ---------------------------------------------------------------- what a key types
+
+#if TASKPROBE_INPUTSYSTEM
+        /// <summary>What a real key gives besides its state (contract section 4): on its press, the character it types
+        /// (Character) as the Input System's text event (Keyboard.onTextInput), queued with its state; and the key as
+        /// IMGUI gives it to the UI (UiKey), kept for TypeKeys.</summary>
+        void Typed(string path, Key key, bool down)
+        {
+            if (down) held.Add(key);
+            else held.Remove(key);
+            var c = Character(key);
+            if (down && c >= ' ') InputSystem.QueueTextEvent(keyboard, c);
+#if TASKPROBE_UGUI || TASKPROBE_UITK
+            if (UiKey(key, down, down ? c : '\0') is Event e) typing.Add(new Typing { Frame = Time.frameCount, Path = path, Ui = e });
+#endif
+        }
+
+        static readonly Dictionary<Key, (char plain, char shifted)> Characters = new Dictionary<Key, (char, char)>
+        {
+            [Key.Space] = (' ', ' '), [Key.Enter] = ('\n', '\n'), [Key.NumpadEnter] = ('\n', '\n'),
+            [Key.Backquote] = ('`', '~'), [Key.Quote] = ('\'', '"'), [Key.Semicolon] = (';', ':'), [Key.Comma] = (',', '<'),
+            [Key.Period] = ('.', '>'), [Key.Slash] = ('/', '?'), [Key.Backslash] = ('\\', '|'), [Key.LeftBracket] = ('[', '{'),
+            [Key.RightBracket] = (']', '}'), [Key.Minus] = ('-', '_'), [Key.Equals] = ('=', '+'), [Key.NumpadDivide] = ('/', '/'),
+            [Key.NumpadMultiply] = ('*', '*'), [Key.NumpadMinus] = ('-', '-'), [Key.NumpadPlus] = ('+', '+'),
+            [Key.NumpadPeriod] = ('.', '.'), [Key.NumpadEquals] = ('=', '='),
+        };
+
+        bool Held(Key left, Key right) => held.Contains(left) || held.Contains(right);
+
+        /// <summary>The character a key types on a US layout with the Shift keys held now (num lock on, caps lock off),
+        /// as IMGUI gives it (Enter '\n'); '\0' for a key that types none, and for any key while Ctrl, Alt or a Meta key
+        /// is held (a command, not text).</summary>
+        char Character(Key key)
+        {
+            if (Held(Key.LeftCtrl, Key.RightCtrl) || Held(Key.LeftAlt, Key.RightAlt) || Held(Key.LeftMeta, Key.RightMeta)) return '\0';
+            var shift = Held(Key.LeftShift, Key.RightShift);
+            if (key >= Key.A && key <= Key.Z) return (char)((shift ? 'A' : 'a') + (key - Key.A));
+            if (key >= Key.Digit1 && key <= Key.Digit0)
+            {
+                var n = key == Key.Digit0 ? 0 : key - Key.Digit1 + 1;
+                return shift ? ")!@#$%^&*("[n] : (char)('0' + n);
+            }
+            if (key >= Key.Numpad0 && key <= Key.Numpad9) return (char)('0' + (key - Key.Numpad0));
+            return Characters.TryGetValue(key, out var c) ? (shift ? c.shifted : c.plain) : '\0';
+        }
+#endif
+
+#if TASKPROBE_INPUTSYSTEM && (TASKPROBE_UGUI || TASKPROBE_UITK)
+        /// <summary>A key sent, for the control that has the keyboard focus: the IMGUI event a real key gives the UI,
+        /// handed over in the next frame of the game (the one its state reaches the game in).</summary>
+        sealed class Typing
+        {
+            public int Frame;
+            public string Path;
+            public Event Ui;
+        }
+
+        readonly List<Typing> typing = new List<Typing>();
+
+        static readonly Dictionary<Key, KeyCode> KeyCodes = new Dictionary<Key, KeyCode>
+        {
+            [Key.Space] = KeyCode.Space, [Key.Enter] = KeyCode.Return, [Key.NumpadEnter] = KeyCode.KeypadEnter, [Key.Tab] = KeyCode.Tab,
+            [Key.Escape] = KeyCode.Escape, [Key.Backquote] = KeyCode.BackQuote, [Key.Quote] = KeyCode.Quote,
+            [Key.Semicolon] = KeyCode.Semicolon, [Key.Comma] = KeyCode.Comma, [Key.Period] = KeyCode.Period, [Key.Slash] = KeyCode.Slash,
+            [Key.Backslash] = KeyCode.Backslash, [Key.LeftBracket] = KeyCode.LeftBracket, [Key.RightBracket] = KeyCode.RightBracket,
+            [Key.Minus] = KeyCode.Minus, [Key.Equals] = KeyCode.Equals, [Key.NumpadDivide] = KeyCode.KeypadDivide,
+            [Key.NumpadMultiply] = KeyCode.KeypadMultiply, [Key.NumpadMinus] = KeyCode.KeypadMinus, [Key.NumpadPlus] = KeyCode.KeypadPlus,
+            [Key.NumpadPeriod] = KeyCode.KeypadPeriod, [Key.NumpadEquals] = KeyCode.KeypadEquals,
+            // the keys IMGUI marks as function keys (Event.KeyboardEvent)
+            [Key.Backspace] = KeyCode.Backspace, [Key.Delete] = KeyCode.Delete, [Key.Insert] = KeyCode.Insert, [Key.Home] = KeyCode.Home,
+            [Key.End] = KeyCode.End, [Key.PageUp] = KeyCode.PageUp, [Key.PageDown] = KeyCode.PageDown, [Key.LeftArrow] = KeyCode.LeftArrow,
+            [Key.RightArrow] = KeyCode.RightArrow, [Key.UpArrow] = KeyCode.UpArrow, [Key.DownArrow] = KeyCode.DownArrow,
+        };
+
+        /// <summary>A key as IMGUI gives it to the UI, by Event.KeyboardEvent's conventions: a KeyDown or KeyUp with its
+        /// KeyCode, the character it types (`c`) and the modifiers held (the function-key one on arrows, Home, End,
+        /// the page keys, Backspace, Delete, Insert and F keys). Null for a key the UI is given no event of here: a
+        /// modifier key itself, and keys without a KeyCode.</summary>
+        Event UiKey(Key key, bool down, char c)
+        {
+            KeyCode code;
+            if (key >= Key.A && key <= Key.Z) code = KeyCode.A + (key - Key.A);
+            else if (key >= Key.Digit1 && key <= Key.Digit0) code = key == Key.Digit0 ? KeyCode.Alpha0 : KeyCode.Alpha1 + (key - Key.Digit1);
+            else if (key >= Key.Numpad0 && key <= Key.Numpad9) code = KeyCode.Keypad0 + (key - Key.Numpad0);
+            else if (key >= Key.F1 && key <= Key.F12) code = KeyCode.F1 + (key - Key.F1);
+            else if (!KeyCodes.TryGetValue(key, out code)) return null;
+            var modifiers = EventModifiers.None;
+            if (Held(Key.LeftShift, Key.RightShift)) modifiers |= EventModifiers.Shift;
+            if (Held(Key.LeftCtrl, Key.RightCtrl)) modifiers |= EventModifiers.Control;
+            if (Held(Key.LeftAlt, Key.RightAlt)) modifiers |= EventModifiers.Alt;
+            if (Held(Key.LeftMeta, Key.RightMeta)) modifiers |= EventModifiers.Command;
+            if (key >= Key.F1 && key <= Key.F12 || key >= Key.LeftArrow && key <= Key.Delete) modifiers |= EventModifiers.FunctionKey;
+            return new Event { type = down ? EventType.KeyDown : EventType.KeyUp, keyCode = code, character = c, modifiers = modifiers };
+        }
+#endif
+
+        /// <summary>After the game's Updates: each key sent in an earlier frame, in order, to the control that has the
+        /// keyboard focus now (UiScan.TypeKey: a text field being edited types it, Enter submits it), as a real key
+        /// reaches it in the frame its state reaches the game, once the EventSystem has run (a field being edited takes
+        /// that frame's selection update, so the UI module sends it no submit or move of the key's own).</summary>
+        public void TypeKeys()
+        {
+#if TASKPROBE_INPUTSYSTEM && (TASKPROBE_UGUI || TASKPROBE_UITK)
+            while (typing.Count > 0 && typing[0].Frame < Time.frameCount)
+            {
+                var t = typing[0];
+                typing.RemoveAt(0);
+                var into = UiScan.TypeKey(t.Ui);
+                if (into != null) Probe.Log((t.Ui.type == EventType.KeyDown ? "key " : "key up ") + t.Path + " to " + into);
+            }
 #endif
         }
 
