@@ -147,7 +147,25 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       no EventSystem in the scene a player's click reaches no uGUI widget, and neither does this one: `probe.log` says
       `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
       when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
-      matches '<widget>'`);
+      matches '<widget>'`), and the click is a row of `inputs_missed`, which fails every probe of the play (section 3).
+      What a click by caption can't do:
+      - a name or a type wins: the caption is tried only when no visible, interactable widget of either kind has
+        that name or type, so a `widget` that is also another button's name clicks that button;
+      - a caption is compared whole: `"start"` doesn't click a button reading "Start Game";
+      - `widget` holds letters, digits, spaces and `_ . * ? ( ) -` only (the schema's pattern): write any other
+        character of a caption (`!`, `'`, `:`) as a space, which compares the same; `*` and `?` are wildcards on a
+        name;
+      - the widget must lie in the frame, at least in part, and the click casts no ray and scrolls nothing: a control
+        scrolled past the screen's edge is a missed input, and one a scroll area clips but that lies inside the
+        screen is clicked though a player couldn't reach it. A play scrolls first, as a player would: a `cursor`
+        input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y", "axis": -120}`, a
+        one-frame impulse: send as many as the list needs), or on a mobile game a `drag` across the list; then the
+        click;
+    - an optional click: `{"t": 6.0, "widget": "Overwrite", "click": true, "optional": true}` is a click that may find
+      nothing: when no widget matches at that moment, the input is skipped and does not count as a missed input (the
+      probe still lists it in `inputs_missed`; the checker leaves it out). For a control that only shows in some
+      states (a confirmation shown only when a save exists), never for a control the play needs: a needed click that
+      may find nothing hides a play that never got where it should;
     - a touch: `{"t": 1.0, "tap": [0.5, 0.6]}` or `{"t": 2.0, "drag": [{"widget": "MoveStick"}, [0.2, 0.6]], "over":
       0.3, "hold": 2.0}`, a finger on the probe's own virtual Touchscreen (section 1.3);
     - the cursor: `{"t": 1.0, "cursor": [0.5, 0.6]}` moves the virtual mouse to a viewport point (fractions 0-1, y down
@@ -502,7 +520,10 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: se
   knows in a select's `text`, such as a named group `(?P<name>...)`, passes the validator and matches nothing in the
   play (`query_errors`: "the text regex ... doesn't compile").
 
-Rows with no value are skipped by `of`: `count`, `any`, `sum` and `all` of none are 0, the others have no value.
+Rows with no value are skipped by `of`: `count`, `any`, `sum` and `all` of none are 0, the others have no value. So a
+select that matches no rows reads 0 through them, which looks like a real value: a literal threshold such as `== 0`
+or `<= 0` then compares right on both sides while it reads nothing. Confirm in `probe.json` that the select matched
+rows on at least the side where the thing exists, and prefer a check that reads something present on the reference.
 Samples with no value are skipped by `agg`, and a window where no sample has a value has no value, whatever the `agg`.
 A probe whose measure has no value fails, with the reason in its detail (section 3). A query that names something the
 probe can't find (a kind, a component type in any select, a field, a volume component or parameter), or lacks its
@@ -1559,6 +1580,7 @@ How the Lab's grader reads it:
 - **An input that didn't land fails the probe.** A probe of a task play whose play lists a row in `inputs_missed`
   (section 1.4) fails with "the play's input did not land: ..."; on the reference, or when the reference's play missed
   one too, it is the task's error. Read the reference's `inputs_missed` and `probe.log` until both are empty of misses.
+  A click marked `"optional": true` that found nothing is no miss (section 1.1).
 - **`needs`** names only earlier checks; check names are unique in the task.
 
 ### 3.1 A start that doesn't compile: `fails_at_start`

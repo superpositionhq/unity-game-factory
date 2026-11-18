@@ -609,7 +609,9 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a player's click; a UI
   Toolkit one a `NavigationSubmitEvent`, which fires `Button.clicked` (a raw `ClickEvent` handler needs the cursor
   path). `probe.log` names the widget clicked and its type, not the pattern (`clicked PushButton (Button)`), or says
-  `no visible button matches '<widget>'`.
+  `no visible button matches '<widget>'`. A click's `"optional": true` is the checker's alone: the probe ignores it
+  and lists the click that found nothing in `inputs_missed` as any other, and the checker leaves that row (its `t`,
+  kind `click` and the widget as its target) out of the play's missed inputs (`probes.missed`).
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with

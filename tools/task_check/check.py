@@ -554,7 +554,7 @@ class Grade:
         """None when task play `play`'s inputs all landed in the graded side's play (or it can't say, or `play` is look,
         drive or editor); else (why it is the task's error, or None; the check's detail when it isn't)."""
         found = self.played(self.side, play)
-        rows = probes.missed(found.probe) if found is not None else None
+        rows = probes.missed(found.probe, play) if found is not None else None
         if not rows:
             return None
         broken = self.reference_unlanded(play)
@@ -566,7 +566,7 @@ class Grade:
         """Why task play `play` can't be driven even on the task's own fix (an input of the reference's play of it
         didn't land), or None: it landed every one, or the reference never played it."""
         found = self.played(self.reference, play)
-        rows = probes.missed(found.probe) if found is not None else None
+        rows = probes.missed(found.probe, play) if found is not None else None
         if not rows:
             return None
         return f"in the reference's play {play['name']}, an input did not land ({probes.missed_text(rows)}): the " \

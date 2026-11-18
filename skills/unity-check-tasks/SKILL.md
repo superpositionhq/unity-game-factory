@@ -24,6 +24,13 @@ however small, and read what it measured, not only the verdict (section 5). _(wh
 it read; an edit after the last check is unchecked, and a VALID line can still hide a check that measured nothing it
 meant to)_
 
+**VALID is necessary, not sufficient.** Passing both cases does not make a task valid by itself: the Lab's review reads
+the game's code and every check's whole definition (its plays, selectors, thresholds and rubric) against the
+instruction, and marks a task that passes both cases but whose checks do not decide what the instruction asks. So
+read each check's definition against the instruction and the game's code, never only its name or its `describe`
+(unity-write-tasks skill, section 5, "Every ask has a check"). _(why: the two cases show only that a check tells the
+start from the reference, never that it reads what the instruction asks)_
+
 ## 1. Before you run it
 
 - Commit the task on the tasks branch and run the validator first: `python
@@ -122,6 +129,9 @@ grader holds the task's own fix to its judge, and a required `seen` probe measur
 - **`seen` probe:** copy every line of text each crop shows, top to bottom, exactly as shown (`?` for a character you
   can't read for sure, `[]` for no text), into `blind\answers.json`, before you open the key:
   `{"A": ["COMBO x3"], "B": ["COMBO"]}`.
+- **"Cannot be seen" scores as fail, never as pass.** An item the pictures do not show scores 0, on either side,
+  however sure you are of what the game does; then fix the judge's plays (named `shot` inputs timed at the event) so
+  the pictures show it, and score again. _(why: the Lab's model scores only what its pictures show)_
 - Then check the task again. Scores and readings stand while their pictures stay the same (`pictures.json`,
   `crops.json`); pictures that changed need new ones. Write the judges' scores of both sides in the task's
   `tasks-workflow.jsonl` row too.
@@ -148,11 +158,12 @@ hold each case to this:
 
 - the reference builds, boots and passes every required check, `log_absent` and `file_exists` included;
 - every probe has a threshold (none reads `uncalibrated`), and the start and the reference measure different values
-  for each calibrated one;
-- every task play's inputs landed (`inputs_missed` empty in the reference's `probe.json`; `probe.log` shows each click
-  hit its button and each teleport its object);
-- every selection matched rows on both sides (`probe.json`'s `measures` hold rows, not an empty selection that
-  happens to compare right);
+  for each calibrated one (a reading the same on both sides measures nothing: uncalibrated, never a pass);
+- every task play's inputs landed (`inputs_missed` empty in the reference's `probe.json`, but for a click marked
+  `"optional": true` that found nothing; `probe.log` shows each click hit its button and each teleport its object);
+- every selection matched rows on both sides, or at least on the side where the thing exists (`probe.json`'s
+  `measures` hold rows, not an empty selection that happens to compare right: a `count`, `any`, `all` or `sum` over no
+  rows reads 0, which looks like a real value and passes a literal `== 0` or `<= 0` on both sides);
 - the moment each probe reads falls inside its window on both sides, with room to spare (sample times in
   `probe.json`), and a judge's screenshots show the moment it asks about;
 - every required judge passes on your blind scores of the reference, and every required `seen` probe is read.
@@ -165,7 +176,7 @@ every other correct solution)_
 
 | verdict | means | do |
 |---|---|---|
-| `VALID` | both cases are right as far as the checker can tell | still read section 5; the task ships only with this verdict on its final file |
+| `VALID` | both cases are right as far as the checker can tell: necessary, not sufficient (the Lab's review still marks a task whose checks don't decide what the instruction asks) | still read section 5 and each check's definition against the instruction; the task ships only with this verdict on its final file |
 | `INVALID` | a case is wrong: the reasons say which | fix the task (section 7) and check it again |
 | `ERROR` | the checker couldn't check the task: the machine, the licence, a build that stopped with no word about the game, a check the checker couldn't run | fix the machine and run again; never edit the task for an ERROR |
 
@@ -195,7 +206,7 @@ Never make a check easier to get a case right (unity-write-tasks skill, section 
 | **oracle fails**: `reference fails X: ... measured V, threshold OP T` | the check is wrong (`op` on the wrong side, the wrong field, a threshold not from the instruction or the start), or the reference's play doesn't reach the state | read the reference's play folder: the screenshots, the `track`, `probe.log`; fix the check or the play so the fix passes what the instruction asks |
 | `reference fails X: ... no samples in the window` | the window misses the moment, or the reference's play ended early (see its `play.log`) | move the window to when the moment happens on both sides, with room to spare, or lengthen the play |
 | `reference fails X: ... no value in the window (nothing it selects was measured)` | the selection names something the reference doesn't have under that name (renamed, re-parented, made at run time as `<Prefab>(Clone)`) | select by what the thing is or does (a component or tag the start has, `has`, `near`, `ui` text), never by a name only one build has |
-| `the play's input did not land: ...`, or `task error: ... in the reference's play X, an input did not land` | an input missed: a click before its button showed, a second click on a button already gone, a teleport next to nothing, a key the probe has no control for, a stage nothing took | wait for the button, click by the caption the start has, drop a repeated click, teleport next to something that is there; read `inputs_missed` and `probe.log` |
+| `the play's input did not land: ...`, or `task error: ... in the reference's play X, an input did not land` | an input missed: a click before its button showed, a second click on a button already gone, a click on a control scrolled past the screen's edge, a confirmation that shows only in some states, a teleport next to nothing, a key the probe has no control for, a stage nothing took | wait for the button, click by the caption the start has, drop a repeated click, scroll first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), mark a click that may rightly find nothing `"optional": true` (never one the play needs), teleport next to something that is there; read `inputs_missed` and `probe.log` |
 | `judge X: shots saved ..., answer needed` | a required judge isn't scored yet | score it blind (section 4) and check again |
 | `reference fails judge X on your scores` / `start already passes judge X on your scores` | the rubric or the plays don't separate the fix from the start | reword the item so it is decidable from the screenshots, or give the judge plays that reach the state; never ask less of the solution |
 | `seen X: crops saved ..., answer needed`, or `nothing the check reads was read on the reference` | a required `seen` probe isn't read, or its crop shows nothing it reads | read it blind; if the reference's crop holds no such text, take the shot at a stiller moment, loosen the rect, or read the text from the UI (`ui`, `widgets`) |

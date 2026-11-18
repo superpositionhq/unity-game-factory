@@ -760,6 +760,11 @@
           "title": "Click",
           "type": "boolean"
         },
+        "optional": {
+          "default": false,
+          "description": "A click that may find nothing: when no widget matches at that moment, the input is skipped and does not count as a missed input. For a control that only shows in some states (a confirmation shown only when a save exists). Never for a control the play needs.",
+          "type": "boolean"
+        },
         "t": {
           "maximum": 120,
           "minimum": 0,

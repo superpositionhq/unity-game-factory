@@ -543,15 +543,27 @@ def stage_missed(probe):
     return None
 
 
-def missed(probe):
+def missed(probe, play=None):
     """The inputs a play sent that didn't land (probe.json `inputs_missed`: a stage nothing took, a click no button
     took, a teleport next to nothing, an unknown key, a touch that couldn't be made), [{t, kind, target, why}]; [] when
     every one landed; None when it can't say (no probe file, or none of that list). A named screenshot is no input of
-    the game's (kind `shot`)."""
+    the game's (kind `shot`), and neither is a click task play `play` marks `optional` that found nothing (a click
+    allowed to find no widget: its row has the click's `t`, kind `click` and the widget as its target)."""
     rows = probe.get("inputs_missed") if isinstance(probe, dict) else None
     if not isinstance(rows, list):
         return None
-    return [r for r in rows if isinstance(r, dict) and r.get("kind") != "shot"]
+    allowed = optional_clicks(play)
+    return [r for r in rows if isinstance(r, dict) and r.get("kind") != "shot"
+            and not (r.get("kind") == "click" and _count(r.get("t"))
+                     and any(abs(r["t"] - t) < 1e-6 and r.get("target") == widget for t, widget in allowed))]
+
+
+def optional_clicks(play):
+    """[(t, widget)] of every click task play `play` marks `optional` (docs/task-probes.md, section 1.1); [] for look,
+    drive and editor."""
+    found = play.get("inputs") if isinstance(play, dict) else None
+    return [(float(i["t"]), i["widget"]) for i in found or []
+            if isinstance(i, dict) and i.get("click") and i.get("optional") and isinstance(i.get("widget"), str)]
 
 
 def missed_text(rows, limit=3):

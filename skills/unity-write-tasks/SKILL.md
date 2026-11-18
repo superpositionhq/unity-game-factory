@@ -76,6 +76,13 @@ VALID. Commit tasks as you go, like any work (unity-commit-always skill), but on
 all of them, the no-op case and the oracle case, in one background run of `tools/task-check.py` (the unity-check-tasks
 skill): only VALID tasks ship, so fix or remove every INVALID one before the game is packaged.
 
+**VALID is needed, never enough.** Passing the no-op case and the oracle case does not make a task valid by itself.
+The Lab's review reads the game's code and every check's whole definition (its plays, selectors, thresholds and
+rubric) against the instruction, and marks a task that passes both cases but whose checks do not decide what the
+instruction asks. So read each check's definition against the instruction and the game's code, never only its name
+or its `describe` (section 5, "Every ask has a check"). _(why: the two cases show only that a check tells the start
+from the reference, never that it reads what the instruction asks)_
+
 ## 1. The bar: long threads of multiple edits, nothing else
 
 **The only tasks that meet our requirements are long threads of multiple edits.** A long task keeps one clean run of
@@ -330,18 +337,21 @@ set. The usual order:
    `"required": false`; a `judge` (of the game, from screenshots and frames of the grader's own play) may also set
    `"before": true` to be shown the start beside the result, and `route`, `reference`, `plays` and `shots` (the task
    schema's `Judge` says what each does). **Every judge has plays of its own that show each rubric item at the
-   moment it can be seen**: a judge without plays sees only the idle look and the drive. One subject per judge; no
-   item about "every screen" unless its plays open every screen; no empty criterion such as "shows what the ticket
-   asks". A `code_judge` may name the files its question is about in `focus`
-   (up to 8 globs of project files, `["Assets/Scripts/Combat/*"]`): their diffs are shown first on both sides, so a
-   long change still shows them.
+   moment it can be seen** (named `shot` inputs timed at the event the item asks about): a judge without plays sees
+   only the idle look and the drive. An item the pictures cannot show scores 0 on either side, never a pass: fix
+   the plays so the pictures show it. One subject per judge; no item about "every screen" unless its plays open
+   every screen; no empty criterion such as "shows what the ticket asks". A `code_judge` may name the files its
+   question is about in `focus` (up to 8 globs of project files, `["Assets/Scripts/Combat/*"]`): their diffs are
+   shown first on both sides, so a long change still shows them.
 
 **Every look-and-feel ask in the brief gets a required `looks_as_asked` rubric item** (such an ask gates the task
 like any other: without an item of its own it ships unchecked). Go through the brief ask by ask: what a probe can measure gets a probe; what only an eye can tell (reads
 clearly, fits the style, looks like the thing it is meant to be) gets its own rubric item, `"required": true`, in one
 required `judge` named `looks_as_asked`, with `"before": true` and `"reference": true` when the seed has a reference.
 A judge can misread screenshots, so word each item concretely, decidable from the screenshots alone, so the unchanged
-game scores 0 on it and any solution that meets the brief scores 1. What must still look as it did goes in a required
+game scores 0 on it and any solution that meets the brief scores 1. A rubric item asks exactly what its sentence
+asks, in the sentence's words, never more: no stricter look, no added detail, no other quality. _(why: a solution
+that does all the instruction says must score 1)_ What must still look as it did goes in a required
 judge in `still_works` the same way. A judge is shown screenshots of the idle `look` and the `drive` on `play_scene`
 and nothing else, unless the check names its own plays. When what must be seen appears only after a task-specific
 key, in another scenario or scene, or past a title screen, give the check `plays`: up to 4 task plays that reach that
@@ -451,8 +461,12 @@ that re-parents it reads otherwise: read where it is in the world), not the root
 the moving, not a count of samples standing in for a count of events. **Select by what the thing is, not where the
 old one was**: no `near` around the start's position for something the task asks to move (a camera that must stand
 further back falls outside its own sphere). **Ask the second-solution question of every check:** would a correct solution
-that names things differently, lays the level out differently, or hides a thing instead of removing it still pass?
-If not, the check reads the reference, not the ask: rewrite it. Lighting and colour
+that names things differently, lays the level or its screens out differently, is made of more or fewer parts, or
+hides a thing instead of removing it still pass? If not, the check reads the reference, not the ask: rewrite it. So
+never a click or a tap at fixed screen coordinates, a teleport to where the reference put a thing, the reference's
+object or widget names, or a count of the parts one build is made of (its child objects, components or widgets,
+where the instruction states no number). _(why: each of these reads how the reference was built, so another correct
+build fails it)_ Lighting and colour
 are measured from the engine (`light`, `grading`), never from screenshots. `describe` says the assertion in plain
 words; it is shown in the grade, never to the agent. Check names are unique and `needs` only names earlier checks;
 calibrated probes, `code_judge` and `"reference": true` judges need `seed.reference`.
@@ -472,13 +486,17 @@ cases before any agent gets the task, and a task that fails either is void)_
 verdict (`.task-checks\<task>\`: the result's `probes` values, each play's `probe.json` and `probe.log`): it fails at
 the start and passes on the reference for the reason its `describe` gives; the play's inputs landed (no row in
 `inputs_missed`, the click found its button, the teleport its object: a probe of a play whose input missed fails
-whatever it measured); the probe matched something on both sides (rows, not an empty selection that happens to
-compare right); the moment it reads falls inside its window on both sides with room to spare; a judge's frames show
-the moment asked about. A check added or changed after the last run is unchecked until it runs again. A
+whatever it measured; only an `optional` click may find nothing); the probe matched something (rows, on both sides
+or at least on the side where the thing exists, not an empty selection that happens to compare right: below, "A
+probe reads something"); the moment it reads falls inside its window on both sides with room to spare; a judge's
+frames show the moment asked about. A check added or changed after the last run is unchecked until it runs again. A
 threshold comes from the instruction or from the start (`start_plus`, `start_times`, a number the ticket states),
 never from whatever makes the reference pass. **The reference does everything the instruction asks, in a place a play
 can reach**: an ask the reference doesn't meet, or meets only where no play gets to, comes out of the instruction or
-the reference is the wrong commit.
+the reference is the wrong commit. A reference that fails its own check with a real reading means the check or the
+reference is wrong, never the solver's problem: fix it before the task is handed in. A task with no reference cannot
+be validated. _(why: the Lab's grader holds the reference to every required check, and the oracle case is the only
+proof that a correct solution can pass)_
 
 **The check asks no model, so you score the judges.** A required judge holds the task until you have scored its saved
 screenshots blind, every rubric item of the start and the reference from 0 to 1 (unity-check-tasks skill, "Answer the
@@ -531,6 +549,13 @@ Fix what you find in the task before it is packed:
 - **Every required check traces back to an ask or a keep of the instruction.** A required check of something the
   instruction never asks fails a solution that did everything asked: drop it, or make the ask part of the
   instruction. _(why: a solver can only be held to what it was told)_
+- **A probe reads something.** A property that is null, a widget that is hidden, a selector that matches no rows, or
+  one so broad it reads another thing measures nothing the ask is about. A `count`, `any`, `all` or `sum` over a
+  selector that matches no rows reads 0, which looks like a real value, so a literal threshold such as `== 0` or
+  `<= 0` can compare right on both sides while it reads nothing: confirm in `probe.json` that the selector matched
+  rows on at least the side where the thing exists, and prefer a check that reads something the reference has. An
+  outcome probe whose reading is the same on the start and the reference measures nothing: it is uncalibrated, never
+  a pass. _(why: a check that reads nothing decides nothing about the ask, whatever its verdict)_
 - **A play does what a player must do to reach the state it probes.** When the game starts on a title screen or a
   menu, every play that checks something in the level first clicks the start control the instruction names, by its
   on-screen text (`{"widget": "begin_run", "click": true}` clicks a button reading "Begin Run"), and waits for the
@@ -542,6 +567,32 @@ Fix what you find in the task before it is packed:
   there.
 - **A play never repeats an action that already happened.** No second click on Continue or Retry after it worked:
   the button is gone, and the click is a missed input.
+- **A play needs no state the instruction never gives.** An existing save, a timer already run out, a filled-in
+  profile: each play starts from clean saved data, so it reaches such a state only by the steps the instruction gives
+  a player, by player steps of its own (it plays until the timer runs out), or by reading the plays that make it
+  (`after`, below). _(why: a state no player is told how to reach is there on one build and not
+  on another)_
+- **Inputs a player would make, placed from the event.** A play's inputs are as fragile as they are guessed:
+  - Click by the caption a player reads, never by screen coordinates (`cursor` and `tap` points are for what has no
+    widget, at a place the start's own layout fixes). Click by caption has limits (docs/task-probes.md, section 1.1):
+    a widget whose name or type matches `widget` wins over a caption match; a caption is compared whole, in lower
+    case, with every run of characters other than letters and digits as one `_` (`"start"` does not click a button
+    reading "Start Game"); `widget` holds only letters, digits, spaces and `_ . * ? ( ) -`, so write any other
+    character of a caption as a space; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit
+    one by a submit, so a raw `ClickEvent` handler does not fire (section 8).
+  - A click does not scroll. A control scrolled past the screen's edge is a missed input, and one a scroll area clips
+    but that lies inside the screen is clicked though a player could not reach it. So the play scrolls first, as a
+    player would: a `cursor` input over the list, then the mouse wheel (`{"t": 3.0, "key": "<Mouse>/scroll/y",
+    "axis": -120}`, one frame each: send as many as the list needs), or on a mobile game a `drag` across the list
+    instead; then the click. Check in the screenshots that the control is in view when it is clicked.
+  - A control that shows only in some states (a confirmation shown only when a save exists) is clicked with
+    `"optional": true`: when nothing matches at that moment the click is skipped and is no missed input. Never mark a
+    click the play needs optional. _(why: a needed click that may find nothing hides a play that never got where it
+    should)_
+  - Windows and shots are fixed seconds of play time, so put the input that triggers the event at a known time and
+    place the window or the shot right after it, from the recorded play of both sides, with room; never seconds
+    guessed before the game ran. _(why: the event falls at another time on each build, and a window guessed in
+    advance reads before or after it)_
 - **A play that reads what another play writes names it in `after`. Never rely on the checker's order.** A task play
   that reads a save (a level reached, a profile filled in) lists the plays that write it:
   `"after": ["writes_save"]`, by their names. On each side they run, and end, first, and the reader starts on the saved data they
@@ -640,7 +691,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 |---|---|
 | checks or log patterns shown in the brief | the agent gets the brief only |
 | an ask in the brief that no check reads (the Lab's review sends the game back for it) | read each task against its checks before packing (section 5, "Every ask has a check") |
-| a probe or its play relies on something only the reference has and the instruction never says (a widget or member name, a scene, an exact on-screen string, a teleport coordinate, a count of key presses that solves the reference's layout): a correct solution built another way reads "nothing it selects was measured" | everything a required probe or its play relies on is at the start commit or in the instruction's own words; else read what the player sees (section 5) |
+| a probe or its play relies on something only the reference has and the instruction never says (a widget or member name, a scene, an exact on-screen string, a teleport coordinate, a click or tap at a fixed screen point, a count of key presses that solves the reference's layout, a count of the parts the reference is made of): a correct solution built another way reads "nothing it selects was measured" or another number | everything a required probe or its play relies on is at the start commit or in the instruction's own words; else read what the player sees (section 5) |
 | a "must not be shown" check fails a solution that hides the widget instead of removing it, and a hidden widget passes a "must be shown" check | "shown" means on screen: `widgets` reads the widgets on screen (not inactive, not under a disabled Canvas or a CanvasGroup at alpha 0, inside the frame); what is drawn is `ui`'s; `"visible": false` only for "exists while hidden" |
 | a check written without running the game fails on the reference: an invented threshold, a window that misses the event, a click when no button is shown, a judge asking for what the frames don't show | run every check on both builds and read what it measured before handing the task in (section 5) |
 | an instruction asks for what no play can show (how a sound sounds, the packaged build, a frame rate on given hardware, a given screen size) | never an ask; saving across plays is checked with `after` |
@@ -650,7 +701,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a `near` sphere around where the start had the thing, for a task that asks to move it | select by what the thing is (a component or tag the start has, `has`), not where the old one was |
 | an input sent on the frame the round resets is lost; a teleport leaves the carried object or the tether behind | a play keeps its own preconditions: input a few seconds in; move what the game moves together |
 | a second click on a button the first click already took (and closed) is a missed input | a play never repeats an action that already happened |
-| a judge is shown only the title screen, or never the state a task's own key opens | the `judge` check names its own `plays` that reach it (section 5) |
+| a judge is shown only the title screen, or never the state a task's own key opens; an item its pictures cannot show is scored as a pass | the `judge` check names its own `plays` that reach it, with named `shot` inputs timed at the event (section 5); an item the pictures cannot show scores 0 on either side, then the plays are fixed |
 | a few stills can't show whether a move eases or feet slide | a number: a probe sampled every 0.1 s with `agg` `step`; only seen: a `looks_as_asked` item with a short play and `shots` (section 5) |
 | a fix made only in assets (a prefab, a material) fails a code review | the cause is checked by its measured effect (a probe), never by reading the diff |
 | a pixel threshold moves between GPUs | light and colour from the engine (`light`, `grading`); the frame's luminance (`screen`) only calibrated or relative to the start, never a literal |
@@ -690,7 +741,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | `"of": "first"` over a broad select reads another object on the reference (a scene edit changes the order) | matches come in hierarchy order, which a scene edit can change: select by name, tag or `near` |
 | `spawns` of `MeshRenderer` counts every child of each spawned thing | name a component that sits once per thing (the coin's own script, when the start has it too); in a task that adds the thing no such component is sure, so count how often an `objects` `count` over a `has` select rises (docs/task-probes.md, section 2.9) |
 | `teleport_to` a hovering target leaves the player in the air | the player's pivot goes to the target's own height plus `offset`'s y, with no ground snap: give a negative y `offset` |
-| a play that reads a save runs on clean saved data and reads nothing (a later level not yet unlocked, an empty profile) | the reading play names its writers in `after`; every other play starts clean (docs/task-probes.md, 1.1) |
+| a play that reads a save, or needs a state the instruction never gives, runs on clean saved data and reads nothing (a later level not yet unlocked, an empty profile, a timer not yet run out) | the reading play names its writers in `after`; every other play starts clean (docs/task-probes.md, 1.1) |
 | a sound played with `PlayOneShot` matches no `sound` select | the probe sees only a source's own clip, never a one-shot's: read `started_audible` by `owner` or `near`, or `level` in an audio play |
 | a widget click doesn't fire a UI Toolkit button that handles `ClickEvent` | a widget click sends a submit (`Button.clicked`); for a raw `ClickEvent` use a `cursor` input, then press and release `<Mouse>/leftButton` |
 | an editor `shader:` value compared with `==` reads back as stored (0.2 as 0.19999995827674866) | floats come back as stored: `>=`/`<=` a little either side |
@@ -715,6 +766,13 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a check passes the task check but measures nothing it meant to (an empty selection, a value read before the moment) | read each probe's rows and sample times on both sides, not only the verdict (unity-check-tasks skill, section 5) |
 | a render budget read in a play that also tours the level or captures for other measures | a `render` reading goes in a play of its own, where the game is heaviest (docs/task-probes.md, section 2.20) |
 | a required check of something the instruction never asks | every required check traces back to an ask or a keep; drop it or put the ask in the instruction |
+| a task VALID in both cases whose checks don't decide what the instruction asks (the Lab's review marks it) | VALID is needed, never enough: read each check's whole definition (plays, selectors, thresholds, rubric) against the instruction and the game's code (section 0) |
+| a `count`, `any`, `all` or `sum` over a selector that matches no rows reads 0, so a literal `== 0` or `<= 0` compares right on both sides while it reads nothing | confirm in `probe.json` that the selector matched rows on the side where the thing exists; prefer a check that reads something the reference has (section 5, "A probe reads something") |
+| a click on a control below the visible part of a scroll area: past the screen's edge it is a missed input, clipped by the scroll area but on screen it is clicked though no player could reach it | the play scrolls first as a player would (a `cursor` over the list, then `<Mouse>/scroll/y`; a `drag` on a mobile game), then clicks (section 5) |
+| a confirmation that shows only in some states (only when a save exists) is a missed input on the side where it doesn't show | click it with `"optional": true`; never mark a click the play needs optional (section 5) |
+| a click by caption takes another button whose name matches `widget` first, or never matches a button whose caption it gives only in part | a name or type match wins over a caption, and a caption is compared whole: pick a `widget` no other button's name or type matches, and write the whole caption (docs/task-probes.md, section 1.1) |
+| a window or a shot set at seconds guessed before the game ran reads before or after the event | put the input that triggers the event at a known time and place the window or shot right after it, from both sides' recorded plays, with room (section 5) |
+| a rubric item asks more than its sentence (a stricter look, an added detail), so a solution that does all the instruction says scores below 1 | a rubric item asks exactly what its sentence asks, in the sentence's words (section 5) |
 
 ## 9. Examples
 

@@ -5,10 +5,14 @@ import unittest
 
 from helpers import FakeProject, measuring, probe, side, task_with
 
-from task_check import check, probes, verdict
+from task_check import check, probes, tasks, verdict
 
 DOOR = {"name": "open_door", "seconds": 10, "inputs": [{"t": 1.0, "widget": "Continue", "click": True}]}
 MISS = {"t": 1.0, "kind": "click", "target": "Continue", "why": "no visible button takes it"}
+MAYBE = {"name": "open_door", "seconds": 10, "inputs": [{"t": 1.0, "widget": "Continue", "click": True},
+                                                        {"t": 2.0, "widget": "Overwrite", "click": True,
+                                                         "optional": True}]}
+CONFIRM = {"t": 2.0, "kind": "click", "target": "Overwrite", "why": "no visible button matches it"}
 
 
 def missing(y, rows):
@@ -38,6 +42,19 @@ class Missed(unittest.TestCase):
         self.assertEqual(probes.missed({"inputs_missed": []}), [])
         shot = {"t": 2.0, "kind": "shot", "target": "door", "why": "not written"}
         self.assertEqual(probes.missed({"inputs_missed": [MISS, shot]}), [MISS])
+        bad = {**MAYBE, "inputs": [{**MAYBE["inputs"][1], "optional": "yes"}]}
+        self.assertTrue(tasks.problems({**task_with(probe(play=MAYBE)), "milestones": [
+            {"name": "graded", "checks": [probe(play=bad)]}]}), "the validator takes optional as true or false only")
+        play = tasks.play(MAYBE)
+        self.assertEqual(play["inputs"][1], {"t": 2.0, "widget": "Overwrite", "click": True, "optional": True})
+        self.assertNotIn("optional", play["inputs"][0])
+        self.assertEqual(probes.missed({"inputs_missed": [MISS, CONFIRM]}, play), [MISS],
+                         "an optional click that found nothing is no miss")
+        self.assertEqual(probes.missed({"inputs_missed": [MISS, CONFIRM]}), [MISS, CONFIRM],
+                         "without the play: every row")
+        other = [{**CONFIRM, "t": 3.0}, {**CONFIRM, "target": "Continue"}, {**CONFIRM, "kind": "tap"}]
+        self.assertEqual(probes.missed({"inputs_missed": other}, play), other,
+                         "only the optional click's own row: its time, kind click and its widget")
         self.assertEqual(probes.missed_text([MISS] * 5),
                          "click Continue at 1 s (no visible button takes it); click Continue at 1 s (no visible button "
                          "takes it); click Continue at 1 s (no visible button takes it); and 2 more")
@@ -74,6 +91,20 @@ class Landing(unittest.TestCase):
         same = task_with(probe(play=DOOR, expect={"op": ">=", "calibrate": 0.5}))
         ref, _ = graded(same, [], [MISS], start_y=5)  # both sides measure the same: still the missed input it names
         self.assertTrue(ref["checks"][0]["detail"].startswith("task error:"), ref["checks"][0]["detail"])
+
+    def test_an_optional_click_that_found_nothing_is_no_missed_input(self):
+        """A click marked optional may find no widget (a confirmation shown only in some states): its row in
+        inputs_missed is left out on either side, so the check reads what the play measured; any other miss of the
+        same play still fails it."""
+        task = task_with(probe(play=MAYBE, expect={"op": ">=", "value": 0}))
+        ref, start = graded(task, [CONFIRM], [CONFIRM])
+        self.assertTrue(ref["checks"][0]["passed"], ref["checks"][0]["detail"])
+        self.assertFalse(start["checks"][0]["passed"])
+        self.assertNotIn("did not land", start["checks"][0]["detail"])
+        ref, start = graded(task, [CONFIRM, MISS], [CONFIRM], start_y=5)
+        self.assertTrue(ref["checks"][0]["passed"], ref["checks"][0]["detail"])
+        self.assertEqual(start["checks"][0]["detail"], "The hero stands on the ground. | the play's input did not land: "
+                                                       "click Continue at 1 s (no visible button takes it)")
 
     def test_the_checkers_own_plays_and_a_play_that_landed_are_read_as_measured(self):
         task = task_with(probe(play="look", expect={"op": ">=", "value": 0}), probe("door", play=DOOR))
