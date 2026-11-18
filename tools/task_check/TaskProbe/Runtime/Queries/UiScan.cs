@@ -328,7 +328,8 @@ namespace TaskProbe
         /// EventSystem's raycasters there (EventSystem.RaycastAll, as the UI module takes it) is `go` or an object under
         /// it (its label). 0 when it is; 1 when another object is hit first and `go` further down (drawn under it); 2
         /// when another is hit and `go` not at all (it takes no pointer there); -1 when it can't be told: no EventSystem
-        /// (no pointer reaches a uGUI widget then), or nothing is hit there. `over`: what is hit first, "name (type)".</summary>
+        /// (no pointer reaches a uGUI widget then), or nothing is hit there. `over`: what is hit first, "parent/name
+        /// (type)".</summary>
         static int UguiCover(GameObject go, double fx, double fy, out string over)
         {
             over = null;
@@ -339,7 +340,9 @@ namespace TaskProbe
             if (Hits.Count == 0 || Hits[0].gameObject == null) return -1;
             var top = Hits[0].gameObject;
             if (top.transform.IsChildOf(go.transform)) return 0;
-            over = top.name + " (" + (top.TryGetComponent<Graphic>(out var g) ? g.GetType().Name : "GameObject") + ")";
+            // its parent's name and its own, "GoToggle/Label (Text)" (a root object: its own name alone)
+            var parent = top.transform.parent;
+            over = (parent != null ? parent.name + "/" : "") + top.name + " (" + (top.TryGetComponent<Graphic>(out var g) ? g.GetType().Name : "GameObject") + ")";
             foreach (var hit in Hits)
                 if (hit.gameObject != null && hit.gameObject.transform.IsChildOf(go.transform)) return 1;
             return 2;
@@ -577,7 +580,7 @@ namespace TaskProbe
         /// <summary>Whether a player's pointer at (fx, fy) (viewport fractions, y down) reaches `e` in its panel: the
         /// element the panel picks there (IPanel.PickAll, the topmost that takes the pointer) is `e` or one under it. 0
         /// when it is; 1 when another is picked and `e` further down; 2 when another is picked and `e` not at all; -1 when
-        /// nothing is picked there. Only `e`'s own panel is read. `over`: what is picked, "name (type)".</summary>
+        /// nothing is picked there. Only `e`'s own panel is read. `over`: what is picked, "parent/name (type)".</summary>
         static int UitkCover(UIE.VisualElement e, double fx, double fy, out string over)
         {
             over = null;
@@ -587,7 +590,9 @@ namespace TaskProbe
             var top = e.panel.PickAll(new Vector2((float)(whole.x + fx * whole.width), (float)(whole.y + fy * whole.height)), Picked);
             if (top == null) return -1;
             if (top == e || e.Contains(top)) return 0;
-            over = NameOf(top) + " (" + top.GetType().Name + ")";
+            // its parent's name and its own, as a uGUI one's (an element with no parent: its own name alone)
+            var parent = top.hierarchy.parent;
+            over = (parent != null ? NameOf(parent) + "/" : "") + NameOf(top) + " (" + top.GetType().Name + ")";
             foreach (var v in Picked)
                 if (v == e || e.Contains(v)) return 1;
             return 2;

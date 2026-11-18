@@ -447,11 +447,13 @@ def clicks_for(module):
               None if on else "no visible button matches it", None])
         if on:
             t.ok("probe.log: BlockedButton is under CoverPanel",
-                 "BlockedButton (Button) matches 'BlockedButton', but CoverPanel (Image) is over it: not clicked" in log)
+                 "BlockedButton (Button) matches 'BlockedButton', but BlockCanvas/CoverPanel (Image) is over it: not clicked" in log)
             # the Dropdown is opened last (6 s): its list's own full-screen Blocker would cover every click after it
             t.ok("probe.log: no click before the Dropdown opens is covered by its Blocker", "but Blocker (Image)" not in log)
-        t.ok("probe.log: UCoveredButton is under UCover",
-             "UCoveredButton (Button) matches 'UCoveredButton', but UCover (VisualElement) is over it: not clicked" in log)
+        t.ok("probe.log: UCoveredButton is under UCover (by its parent's name and its own)",
+             re.search(r"UCoveredButton \(Button\) matches 'UCoveredButton', but [^/\s]+/UCover \(VisualElement\) is over it: "
+                       r"not clicked", log))
+        t.ok("probe.log: no click is covered by another button's label", not re.search(r"but \S+/Text \(Legacy\) \(Text\)", log))
         t.eq("widgets covered at 1 s: under CoverPanel, under the Veil, in the open (no value without an EventSystem)",
              [get(play, "cover", 1.0, n, "covered") for n in ("BlockedButton", "VeiledButton", "GoButton")],
              [1, 0, 0] if on else [None] * 3)

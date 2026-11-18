@@ -643,8 +643,9 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   clicked`, and a UI Toolkit Button is still clicked. It is clicked only when a player's pointer at the centre of its
   visible part would reach it (probe 1.5.0, `UiScan.UguiOver`, `UitkOver`, as `covered` reads it): when something else
   is hit first there (an image that takes the raycast, a panel; a UI Toolkit element that takes the pointer), nothing is
-  clicked, `probe.log` says `<name> (<type>) matches '<widget>', but <what> (<type>) is over it: not clicked` (or `the
-  pointer at its centre reaches <what> and never it`), and the `inputs_missed` row's `why` is `covered by another
+  clicked, `probe.log` says `<name> (<type>) matches '<widget>', but <parent>/<what> (<type>) is over it: not clicked` (or `the
+  pointer at its centre reaches <parent>/<what> (<type>) and never it`; the object hit, by its parent's name and its own, or
+  its own alone with no parent), and the `inputs_missed` row's `why` is `covered by another
   control`; an image that takes no raycast (`raycastTarget` off, a CanvasGroup that blocks no raycasts) or an element
   that ignores the pointer doesn't stop it, and with no EventSystem, or nothing hit there, no cover is read. A shown
   but disabled button under something gets that why too. `onClick`, toggles, EventTrigger entries and the game's own `IPointer*Handler`s react as to a player's click; a UI

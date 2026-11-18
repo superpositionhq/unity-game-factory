@@ -160,7 +160,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       button's visible part lands on something else first (a modal panel, a dimming overlay, an image that takes
       the pointer, laid over it; in UI Toolkit an element that takes the pointer), the button is not clicked: its row
       says why `covered by another control`, and `probe.log` names what is over it (`<name> (<type>) matches
-      '<widget>', but Blocker (Image) is over it: not clicked`). `optional` and `disabled` never allow that row.
+      '<widget>', but Dialog/Blocker (Image) is over it: not clicked`: what is over it by its parent's name and its own). `optional` and `disabled` never allow that row.
       _(why: a player's click lands on what is drawn over the button, and a game that leaves a panel over its button
       can't be played)_ An overlay that takes no pointer (an image with Raycast Target off, a CanvasGroup that
       doesn't block raycasts, a UI Toolkit element whose picking mode is Ignore) doesn't stop it. uGUI's pointer is

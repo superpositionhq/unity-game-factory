@@ -474,8 +474,8 @@ namespace ProbeTests.Ui
             // but disabled); a caption in any script
             MakeButton(skin, "CaptionA", canvas, 20, 260, 120, 30, "New  expedition!");
             MakeButton(skin, "CaptionB", canvas, 160, 260, 120, 30, "new expedition");
-            MakeButton(skin, "Begin", canvas, 20, 300, 120, 30, "X");
-            MakeButton(skin, "CaptionC", canvas, 160, 300, 120, 30, "Begin");
+            MakeButton(skin, "Begin", canvas, 20, 380, 120, 30, "X");
+            MakeButton(skin, "CaptionC", canvas, 160, 380, 120, 30, "Begin");
             MakeButton(skin, "CaptionLocked", canvas, 20, 340, 120, 30, "Sealed door").GetComponent<UnityEngine.UI.Button>().interactable = false;
             MakeButton(skin, "CaptionWide", canvas, 160, 340, 120, 30, "Prêt à partir !");
             var toggle = Control(DefaultControls.CreateToggle(skin), "GoToggle", canvas, 160, 20, 120, 20);
