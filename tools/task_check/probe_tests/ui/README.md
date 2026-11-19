@@ -56,6 +56,10 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   of the view but still on the frame; a RectMask2D that is no scroll area with a button outside it (`PlainOutButton`)
   and a UI Toolkit box that clips with one outside it (`UClipOutButton`); a UI Toolkit button under a box that takes the
   pointer (`UCoveredButton`) and one under a box that doesn't (`UVeiledButton`).
+- **TextClicks**: texts no button shows, each counting its pointer events (`UiClickCount`), under the Input System's
+  UI module: a legacy Text alone (`PlayLabel`, "Play now"), a row the game builds of its own (`ShopRow`, an image with
+  the TMP texts "1", "BUY RANK" and "300 PT" side by side on one line) and one text in two places (`TwiceA`, `TwiceB`,
+  "Continue").
 - **Gui**: a menu drawn in OnGUI (`GuiBoard`, `UiGuiBoard`): a GUI.Button at 600, 400 and a box at 780, 400, each
   120 x 40 px, whose clicks it counts by the Input System's mouse and by IMGUI's own MouseDown.
 - **Keys**, **KeysNone**: text fields for keys to type into. Keys, under the Input System's UI module: a uGUI
@@ -97,6 +101,9 @@ from the package's own `TMP Essential Resources.unitypackage` into `Made/` (an i
   pointer clicked, the widgets field `covered`, and cursor clicks; the Dropdown is clicked last (6 s), since its
   open list puts Unity's own full-screen `Blocker` over every other control (uGUI's only through the Input System's UI
   module; UI Toolkit's through it, or on its own with no EventSystem).
+- `text_clicks` (TextClicks): a click no button takes is made on its text as shown (probe 1.7.0): the label alone and
+  the row read joined ("1 BUY RANK 300 PT") each get one pointer down, up and click; the text in two places is a
+  miss naming both and neither is clicked; a text nothing reads is the plain `no visible button matches it` miss.
 - `events` (Hud, sampled every 0.1 s): shots that wait for their event (`when`): a panel going away at 0.5 s (a
   widgets `visible`), a row's box leaving at 1 s (a widgets count), the frame counter at 45 (an objects `prop:`), the
   score's text reading 690 (a ui text, 2.3 s), one asked for after its event already came (taken at its own time, 3 s);

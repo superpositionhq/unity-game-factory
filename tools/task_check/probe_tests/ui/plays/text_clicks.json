@@ -1,0 +1,42 @@
+{
+ "seconds": 3,
+ "shots": 1,
+ "every": 0.5,
+ "scene": "Assets/ProbeTests/ui/Made/TextClicks.unity",
+ "queries": [
+  {
+   "id": "counts",
+   "kind": "objects",
+   "select": {
+    "component": "UiClickCount"
+   },
+   "fields": [
+    "prop:UiClickCount.downs",
+    "prop:UiClickCount.ups",
+    "prop:UiClickCount.clicks"
+   ]
+  }
+ ],
+ "inputs": [
+  {
+   "t": 0.5,
+   "widget": "Play now",
+   "click": true
+  },
+  {
+   "t": 1.0,
+   "widget": "1 BUY RANK 300 PT",
+   "click": true
+  },
+  {
+   "t": 1.5,
+   "widget": "Continue",
+   "click": true
+  },
+  {
+   "t": 2.0,
+   "widget": "Nothing reads this",
+   "click": true
+  }
+ ]
+}

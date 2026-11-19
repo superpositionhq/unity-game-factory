@@ -39,6 +39,7 @@ namespace ProbeTests.Ui
             Clicks("Clicks", Module.InputSystem);
             Clicks("ClicksOld", Module.Standalone);
             Clicks("ClicksNone", Module.None);
+            TextClicks();
             Gui();
             Keys("Keys", true);
             Keys("KeysNone", false);
@@ -527,6 +528,29 @@ namespace ProbeTests.Ui
             new GameObject("Watch").AddComponent<UiClickWatch>();
             Document("UitkClicks", Made<PanelSettings>("UiPanel.asset")).AddComponent<UiToolkitClicks>();
             Save(scene, sceneName);
+        }
+
+        // ---------------------------------------------------------------- clicks on a text as shown
+
+        // Texts no button shows, each counting its pointer events (probe 1.7.0: a click no button takes is made on its
+        // text as shown): a legacy Text alone (PlayLabel, "Play now"), a row the game builds of its own (ShopRow, an
+        // image taking the pointer, with TMP texts "1", "BUY RANK" and "300 PT" side by side on one line, read joined),
+        // and one text shown in two places (TwiceA and TwiceB, "Continue"), which no click may take.
+        static void TextClicks()
+        {
+            var scene = New();
+            MainCamera(new Color(0.15f, 0.15f, 0.15f));
+            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            var canvas = NewCanvas("TextCanvas");
+            Legacy("PlayLabel", canvas, "Play now", 20, 20, 160, 30).gameObject.AddComponent<UiClickCount>();
+            var row = Box("ShopRow", canvas, 20, 80, 400, 30, new Color(0.3f, 0.3f, 0.3f));
+            row.gameObject.AddComponent<UiClickCount>();
+            Tmp("ShopRank", row.transform, "1", 0, 0, 30, 30);
+            Tmp("ShopName", row.transform, "BUY RANK", 40, 0, 140, 30);
+            Tmp("ShopPrice", row.transform, "300 PT", 200, 0, 100, 30);
+            Tmp("TwiceA", canvas, "Continue", 20, 140, 140, 30).gameObject.AddComponent<UiClickCount>();
+            Tmp("TwiceB", canvas, "Continue", 200, 140, 140, 30).gameObject.AddComponent<UiClickCount>();
+            Save(scene, "TextClicks");
         }
 
         // ---------------------------------------------------------------- a menu drawn in OnGUI

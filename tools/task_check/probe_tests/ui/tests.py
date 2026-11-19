@@ -7,8 +7,8 @@ import re
 
 MADE = "Assets/ProbeTests/ui/Made/"
 SETUP = ["ProbeTests.Ui.UiScenes.Build"]
-SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "Gui", "Keys", "KeysNone",
-                                              "Grey", "Crowd")]
+SCENES = [MADE + name + ".unity" for name in ("Hud", "Clicks", "ClicksOld", "ClicksNone", "TextClicks", "Gui", "Keys",
+                                              "KeysNone", "Grey", "Crowd")]
 W, H = 960, 540  # the frame
 FLOAT = 1e-5  # a float of the game widened to a double
 TURNED = 1e-4  # a rectangle turned or projected in floats
@@ -485,6 +485,29 @@ SCORE = {"probe": "objects", "select": {"name": "HudDriver"}, "field": "prop:UiH
 SCORE_690 = {"probe": "ui", "select": {"kind": "text", "text": "SCORE 690$"}, "field": "count"}
 
 
+def text_clicks(t, play):
+    """A click no button takes, made on its text as shown (probe 1.7.0): the pointer to the one place that reads it,
+    the left button down the next frame and up 0.1 s later, so what is under it takes a player's click; a text shown in
+    two places is a miss naming both, and a text nothing reads is the plain miss."""
+    end = 2.5
+    for name, what in (("PlayLabel", "a legacy Text alone"), ("ShopRow", "texts side by side on one line, read joined")):
+        t.eq(f"click on {what}: {name} gets pointer down, up and click once",
+             [get(play, "counts", end, name, "prop:UiClickCount." + f) for f in ("downs", "ups", "clicks")], [1, 1, 1])
+    t.eq("a text shown in two places: neither clicked",
+         [get(play, "counts", end, name, "prop:UiClickCount.downs") for name in ("TwiceA", "TwiceB")], [0, 0])
+    why = {m.get("target"): m.get("why") for m in play.probe.get("inputs_missed") or [] if m.get("kind") == "click"}
+    t.eq("inputs_missed: the text shown twice and the text nothing reads, nothing else", sorted(why),
+         ["Continue", "Nothing reads this"])
+    t.ok("inputs_missed: a text shown twice names both places",
+         str(why.get("Continue")).startswith("no visible button matches it, and its text is shown in 2 places, not one: "
+                                             '"Continue" at ') and str(why.get("Continue")).count('"Continue" at') == 2,
+         why.get("Continue"))
+    t.eq("inputs_missed: no text reads it", why.get("Nothing reads this"), "no visible button matches it")
+    log = play.probe_log
+    for text in ("Play now", "1 BUY RANK 300 PT"):
+        t.ok(f"probe.log: clicking text \"{text}\"", f'clicking text "{text}" at (' in log)
+
+
 def events(t, play):
     """Shots that wait for their event (`when`, read by the probe every frame from the shot's time: a widget's visible,
     a widgets count, an objects prop:, a ui text; the HudDriver's frame k is play time k / 30), and measures whose
@@ -688,6 +711,7 @@ PLAYS = {
     "clicks": {"check": clicks_for("system")},
     "clicks_old": {"check": clicks_for("old")},
     "clicks_none": {"check": clicks_for("none")},
+    "text_clicks": {"check": text_clicks},
     "events": {"check": events},
     "keys": {"check": keys},
     "keys_none": {"check": keys_none},
