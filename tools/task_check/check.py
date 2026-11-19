@@ -78,7 +78,7 @@ def own_play(play, project):
 
 JUDGES = ("judge", "code_judge")
 NOT_JUDGED = "not asked: a judge decides on the writer's scores of its saved shots (judge-shots), never here"
-TASK_ERROR = "task error"  # a check's detail starts so when no version of the game can pass it (Grade.task_error)
+TASK_ERROR = verdict.TASK_ERROR  # a check's detail starts so when no version of the game can pass it (Grade.task_error)
 NO_PACKAGE = "not packaged: the Lab's grader has no package step for a Unity game, so a package check fails every run"
 SKIP = {"Library", "Temp", "Obj", "Logs", "Build", "Builds", "UserSettings", ".git", ".vs"}  # left out of file_exists
 # s: a play of `seconds` samples on to seconds + OVERRUN and stops there (TaskProbe/Runtime/Core/Probe.cs, Late:

@@ -15,8 +15,9 @@ A task is VALID when
   then the start must not build, and that is the start failing the task (it is never played);
 - with a reference: the reference passes every required check the checker runs (build, boot, log_absent,
   file_exists, package, every required probe), as the Lab's grader holds the task's own fix to every required check;
-  its checks that aren't required are notes, never decisive; the start fails every required probe outside
-  still_works (or doesn't build by design);
+  its checks that aren't required are notes, never decisive, but for a task error (TASK_ERROR: the reference's own
+  play of it can't be driven), which the Lab's grader refuses to grade the task over whether the check is required or
+  not; the start fails every required probe outside still_works (or doesn't build by design);
 - every probe has a threshold, a required one or not: one the checker can't calibrate (the start and the reference
   measure the same, the reference measured nothing) makes the Lab's grade of the task fail whole, so no task carries
   one;
@@ -45,6 +46,7 @@ import math
 from . import probes, tasks
 
 JUDGES = ("judge", "code_judge")
+TASK_ERROR = "task error"  # a check's detail starts so when no version of the game can pass it (check.Grade.task_error)
 RETIRED = "retired"  # a retired check's detail starts so (check.Grade.check): it fails here as the Lab's grader fails it
 MARGIN = 0.25  # a calibrated threshold whose start measured nothing: the reference's value, this share toward the start
 FAILED = "the checker failed"  # a row's detail when the checker couldn't run its check (check.Grade.run)
@@ -171,7 +173,8 @@ def verdict(task, reference, start):
         for c in reference["checks"]:
             if c["passed"] or str(c["detail"]).startswith(RETIRED):  # (a retired check is a reason above)
                 continue
-            if c["kind"] in ("build", "boot") or c.get("required", asked.get(c["name"], False)):
+            if c["kind"] in ("build", "boot") or c.get("required", asked.get(c["name"], False)) \
+                    or str(c["detail"]).startswith(TASK_ERROR):  # the Lab's grader grades no task with one
                 why.append(f"reference fails {c['name']}: {str(c['detail'])[:160]}")
                 named.add(c["name"])
             elif not str(c["detail"]).startswith(UNCALIBRATED):  # (one with no threshold is a reason, below)

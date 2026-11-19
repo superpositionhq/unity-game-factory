@@ -105,6 +105,22 @@ class Verdict(unittest.TestCase):
                                "kind, so it fails every run: remove it"])
         self.assertEqual(notes, [])
 
+    def test_a_task_error_on_a_check_that_isnt_required_makes_the_task_invalid(self):
+        """The Lab's grader refuses to grade a task with a task error on any check (its reference's own play of it
+        can't be driven), required or not; an optional check the reference merely fails stays a note."""
+        task = task_with(probe(), probe("extra", required=False, weight=0), probe("other", required=False, weight=0))
+        broken = (f"{verdict.TASK_ERROR}: The hero stands on the ground. | in the reference's play p, an input did not "
+                  "land (click Start at 1 s: no visible button matches it): the task's own fix can't be driven by its "
+                  "play")
+        ref = record(checked("hero_on_ground", "probe", True), checked("extra", "probe", False, broken),
+                     checked("other", "probe", False, "measured 3"))
+        start = record(checked("hero_on_ground", "probe", False), checked("extra", "probe", False),
+                       checked("other", "probe", False))
+        valid, why, notes = verdict.verdict(task, ref, start)
+        self.assertFalse(valid)
+        self.assertEqual(why, [f"reference fails extra: {broken[:160]}"])
+        self.assertEqual(notes, ["reference fails other (probe): measured 3"])
+
     def test_the_start_fails_every_outcome_probe(self):
         task = task_with(milestones=[{"name": "fixed", "checks": [probe("hud"), probe("camera"), probe("spawns")]}])
         ref = record(checked("hud", "probe", True), checked("camera", "probe", True), checked("spawns", "probe", True))

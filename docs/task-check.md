@@ -210,7 +210,9 @@ makes the task INVALID, required or not: the Lab's grader gives a task with a tr
 fails an `actions_judge` check on every run. A `package` check fails on every side: the Lab's grader has no package step
 for a Unity game and fails it closed, so a required one keeps every run from passing and the task is INVALID (`reference
 fails X: not packaged: ...`); drop it. The reference's failures of checks that aren't required are reported as notes
-and never make a task INVALID. Every check is required unless it says `"required": false`, a `log_absent` or
+and never make a task INVALID, but for a task error (`task error: ...`: the reference's own play of the check can't be
+driven): the Lab's grader refuses to grade a task with a task error on any check, required or not, so it makes the
+task INVALID here too. Every check is required unless it says `"required": false`, a `log_absent` or
 `file_exists` too, and a run counts as solved only when every required check passes.
 
 A row whose check the checker itself couldn't run reads `the checker failed (...)`: that is the machine's or the

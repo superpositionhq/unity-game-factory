@@ -194,7 +194,7 @@ What a row's `detail` says:
 | `not run: needs X` | an earlier check it `needs` failed: fix X first |
 | `uncalibrated: ...` | the probe has no threshold: no solution could pass it |
 | `the play's input did not land: ...` | an input of the task play missed; what it measured doesn't count |
-| `task error: ...` | no version of the game can pass the check: the reference's own play can't be driven |
+| `task error: ...` | no version of the game can pass the check: the reference's own play can't be driven. The task is INVALID whether the check is required or not: the Lab's grader grades no task with a task error |
 | `not packaged: ...` | a `package` check, which always fails: the Lab's grader can't package a Unity game |
 | `the checker failed (...)` | the checker couldn't run the check: the task is an ERROR |
 
