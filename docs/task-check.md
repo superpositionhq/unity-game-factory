@@ -219,7 +219,7 @@ Never decided by the check: `code_judge` checks (no model is asked). A retired `
 makes the task INVALID, required or not: the Lab's grader gives a task with a trace probe reward 0 on every run and
 fails an `actions_judge` check on every run. A `package` check fails on every side: the Lab's grader has no package step
 for a Unity game and fails it closed, so a required one keeps every run from passing and the task is INVALID (`reference
-fails X: not packaged: ...`): a Unity task carries none. The reference's failures of checks that aren't required are reported as notes
+fails X: not packaged: ...`): a Unity task carries none, and `tools/validate-game.py` refuses one, required or not. The reference's failures of checks that aren't required are reported as notes
 and never make a task INVALID, but for a task error (`task error: ...`: the reference's own play of the check can't be
 driven): the Lab's grader refuses to grade a task with a task error on any check, required or not, so it makes the
 task INVALID here too. Every check is required unless it says `"required": false`, a `log_absent` or

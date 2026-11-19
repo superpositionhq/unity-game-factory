@@ -339,7 +339,10 @@ look as it did (below). Every other judge (`judge`, `code_judge`: taste, readabi
 false` quality check. Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome alone.
 Retired: `actions_judge` checks and `trace` probes; never add one, take them out of any task that has one (the Lab's
 grader gives a task with a trace probe reward 0 on every run and fails an `actions_judge` check on every run, so the
-validator and the task check refuse both). A task still needs required probes the grader decides without a judge (section 6). The probe language, every play,
+validator and the task check refuse both). **A Unity task carries no `package` check** (owner, 2026-11-19): the Lab's
+Unity grader can't package a game and fails one on every run, so no solution could pass it, and the validator refuses
+it, required or not. A task that has one is repaired by removing it (a check no run can pass is broken, so removing
+it is never easing); an ask it stood for gets its own probe. A task still needs required probes the grader decides without a judge (section 6). The probe language, every play,
 measure and threshold with the rules that gate a task, is the task author's contract
 [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 [docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.
@@ -592,8 +595,8 @@ Fix what you find in the task before it is packed:
   first; motion as a probe sampled every 0.1 s with `agg` `step`, or a required judge with a run of `shots`.
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
   thing; a bare "everything else keeps working" is covered by any required `still_works` check.
-- **Never cover an ask with an optional probe, a `build`, `boot` or `package` check, or a `"required": false` quality
-  check alone.** _(why: those decide nothing about the ask: a run that skips it still passes them)_
+- **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check
+  alone.** _(why: those decide nothing about the ask: a run that skips it still passes them)_
 - **Every required check traces back to an ask or a keep of the instruction.** A required check of something the
   instruction never asks fails a solution that did everything asked: drop it, or make the ask part of the
   instruction. _(why: a solver can only be held to what it was told)_

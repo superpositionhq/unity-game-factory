@@ -1440,6 +1440,23 @@ class Units(unittest.TestCase):
                                       "0 on every run and fails an actions_judge check on every run) "
                                       '(unity-write-tasks section 5)'])
 
+    def test_package_check_refused(self):
+        """A `package` check never passes in a Unity task (the Lab's Unity grader fails it closed on every run), so the
+        validator refuses one, required or not (owner, 2026-11-19)."""
+        def packaged(t):
+            rep = vg.Report()
+            self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
+            return [m for m in errors(rep) if 'package' in m]
+        t = task('a' * 40, 'b' * 40)
+        self.assertEqual(packaged(t), [])
+        t['milestones'][1]['checks'].append({'name': 'release_packages', 'kind': 'package', 'weight': 0,
+                                             'needs': ['player_builds']})
+        t['milestones'][1]['checks'].append({'name': 'ships', 'kind': 'package', 'required': False, 'weight': 0})
+        self.assertEqual(packaged(t), ["x: check(s) ['release_packages', 'ships']: a Unity task carries no `package` "
+                                       "check: the Lab's Unity grader can't package a game and fails it on every run, "
+                                       'so no solution passes it: remove it (a repair, never easing; an ask it stood '
+                                       'for gets its own probe) (unity-write-tasks section 5)'])
+
     def test_a_union_with_a_tag_reports_the_shape_its_tag_names(self):
         """A check is told apart by its kind and a measure by its probe: a missing or unknown tag says so and lists
         the ones there are, and anything else is the named shape's own problem, at its own path."""

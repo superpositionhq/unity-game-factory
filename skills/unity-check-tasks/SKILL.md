@@ -203,7 +203,7 @@ What a row's `detail` says:
 | `uncalibrated: ...` | the probe has no threshold: no solution could pass it |
 | `the play's input did not land: ...` | an input of the task play missed; what it measured doesn't count |
 | `task error: ...` | no version of the game can pass the check: the reference's own play can't be driven. The task is INVALID whether the check is required or not: the Lab's grader grades no task with a task error |
-| `not packaged: ...` | a `package` check, which always fails: the Lab's grader can't package a Unity game |
+| `not packaged: ...` | a `package` check, which always fails: the Lab's grader can't package a Unity game; remove it (section 7) |
 | `the checker failed (...)` | the checker couldn't run the check: the task is an ERROR |
 
 ## 7. Failure patterns and what to do
@@ -234,7 +234,7 @@ Fix what the pattern names:
 | `uncalibrated: X: the reference measured nothing (...)` | the reference's play didn't reach what the probe reads | read the reason in brackets and fix the play or the selection |
 | `uncalibrated: X: the start measured nothing (...) and the reference measured 0` | a reference of 0 leaves no margin to put a threshold in | measure what the fix makes non-zero, or a literal |
 | `X has no threshold: uncalibrated: ...` (a `"required": false` probe) | an optional probe without a threshold fails the Lab's grade of the task whole | fix it (its play, its selection or measure, or the game) so it has a threshold and asks as much as before; never drop it |
-| `reference fails X: not packaged: ...` | a required `package` check, which can't pass: the Lab's grader can't package a Unity game and fails it on every run, so a Unity task carries none (docs/task-probes.md) | write the task without it before its first commit; in a task already committed or delivered, no solution could ever pass it: tell the person, never ship it, and leave the change to the owner |
+| `reference fails X: not packaged: ...`, or the validator's `a Unity task carries no package check` | a `package` check, which can't pass: the Lab's grader can't package a Unity game and fails it on every run, so a Unity task carries none, and the validator refuses one | remove the `package` check, in a new task and in one already committed or returned alike: a check no run can pass is broken, so removing it is a repair, never easing; an ask it stood for gets its own probe. Say in the task's note that you removed it and why |
 | `reference fails X: N matching log line(s)` (`log_absent`) or `0 file(s) match` (`file_exists`) | a required check the reference itself fails | fix the pattern or the glob so it decides its sentence as strictly and the fix passes; when the reference really logs the line or lacks the file, fix the game (a commit the reference points at). Never drop the check |
 | `start doesn't build: ...` | the start doesn't compile or build as committed | pick a start that builds, or set `"fails_at_start": true` when making it build is the task (then nothing may be relative to the start) |
 | `start builds, though X says it doesn't` | `fails_at_start` on a start that builds | drop `fails_at_start`, or pick the commit where the build broke |

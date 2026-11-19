@@ -1589,6 +1589,13 @@ def retired_checks(t):
                                         and isinstance(c.get('measure'), dict) and c['measure'].get('probe') == 'trace')]
 
 
+def package_checks(t):
+    """The task's `package` checks. Refused (owner, 2026-11-19): the Lab's Unity grader can't package a game and fails a
+    package check closed on every run, so no solution passes it; removing one is a repair, never easing."""
+    return [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
+            if isinstance(c, dict) and c.get('kind') == 'package']
+
+
 def check_task(rep, a, label, t, game, has_commit):
     """One whole task (GameTask): schema, the format's extra rules, seed on `game` and on known commits. False when the
     schema refuses it: the rest reads the values as the schema types them, so it waits until the task matches."""
@@ -1609,6 +1616,11 @@ def check_task(rep, a, label, t, game, has_commit):
         rep.error(a, f'{label}: check(s) {retired}: `actions_judge` checks and `trace` probes are retired: remove it '
                      f'(the Lab\'s grader gives a task with a trace probe reward 0 on every run and fails an '
                      f'actions_judge check on every run) (unity-write-tasks section 5)')
+    packaged = package_checks(t)
+    if packaged:
+        rep.error(a, f'{label}: check(s) {packaged}: a Unity task carries no `package` check: the Lab\'s Unity grader '
+                     'can\'t package a game and fails it on every run, so no solution passes it: remove it (a repair, '
+                     'never easing; an ask it stood for gets its own probe) (unity-write-tasks section 5)')
     seen_probes = [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict)
                    for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe' and visual(c)]
     if not gated:
