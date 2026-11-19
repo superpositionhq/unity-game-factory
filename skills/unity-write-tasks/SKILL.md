@@ -414,9 +414,12 @@ Unity is Y-up and in metres: height is `y`, distances are m, speeds m/s.
   `<Keyboard>/space` at 9 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s), a task play `{"name": ..., "seconds":
   ..., "inputs": [{"t", "key", "press"}]}` with Input System control paths (`<Keyboard>/f2`, `<Mouse>/leftButton`,
   `<Gamepad>/buttonSouth`) when the outcome needs other keys (F2, a fire button, a menu key), or `editor` for asset
-  facts. A task play lasts 5 to 300 s, and every time in it (an input's `t`, a hold, an `at`, an event's `within`)
-  stays within 300 s. Make it as long as the asked moment needs and no longer. _(why: a moment that comes only after
-  minutes of play can be reached; every second of a play is paid on both sides of every check run)_
+  facts. A task play lasts 5 to 1200 s, and every time in it (an input's `t`, a hold, an `at`, an event's `within`)
+  stays within 1200 s. Make it as long as the asked moment needs and no longer. A moment a player reaches only after
+  many minutes of one uninterrupted play (a dawn, a night's last wave, the morning after) is played to in one play of
+  that length, never skipped to with flags or teleports. _(why: a moment that comes only after minutes of play can be
+  reached, and skipping time tests something other than what the player sees; every second of a play is paid on both
+  sides of every check run)_
 - `measure.probe`: `player` (track: x/y/z/speed/moved/dist), `camera` (distance/height/pitch/yaw/fov/occluded/
   player_on_screen), `objects` (select by component type, tag, layer, name, near, `has`; count, transform, extent,
   active, hidden, collision, speed, lit, `prop:<Component>.<member>` by reflection, `anim:<Parameter>`), `components`
@@ -604,6 +607,13 @@ Fix what you find in the task before it is packed:
     lower case with every run of other characters as `_` is taken; a caption on two lines is written with a space at
     the break; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit one by a submit, so a raw
     `ClickEvent` handler does not fire (section 8).
+  - A click names a control by the words shown on it even when it is no button (a menu row the game builds of its own
+    images and texts, a label whose hit box the game tests itself): a click no button takes is made on its text as
+    shown, as a player clicks the words they see. The mouse goes to the one place on screen that reads those words (a
+    uGUI, TextMeshPro or UI Toolkit text, or texts side by side on one line read joined left to right: "1 BUY RANK
+    300 PT"), and the left button goes down and up there. Exactly one place may read them: words shown twice are a
+    miss that names both places, which `optional` never allows, so name the control by words only it shows. Text an
+    `OnGUI` menu draws is not read. _(why: a click on words shown twice can't tell which one the player meant)_
   - A click (and a tap on a widget) scrolls its control's own scroll area into view first, as a player would, and
     clicks it the next frame; it does not open a menu, change a tab or bring up a screen, and a control hidden any
     other way (inactive, outside the screen, outside a mask that is no scroll area) is still a missed input. So the
@@ -669,7 +679,9 @@ Fix what you find in the task before it is packed:
   near the source (`select.near`) only when the ticket places the sound in the world (a 2D sound is near nothing), in
   a window right after the event (give it 0.2 s of room); a sound that fades in, and music, by `audible`, `volume` or
   `level`; `sounds` and `repeats`
-  when the ticket asks for distinct sounds ("each gun has its own sound", "never the same take twice"). What the
+  when the ticket asks for distinct sounds ("each gun has its own sound", "never the same take twice"); for an ask that
+  a repeating sound varies each time it plays, `sounds` over that sound's starts alone (selected by its `owner` or
+  `near`) counts the different clips a player hears, as each take is its own clip. What the
   sound is, how it sounds, is never checked. A `PlayOneShot` clip has no name the probe can tell, and one played on a
   source that is already playing is not seen at all (docs/task-probes.md, section 2.16): where the start plays its
   sounds that way, read the mix's `level` rising in the window instead, and never write `sounds` or `repeats`. The

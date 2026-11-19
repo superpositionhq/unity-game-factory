@@ -152,7 +152,7 @@ kept copy, has its window moved off-screen and deactivated by the probe instead;
 |---|---|
 | `"look"` | 20 s, no input, 6 screenshots |
 | `"drive"` | 22 s, 8 screenshots: `<Keyboard>/w` 1-6 s, `<Keyboard>/d` 6-8 s, `<Keyboard>/w` 8-13 s with `<Keyboard>/space` at 9-9.3 s, `<Keyboard>/a` 13-15 s, `<Keyboard>/w` 15-21 s |
-| `{"name": ..., "seconds": ..., "inputs": [...]}` | a task play of 5-300 s: keys, axes, widget clicks, cursor moves, teleports, teleports next to an object and waits at their times, its own `scene`, `args` and `every`; 2 screenshots |
+| `{"name": ..., "seconds": ..., "inputs": [...]}` | a task play of 5-1200 s: keys, axes, widget clicks (on a text as shown when no button takes one), cursor moves, teleports, teleports next to an object and waits at their times, its own `scene`, `args` and `every`; 2 screenshots |
 | `"editor"` | one batchmode editor pass per side over every `asset` measure (the project as saved) |
 | a boot check | `seconds` of play, no input, 2 screenshots; `log_absent` reads a 60 s boot's log |
 

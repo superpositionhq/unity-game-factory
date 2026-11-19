@@ -87,8 +87,11 @@ Run `measure` on every clip you keep and reject or trim what is wrong for its cu
   `OnAudioFilterRead` writing samples. `tools/validate-game.py` checks the code (rule `sound`).
 - A cue that repeats (footsteps, hits, gunfire) gets 3 to 5 clips played at random with slight pitch variation, from a
   small `ScriptableObject` cue bank (clips, volume range, pitch range; Unity's Audio Random Container has no scripting
-  API, so no editor step can fill one), so it never sounds like a loop. World sounds get a 3D `AudioSource` with a
-  rolloff curve and max distance that fit the scene's scale.
+  API, so no editor step can fill one), so it never sounds like a loop. Each take is played as its source's own clip
+  (`source.clip = take; source.Play()`, from a small pool of sources where takes overlap) or with
+  `AudioSource.PlayClipAtPoint`, never `PlayOneShot`, because a task's audio `sounds` counts the different clips a
+  repeating sound played and a `PlayOneShot` clip has no name the grader can read. World sounds get a 3D
+  `AudioSource` with a rolloff curve and max distance that fit the scene's scale.
 - Every sound goes through an AudioMixer group (at least UI, SFX, Ambience), so the settings menu's volume controls it:
   each `AudioSource.outputAudioMixerGroup` set, each group's volume an exposed parameter the menu sets with
   `AudioMixer.SetFloat` in decibels (`Mathf.Log10(Mathf.Max(slider, 0.0001f)) * 20`). Unity has no public API for

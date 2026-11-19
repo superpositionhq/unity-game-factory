@@ -86,9 +86,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
   - `name`: lowercase letters, digits and `_`, at most 32, and not `look`, `drive`, `editor` or `trace`. A check
     can't point at another check's play by its name: every check that reads a task play carries the whole play, and
     plays with the same name in one task must be identical (the play then runs once per side for all of them).
-  - `seconds`: a whole number, 5-300. No input at or after the end. Every time in the play (an input's `t`, a hold, a
-    touch's `over`, an `at`, an event's `within`) is within 300 s too; a boot check keeps its own 5-600 s. _(why: some
-    asked moments come only after minutes of play: a late wave, a night that falls late)_
+  - `seconds`: a whole number, 5-1200 (probe 1.7.0, as the Lab's grader). No input at or after the end. Every time in
+    the play (an input's `t`, a hold, a touch's `over`, an `at`, an event's `within`) is within 1200 s too; a boot
+    check keeps its own 5-600 s. A moment a player reaches only after many minutes of one uninterrupted play (a dawn,
+    the last wave of a night) is played to, not skipped to. _(why: some asked moments come only after minutes of
+    play, and skipping time with flags or teleports tests something other than what the player sees)_
   - `every`: the sampling step, 0.1-1.0 s (default 0.5). A play samples on the first frame at or after each step, from
     1/30 s to its `seconds` plus 0.5, so a step that isn't a whole number of frames alternates (0.25 s: 0.267, 0.5,
     0.767, 1.0, ...): keep window edges off the exact moment something happens.
@@ -107,6 +109,11 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
   - `fresh` (optional, `true`): the play starts with the game's saved data cleared, as every play without `after`
     does; say it on a play whose check needs a first run (no save, default settings). Never with `after`: the
     validator refuses both.
+  - Unreal's `continues` and `attended` are not in a Unity task, and the validator refuses them, as the Lab's Unity
+    grader does. Every Unity play is its own launch of the player, so a play with `after` already is a later session
+    on what the plays it names saved, and a chain of them (a play after one that is after another) plays its sessions
+    earliest first. No play is launched with a flag a game could read as an automated run (never `-batchmode` or
+    `-nographics`; see `args`), so every play is already launched as a player launches the game.
   - `scene` (optional): the scene this play opens instead of the task's `play_scene` (`null`: the game's first build
     scene). Like `play_scene`, it is the scene's own project path (`Assets/Scenes/Arena.unity`): the validator refuses
     one with a `.` or `..` part or an empty part (`//`, or a `/` at its end).
@@ -117,7 +124,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
     `single-instance`, `window-mode`, any flag starting with `screen-` or `force-`, nor the probe's own (any flag
     starting with `taskprobe`); `tools/validate-game.py` lists what it refuses.
-  - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-300). Keys,
+  - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-1200). Keys,
     buttons and axes go through the **Input System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game
     that reads the old Input Manager (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued
     before the game's scripts run and processed by the Input System at the next frame's start, so the game reads it
@@ -161,8 +168,9 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       `clicked StartButton (Button) by its caption`. A touch's `{"widget": ...}` spot falls back the same way. With
       no EventSystem in the scene a player's click reaches no uGUI widget, and neither does this one: `probe.log` says
       `no EventSystem: a click reaches no uGUI widget, so <name> isn't clicked` (a UI Toolkit Button is still clicked;
-      when none is, the no-match line follows it). No match: nothing happens (`probe.log` says `no visible button
-      matches '<widget>'`), and the click is a row of `inputs_missed`, which fails every probe of the play (section 3).
+      when none is, the no-match line follows it). No match: the click is made on its text as shown (below); when no
+      text reads it either, nothing happens (`probe.log` says `no visible button matches '<widget>'`), and the click
+      is a row of `inputs_missed`, which fails every probe of the play (section 3).
       A match that is shown but disabled (not interactable, its Selectable off, a UI Toolkit Button not enabled) is
       not clicked either, as a player's click on it does nothing: its row says why `shown but disabled`, and
       `probe.log` says `<name> (<type>) matches '<widget>', shown but disabled: not clicked`.
@@ -185,6 +193,21 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       (inactive, transparent, outside a mask that is no scroll area, outside the screen) is still a missed input.
       _(why: scrolling a list to the item is part of what a player does to click it; opening a menu is a step of the
       play, which the task writes)_
+      **A click no button takes is made on its text as shown** (probe 1.7.0, as the Lab's grader), as a player clicks
+      the words they see: a menu row the game builds of its own images and texts, a label with a hit box the game
+      tests itself. The probe reads every text on screen the `ui` measure reads (a uGUI `Text`, a TextMeshPro text, a
+      UI Toolkit element's text), and also texts side by side on one line read joined left to right (a row drawn as
+      `1`, `BUY RANK`, `300 PT` reads "1 BUY RANK 300 PT"); `widget` is compared with them as a caption is, in lower
+      case with every run of characters that are neither letters nor digits one `_` (a letter or digit of any script
+      is part of a word). Exactly one place must read it: the virtual mouse goes to its centre as a `cursor` input
+      moves it, the left button goes down in the next frame and up 0.1 s later, and the inputs after the click wait
+      for the release; `probe.log` says `clicking text "<text>" at (<fx>, <fy>) for '<widget>'`. A text shown in two
+      places or more is a miss that names them (`its text is shown in 2 places, not one: ...`): name the control by
+      words only it shows. A click on text goes through the Input System's mouse, so it reaches what a player's mouse
+      reaches (uGUI through an EventSystem, UI Toolkit, the game's own hit box on `Mouse.current`); text drawn by IMGUI
+      (`OnGUI`) is not read, and a project without the Input System package has no mouse to click it with. `optional`
+      excuses a click no button and no text takes, never a text shown twice. _(why: a player clicks the words on the
+      screen, whatever the game built them of)_
       What a click by caption can't do:
       - a name or a type wins: the caption is tried only when no visible, interactable widget of either kind has
         that name or type, so a `widget` that is also another button's name clicks that button;
@@ -247,7 +270,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       each one did,
       `teleported next to <name>: asked (x, y, z) yaw <degrees>, now at (x, y, z)` or
       `teleport_to skipped (no object matches)`: check it in the fix's play;
-    - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 300) puts the player back
+    - holding the player there: `"hold": 5` on a `teleport` or `teleport_to` (seconds, up to 1200) puts the player back
       at the spot (its position; its view stays free) after every frame's game logic for that many seconds of play:
       after the scripts' `Update` and again after their `LateUpdate`, so a camera that follows the player in
       `LateUpdate` frames the spot; a hold lasts through a `wait` and a scene load. For a game that sets its player's
@@ -259,7 +282,7 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
       the play's clock holds while the game keeps running, paced to real time (each frame waits for the wall clock to
       catch up with the game's own time), until `wait` real seconds and `wait` seconds of game time have both passed;
       nothing is sampled, sent or screenshot meanwhile; then the play goes on from `t`. A play's waits add at most
-      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 300 s;
+      300 s in all, and its timeout grows by them; `seconds`, windows and `at` stay in play time, within 1200 s;
     - a named screenshot: `{"t": 6.0, "shot": "pause_menu"}` (a letter or `_` first, then letters, digits, `_`; up to
       32) takes `shot_pause_menu.png` at that moment, with the UI, beside the evenly spaced ones. Each name once in a
       play, 20 at most. A picture never passes or fails anything by itself: it is for a judge (section 3.2), for a
@@ -534,7 +557,7 @@ How a play gets there (keys, clicks, teleports, waits): section 1.1; touches: se
 
 ### 2.1 Common fields
 
-- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-300; the
+- `window`: `[t0, t1]` seconds of play time (ends inclusive), or `at`: `[t, ...]` (at most 40 times, each 0-1200; the
   sample nearest each time, when one is within 0.26 s of it) or `"end"` (the last sample); not both. Default: the
   whole play. With `since` (section 2.23) both count from the moment of an event instead of the play's start.
 - `agg`: how the samples reduce to one number: `min`, `max`, `mean`, `first`, `last`, `delta` (last minus first),
@@ -1268,8 +1291,10 @@ the one-shot's: on a source without a clip, `loudest` is "" and no `sound` selec
 - **The sounds that start**, every one however short, seen once a frame: `started` and `started_audible` (how many
   started, and how many of them were at 0.001 or louder at the listener in the frame they started, in each sample's
   interval; summed over the samples picked by default; a sound that fades in, and music, are read by `audible`,
-  `volume` or `level`), `sounds` (how many differently named clips started) and `repeats` (how often a
-  sound started right after itself: "never the same take twice"); the last two take no `agg`. A sound starts when a
+  `volume` or `level`), `sounds` (how many differently named clips started; a clip is the recording, so over the
+  starts of one repeating sound, selected by its `owner` or `near`, it counts the variants a player hears, which
+  Unreal's grader counts by the recordings it played) and `repeats` (how often a sound started right after itself:
+  "never the same take twice"); the last two take no `agg`. A sound starts when a
   source plays that didn't the frame before (`Play` on a silent source, a new source, `PlayClipAtPoint`,
   `PlayOneShot` on a silent source) or when a playing source is played again from its clip's beginning or with
   another clip (a pooled source reused, the next take; a looping clip coming round at its end is no start). A select takes a start by what is true in the

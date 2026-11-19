@@ -570,13 +570,14 @@ screenshots and look's queries, and look reads its first 20.5 s, as far as a loo
 every 0.5 s (a task play's `every`, 0.1-1.0). `play_args` apply to every play (look, drive, boot, task plays); a task
 play's `args` key replaces them, its `scene` key the `play_scene` (`tasks.place`).
 
-A task play lasts 5 to 300 s of play time (probe 1.6.0; 120 before), and so does every time in it: an input's `t`, a
-hold (a teleport's, a pin's, a tap's, a drag's), a drag's `over`, an `at` time and an event's `within`. A boot check
-keeps its own 5-600 s and a play's waits their 300 s of real time in all. Nothing in a play is cut short by its length:
-the probe takes `seconds` up to 600 and keeps every sample, track and camera row however many (`Probe.cs`), a tap's or
-drag's `hold` and `over` up to 300 s and a teleport's or pin's `hold` up to 600 s (`Inputs.StartTouch`, `StartHold`,
-`Stages`), and the play's time limit is its seconds and 300 s more, plus its waits (`check.play_timeout`). The
-checker's own plays keep their lengths (look 20 s, drive 22 s).
+A task play lasts 5 to 1200 s of play time (probe 1.7.0, as the Lab's grader and Unreal's grader 1.18.0; 300 from
+probe 1.6.0, 120 before), and so does every time in it: an input's `t`, a hold (a teleport's, a pin's, a tap's, a
+drag's), a drag's `over`, an `at` time and an event's `within`. A boot check keeps its own 5-600 s and a play's waits
+their 300 s of real time in all. Nothing in a play is cut short by its length: the probe takes `seconds` up to 1200 and
+keeps every sample, track and camera row however many (`Probe.cs`), and a tap's or drag's `hold` and `over` and a
+teleport's or pin's `hold` up to 1200 s (`Inputs.StartTouch`, `StartHold`, `Stages`), and the play's time limit is its
+seconds and 300 s more, plus its waits (`check.play_timeout`). The checker's own plays keep their lengths (look 20 s,
+drive 22 s).
 
 The play's clock (`Probe.cs`) is a fixed 30 fps (`Time.captureFramerate = 30`; play time is frames / 30), run as fast as
 the machine renders (`Application.targetFrameRate` -1, set by the probe in every frame, a wait's too; the capture frame
@@ -702,7 +703,18 @@ control <path>`, `inputs: no device for <path>`), never a stop.
   once the layout has followed, scrolling no more; the inputs after it wait for it. A uGUI area is scrolled only with
   an EventSystem (without one a player can't scroll it either). A button hidden any other way (inactive, transparent,
   a disabled canvas, outside a mask that is no scroll area, outside the frame once scrolled) is not clicked, and a
-  click doesn't open a menu, change a tab or bring up a screen to find its button.
+  click doesn't open a menu, change a tab or bring up a screen to find its button. A click no button takes (none
+  matches, none shown but disabled, none scrolled to) is made on its text as shown (probe 1.7.0, as the Lab's grader
+  and Unreal's grader 1.18.0; `Inputs.ClickText`, `UiScan.ByShownText`): the one place on screen whose text reads its
+  `widget` compared as a caption is (`UiScan.Caption`), whatever shows it: a text element the ui query reads (a uGUI
+  `Text`, a TextMeshPro text, a UI Toolkit element's text), or texts side by side on one line that read it joined left
+  to right ("1", "BUY RANK", "300 PT": their heights overlap by half, a gap of at most 6 of the line's heights); the
+  same place read twice is one. The virtual mouse goes to its centre as a cursor input moves it, the left button goes
+  down in the next frame and up 0.1 s later, and the inputs after it wait for the release; `probe.log` says `clicking
+  text "<text>" at (<fx>, <fy>) for '<widget>'`. Text shown in two places or more is a miss whose `why` is `no visible
+  button matches it, and its text is shown in <n> places, not one: "<text>" at (<fx>, <fy>); ...`, which no mark
+  allows; no text that reads it is the `no visible button matches it` miss as before, and so is any click in a project
+  without the Input System package. Text IMGUI draws is no ui element and isn't read.
 - cursor: `{"t", "cursor": [fx, fy]}` (viewport fractions, y down, clamped to 0-1): moves the virtual mouse there (it
   starts at the window's centre); a following `<Mouse>/leftButton` press and release clicks there (uGUI through an
   EventSystem with an InputSystemUIInputModule; UI Toolkit through that module or, with no EventSystem, on its own; with
