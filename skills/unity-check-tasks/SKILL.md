@@ -202,11 +202,15 @@ What a row's `detail` says:
 
 ## 7. Failure patterns and what to do
 
-Never make a check easier to get a case right (unity-write-tasks skill, section 1). Fix what the pattern names:
+Never make a check easier to get a case right (unity-write-tasks skill, section 1). A failing check is fixed in its
+play first (its staged state, its inputs and their timing, its windows and shot moments), then, when the play is not
+the cause, in the game (a commit the task's reference points at); it is never dropped or loosened. A sentence of the
+instruction that can be checked is never dropped. Only a task that cannot be fixed is dropped, whole, and you say so.
+Fix what the pattern names:
 
 | what you see | what it means | what to do |
 |---|---|---|
-| **no-op passes**: `start already passes every required probe` / `start already passes required probe X` | the check doesn't test the ask (wrong field, window or play), or the start already does what it asks | measure what the fix changes: compare the start's and the reference's `probe.json` samples and pick a field that differs; make the play reach the moment the issue shows (a task play with the inputs or a teleport); if the start really does it already, that is no issue of the thread: drop the check and its ask, or pick another start |
+| **no-op passes**: `start already passes every required probe` / `start already passes required probe X` | the check doesn't test the ask (wrong field, window or play), or the start already does what it asks | measure what the fix changes: compare the start's and the reference's `probe.json` samples and pick a field that differs; make the play reach the moment the issue shows (a task play with the inputs or a teleport); if the start really does it already, pick an earlier start of the thread where the issue still shows, with the check and its ask as they are; never drop either. A thread with no start that shows the issue is a task that cannot be fixed: drop the whole task and say so |
 | the no-op fails, but **for the wrong reason** (its row: `measured nothing`, `no samples in the window`, `the play's input did not land`, `not run: needs X`, an empty selection) | the start never showed the bug; the check only failed to read | fix the play or the selection so it measures the start; a failure that isn't the reported one proves nothing |
 | `start fails still-works X` | the still-works probe is broken: it doesn't find what it looks for in a game that works | fix the probe (its selection, play or window), never its threshold |
 | `a no-op scores N, not 0: give X "weight": 0` (or `... it passes judge(s) X on your scores`) | checks the start passes carry weight | give each `"weight": 0` (it still gates); never drop it |
@@ -223,9 +227,9 @@ Never make a check easier to get a case right (unity-write-tasks skill, section 
 | `uncalibrated: X: the start and the reference both measure N` | the probe doesn't see the change | measure something the fix changes, or use a literal for a count or a fact |
 | `uncalibrated: X: the reference measured nothing (...)` | the reference's play didn't reach what the probe reads | read the reason in brackets and fix the play or the selection |
 | `uncalibrated: X: the start measured nothing (...) and the reference measured 0` | a reference of 0 leaves no margin to put a threshold in | measure what the fix makes non-zero, or a literal |
-| `X has no threshold: uncalibrated: ...` (a `"required": false` probe) | an optional probe without a threshold fails the Lab's grade of the task whole | fix it or drop it |
-| `reference fails X: not packaged: ...` | a required `package` check, which can't pass | drop it |
-| `reference fails X: N matching log line(s)` (`log_absent`) or `0 file(s) match` (`file_exists`) | a required check the reference itself fails | fix the pattern or the glob so the fix passes, or drop the check |
+| `X has no threshold: uncalibrated: ...` (a `"required": false` probe) | an optional probe without a threshold fails the Lab's grade of the task whole | fix it (its play, its selection or measure, or the game) so it has a threshold and asks as much as before; never drop it |
+| `reference fails X: not packaged: ...` | a required `package` check, which can't pass: the Lab's grader can't package a Unity game and fails it on every run, so a Unity task carries none (docs/task-probes.md) | write the task without it before its first commit; in a task already committed or delivered, no solution could ever pass it: tell the person, never ship it, and leave the change to the owner |
+| `reference fails X: N matching log line(s)` (`log_absent`) or `0 file(s) match` (`file_exists`) | a required check the reference itself fails | fix the pattern or the glob so it decides its sentence as strictly and the fix passes; when the reference really logs the line or lacks the file, fix the game (a commit the reference points at). Never drop the check |
 | `start doesn't build: ...` | the start doesn't compile or build as committed | pick a start that builds, or set `"fails_at_start": true` when making it build is the task (then nothing may be relative to the start) |
 | `start builds, though X says it doesn't` | `fails_at_start` on a start that builds | drop `fails_at_start`, or pick the commit where the build broke |
 | a note: `<side>: <scene> names N of its M assets that the commit doesn't have` | the scene loads assets as missing at that commit | pick a commit that has them, or commit them with their `.meta` |

@@ -708,8 +708,11 @@ Fix what you find in the task before it is packed:
   sounds that way, read the mix's `level` rising in the window instead, and never write `sounds` or `repeats`. The
   count of starts is a lower bound for the same reason: write "a sound starts" (`>=`), never "plays once" or "never
   twice" (`<`, `<=`, `==`; the validator warns), unless the start plays that sound as a source's own clip.
-- **An ask that cannot be checked fairly** comes out: rewrite the instruction so it no longer asks for it, rather than
-  ship an ask nothing checks. The instruction stays plain prose, never fields.
+- **A sentence no check can decide as written is reworded, never left unchecked**: say instead what the reference
+  demonstrably does and a check can decide, so the task asks as much as before ("every exit stays reachable" becomes
+  the exits a play walks through). A sentence that can be checked is never dropped, and a failing check is fixed in
+  its play or in the game, never dropped or loosened (unity-check-tasks skill, section 7). Only a task that cannot be
+  fixed is dropped, whole, and you say so. The instruction stays plain prose, never fields.
 - **Nothing is asked that the checker cannot run.** Saving across plays can be checked (a play that names its
   writer in `after`, above). What a sound is like (a sound the game's characters hear and react to, or one that must
   start at a moment the game decides, is an ask like any other), how the packaged build behaves outside a play, a
