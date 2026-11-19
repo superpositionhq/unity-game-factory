@@ -628,6 +628,11 @@ Fix what you find in the task before it is packed:
     lower case with every run of other characters as `_` is taken; a caption on two lines is written with a space at
     the break; only a uGUI Selectable or a UI Toolkit `Button` is clicked, and a UI Toolkit one by a submit, so a raw
     `ClickEvent` handler does not fire (section 8).
+  - A touch names its control as the player sees it too (a mobile game's `tap` and `drag` spots, docs/task-probes.md
+    section 1.3): `{"widget": ...}` with the words a button shows, or a name or type the start (`seed.commit`) already
+    has; never a widget name the task's thread creates, which another fair build names otherwise. A control that
+    shows no words and that the thread adds is touched at its place on screen where the instruction or the start
+    fixes it (unity-mobile-game skill).
   - A click names a control by the words shown on it even when it is no button (a menu row the game builds of its own
     images and texts, a label whose hit box the game tests itself): a click no button takes is made on its text as
     shown, as a player clicks the words they see. The mouse goes to the one place on screen that reads those words (a

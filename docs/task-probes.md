@@ -406,8 +406,11 @@ A task play may touch the screen as a phone's player does. Two inputs, each with
 A spot is a point of the screen `[fx, fy]` in fractions 0-1 from its top left, or `{"widget": "MoveStick"}`: the centre
 of the first visible, laid-out widget of that name (a wildcard) or type, whatever its kind (a button, a stick, a
 panel): a uGUI object of a canvas or a UI Toolkit element, found as a `widgets` select finds one (section 2.6), by
-name first. Name the widget where you can: its place differs between landscape and portrait, its name does not. A
-widget's spot is where it is when the finger goes down.
+name first, then by type, then a button by the words it shows (its caption, matched as a click matches one). Name the
+control by the words it shows where it shows some, else by a name or type the start (`seed.commit`) already has;
+never by a name only the reference has (a control the task's thread adds is named otherwise in another fair build).
+A point is the last resort: its place differs between landscape and portrait. A widget's spot is where it is when
+the finger goes down.
 
 Touches of different fingers may overlap in time (a stick held while a button is tapped, two fingers pinching). One
 finger's touches are at least 0.1 s apart, from one's lift to the next one's start, and every touch is over by the

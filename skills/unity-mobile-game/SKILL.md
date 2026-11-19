@@ -51,11 +51,14 @@ player as the product, the rule here is the one that applies.
 
 - **Touch only.** Everything the player does is done with fingers on the screen: on-screen buttons, a virtual stick,
   taps, drags and swipes on the world. Nothing in the game is reachable only by a key, a mouse button, mouse movement
-  or a gamepad. Build the controls as uGUI objects (or UI Toolkit elements) with names of their own (`MoveStick`,
-  `FireButton`), read through the Input System: its on-screen controls (`OnScreenStick`, `OnScreenButton`), the UI
+  or a gamepad. Build the controls as uGUI objects (or UI Toolkit elements), read through the Input System: its on-screen controls (`OnScreenStick`, `OnScreenButton`), the UI
   module's pointer events, or `Touchscreen.current` / EnhancedTouch for touches on the world. In the Windows player a
   mouse click is a pointer to the UI, so a person can try the game with the mouse; a control that reads the
-  Touchscreen alone answers only to a finger (the bot's, a task's).
+  Touchscreen alone answers only to a finger (the bot's, a task's). A task presses a control by what a player sees on
+  it: a button that shows words is tapped by those words, so give every button that means something a caption a
+  player can read. A task names a control by its object's name only when that object already exists at the task's
+  start (`seed.commit`), as a desktop click does: a control a task's thread adds has another name in another fair
+  build, so its name is never one a task may rely on.
 - **The back button.** Android's back button is `<Keyboard>/escape` to the Input System. It does what Escape does on
   a desktop game: it opens the pause menu in play, closes what is open, and goes back one screen in menus. It never
   quits without asking.
@@ -100,9 +103,14 @@ player as the product, the rule here is the one that applies.
   does this itself from `Platform.json`. A task's play never chooses a window size, a quality level or a graphics API
   in its arguments (no task's may: the validator refuses them).
 - **Drive the game by touch.** A play's inputs use `tap` and `drag` (docs/task-probes.md section 1.3): a spot on the
-  screen as fractions of its width and height, or a widget by name; `hold` for a held touch, `finger` for a second
-  finger. The back button is the key `<Keyboard>/escape`. Name the widget where you can, by the game's own name for it,
-  not a spot. _(why: a widget's place differs between landscape and portrait, and between builds; its name does not)_
+  screen as fractions of its width and height, or `{"widget": ...}`; `hold` for a held touch, `finger` for a second
+  finger. The back button is the key `<Keyboard>/escape`. **Press a control by what a player sees:** `{"widget": ...}`
+  with the words the button shows (`{"widget": "Jump"}` taps the button reading "Jump"), else by a name or type the
+  start (`seed.commit`) already has, as a desktop click; never by a widget name the task's thread creates. A control
+  that shows no words and that the thread adds is touched at its place on the screen where the instruction or the
+  start's layout fixes it. _(why: a control the thread adds has its name only in the reference; another fair build
+  names it otherwise, and a correct solution then fails the play. A spot is the last resort: its place differs
+  between landscape and portrait)_
 - **One finger lifts before it touches again.** Two touches of one finger are at least 0.1 s apart, lift to start, and
   every touch is over by the play's end (the validator refuses a task that asks otherwise). _(why: a finger still down
   from an earlier touch can't touch again, and the touch is a missed input)_
