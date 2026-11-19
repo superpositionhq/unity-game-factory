@@ -437,8 +437,8 @@ or the framing-gate screenshots, not from extra GPU launches; no editor views, d
 Until recordings exist, use the framing gate's frames there are, each from a different scenario or moment: fewer than
 5 is the validator's warning (not an error), so never invent stills to reach five. The README shows them as a hero
 image plus a captioned gallery (one line per image saying what it shows). Every image the README links must be
-committed: after pushing, open the repo page on github.com and check that each image renders (a link to a file that
-was never committed shows as a broken image).
+committed (a link to a file that was never committed shows as a broken image): `tools/validate-game.py` checks each
+linked file against the repo's committed files, so no browser check is needed.
 
 **Game format (docs/game-format.md).** Before calling the game content-complete,
 `python <UGF_ROOT>/unity-game-factory/tools/validate-game.py <UGF_ROOT>/games/<slug>` must say VALID: required files,
