@@ -87,8 +87,7 @@ from the reference, never that it reads what the instruction asks)_
 
 **The only tasks that meet our requirements are long threads of multiple edits.** A long task keeps one clean run of
 a strong agent working about 25 minutes or more. That length is a guide, not a requirement: what counts is that a
-strong agent can't solve it easily. You judge this in the session from the thread itself (section 6); we measure it
-on every submitted task. A task is a stretch of the game's real history where its own sessions needed many commits,
+strong agent can't solve it easily. You judge this in the session from the thread itself (section 6). A task is a stretch of the game's real history where its own sessions needed many commits,
 several attempts or several rounds of directions, touching many files across several systems, before the outcome
 held. Strong agents finish a single fix, one cause in one place, in minutes, however long it took in the game; such a
 task is worthless to us and never ships, not even as an "easy" one. A task is `"difficulty": "hard"`, with
@@ -729,8 +728,8 @@ Fix what you find in the task before it is packed:
 ## 6. Difficulty, limits and what the validator enforces
 
 - `difficulty` is `hard`; a game needs at least 4 `hard` tasks, the others may be `medium`, none easier (a task that
-  names no difficulty counts as medium; four is the floor, so aim every task at hard), and `tags` hold `long-thread`. It is your own estimate of the thread; our runs of the task decide
-  its difficulty (last item below).
+  names no difficulty counts as medium; four is the floor, so aim every task at hard), and `tags` hold `long-thread`. It is your own judgement of the thread, made in the session (last item
+  below).
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
 - `tools/validate-game.py` fails a game with fewer than 5 tasks or fewer than 4 `hard` ones, and a task that is
   `easy`, has no `seed.reference`, has fewer than 3 required probes of weight above 0 outside `still_works`, or has a
@@ -744,13 +743,12 @@ Fix what you find in the task before it is packed:
   your note and carry on. It also refuses a task without the `long-thread` tag, a weighted check a no-op passes
   (section 5) and anything against the format rules of section 0.
 - **Judge difficulty in the session; never run the task with another agent** (a try is long and tells you nothing
-  the session can't judge; the Lab tries every submitted task itself). Don't run `tools/task-try.py` or start a fresh
+  the session can't judge). Don't run `tools/task-try.py` or start a fresh
   Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with the
   person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
   cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
   mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring
-  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each. The Lab tries every submitted task with a strong agent and
-  measures its time; that grade decides.
+  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each.
 
 Probes may measure the cause's effect directly, since the agent never sees them.
 

@@ -1,7 +1,7 @@
 # Task try: run a task with a coding agent (internal)
 
 **Contractors don't run this**: it is long and tells nothing a session can't judge. Judge a task's difficulty in the
-game session instead (unity-write-tasks skill, section 6). The Lab runs the try on submitted tasks.
+game session instead (unity-write-tasks skill, section 6).
 
 The task check ([task-check.md](task-check.md)) proves a task is fair: the start fails it and the reference passes.
 The task try tells you whether it is hard enough. It gives the task to your own coding agent, Claude Code or Codex on

@@ -526,7 +526,7 @@ once all the tasks are written as a background process the person can leave runn
 checks them on the engine, the start (the no-op case) and the reference (the oracle case): a task ships only when the
 task check says VALID on its final file. Judge each task's difficulty in the
 session against the bar (unity-write-tasks skill, section 6); never run a task with another coding agent
-(`tools/task-try.py` is ours, run on submitted tasks).
+(`tools/task-try.py` is internal).
 
 ## Working with the coordinator
 

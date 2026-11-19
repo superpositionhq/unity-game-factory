@@ -120,8 +120,8 @@ packager's first run.
 - [docs/game-format.md](docs/game-format.md): the final game format (repo + Dataset.zip layout v1), its schemas and
   `tools/validate-game.py`.
 - [docs/task-check.md](docs/task-check.md): checking a game's task on your own machine (`tools/task-check.py`: the
-  start fails, the reference passes). [docs/task-try.md](docs/task-try.md) is internal: we run `tools/task-try.py` on
-  submitted tasks to measure how long a strong agent takes; contractors don't run it.
+  start fails, the reference passes). [docs/task-try.md](docs/task-try.md) is internal: contractors don't run
+  `tools/task-try.py`.
 - [docs/unity-pipeline.md, Dataset packager](docs/unity-pipeline.md#dataset-packager): the per-game dataset
   (`tools/package-dataset.py`) and its scrub.
 - [AGENTS.md](AGENTS.md): what every session reads first (Claude Code through [CLAUDE.md](CLAUDE.md), Codex

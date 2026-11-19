@@ -81,9 +81,9 @@ The other options (`--keep` to keep the built copies, `--out`, `--direct`, `--ti
 `--no-judge-shots`, `--settle`) are in [docs/task-check.md](../../docs/task-check.md). `--no-judge-shots` leaves every required
 judge unscored, so a task with one can't be VALID in that run.
 
-The try (`tools/task-try.py`, an agent run on the task) is the Lab's own tool: never run it, nor another agent on a
+The try (`tools/task-try.py`, an agent run on the task) is an internal tool: never run it, nor another agent on a
 task. Judge difficulty in the session instead (unity-write-tasks skill, section 6). _(why: the try is long and tells you
-nothing the session can't judge; the Lab tries every submitted task itself)_
+nothing the session can't judge)_
 
 ## 3. What a run does on each side
 
