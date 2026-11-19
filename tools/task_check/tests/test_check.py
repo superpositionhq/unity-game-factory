@@ -77,6 +77,23 @@ class Grades(unittest.TestCase):
         s.probe_play(check.tasks.play(waiting))
         self.assertEqual(timeouts, [(20, 320), (30, 330 + 13)])
 
+    def test_a_build_gets_at_most_the_labs_1800_s(self):
+        """The Lab's grader gives a build 1800 s (its Grader's timeout), so a build slower than that fails there and
+        stops here too: `--build-timeout` defaults to it and only ever shortens it."""
+        self.assertEqual(check.BUILD_LIMIT, 1800)
+        builds = []
+
+        class Timed(FakeProject):
+            def build(self, timeout, scenes=()):
+                builds.append(timeout)
+                return super().build(timeout, scenes)
+
+        for asked, got in ((3600, 1800), (1800, 1800), (600, 600)):
+            builds.clear()
+            check.Side("reference", Timed(measuring(1)), task_with(probe()), 1800, asked, None,
+                       lambda *a: None).built()
+            self.assertEqual(builds, [got])
+
     def test_a_play_of_1200_s_is_read_and_gets_its_seconds_and_300_s(self):
         """A task play may last up to 1200 s (probe 1.7.0, as the Lab's grader): it is read like any other, its time
         limit its seconds and 300 s within the default --timeout (1800 s), and a window late in it is read."""

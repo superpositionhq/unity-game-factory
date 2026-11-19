@@ -45,7 +45,8 @@ outside them (a play starts from clean saved data anyway), `--out DIR` puts the 
 puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Unity without the machine's job slots,
 `--timeout S` (the editor pass, default 1800; a play gets its own seconds and 300 s, start-up included, as the Lab's
 grader allows, or `--timeout` when that is shorter, and a task play's waits on top) and `--build-timeout S` (default
-3600).
+and most 1800, the Lab's grader's limit for a build: a build slower than that fails there, so a longer value is cut to
+it).
 
 ## Requirements
 

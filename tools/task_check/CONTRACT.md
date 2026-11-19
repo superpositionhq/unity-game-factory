@@ -1007,7 +1007,7 @@ station to make its desktop on: it exits 1 with a line `desk.py: ...` and the pl
 `<Unity.exe>` is the one that opens the copy (`ugfroot.unity_editor`; the same for the start and the reference of a
 task: "The editor a copy is opened with" above), through
 `unity-heavy.ps1 -Label "task-check build <commit[:12]>"` when the machine has it, with a timeout of `--build-timeout`
-(3600 s). The request (the reference's; a copy built for several tasks of a run lists every scene asked of it so far,
+(1800 s at most, the Lab's grader's limit for a build). The request (the reference's; a copy built for several tasks of a run lists every scene asked of it so far,
 and a build that failed serves only the scenes it was given: `check.Built`):
 
 ```json

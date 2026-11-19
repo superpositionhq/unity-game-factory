@@ -87,6 +87,9 @@ OVERRUN = 0.5
 # s: a play's own seconds and this much more is all the Lab's grader gives it, start-up included; a play slower than
 # that times out there, so it times out here too (`--timeout` only ever shortens it)
 PLAY_MARGIN = 300
+# s: the most a build may run in the Lab's grader (its Grader's timeout, unity/grade.py); a slower build fails there, so
+# it stops here too (`--build-timeout` only ever shortens it)
+BUILD_LIMIT = 1800
 
 
 def play_timeout(seconds, timeout):
@@ -251,7 +254,7 @@ class Side:
 
     def __init__(self, name, project, task, timeout, build_timeout, evidence=None, log=print):
         self.name, self.project, self.task = name, project, task
-        self.timeout, self.build_timeout = timeout, build_timeout
+        self.timeout, self.build_timeout = timeout, min(int(build_timeout), BUILD_LIMIT)
         self.evidence, self.log = evidence, log
         self.plan = probes.plan(task)
         self.scenes = task_scenes(task)
@@ -768,7 +771,7 @@ def gap_notes(result):
     return notes
 
 
-def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, timeout=1800, build_timeout=3600,
+def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, timeout=1800, build_timeout=BUILD_LIMIT,
                log=print, clock=time.time, builds=None, judge_shots=True):
     """Check one task (a dict read from `repo`'s tasks branch, its file's bytes `raw`): its result (written to
     <out_dir>/<name>.json, its plays' files under <out_dir>/<name>/). `builds`: a run's shared copies (Builds), which

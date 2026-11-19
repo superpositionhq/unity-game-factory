@@ -113,7 +113,9 @@ def main(argv=None):
                         help="run Unity directly, not through the machine's unity-heavy.ps1 slots")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds the editor pass may run, and a play at most "
                              "(a play gets its seconds and 300 s, as the Lab's grader allows, when that is shorter)")
-    parser.add_argument("--build-timeout", type=int, default=3600, help="seconds a build may run")
+    parser.add_argument("--build-timeout", type=int, default=check.BUILD_LIMIT,
+                        help=f"seconds a build may run (at most {check.BUILD_LIMIT}, as the Lab's grader allows: a longer "
+                             "value is cut to it)")
     parser.add_argument("--no-judge-shots", dest="judge_shots", action="store_false",
                         help="don't play judge checks' plays or save their screenshots (by default each judge check's "
                              "screenshots of the start and the reference are saved under <task>/judge-shots/ to be "

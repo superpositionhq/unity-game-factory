@@ -331,7 +331,7 @@ def side(name, folder, task, direct, timeout, build_timeout, evidence, log, at_l
 
 
 def try_task(repo, task, raw, scratch, out_dir, agent, exe, runs=1, model=None, extra=(), keep=False, direct=False,
-             timeout=1800, build_timeout=3600, places=(), log=print, clock=time.time, judge_shots=True):
+             timeout=1800, build_timeout=check.BUILD_LIMIT, places=(), log=print, clock=time.time, judge_shots=True):
     """Try one task `runs` times with `agent`; its result (written to <out_dir>/<name>.json, each run's transcript and
     plays under <out_dir>/<name>/). `judge_shots`: each `judge` check's screenshots of the agent's game saved under
     <out_dir>/<name>/run<N>/judge-shots/ for a person to answer (the run's number never waits on them)."""
@@ -524,7 +524,8 @@ def main(argv=None):
                         help="run Unity directly, not through the machine's unity-heavy.ps1 slots")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds the editor pass may run, and a play at most "
                              "(a play gets its seconds and 300 s, as the Lab's grader allows, when that is shorter)")
-    parser.add_argument("--build-timeout", type=int, default=3600, help="seconds a build may run")
+    parser.add_argument("--build-timeout", type=int, default=check.BUILD_LIMIT,
+                        help=f"seconds a build may run (at most {check.BUILD_LIMIT}, as the Lab's grader allows)")
     parser.add_argument("--no-judge-shots", dest="judge_shots", action="store_false",
                         help="don't play judge checks' plays or save their screenshots (by default each judge check's "
                              "screenshots of the agent's game are saved under <task>/run<N>/judge-shots/ to be looked "
