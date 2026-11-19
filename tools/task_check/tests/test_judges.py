@@ -172,6 +172,62 @@ class Saved(unittest.TestCase):
             self.assertIn("didn't build", record["notes"][0])
 
 
+class Cloud(unittest.TestCase):
+    """ask.md says what the cloud's judge is given beside the pictures, without writing a file."""
+
+    @staticmethod
+    def made(n_look=6, n_drive=8, probe_=None):
+        shots = lambda n: {f"shot_{i:02d}.png": b"x" for i in range(n)}  # noqa: E731
+        return {"look": (probe_, shots(n_look)), "drive": (probe_, shots(n_drive))}
+
+    def test_readings_are_the_cloud_prompts_track_and_camera_lines(self):
+        """The track is about ten rows as JSON; the camera line is judging.camera_text's, word for word (its z as
+        height and centimetres, the Unreal grader's, kept as the cloud says it)."""
+        track = [[t / 10, 1.0, 2.0, 300.0] for t in range(30)]
+        camera = [[t / 10, 1.0, 2.0, 500.0, 20.0, 0.0, 60.0] for t in range(30)]
+        chk = judges.judge(judge())
+        said = judges.readings(chk, self.made(probe_={"track": track, "camera": camera}))
+        self.assertEqual([label for label, _ in said], ["idle play, 20 s, no input", "scripted drive, 22 s"])
+        self.assertEqual(said[0][1], "player position track (seconds, x, y, z in cm): "
+                         + json.dumps(track[::3])[:1200] + "; camera (median of 30 samples): 2.00 m above the player, "
+                         "0.00 m from it horizontally, pitch 20.0°, field of view 60°")
+        self.assertEqual(judges.readings(chk, self.made())[0][1],
+                         "player position track (seconds, x, y, z in cm): none (no player pawn)")
+
+    def test_a_route_note_says_what_the_cloud_adds_never_4_of_6(self):
+        """The Unity grader shows a route's 8 screenshots after the plays: alone, within the 20 the judge is shown
+        (the idle play keeps all 6); compared, as panels too, and never played on the reference."""
+        alone = judges.judge(judge(route="Tools/route.json"))
+        saved = {"reference": judges.selection(alone, self.made())}
+        text = judges.ask_text({"instruction": "x"}, alone, ["reference"], saved=saved)
+        self.assertNotIn("4 of", text)
+        self.assertIn("route file `Tools/route.json` (8 screenshots, after the plays above) on the developer's game: "
+                      "with the 14 pictures above, 6 of its 8 fit in the 20 the judge is shown", text)
+        both = judges.judge(judge(route="Tools/route.json", before=True))
+        text = judges.ask_text({"instruction": "x"}, both, ["reference"], saved=saved)
+        self.assertIn("and on the start (BEFORE), never on the reference, and shows them as panels too", text)
+
+    def test_a_comparing_judge_shows_its_panels_and_no_20_picture_limit(self):
+        """A judge with `before` or `reference` is shown every screenshot as a panel in the cloud: no 20 limit, and
+        ask.md lays out BEFORE | AFTER | REFERENCE for each side scored, "no screenshot" where a side has fewer."""
+        chk = judges.judge(judge(plays=[play(seconds=30)], shots=24, before=True, reference=True))
+        made = {"start": {"open_door": (None, {f"shot_{i:02d}.png": b"s" for i in range(23)})},
+                "reference": {"open_door": (None, {f"shot_{i:02d}.png": b"r" for i in range(24)})}}
+        saved = {side: judges.selection(chk, m) for side, m in made.items()}
+        self.assertEqual([len(saved[s][0][2]) for s in ("start", "reference")], [23, 24])
+        key = {"A": "start", "B": "reference"}
+        text = judges.ask_text({"instruction": "x"}, chk, list(saved), blind=True, saved=saved, key=key)
+        self.assertIn("## The panels the cloud's judge is shown", text)
+        self.assertIn("### A as AFTER", text)
+        self.assertIn("| task play open_door, 30 s, 1/24 | ![](start/open_door_01.png) | ![](blind/A/open_door_01.png) "
+                      "| ![](reference/open_door_01.png) |", text)
+        self.assertIn("| task play open_door, 30 s, 24/24 | no screenshot | no screenshot | "
+                      "![](reference/open_door_24.png) |", text)
+        alone = judges.judge(judge(plays=[play(seconds=30)], shots=24))
+        self.assertEqual(len(judges.selection(alone, made["reference"])[0][2]), 20, "alone: 20 at most")
+        self.assertNotIn("panels the cloud", judges.ask_text({"instruction": "x"}, alone, list(saved), saved=saved))
+
+
 class Alone(unittest.TestCase):
     def test_a_start_never_played_leaves_the_reference_to_score_alone(self):
         """A start that doesn't build by design is never played: the reference alone is saved, blind as A, and its

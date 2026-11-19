@@ -9,7 +9,14 @@ looks at them and answers the rubric:
   evenly through), and every screenshot its `shot` inputs take by name, in the order taken;
 - a judge with no plays is shown the shared idle play ("look", 20 s, 6 screenshots) and the drive (22 s, 8) on the
   task's play_scene;
-- a judge is shown 20 screenshots of a side at most.
+- a judge is shown 20 screenshots of a side at most, unless it compares (`before`, `reference`): the cloud then shows
+  every screenshot as a panel of the sides side by side (grade.side_by_side), with no limit.
+
+ask.md also gives what the cloud's prompt says of each play beside its pictures (its `readings`: the player's position
+track and the camera's measures, as judging.prompt words them), and for a judge that compares, the panels the cloud
+shows it: BEFORE (the start), AFTER (the side being scored) and REFERENCE at the same moment, as a table of the saved
+pictures. A developer's `route` isn't played here (a game has none until a developer writes one); ask.md says what the
+cloud adds with it.
 
 `save` writes them under <folder>/<check>/<side>/<play>_<nn>.png with <folder>/<check>/ask.md (the brief, the question,
 the rubric, what each picture is) and pictures.json (each picture's sha256); with `blind`, a copy of the sides under
@@ -37,6 +44,7 @@ from . import tasks
 JUDGE_IMAGES = 20  # a judge check's screenshots of one side at most (the grader's own limit)
 PLAY_SHOTS = 5  # a judge's screenshots of each of its own plays unless its `shots` says
 SHARED = {"look": ("idle play, 20 s, no input", 20, 6), "drive": ("scripted drive, 22 s", 22, 8)}
+ROUTE_SHOTS = 8  # a developer's route's screenshots in the cloud (unity/grade.py ROUTE_SHOTS)
 EVEN_SHOT = re.compile(r"^shot_\d{2,3}\.png$")  # an evenly spaced screenshot; any other is one a `shot` input took
 PICTURES = "pictures.json"  # each saved picture's sha256, by side: a side's scores stand while they are the same
 PASS, REQUIRED = 0.6, 0.5  # the judge's pass mark: weighted score at least PASS, no required item below REQUIRED
@@ -113,15 +121,21 @@ def chosen(names, shots):
     return [n for n in names if n in keep]
 
 
+def compares(check):
+    """Whether the cloud shows judge `check` its sides as panels: BEFORE and REFERENCE beside the developer's game."""
+    return bool(check.get("before") or check.get("reference"))
+
+
 def selection(check, played):
-    """[(play name, label, [(file name in the play, saved name)])] of one side, 20 screenshots at most in all.
-    `played`: {play name: (probe dict or None, {file: bytes})} of the plays made (a missing play shows nothing)."""
-    out, left = [], JUDGE_IMAGES
+    """[(play name, label, [(file name in the play, saved name)])] of one side, 20 screenshots at most in all unless
+    the judge compares (the cloud's panels have no limit). `played`: {play name: (probe dict or None, {file: bytes})}
+    of the plays made (a missing play shows nothing)."""
+    out, left = [], None if compares(check) else JUDGE_IMAGES
     for play, label, shots in plays(check):
         name = play if isinstance(play, str) else play["name"]
         probe, files = played.get(name, (None, {}))
         picked = chosen(taken(probe, files), shots)[:left]
-        left -= len(picked)
+        left = None if left is None else left - len(picked)
         out.append((name, label, [(n, f"{name}_{i + 1:02d}.png") for i, n in enumerate(picked)]))
     return out
 
@@ -158,8 +172,109 @@ def blind_copy(base, sides, rng=None, key=None):
     return key, notes
 
 
-def ask_text(task, check, sides, notes=(), blind=False, saved=None):
-    """ask.md: the brief, the question, the rubric, the plays and their pictures, how to answer."""
+def track_text(probe):
+    """The player's position track as the cloud's judge prompt gives it (judging.prompt): about ten of the probe's
+    track rows, as JSON cut at 1200 characters."""
+    track = (probe or {}).get("track") or [] if isinstance(probe, dict) else []
+    sampled = track[:: max(1, len(track) // 10)]
+    return json.dumps(sampled)[:1200] if sampled else "none (no player pawn)"
+
+
+def _median(values):
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2] if ordered else None
+
+
+def camera_text(probe):
+    """The camera's measures as the cloud's judge prompt gives them (judging.camera_text, word for word), or None. Its
+    formula is the Unreal grader's: it takes z as height and centimetres, so for a Unity game (y up, metres) its "m
+    above the player" is the z difference over 100, and its pitch is Unity's (positive looks down)."""
+    try:
+        camera = [row for row in (probe or {}).get("camera") or [] if len(row) == 7]
+        if not camera:
+            return None
+        pawn = {round(row[0], 2): row[1:] for row in (probe or {}).get("track") or [] if len(row) == 4}
+        pitch, fov = _median([row[4] for row in camera]), _median([row[6] for row in camera])
+        pairs = [(row[1:4], pawn[round(row[0], 2)]) for row in camera if round(row[0], 2) in pawn]
+        if not pairs:
+            return f"camera (median of {len(camera)} samples, no player pawn to measure from): pitch {pitch:.0f}°, " \
+                   f"field of view {fov:.0f}°"
+        above = _median([(c[2] - p[2]) / 100 for c, p in pairs])
+        away = _median([((c[0] - p[0]) ** 2 + (c[1] - p[1]) ** 2) ** 0.5 / 100 for c, p in pairs])
+        return (f"camera (median of {len(pairs)} samples): {above:.2f} m above the player, {away:.2f} m from it "
+                f"horizontally, pitch {pitch:.1f}°, field of view {fov:.0f}°")
+    except (ArithmeticError, TypeError, ValueError, AttributeError):
+        return None
+
+
+def readings(check, made):
+    """[(play label, its readings line)] of one side's plays as the cloud's judge prompt gives them beside its pictures:
+    the player's position track (seconds, x, y, z) and the camera's measures."""
+    out = []
+    for name, label, _ in selection(check, made):
+        probe = made.get(name, (None, {}))[0]
+        seen = camera_text(probe)
+        out.append((label, f"player position track (seconds, x, y, z in cm): {track_text(probe)}"
+                           + (f"; {seen}" if seen else "")))
+    return out
+
+
+def route_lines(check, saved):
+    """What the cloud adds to judge `check` with its developer's `route`, which isn't played here."""
+    if not check["route"]:
+        return []
+    said = (f"In the cloud the judge also plays the developer's route file `{check['route']}` ({ROUTE_SHOTS} "
+            "screenshots, after the plays above) on the developer's game")
+    if check["before"]:
+        said += " and on the start (BEFORE), never on the reference"
+    if compares(check):
+        said += ", and shows them as panels too"
+    else:
+        counts = [sum(len(p) for _, _, p in rows) for rows in (saved or {}).values()]
+        room = max(0, JUDGE_IMAGES - max(counts, default=0))
+        said += (f": with the {max(counts, default=0)} pictures above, {min(ROUTE_SHOTS, room)} of its "
+                 f"{ROUTE_SHOTS} fit in the {JUDGE_IMAGES} the judge is shown")
+    return ["", said + ". A game has no route until a developer writes one, so it isn't played here."]
+
+
+def panel_lines(check, saved, key):
+    """For a judge that compares: the panels the cloud shows it, one table per side scored, BEFORE (the start), AFTER
+    (that side, standing in for a developer's game) and REFERENCE (the reference) at each moment, as links to the
+    saved pictures; [] when the start or the reference wasn't saved. As the cloud's panels, a play's moments run to the
+    most any side has, and a side with fewer shows "no screenshot"."""
+    if not compares(check) or not {"start", "reference"} <= set(saved or {}):
+        return []
+    cols = [c for c, on in (("BEFORE", check["before"]), ("AFTER", True), ("REFERENCE", check["reference"])) if on]
+    lines = ["", "## The panels the cloud's judge is shown", "",
+             f"The cloud shows this judge each moment as one panel, {', '.join(cols)} left to right, every side named "
+             "above its picture. Score each side as the AFTER of its own panels."]
+    files = {side: {label: [s for _, s in picked] for _, label, picked in rows} for side, rows in saved.items()}
+    scored = [(letter, key[letter], f"blind/{letter}") for letter in sorted(key)] if key else \
+        [(side, side, side) for side in ("reference", "start")]
+    for title, side, after in scored:
+        where = {"BEFORE": ("start", "start"), "AFTER": (side, after), "REFERENCE": ("reference", "reference")}
+        lines += ["", f"### {title} as AFTER", "", "| play, moment | " + " | ".join(cols) + " |",
+                  "| --- |" + " --- |" * len(cols)]
+        for _, label, _ in saved[side]:
+            count = max(len(files[where[c][0]].get(label, [])) for c in cols)
+            for n in range(count):
+                cells = []
+                for c in cols:
+                    own, folder = where[c]
+                    shots = files[own].get(label, [])
+                    if n >= len(shots):
+                        cells.append("no screenshot")
+                    elif key and c == "AFTER" and any(shots[n] not in files[o].get(label, []) for o in key.values()):
+                        cells.append("not in the blind copy (the other side has no such picture)")
+                    else:
+                        cells.append(f"![]({folder}/{shots[n]})")
+                lines.append(f"| {label}, {n + 1}/{count} | " + " | ".join(cells) + " |")
+    return lines
+
+
+def ask_text(task, check, sides, notes=(), blind=False, saved=None, said=None, key=None):
+    """ask.md: the brief, the question, the rubric, the plays and their pictures, what the cloud's prompt says of each
+    play (`said`: {side: readings()}), the panels a comparing judge is shown, how to answer."""
     rubric = "\n".join(f"| {i['key']} | {'yes' if i['required'] else 'no'} | {i['weight']} | "
                        f"{i['criterion'].replace('|', '/')} |" for i in check["rubric"])
     lines = [f"# Judge check {check['name']}", "",
@@ -189,14 +304,23 @@ def ask_text(task, check, sides, notes=(), blind=False, saved=None):
         lines.append("Which pictures each side has, and any side's notes, are in `sides.md`: open it with the key.")
     else:
         lines += side_lines(saved)
-    if check["before"] or check["reference"]:
+    if compares(check):
         shown = [x for x, on in (("the start as BEFORE", check["before"]), ("the reference as REFERENCE",
                                                                              check["reference"])) if on]
         lines += ["", f"In the cloud the judge is also shown {' and '.join(shown)}, beside the developer's game, the "
-                      "same plays at the same moments."]
-    if check["route"]:
-        lines += ["", f"In the cloud the judge also plays the developer's route file `{check['route']}` and then shows "
-                      "4 of the idle play's 6 pictures. That play isn't made here."]
+                      "same plays at the same moments, as panels (below)."]
+    lines += route_lines(check, saved)
+    if said:
+        lines += ["", "## What the cloud's prompt says of each play", "",
+                  "Beside the pictures the cloud's judge reads these lines for each play, from the probe's own "
+                  "samples of it:"]
+        order = [(letter, key[letter]) for letter in sorted(key)] if key else [(s, s) for s in said]
+        named = [("BEFORE (the start)", "start")] if check["before"] else []
+        named += [("REFERENCE (the reference)", "reference")] if check["reference"] else []
+        for title, side in order + [(t, s) for t, s in named if key]:
+            for label, text in said.get(side, []):
+                lines.append(f"- {title}, {label}: {text}")
+    lines += panel_lines(check, saved, key)
     lines += ["", "## How to answer", ""]
     if blind:
         lines += ["`blind/A/` and `blind/B/` hold the pictures both sides have, under the same names; which is which "
@@ -373,7 +497,9 @@ def save(task, check, played, folder, blind=False, notes=(), rng=None, held=None
         elif (held or {}).get("raw") and key == old:  # an answer file that can't be read stays as written, to fix
             (base / "blind" / ANSWERS).write_bytes(held["raw"])
             notes.append(f"blind/{ANSWERS}: {held['problem']}")
-    (base / "ask.md").write_text(ask_text(task, check, list(saved), notes, key is not None, saved), encoding="utf-8")
+    said = {side: readings(check, made) for side, made in played.items()}
+    (base / "ask.md").write_text(ask_text(task, check, list(saved), notes, key is not None, saved, said, key),
+                                 encoding="utf-8")
     if key is not None:  # what would unblind the scorer, kept beside the key
         (base / "sides.md").write_text("\n".join(["# Each side's pictures", ""] + side_lines(saved)
                                                  + (["", "## Notes", ""] + [f"- {n}" for n in notes] if notes else []))

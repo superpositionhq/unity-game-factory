@@ -61,7 +61,10 @@ it).
   checker never ports or patches a game, and refuses any other version. It works on scratch copies: a newer editor may
   re-import a copy and rewrite its version files (`ProjectVersion.txt`, the package lock), never the game's own. What
   is read off a drawn frame can move by a patch; the start and the reference are read by the same editor in the same
-  check, so a calibrated threshold stays consistent. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
+  check, so a calibrated threshold stays consistent. The Lab's grader differs here: its worker has one editor, the
+  newest 6000.3 patch its games use (its CONTRACT.md, "The editor a copy is opened with"), so it may open a task
+  with a newer patch than the one the check used. A reading of a drawn frame (a colour, a `seen` crop) sits close to
+  its threshold at your peril: leave room, as a calibrated threshold between the start and the reference does. The build is a Mono player, so the IL2CPP module and Visual Studio's C++ workload are not needed.
 - **An active Unity licence** (Unity Hub, signed in). A batchmode Unity run without one exits with code 198 (its log
   says `No valid Unity Editor license`) and the check of that task stops with an ERROR: sign in to Unity Hub again and
   rerun. It is never a game bug.
@@ -225,7 +228,10 @@ fix, which must pass it, and the checker asks no model. The check plays the judg
 reference (its own `plays`, else `look` and `drive`; a play a probe names is the same play, played once, with the most
 screenshots a judge showing it asks) and saves the screenshots the Lab's judge would be shown
 ([task-probes.md](task-probes.md) section 3.2) under `<task>\judge-shots\<check>\`: `start\` and `reference\`
-(`<play>_<nn>.png`, in the order taken), `ask.md` (the brief, the question, the rubric and what each picture is),
+(`<play>_<nn>.png`, in the order taken), `ask.md` (the brief, the question, the rubric, what each picture is, the
+lines the Lab's prompt gives beside each play: the player's position track and the camera's measures, and for a judge
+with `before` or `reference` the BEFORE, AFTER and REFERENCE panels the Lab's judge is shown, one table per side
+scored; what a developer's `route` would add, since none is played here),
 `pictures.json` (each picture's sha256) and a blind copy, `blind\A\` and `blind\B\`, whose sides are in
 `blind\key.json`, with `sides.md` (each side's own pictures and notes, which the ask of a blind copy leaves out).
 Until it is scored, a **required** judge keeps the task from VALID: the reason and the line in `progress.txt` say

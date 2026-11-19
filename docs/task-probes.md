@@ -1759,9 +1759,13 @@ the check names up to 4 task plays (section 1.1) in `plays`, and its screenshots
 
 The task check asks no model. It plays each `judge` check's plays on the start and on the reference and saves the
 screenshots the judge would be shown: its `shots` evenly spaced ones of each play and every named one, 20 at most, or
-the 6 of `look` and the 8 of `drive` for a check without `plays` (the developer's `route` isn't played locally). They
-go under `<task>\judge-shots\<check>\start\` and `reference\`, named `<play>_<nn>.png` in the order taken, with
-`ask.md` (the brief, the question, the rubric, what each picture is) and a blind copy: `blind\A\` and `blind\B\` hold
+the 6 of `look` and the 8 of `drive` for a check without `plays`. A check with `before` or `reference` is shown every
+screenshot in the Lab's grader, as panels of the sides side by side, with no limit of 20, and so here. The developer's
+`route` isn't played locally: in the Lab's grader its 8 screenshots come after the plays, on the developer's game and
+(with `before`) the start, never the reference; alone they fill the 20 left after the plays. They go under
+`<task>\judge-shots\<check>\start\` and `reference\`, named `<play>_<nn>.png` in the order taken, with `ask.md` (the
+brief, the question, the rubric, what each picture is, the lines the Lab's prompt gives beside each play, the
+panels of a judge that compares, one table per side scored) and a blind copy: `blind\A\` and `blind\B\` hold
 the same pictures, and `blind\key.json` says which side each is. A play a probe names is the same play and is played
 once.
 

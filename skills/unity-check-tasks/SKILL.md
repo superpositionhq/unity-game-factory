@@ -44,7 +44,9 @@ start from the reference, never that it reads what the instruction asks)_
   installed 6000.3 patch above it, never an older one; with none, the check is an ERROR naming the patch to install.
   It opens a scratch copy of each commit, never the game, so a newer editor rewriting a copy's version files leaves
   the game as committed; a reading of what is drawn can move by a patch, the same for both sides. _(why: the two
-  cases are compared only when one editor reads both)_ Both commits' Git LFS objects are in the local store
+  cases are compared only when one editor reads both)_ The Lab's grader opens every task with its one editor, the
+  newest 6000.3 patch its games use, which may be newer than the one here: a threshold on what is drawn needs room
+  for that. Both commits' Git LFS objects are in the local store
   (`git -C <UGF_ROOT>\games\<slug> lfs fetch origin <commit>`), the repo's drive has room above the machine's floor
   (50 GB unless the machine config says otherwise), and the session is an interactive Windows session (the plays run
   on a desktop of their own).
