@@ -215,8 +215,8 @@ Never make a check easier to get a case right (unity-write-tasks skill, section 
 | `the play's input did not land: ...`, or `task error: ... in the reference's play X, an input did not land` | an input missed: a click before its button showed, a second click on a button already gone, a click on a control in a menu, tab or screen the play never opened (a click scrolls only its own scroll area), a click or tap on a control under something that takes the pointer (its row says `covered by another control`), a shot whose event never came (kind `shot_when`, `its event never happened`), a confirmation that shows only in some states, a click on a button shown but disabled (its row says `shown but disabled`), a teleport next to nothing, a key the probe has no control for, a stage nothing took | wait for the button (or until the game enables it), click by the caption the start has, written exactly as shown, drop a repeated click, open the menu, tab or screen first, close what covers the control first (no mark allows `covered by another control`), give a shot's event a measure and a `within` the reference meets, mark a click that may rightly find nothing `"optional": true` (never one the play needs), mark a click on a button the instruction says stays locked `"disabled": true` (never one the play needs to press), teleport next to something that is there; read `inputs_missed` and `probe.log` |
 | the reference's play never gets past a menu or a text field, and no input missed | the cursor clicked a control drawn with `OnGUI` (IMGUI takes the operating system's mouse and keys, never a play's), or keys went to no field (it wasn't clicked first, or it is an `OnGUI` `GUI.TextField`) | reach the state without the IMGUI click (a key the game binds in its Input System actions, a scenario, a teleport, a `set`); click a uGUI or UI Toolkit field before its keys; `probe.log` says `key <path> to <field>` for each key a field took |
 | `judge X: shots saved ..., answer needed` | a required judge isn't scored yet | score it blind (section 4) and check again |
-| `reference fails judge X on your scores` / `start already passes judge X on your scores` | the rubric or the plays don't separate the fix from the start | reword the item so it is decidable from the screenshots, or give the judge plays that reach the state; never ask less of the solution |
-| `seen X: crops saved ..., answer needed`, or `nothing the check reads was read on the reference` | a required `seen` probe isn't read, or its crop shows nothing it reads | read it blind; if the reference's crop holds no such text, take the shot at a stiller moment, loosen the rect, or read the text from the UI (`ui`, `widgets`) |
+| `reference fails judge X on your scores` / `start already passes judge X on your scores` | the pictures don't show what the item asks, or the item isn't decidable from them | rewrite the judge's plays so they reliably show it (below, "When a visual check's pictures don't show what is asked"); reword an item only into the instruction's own words; never drop, repurpose or loosen the check or its rubric |
+| `seen X: crops saved ..., answer needed`, or `nothing the check reads was read on the reference` | a required `seen` probe isn't read, or its crop shows nothing it reads | read it blind; if the reference's crop holds no such text, take the shot at a stiller moment or when the text's own event happens (`when`), widen the rect to where a build may draw it, or read the text from the UI (`ui`, `widgets`); the text asked for stays as the instruction words it |
 | `uncalibrated: X: the start and the reference both measure N` | the probe doesn't see the change | measure something the fix changes, or use a literal for a count or a fact |
 | `uncalibrated: X: the reference measured nothing (...)` | the reference's play didn't reach what the probe reads | read the reason in brackets and fix the play or the selection |
 | `uncalibrated: X: the start measured nothing (...) and the reference measured 0` | a reference of 0 leaves no margin to put a threshold in | measure what the fix makes non-zero, or a literal |
@@ -230,6 +230,26 @@ Never make a check easier to get a case right (unity-write-tasks skill, section 
 
 More causes, line by line: [docs/task-check.md](../../docs/task-check.md), "Common reasons and fixes".
 
+### When a visual check's pictures don't show what is asked
+
+A judge or a `seen` probe fails because its screenshot doesn't show the thing the instruction asks for: the moment
+passed, the screen wasn't open yet, the camera faced elsewhere. Fix what makes the picture, never what reads it:
+
+- **Rewrite the play so it reliably produces that screenshot**: its inputs (reach the screen, open the panel, stand
+  where the thing is seen), and its shot moments (a named `shot` right after the input that triggers it; where the
+  build decides the moment, a shot with `when` on the event itself, and a play sampled with `"every": 0.1`). Run it
+  on both builds and look at the pictures.
+- **Never drop, repurpose or loosen the check or its rubric.** The check keeps deciding the same sentence of the
+  instruction, as strictly: no item removed or made optional, no item pointed at something easier to photograph, no
+  "wording may vary" or "something like" against an instruction that names the wording, the count or the look.
+- **The game itself may be changed so the asked thing really appears on screen.** When the reference does not show
+  what the instruction asks (it happens off screen, behind another control, for a single frame, or not at all), fix
+  the game in its own repository, as a commit like any other, and point the task's reference at the commit that
+  shows it; then check the task again.
+
+_(why: a check that failed because of its picture is still the only thing that decides its ask; a weaker check passes
+solutions that don't do what the instruction says, while a better play costs a correct solution nothing)_
+
 ## 8. After every fix
 
 1. Edit the task file on the tasks branch and commit it.
@@ -239,3 +259,19 @@ More causes, line by line: [docs/task-check.md](../../docs/task-check.md), "Comm
 4. Score again any judge or `seen` probe whose pictures changed.
 5. Repeat until the verdict is VALID and both cases are right on the final file; then the task can ship. A task you
    can't get right without asking less of the solution is dropped, never eased.
+
+## 9. Fixing a task that was returned
+
+A task the Lab sends back is fixed from what came back, not from memory:
+
+- **Start from the task files as returned**: the Lab's current version of each task (it may hold changes made since
+  you handed it in). Put those files on the tasks branch first, then edit them. _(why: a fix made on an older copy
+  silently undoes every change made since)_
+- **Touch only the tasks listed.** Every other task of the game stays byte for byte as it is, even one you would now
+  write differently. _(why: a task that changed without being asked to has to be reviewed and checked again, and one
+  that already passed can fail)_
+- **Hand the fix in with a note of what changed and why**: one line per task and per change (which check, play,
+  sentence or commit, what it was, what it is, the reason), in the task's `tasks-workflow.jsonl` row and in the
+  message you return with. _(why: the reviewer reads the change against the reason it was returned for, and an
+  unexplained change reads as a new fault)_
+- The rules of sections 7 and 8 hold as for any fix: both cases checked again on the final file, nothing made easier.

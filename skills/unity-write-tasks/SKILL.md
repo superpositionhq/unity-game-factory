@@ -510,8 +510,11 @@ proof that a correct solution can pass)_
 **The check asks no model, so you score the judges.** A required judge holds the task until you have scored its saved
 screenshots blind, every rubric item of the start and the reference from 0 to 1 (unity-check-tasks skill, "Answer the
 judges and the `seen` probes, blind"): the reference must pass it and the start must fail every required item (pass
-it, for a judge in `still_works`). If either doesn't, reword the item or fix the plays so the pictures show the state,
-never by asking less of the solution. Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
+it, for a judge in `still_works`). If either doesn't because the pictures don't show what is asked, rewrite the
+play (its inputs and shot moments; a shot with `when` where the build decides the moment) so it reliably shows it, or
+fix the game so the asked thing really appears on screen; never drop, repurpose or loosen the check or its rubric
+(unity-check-tasks skill, section 7). A task the Lab returns is fixed from the files as returned, only the tasks
+listed, with a note of what changed and why (unity-check-tasks skill, section 9). Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
 
 ### Every ask has a check
 
@@ -784,6 +787,8 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a UI element or component name guessed | read the names from the code and assets at `seed.commit` |
 | a probe names a component, tag or scene only the reference has, so a fair build that names it otherwise reads as absent | select what the thread creates by what it does or where it is; the validator refuses a reference-only name |
 | a run writes the feature but never runs the game to see it, and the task has no probe of the moment | a play that triggers each piece of feedback, and a probe of what the player sees then |
+| a visual check fails because its screenshot doesn't show what is asked, and the check or its rubric is dropped, repurposed or loosened ("wording may vary" against an instruction that names the wording) | rewrite the play so it reliably makes that screenshot (inputs, shot moments, `when` on the event), or fix the game so the thing really appears; the check and its rubric stay (unity-check-tasks skill, section 7) |
+| a returned task fixed from an old copy, with other tasks touched and no word of what changed | start from the task files as returned, touch only the tasks listed, note what changed and why (unity-check-tasks skill, section 9) |
 | a judge's pictures come from views the game itself lists, so a build could dress only those spots | the task's own tour: `scene`, `teleport_to` what the build made, `view`, named `shot` inputs (docs/task-probes.md, section 1.1); never a view list from the game's files |
 | quoting the person | write from context |
 | a reference that crashes | the reference must compile and run |
