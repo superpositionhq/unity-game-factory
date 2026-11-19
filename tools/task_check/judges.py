@@ -274,16 +274,18 @@ def kept(folder, task):
 
 
 def weighted(check, scores):
-    """A side's weighted score over the rubric."""
+    """A side's weighted score over the rubric, each score held to 0..1, in the rubric's order: the Lab's judging.score
+    to the last bit, so a score at the pass mark falls on the same side of it there and here."""
     total = sum(i["weight"] for i in check["rubric"])
-    return sum(i["weight"] * scores[i["key"]] for i in check["rubric"]) / total if total else 0.0
+    return sum(i["weight"] * max(0.0, min(1.0, float(scores[i["key"]]))) for i in check["rubric"]) / total \
+        if total else 0.0
 
 
 def passes(check, scores):
-    """Whether scores pass a judge, as its model's would: weighted score at least PASS, no required item below
-    REQUIRED."""
-    return weighted(check, scores) >= PASS - 1e-9 and all(scores[i["key"]] >= REQUIRED for i in check["rubric"]
-                                                           if i["required"])
+    """Whether scores pass a judge, as its model's sample would (the Lab's judging.sampled): weighted score at least
+    PASS exactly, with no tolerance, and no required item below REQUIRED."""
+    return weighted(check, scores) >= PASS and all(float(scores[i["key"]]) >= REQUIRED for i in check["rubric"]
+                                                    if i["required"])
 
 
 def decide(check, record):

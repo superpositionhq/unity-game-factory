@@ -312,6 +312,16 @@ class Decide(unittest.TestCase):
         self.assertFalse(judges.passes(found, {"door_open": 0.4, "lit": 1}), "a required item below 0.5")
         self.assertFalse(judges.passes(found, {"door_open": 1, "lit": 0.3}), "weighted 0.53, under 0.6")
 
+    def test_the_pass_mark_is_the_cloud_judges_to_the_last_bit(self):
+        """No tolerance: a weighted score that falls a hair under 0.6 in floating point fails, as the Lab's
+        judging.sampled fails it (`value >= PASS`); a score outside 0..1 counts as the cloud clamps it."""
+        found = judges.judge({**judge(), "rubric": [{"key": k, "criterion": "c", "weight": w} for k, w in
+                                                    (("a", 3), ("b", 2), ("c", 2))]})
+        scores = {"a": 0.3, "b": 0.7, "c": 0.95}
+        self.assertEqual(judges.weighted(found, scores), 0.5999999999999999)
+        self.assertFalse(judges.passes(found, scores))
+        self.assertEqual(judges.weighted(found, {"a": 2, "b": 0.6, "c": 0}), 0.6)
+
     def test_the_start_fails_it_but_passes_a_judge_of_what_still_works(self):
         fails, passes_ = {"door_open": 0, "lit": 0}, {"door_open": 1, "lit": 1}
         self.assertEqual(self.decide("fixed", fails, passes_), [])
