@@ -1440,6 +1440,43 @@ class Units(unittest.TestCase):
                                       "0 on every run and fails an actions_judge check on every run) "
                                       '(unity-write-tasks section 5)'])
 
+    def test_one_look_judge(self):
+        """The one look judge (owner, 2026-11-19): `looks_as_asked` with asked_ and keep_ items sits in an outcome
+        milestone with weight; with keep_ items alone, in still_works with weight 0; every item marked and required;
+        no other required judge in still_works. A task whose judges mark no key (the older pair) is not held to it."""
+        def errs(t):
+            rep = vg.Report()
+            self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
+            return [m for m in errors(rep) if 'judge looks_as_asked' in m]
+
+        def look(*keys, **over):
+            return {'name': 'looks_as_asked', 'kind': 'judge', 'needs': ['boots_clean'], 'before': True,
+                    'reference': True, 'question': 'Does it look as asked?',
+                    'rubric': [{'key': k, 'criterion': 'The sign is lit.', 'required': True} for k in keys], **over}
+        old = task('a' * 40, 'b' * 40)
+        old['milestones'][2]['checks'].append(look('sign_lit'))
+        old['milestones'][3]['checks'].append(dict(look('door_red', weight=0), name='still_looks', reference=False))
+        self.assertEqual(errs(old), [])                          # the older pair stands
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][2]['checks'].append(look('asked_sign_lit', 'keep_door_red'))
+        self.assertEqual(errs(t), [])
+        t['milestones'][3]['checks'].append(dict(look('door_red', weight=0), name='still_looks', reference=False))
+        self.assertTrue(any("put the looks of required judge(s) ['still_looks'] in it" in e for e in errs(t)), errs(t))
+        t = task('a' * 40, 'b' * 40)
+        bad = look('asked_sign_lit', 'door_red', weight=0, before=False)
+        bad['rubric'][0]['required'] = False
+        t['milestones'][2]['checks'].append(bad)
+        found = errs(t)
+        for what in ("item(s) ['door_red'] are marked neither", "item(s) ['asked_sign_lit'] are not required",
+                     'never still_works, with a weight above 0', '("before": true, "reference": true)'):
+            self.assertTrue(any(what in e for e in found), (what, found))
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][3]['checks'].append(look('keep_door_red', weight=0, reference=False))
+        self.assertEqual(errs(t), [])                            # keep items alone: in still_works, weight 0
+        t = task('a' * 40, 'b' * 40)
+        t['milestones'][2]['checks'].append(look('keep_door_red'))
+        self.assertTrue(any('keep_ items only: it sits in still_works with "weight": 0' in e for e in errs(t)))
+
     def test_package_check_refused(self):
         """A `package` check never passes in a Unity task (the Lab's Unity grader fails it closed on every run), so the
         validator refuses one, required or not (owner, 2026-11-19)."""

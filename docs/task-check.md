@@ -198,7 +198,8 @@ a build's or a play's time limit, a task error, a retired check) is always the g
   runs: probes, `log_absent`, `file_exists` and `package` alike (**local only**: the grader never grades the reference
   as a run; but a required check the reference fails is one no solution like the reference can pass);
 - every required `judge` check is scored by you, blind, and the scores hold: the reference passes it and the start
-  fails it (passes it, for a judge in `still_works`), as below (**local only**: the grader's model judges runs only);
+  fails it (passes it, for a judge in `still_works`; the look judge's `keep_` items pass on the start, its `asked_`
+  items fail there), as below (**local only**: the grader's model judges runs only);
 - every probe has a threshold, a `"required": false` one too: a probe the checker can't calibrate (below) makes the
   Lab's grade of the task fail whole, so it is a reason, never a note;
 - (**local only**) the start fails every required probe outside `still_works` (or doesn't build by design): each is
@@ -255,8 +256,11 @@ Until it is scored, a **required** judge keeps the task from VALID: the reason a
 
 2. Check the task again. It reads the scores and holds the judge to them: the reference must pass it (weighted score
    at least 0.6, no required item below 0.5), and the start must fail every required item (below 0.5; a judge with no
-   required item, a weighted score under 0.6), or pass it, for a judge in `still_works`. Otherwise the reason says
-   which (`reference fails judge X on your scores (...)`, `start already passes judge X on your scores (...)`): fix
+   required item, a weighted score under 0.6), or pass it, for a judge in `still_works`. The look judge
+   `looks_as_asked` with marked keys is held item by item: each `asked_` item fails on the start, each `keep_` item
+   passes there, and with `keep_` items alone it passes as a judge in `still_works`. Otherwise the reason says
+   which (`reference fails judge X on your scores (...)`, `start already passes judge X on your scores (...)`,
+   `start fails the keep item(s) ... of judge X on your scores (...)`): fix
    the rubric or the plays (never by easing what the task asks), and check again. The line then says `judge <check>:
    scored in blind/answers.json`.
 3. Write both sides' scores in the task's notes too (its `tasks-workflow.jsonl` row on the tasks branch).

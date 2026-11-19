@@ -165,7 +165,11 @@ hold each case to this:
   X` or an empty selection;
 - every required `still_works` probe passes, and every check the start passes carries `"weight": 0`;
 - every required judge fails on your blind scores of the start (each required item below 0.5), and passes, for a
-  judge in `still_works`.
+  judge in `still_works`. The one look judge `looks_as_asked` is read item by item by its keys: each `asked_` item
+  below 0.5 on the start and each `keep_` item at 0.5 or more (a look that must stay as it was); with `keep_` items
+  alone it passes on the start, as a judge in `still_works` (unity-write-tasks skill, section 5). A `start fails the
+  keep item(s) X` line means the start's pictures don't show the kept look or the item asks more than the brief:
+  fix the plays or reword the item into the brief's own words, never drop it.
 
 **The oracle case is right when**
 
@@ -230,6 +234,7 @@ Fix what the pattern names:
 | the reference's play never gets past a menu or a text field, and no input missed | the cursor clicked a control drawn with `OnGUI` (IMGUI takes the operating system's mouse and keys, never a play's), or keys went to no field (it wasn't clicked first, or it is an `OnGUI` `GUI.TextField`) | reach the state without the IMGUI click (a key the game binds in its Input System actions, a scenario, a teleport, a `set`); click a uGUI or UI Toolkit field before its keys; `probe.log` says `key <path> to <field>` for each key a field took |
 | `judge X: shots saved ..., answer needed` | a required judge isn't scored yet | score it blind (section 4) and check again; when its pictures change on every run, score them and settle that run (`--settle`) |
 | `reference fails judge X on your scores` / `start already passes judge X on your scores` | the pictures don't show what the item asks, or the item isn't decidable from them | rewrite the judge's plays so they reliably show it (below, "When a visual check's pictures don't show what is asked"); reword an item only into the instruction's own words; never drop, repurpose or loosen the check or its rubric |
+| `start fails the keep item(s) X of judge looks_as_asked on your scores` | the start's pictures don't show the look the brief names to keep, or the item asks more than the brief | rewrite the judge's plays so the start's pictures show it; reword the item only into the instruction's own words; never drop or loosen it |
 | `seen X: crops saved ..., answer needed`, or `nothing the check reads was read on the reference` | a required `seen` probe isn't read, or its crop shows nothing it reads | read it blind; if the reference's crop holds no such text, take the shot at a stiller moment or when the text's own event happens (`when`), widen the rect to where a build may draw it, or read the text from the UI (`ui`, `widgets`); the text asked for stays as the instruction words it |
 | `uncalibrated: X: the start and the reference both measure N` | the probe doesn't see the change | measure something the fix changes, or use a literal for a count or a fact |
 | `uncalibrated: X: the reference measured nothing (...)` | the reference's play didn't reach what the probe reads | read the reason in brackets and fix the play or the selection |

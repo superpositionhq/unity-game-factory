@@ -1589,6 +1589,59 @@ def retired_checks(t):
                                         and isinstance(c.get('measure'), dict) and c['measure'].get('probe') == 'trace')]
 
 
+LOOKS = 'looks_as_asked'     # the one look judge (owner, 2026-11-19): its items' keys say asked_ or keep_
+
+
+def look_judge_errors(t):
+    """What breaks the one look judge's rules (unity-write-tasks section 5): a `looks_as_asked` judge whose rubric keys
+    start `asked_` (a look the brief asks for) or `keep_` (a look that must stay as it was) has every key marked and
+    every item required; with an asked item it sits outside still_works with weight and compares with the start and the
+    reference, with keep items alone it sits in still_works with weight 0 and compares with the start; and no other
+    required judge sits in still_works. A task whose judges mark no key keeps the older pair and is not held here."""
+    errs = []
+    for m in t.get('milestones') or []:
+        if not isinstance(m, dict):
+            continue
+        for c in m.get('checks') or []:
+            if not (isinstance(c, dict) and c.get('kind') == 'judge' and c.get('name') == LOOKS):
+                continue
+            keys = [i.get('key', '') for i in c.get('rubric') or [] if isinstance(i, dict)]
+            asked = [k for k in keys if k.startswith('asked_')]
+            keep = [k for k in keys if k.startswith('keep_')]
+            if not (asked or keep):
+                continue
+            where = f'judge {LOOKS}'
+            if len(asked) + len(keep) < len(keys):
+                errs.append(f'{where}: item(s) {[k for k in keys if k not in asked + keep]} are marked neither: every '
+                            'key starts asked_ (a look the brief asks for) or keep_ (a look that must stay as it was)')
+            loose = [i.get('key') for i in c.get('rubric') or [] if isinstance(i, dict) and not i.get('required')]
+            if loose:
+                errs.append(f'{where}: item(s) {loose} are not required: every item of the look judge is '
+                            '"required": true')
+            if not c.get('required', True):
+                errs.append(f'{where} is "required": false: the look judge is required')
+            if asked:
+                if m.get('name') == 'still_works' or c.get('weight', 1) <= 0:
+                    errs.append(f'{where} has asked_ item(s): it sits in an outcome milestone, never still_works, '
+                                'with a weight above 0')
+                if not (c.get('before') and c.get('reference')):
+                    errs.append(f'{where} has asked_ item(s): it compares with the start and the reference '
+                                '("before": true, "reference": true)')
+            else:
+                if m.get('name') != 'still_works' or c.get('weight', 1) != 0:
+                    errs.append(f'{where} has keep_ items only: it sits in still_works with "weight": 0')
+                if not c.get('before'):
+                    errs.append(f'{where} has keep_ items only: it compares with the start ("before": true)')
+            others = [x.get('name') for mm in t.get('milestones') or [] if isinstance(mm, dict)
+                      and mm.get('name') == 'still_works' for x in mm.get('checks') or []
+                      if isinstance(x, dict) and x.get('kind') == 'judge' and x.get('name') != LOOKS
+                      and x.get('required', True)]
+            if others:
+                errs.append(f'{where} marks its items, so it is the task\'s one look judge: put the looks of required '
+                            f'judge(s) {others} in it as keep_ items')
+    return errs
+
+
 def package_checks(t):
     """The task's `package` checks. Refused (owner, 2026-11-19): the Lab's Unity grader can't package a game and fails a
     package check closed on every run, so no solution passes it; removing one is a repair, never easing."""
@@ -1616,6 +1669,8 @@ def check_task(rep, a, label, t, game, has_commit):
         rep.error(a, f'{label}: check(s) {retired}: `actions_judge` checks and `trace` probes are retired: remove it '
                      f'(the Lab\'s grader gives a task with a trace probe reward 0 on every run and fails an '
                      f'actions_judge check on every run) (unity-write-tasks section 5)')
+    for e in look_judge_errors(t):
+        rep.error(a, f'{label}: {e} (unity-write-tasks section 5)')
     packaged = package_checks(t)
     if packaged:
         rep.error(a, f'{label}: check(s) {packaged}: a Unity task carries no `package` check: the Lab\'s Unity grader '

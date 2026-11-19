@@ -52,6 +52,18 @@ PENDING = "shots saved for {sides}, answer needed"
 ANSWERS = "answers.json"  # under blind/: the writer's scores
 ANSWERED = "scored in blind/answers.json"
 STILL_WORKS = "still_works"  # a judge of what still works passes on the start too
+ASKED, KEEP = "asked_", "keep_"  # the one look judge's items (unity-write-tasks section 5): a look the brief asks for,
+# which the start fails, and a look that must stay as it was, which the start passes; a task without them keeps the
+# older pair (looks_as_asked and a judge in still_works), each item read by its judge's milestone
+
+
+def marked(check):
+    """{"asked": [keys], "keep": [keys]} of a judge whose rubric keys say which each item is (asked_..., keep_...),
+    else None (an older judge: its milestone says what the start does)."""
+    keys = [i["key"] for i in check["rubric"]]
+    if not any(k.startswith((ASKED, KEEP)) for k in keys):
+        return None
+    return {"asked": [k for k in keys if k.startswith(ASKED)], "keep": [k for k in keys if k.startswith(KEEP)]}
 
 
 def judge(c):
@@ -328,7 +340,11 @@ def ask_text(task, check, sides, notes=(), blind=False, saved=None, said=None, k
                   "developer's game, then open the key.", ""]
     if "reference" in sides:
         example = "{" + ", ".join(f'"{i["key"]}": 0' for i in check["rubric"]) + "}"
-        start = ("the start passes it too (a judge of what still works)" if check.get("group") == STILL_WORKS else
+        marks = marked(check)
+        start = ("the start fails every required `asked_` item and passes every `keep_` item" if marks and
+                 marks["asked"] and marks["keep"] else
+                 "the start passes it too (a judge of what still works)" if check.get("group") == STILL_WORKS or
+                 (marks and not marks["asked"]) else
                  "the start fails every required rubric item (below " + f"{REQUIRED})") if "start" in sides else None
         lines += [f"Write each side's scores, 0 to 1 per item, into `blind/{ANSWERS}`"
                   + (" before opening the key" if blind else "") + ":", "", "```json",
@@ -426,9 +442,20 @@ def decide(check, record):
         why.append(f"reference fails judge {check['name']} on your scores (weighted "
                    f"{weighted(check, scores['reference']):.2f}" + (f"; below {REQUIRED}: {', '.join(low)}" if low
                                                                    else f", under {PASS}") + ")")
-    if "start" in scores:
+    marks = marked(check)
+    if "start" in scores and marks and marks["asked"]:
+        # one look judge with asked and keep items: the start fails each required asked item and passes each keep
+        start, required = scores["start"], {i["key"] for i in check["rubric"] if i["required"]}
+        held = [k for k in marks["asked"] if k in required and start[k] >= REQUIRED]
+        lost = [k for k in marks["keep"] if k in required and start[k] < REQUIRED]
+        if held:
+            why.append(f"start already passes judge {check['name']} on your scores ({', '.join(held)})")
+        if lost:
+            why.append(f"start fails the keep item(s) {', '.join(lost)} of judge {check['name']} on your scores (a "
+                       "look that must stay as it was passes on the start)")
+    elif "start" in scores:
         start = scores["start"]
-        if check.get("group") == STILL_WORKS:
+        if check.get("group") == STILL_WORKS or marks:  # keep items alone: a judge of what still works
             if not passes(check, start):
                 why.append(f"start fails still-works judge {check['name']} on your scores (weighted "
                            f"{weighted(check, start):.2f})")

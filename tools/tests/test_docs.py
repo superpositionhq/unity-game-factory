@@ -989,9 +989,9 @@ class Examples(unittest.TestCase):
 
     def test_the_whole_example_task(self):
         """unity-write-tasks section 9: the one whole task follows every rule it shows, not only the schema and the
-        validator's: at least 3 weighted outcome probes, the looks_as_asked judge in the outcome milestone with an item
-        for the brief's look, a still_works probe or judge for each keep and every still_works check of weight 0, no
-        calibrated threshold (its asks are tunings, relative to the start), and a judge's play written as the probe's."""
+        validator's: at least 3 weighted outcome probes, the one look judge in the outcome milestone with an asked_ item
+        quoting the brief and a keep_ item, a still_works probe of weight 0 for each other keep, no calibrated
+        threshold (its asks are tunings, relative to the start), and a judge's play written as the probe's."""
         text = read(SKILL)
         body = next(b for lang, _, b in fences(text[text.index('## 9. Examples'):]) if lang == 'json')
         t = json.loads(body)
@@ -999,19 +999,23 @@ class Examples(unittest.TestCase):
         groups = {m['name']: m['checks'] for m in t['milestones']}
         outcome = [c for c in groups['fixed'] if c['kind'] == 'probe' and c.get('weight', 1) > 0]
         self.assertGreaterEqual(len(outcome), 3)
-        looks = [c for c in groups['fixed'] if c['kind'] == 'judge']
+        looks = [c for m in t['milestones'] for c in m['checks'] if c['kind'] == 'judge']
         self.assertEqual([c['name'] for c in looks], ['looks_as_asked'])
+        self.assertIn(looks[0], groups['fixed'])
+        self.assertGreater(looks[0].get('weight', 1), 0)
         self.assertTrue(looks[0]['before'] and looks[0]['reference'])
+        self.assertEqual(sorted(i['key'].split('_')[0] for i in looks[0]['rubric']), ['asked', 'keep'])
         for item in looks[0]['rubric']:
             self.assertTrue(item['required'])
-            self.assertIn(item['criterion'].split(' is ')[-1].rstrip('.').split(' against')[0], t['instruction'])
-        self.assertTrue(all(c.get('weight', 1) == 0 for c in groups['still_works']))
-        self.assertEqual(len(groups['still_works']), 4)   # throttle, steering, speed readout, the lamps
-        self.assertTrue(any(c['kind'] == 'judge' and c.get('before') for c in groups['still_works']))
+            words = item['criterion'].split(' is ')[-1].split(' still ')[-1].split(' against')[0].split(' (')[0]
+            self.assertIn(words.rstrip('.'), t['instruction'])
+        self.assertTrue(all(c.get('weight', 1) == 0 and c['kind'] == 'probe' for c in groups['still_works']))
+        self.assertEqual(len(groups['still_works']), 3)   # throttle, steering, speed readout
         self.assertNotIn('calibrate', json.dumps(t))
         plays = {c['play']['name']: c['play'] for c in outcome if isinstance(c['play'], dict)}
         for play in looks[0]['plays']:
-            self.assertEqual(play, plays[play['name']])
+            if play['name'] in plays:
+                self.assertEqual(play, plays[play['name']])
 
 
 class Paths(unittest.TestCase):

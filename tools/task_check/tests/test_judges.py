@@ -395,6 +395,29 @@ class Decide(unittest.TestCase):
         self.assertEqual(self.decide("still_works", fails, passes_),
                          ["start fails still-works judge door_looks_open on your scores (weighted 0.00)"])
 
+    def test_one_look_judge_holds_the_start_to_each_item_by_its_mark(self):
+        """The one look judge (unity-write-tasks section 5): its asked_ items fail on the start, its keep_ items pass
+        there; with keep_ items alone it is a judge of what still works, wherever it sits."""
+        rubric = [{"key": "asked_sign_lit", "criterion": "The sign is lit.", "required": True},
+                  {"key": "keep_door_red", "criterion": "The door is still red.", "required": True}]
+        found = {**judges.judge(judge("looks_as_asked", rubric=rubric)), "group": "fixed"}
+        self.assertEqual(judges.marked(found), {"asked": ["asked_sign_lit"], "keep": ["keep_door_red"]})
+        self.assertIsNone(judges.marked(judges.judge(judge())))
+
+        def decide(start, reference=None, check=found):
+            reference = reference or {k["key"]: 1 for k in check["rubric"]}
+            return judges.decide(check, {**self.RECORD, "scores": {"start": start, "reference": reference}})
+        self.assertEqual(decide({"asked_sign_lit": 0, "keep_door_red": 1}), [])
+        self.assertEqual(decide({"asked_sign_lit": 1, "keep_door_red": 1}),
+                         ["start already passes judge looks_as_asked on your scores (asked_sign_lit)"])
+        self.assertEqual(decide({"asked_sign_lit": 0, "keep_door_red": 0}),
+                         ["start fails the keep item(s) keep_door_red of judge looks_as_asked on your scores (a look "
+                          "that must stay as it was passes on the start)"])
+        keep = {**judges.judge(judge("looks_as_asked", rubric=rubric[1:])), "group": "still_works"}
+        self.assertEqual(decide({"keep_door_red": 1}, check=keep), [])
+        self.assertEqual(decide({"keep_door_red": 0}, check=keep),
+                         ["start fails still-works judge looks_as_asked on your scores (weighted 0.00)"])
+
     def test_a_score_out_of_range_or_an_item_missing_is_a_problem(self):
         found = judges.judge(judge())
         self.assertIsNone(judges.score_problem(found, {"door_open": 1, "lit": 0}))

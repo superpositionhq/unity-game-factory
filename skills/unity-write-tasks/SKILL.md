@@ -129,7 +129,7 @@ never rejecting the task: section 6):
    (a click on it first). A mobile game (its root has a `Platform.json`)
    is played at the phone's size and driven by touch: the unity-mobile-game skill, "Tasks on a mobile game".
    A thread no probe can measure is not a task. One issue of a compound thread that no probe can measure fairly
-   stays in the brief and gets a required `looks_as_asked` rubric item (section 5), never one of the required probes.
+   stays in the brief and gets a required `asked_` item of the look judge (section 5), never one of the required probes.
 
 **Never make a task easier (permanent).** After a task is first written (committed on the tasks branch), these are
 banned if they lower the bar:
@@ -198,7 +198,7 @@ reference is a commit the person's verdict called better: a fix they judged same
 the thread to the round they called better, or drop it. A game made before these rules has no verdict rows: its
 taste threads take their reference as any other thread does (section 2).
 What the design doc's keep list holds must still hold, so a solution that spoils it fails: a keep line a still frame
-can show goes to the `still_works` look judge, and a keep line about feel gets a `still_works` probe of what the
+can show goes to a `keep_` item of the look judge, and a keep line about feel gets a `still_works` probe of what the
 player meets. A feel probe's threshold comes from this game's own start and the reference the person approved (as
 the threshold rules above say for its kind of ask), or from a number the brief states, never from the starting
 numbers in the game-session skill: each game is judged by its own feel, so the games don't all drift toward one.
@@ -343,9 +343,10 @@ docs/task-probes.md, "Words used here".
 
 **Pass/fail is decided by checks the grader computes itself:** `build`, `boot`, `log_absent` and **`probe`** checks, and
 nothing is graded from pixel statistics of the game's frames except the frame's mean luminance (`screen`), whose
-threshold is always calibrated or relative to the start. Two judges are required:
-`looks_as_asked`, whose rubric items are the brief's own look-and-feel asks, and one in `still_works` of what must still
-look as it did (below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a `"required":
+threshold is always calibrated or relative to the start. **One look judge** (owner, 2026-11-19): a required `judge`
+named `looks_as_asked`, whenever the brief asks for a look or names one to keep, and none otherwise; each rubric
+item's key says what it is, `asked_...` for a look the brief asks for, `keep_...` for a look that must stay as it was
+(below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a `"required":
 false` quality check. Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome alone.
 Retired: `actions_judge` checks and `trace` probes; never add one, take them out of any task that has one (the Lab's
 grader gives a task with a trace probe reward 0 on every run and fails an `actions_judge` check on every run, so the
@@ -376,9 +377,10 @@ scores a no-op on every check, judges included. The usual order:
 3. `fixed` (bug_fix, correction) / `done` (feature, change): `probe` checks of the reported outcomes, `required`,
    `needs` `boots_clean`: at least 3, one per issue the thread settled (split them over several milestones, e.g.
    `fixed_hud`, `fixed_camera`, when the issues are separable). Each one fails at the start for the reported reason
-   and passes on the reference. The required `looks_as_asked` judge goes here when the brief asks for a look.
+   and passes on the reference. The look judge `looks_as_asked` goes here, with weight, when it has at least one
+   `asked_` item (keep items may sit in it beside them).
 4. `still_works`: probes that what must keep working still does (the player still moves, the HUD still shows, the
-   scene still loads its scenario), and a required judge with `"before": true` for what must still look as it did.
+   scene still loads its scenario); the look judge goes here, with `"weight": 0`, only when all its items are `keep_`.
 5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
    readability of text over the scene), and a `code_judge` for code quality. A
    judge is written
@@ -393,15 +395,21 @@ scores a no-op on every check, judges included. The usual order:
    question is about in `focus` (up to 8 globs of project files, `["Assets/Scripts/Combat/*"]`): their diffs are
    shown first on both sides, so a long change still shows them.
 
-**Every look-and-feel ask in the brief gets a required `looks_as_asked` rubric item** (such an ask gates the task
+**Every look-and-feel ask in the brief gets a required `asked_` item of the look judge** (such an ask gates the task
 like any other: without an item of its own it ships unchecked). Go through the brief ask by ask: what a probe can measure gets a probe; what only an eye can tell (reads
-clearly, fits the style, looks like the thing it is meant to be) gets its own rubric item, `"required": true`, in one
-required `judge` named `looks_as_asked`, with `"before": true` and `"reference": true` when the seed has a reference.
-A judge can misread screenshots, so word each item concretely, decidable from the screenshots alone, so the unchanged
-game scores 0 on it and any solution that meets the brief scores 1. A rubric item asks exactly what its sentence
+clearly, fits the style, looks like the thing it is meant to be) gets its own rubric item, `"required": true`, keyed
+`asked_<what>`, in the task's one look judge: a required `judge` named `looks_as_asked`, with `"before": true` and
+`"reference": true`. A look the brief names to keep (what a still frame can show must stay as it was) gets a required
+item keyed `keep_<what>` in the same judge. The start fails every `asked_` item and passes every `keep_` item, so the
+judge fails on the start and carries weight in the outcome milestone; with `keep_` items alone it passes on the start
+and sits in `still_works` with `"weight": 0`. No other required judge holds a look, and a brief that asks no look and
+names none to keep has no look judge. `validate-game.py` holds these rules for a judge whose keys are marked. A task
+written before 2026-11-19 keeps its older pair (`looks_as_asked` of asked looks, a judge in `still_works` of kept
+ones) and stays valid; write every new task with the one judge. A judge can misread screenshots, so word each item
+concretely, decidable from the screenshots alone, so an `asked_` item scores 0 on the unchanged game and 1 on any
+solution that meets the brief, and a `keep_` item 1 on both. A rubric item asks exactly what its sentence
 asks, in the sentence's words, never more: no stricter look, no added detail, no other quality. _(why: a solution
-that does all the instruction says must score 1)_ What must still look as it did goes in a required
-judge in `still_works` the same way. A judge is shown screenshots of the idle `look` and the `drive` on `play_scene`
+that does all the instruction says must score 1)_ A judge is shown screenshots of the idle `look` and the `drive` on `play_scene`
 and nothing else, unless the check names its own plays. When what must be seen appears only after a task-specific
 key, in another scenario or scene, or past a title screen, give the check `plays`: up to 4 task plays that reach that
 state (when a probe's play already does, reuse it under its name, written identically):
@@ -410,7 +418,9 @@ state (when a probe's play already does, reuse it under its name, written identi
 {"name": "looks_as_asked", "kind": "judge", "required": true, "needs": ["boots_clean"], "before": true,
  "reference": true,
  "question": "With the upgrade menu open, does it read the way the request asks?",
- "rubric": [{"key": "costs_legible", "criterion": "Each upgrade's cost is legible against the panel behind it.",
+ "rubric": [{"key": "asked_costs_legible", "criterion": "Each upgrade's cost is legible against the panel behind it.",
+             "required": true},
+            {"key": "keep_panel_wood", "criterion": "The menu's panel still looks like carved wood.",
              "required": true}],
  "plays": [{"name": "open_upgrades", "seconds": 10,
             "inputs": [{"t": 0.5, "key": "<Keyboard>/u", "press": true},
@@ -428,7 +438,7 @@ falls elsewhere in the play)_ A play also runs on the task's start (`"before": t
 **Motion is asked two ways.** Motion that is a number (eases instead of snapping, gentle, no sudden moves) is a probe:
 a task play with `"every": 0.1` and a field over the window of the move, with `"agg": "step"` for the largest jump
 between two samples ([docs/task-probes.md](../../docs/task-probes.md), section 2.1). Motion that can only be seen
-(feet that slide, a trail) is a `looks_as_asked` item with a short play and many `shots` (2-20 of each play, plays
+(feet that slide, a trail) is an `asked_` item of the look judge with a short play and many `shots` (2-20 of each play, plays
 times shots 20 at most): a 5 s play with `"shots": 20` is a frame every 0.25 s, screenshot i of N at `seconds` x (i +
 0.5) / N.
 
@@ -558,8 +568,8 @@ proof that a correct solution can pass)_
 
 **The check asks no model, so you score the judges.** A required judge holds the task until you have scored its saved
 screenshots blind, every rubric item of the start and the reference from 0 to 1 (unity-check-tasks skill, "Answer the
-judges and the `seen` probes, blind"): the reference must pass it and the start must fail every required item (pass
-it, for a judge in `still_works`). If either doesn't because the pictures don't show what is asked, rewrite the
+judges and the `seen` probes, blind"): the reference must pass it and the start must fail every required `asked_` item and
+pass every `keep_` item (pass it, for a judge in `still_works` or one of `keep_` items alone). If either doesn't because the pictures don't show what is asked, rewrite the
 play (its inputs and shot moments; a shot with `when` where the build decides the moment) so it reliably shows it, or
 fix the game so the asked thing really appears on screen; never drop, repurpose or loosen the check or its rubric
 (unity-check-tasks skill, section 7). A task the Lab returns is fixed from the files as returned, only the tasks
@@ -602,10 +612,10 @@ Fix what you find in the task before it is packed:
   in part: give each its own rubric item. _(why: the grade decides on the measure, not the words beside it)_
 - **Every ask has a check that would fail if that ask alone were not done**: a required probe for each key, direction,
   scenario or case it lists; a number it states held on both sides; a look-and-feel ask as a required
-  `looks_as_asked` rubric item in the ask's own words, with the check's own `plays` when the state must be reached
+  `asked_` item of the look judge in the ask's own words, with the check's own `plays` when the state must be reached
   first; motion as a probe sampled every 0.1 s with `agg` `step`, or a required judge with a run of `shots`.
 - **A keep that names a thing** ("the boss bar still starts full") has a required `still_works` check reading that
-  thing; a bare "everything else keeps working" is covered by any required `still_works` check.
+  thing, or a required `keep_` item of the look judge when only a frame shows it; a bare "everything else keeps working" is covered by any required `still_works` check.
 - **Never cover an ask with an optional probe, a `build` or `boot` check, or a `"required": false` quality check
   alone.** _(why: those decide nothing about the ask: a run that skips it still passes them)_
 - **Every required check traces back to an ask or a keep of the instruction.** A required check of something the
@@ -800,14 +810,14 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a "must not be shown" check fails a solution that hides the widget instead of removing it, and a hidden widget passes a "must be shown" check | "shown" means on screen: `widgets` reads the widgets on screen (not inactive, not under a disabled Canvas or a CanvasGroup at alpha 0, inside the frame, not scrolled out of a scroll area's view); what is drawn is `ui`'s; `"visible": false` only for "exists while hidden" |
 | a check written without running the game fails on the reference: an invented threshold, a window that misses the event, a click when no button is shown, a judge asking for what the frames don't show | run every check on both builds and read what it measured before handing the task in (section 5) |
 | an instruction asks for what no play can show (how a sound sounds, the packaged build, a frame rate on given hardware, a given screen size) | never an ask; saving across plays is checked with `after` |
-| a model judge misreads screenshots and fails a correct fix (or passes a wrong one) | required probes for what can be measured; only the brief's own looks in a required judge (`looks_as_asked`, still-looks in `still_works`), each item concrete and decidable from the screenshots; every other judge `"required": false` |
+| a model judge misreads screenshots and fails a correct fix (or passes a wrong one) | required probes for what can be measured; only the brief's own looks in the one required look judge (`looks_as_asked`, its items `asked_` or `keep_`), each item concrete and decidable from the screenshots; every other judge `"required": false` |
 | every play probes the level while the game still sits on a title screen the task itself adds | a play clicks the start control the instruction names, by its text, and waits; or the instruction states the scene QA plays |
 | "twice as fast" read from the game's time scale, a part read by its offset from its parent, a moving child read by its root's rotation, samples counted as events: a correct build made another way fails | measure the effect the player sees, in the world |
 | a `near` sphere around where the start had the thing, for a task that asks to move it | select by what the thing is (a component or tag the start has, `has`), not where the old one was |
 | an input sent on the frame the round resets is lost; a teleport leaves the carried object or the tether behind | a play keeps its own preconditions: input a few seconds in; move what the game moves together |
 | a second click on a button the first click already took (and closed) is a missed input | a play never repeats an action that already happened |
 | a judge is shown only the title screen, or never the state a task's own key opens; an item its pictures cannot show is scored as a pass | the `judge` check names its own `plays` that reach it, with named `shot` inputs timed at the event (section 5); an item the pictures cannot show scores 0 on either side, then the plays are fixed |
-| a few stills can't show whether a move eases or feet slide | a number: a probe sampled every 0.1 s with `agg` `step`; only seen: a `looks_as_asked` item with a short play and `shots` (section 5) |
+| a few stills can't show whether a move eases or feet slide | a number: a probe sampled every 0.1 s with `agg` `step`; only seen: an `asked_` item of the look judge with a short play and `shots` (section 5) |
 | a fix made only in assets (a prefab, a material) fails a code review | the cause is checked by its measured effect (a probe), never by reading the diff |
 | a pixel threshold moves between GPUs | light and colour from the engine (`light`, `grading`); the frame's luminance (`screen`) only calibrated or relative to the start, never a literal |
 | trees painted on a Terrain count as one object | count placed pieces (`pieces`), not objects or components |
@@ -891,9 +901,9 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 
 One whole task that follows every rule of this skill: a long thread's compound brief, observations only;
 `play_scene` and `play_args`; a probe for each ask, of what the player sees, in a play that reaches its moment; the
-required `looks_as_asked` judge for the one look the brief asks, its item in the brief's words; a `still_works` check
-for every keep the brief names, of weight 0. Its game and its commits are made up (`Buoy_1`, `Buoy_3` and the speed
-readout stand for things the start has), so it has passed the schema and the validator's rules for a task, never the
+one look judge, `looks_as_asked`, with an `asked_` item for the look the brief asks and a `keep_` item for the look it
+names to keep, each in the brief's words; a `still_works` probe for every other keep the brief names, of weight 0. Its game and its commits are made up (`Buoy_1`, `Buoy_3` and the speed
+readout and the `QuayLamp` objects stand for things the start has), so it has passed the schema and the validator's rules for a task, never the
 task check: copy its shape, never its names or thresholds.
 
 ```json
@@ -947,14 +957,19 @@ task check: copy its shape, never its names or thresholds.
        "expect": {"op": ">=", "value": 1}},
       {"name": "looks_as_asked", "kind": "judge", "weight": 1, "needs": ["boots_clean"], "before": true,
        "reference": true,
-       "question": "While the boat rounds the last buoy, is the lap count at the top of the screen easy to read?",
-       "rubric": [{"key": "lap_count_readable",
+       "question": "Is the lap count easy to read, and do the quay lamps glow as in the BEFORE pictures?",
+       "rubric": [{"key": "asked_lap_count_readable",
                    "criterion": "The lap count at the top of the screen is easy to read at a glance against the water.",
+                   "required": true},
+                  {"key": "keep_quay_lamps_glow",
+                   "criterion": "The lamps along the quay still glow as they do now (in the BEFORE pictures).",
                    "required": true}],
        "plays": [{"name": "round_last_buoy", "seconds": 12,
                   "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1},
                              {"t": 4, "key": "<Keyboard>/w", "press": true},
-                             {"t": 9, "key": "<Keyboard>/w", "press": false}]}]}]},
+                             {"t": 9, "key": "<Keyboard>/w", "press": false}]},
+                 {"name": "by_quay_lamps", "seconds": 6,
+                  "inputs": [{"t": 1, "teleport_to": {"name": "QuayLamp"}, "distance": 8, "hold": 4}]}]}]},
     {"name": "still_works", "checks": [
       {"name": "throttle_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"],
        "describe": "Under the drive's throttle the boat still travels about as far as at the start.",
@@ -975,12 +990,7 @@ task check: copy its shape, never its names or thresholds.
        "play": "drive",
        "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)",
                    "of": "any", "window": [8, 21], "agg": "any"},
-       "expect": {"op": ">=", "value": 1}},
-      {"name": "still_looks", "kind": "judge", "weight": 0, "needs": ["boots_clean"], "before": true,
-       "question": "Do the lamps along the quay still glow as they do in the BEFORE pictures?",
-       "rubric": [{"key": "quay_lamps_glow",
-                   "criterion": "The lamps along the quay still glow as they do now (in the BEFORE pictures).",
-                   "required": true}]}]}
+       "expect": {"op": ">=", "value": 1}}]}
   ]
 }
 ```
@@ -989,9 +999,10 @@ Ask by ask: "further back" and "higher above" are two requests, so two probes, e
 (`start_plus`), since the brief gives no number and the reference's own distance is only one fair tuning (section 5,
 `expect`). "Clear view through that turn" is read over a play that drives through the turn, sampled every 0.1 s. "Show
 the lap the boat is on" reads the text at the top of the screen once the boat has passed the last buoy. "Easy to read
-at a glance" is a look no probe measures: the required `looks_as_asked` item, in the brief's words, shown in the same
-play the lap probe uses (written identically). Keeps: throttle, steering and the speed readout each have a required
-probe, the lamps a required `still_works` judge comparing with the start; all weigh 0, since the start passes them,
-and the throttle and steering keeps are relative to the start ("as they do now"), never calibrated. `builds` and
-`boots` carry weight 0 for the same reason; the four outcome probes and the look judge carry the weight. `limits` are
+at a glance" is a look no probe measures: the look judge's `asked_` item, in the brief's words, shown in the same play
+the lap probe uses (written identically). Keeps: throttle, steering and the speed readout each have a required
+`still_works` probe of weight 0, since the start passes them, relative to the start ("as they do now"), never
+calibrated; the quay lamps, a look only a frame shows, are the look judge's `keep_` item, pictured in a play of their
+own. The start fails the `asked_` item, so the judge sits in `fixed` with weight. `builds` and `boots` carry weight 0
+as the start passes them; the four outcome probes and the look judge carry the weight. `limits` are
 written out: left out, the schema's lower defaults apply. The optional `quality` milestone is left out.

@@ -9,8 +9,11 @@ every rule below that can be checked without running the game.
 or from the project: `build`, `boot`, `log_absent` and `probe`, and nothing is graded from pixel statistics of the
 game's frames except one: the frame's mean luminance (`screen`, section 2.15), whose threshold is always calibrated or
 relative to the start, so the same machine measures both sides. Judges (`judge`, `code_judge`) are quality checks,
-`"required": false`, but for the two the unity-write-tasks skill requires, which judge only the brief's own looks:
-`looks_as_asked` and a look judge in `still_works` (section 3.2). Text a model reads from a named screenshot (`seen`,
+`"required": false`, but for the one look judge the unity-write-tasks skill requires whenever the brief asks for a look
+or names one to keep: `looks_as_asked`, its rubric keys `asked_...` (a look asked for) and `keep_...` (a look that must
+stay as it was), in the outcome milestone with weight, or in `still_works` with weight 0 when all its items are
+`keep_` (section 3.2). Tasks written before 2026-11-19 may keep the older pair, `looks_as_asked` and a look judge in
+`still_works`. Text a model reads from a named screenshot (`seen`,
 section 2.22) is a visual check, counted with the judges, never one of a task's required probes. Nothing in a task
 reads the agent's tool calls: a task is graded on the game's outcome alone. Retired: `actions_judge` checks and
 `trace` probes; never add one, take them out of any task that has one (the validator refuses them).
@@ -512,7 +515,7 @@ not land (...): the task's own fix can't be driven by its play`), and the task i
   through the window: its `speed` near 0, then moving again after it); a knock-back as its place moving away from the
   attacker (`dist` rising).
 
-**What it looks like** (sparks, colours, glow, readability) goes to the required `looks_as_asked` judge with its own
+**What it looks like** (sparks, colours, glow, readability) goes to an `asked_` item of the required look judge `looks_as_asked` with its own
 play staged the same way and named `shot` frames a few hundredths of a second apart across the contact. A pose may be
 an extra rubric item, never the only check of a behaviour.
 
@@ -1780,7 +1783,8 @@ Score them yourself, blind: every rubric item for A and for B from 0 to 1, into 
 open the key, then check the task again, or settle that run when its pictures change on every run
 ([task-check.md](task-check.md), "VALID and INVALID" and "Settling a run"). A required judge holds
 the task until it is scored, as the Lab's grader holds the task's own fix to its judge: the reference must pass it and
-the start must fail every required rubric item (pass it, for a judge in `still_works`). Write both sides' scores in the
+the start must fail every required rubric item (pass it, for a judge in `still_works`; for the look judge, fail each
+`asked_` item and pass each `keep_` item). Write both sides' scores in the
 task's notes too (its `tasks-workflow.jsonl` row). A task try saves the same for the
 agent's game (`agent\`) under `<task>\run<N>\judge-shots\`: answer its judges the same way before calling the task
 too easy or held. `tools/validate-game.py` checks the rules of a judge's plays.
@@ -1803,8 +1807,8 @@ Before any agent is given a task, the checker grades the start and the fix with 
 - every calibrated probe, a required one or not, measures differently on the start and the fix: the Lab's grade of
   a task fails whole on a probe without a threshold;
 - every required `judge` check, scored by the task's writer from the screenshots the check saves (section 3.2, into
-  `blind\answers.json`), fails on the start and passes on the fix, item by item (a judge in `still_works` passes on
-  both); until it is scored the task isn't valid.
+  `blind\answers.json`), fails on the start and passes on the fix, item by item (a judge in `still_works`, and a look judge's `keep_`
+  items, pass on both); until it is scored the task isn't valid.
 
 A required `seen` probe (section 2.22) gates as a probe does, on the values the task's writer read from its crops: the
 start fails it and the fix passes it, and a fix that reads nothing it reads makes the task invalid. Until both sides

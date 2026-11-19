@@ -167,7 +167,9 @@ The task check's own rules, each closing a case that would otherwise read wrongl
   `reference_unlanded`), as the Lab's grader reads a play; only the plays a side already made are read, none is played
   for it;
 - a required judge decides on the writer's blind scores of its saved shots (`judges.kept`, `judges.decide`): unscored,
-  or a reference that fails it, or a start that passes a required item (fails it, for a judge in `still_works`), keeps
+  or a reference that fails it, or a start that passes a required item (fails it, for a judge in `still_works`; for a
+  judge whose keys are marked, `judges.marked`, a start that passes a required `asked_` item or fails a required
+  `keep_` item), keeps
   the task from VALID; a side's scores stand while its pictures' sha256 (`pictures.json`) are the same;
 - a row the checker couldn't make (`the checker failed (...)`) makes the task an ERROR, no verdict
   (`verdict.failures`, `check.check_task`);
