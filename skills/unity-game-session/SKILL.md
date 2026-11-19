@@ -263,7 +263,9 @@ by hand under these rules, or ask.
   is fine.
 - **Every state reachable by a scenario.** Each scenario starts straight in the situation it shows, so a check reaches
   any moment in a short play from `play_scene` and `play_args`; no state reachable only after minutes of play or only
-  from the title menu.
+  from the title menu. A task's play may start with a scenario, scene or flag only when it exists at the task's start
+  commit; one a later commit adds is never used by a task whose start lacks it (unity-write-tasks skill, section 4),
+  so add scenarios early, before the work they will show.
 
 ## Names
 

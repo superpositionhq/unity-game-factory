@@ -317,7 +317,13 @@ The game's first build scene is usually a title menu, so a task almost always ne
 command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args":
 ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the scene exists
 there and at `seed.reference`; it needn't be in the game's build settings (the checker adds every scene the plays open
-to its build). Every grader play opens it with `play_args` (boots, idle and drive, and a judge's own plays: its
+to its build). **A play starts only with a scene, scenario or flag that exists at `seed.commit`** (owner,
+2026-11-19): a scenario number, scene or command-line flag the thread itself added (only the reference has it) is
+never used, in `play_scene`, `play_args` or a play's own `scene` and `args`, since a fair build that reached the
+same outcome another way has no such option; reach that state from what the start has (an older scenario, the
+player's own inputs, a teleport or a stage). The validator refuses a flag or scene only the reference has, unless the
+instruction states it; it can't tell a scenario number, so check those yourself in the start's scenario list.
+Every grader play opens `play_scene` with `play_args` (boots, idle and drive, and a judge's own plays: its
 route, its before and reference plays). The game's first build scene doesn't run when a play opens another scene: a
 game that sets itself up in its boot scene's `Start` is started through its own `play_args` with `play_scene` null.
 So is a game whose gameplay scene is its first build scene: named in `play_scene`, that scene would load a second
@@ -613,7 +619,8 @@ Fix what you find in the task before it is packed:
   menu, every play that checks something in the level first clicks the start control the instruction names, by its
   on-screen text (`{"widget": "begin_run", "click": true}` clicks a button reading "Begin Run"), and waits for the
   level; or the instruction states the scene QA plays (`play_scene`). Never a
-  shortcut only the reference has.
+  shortcut only the reference has: a scenario, scene or flag a play starts with exists at the start commit (section
+  4).
 - **A play keeps its own preconditions true.** No input on the frame a state resets (press the key a few seconds
   into the round, not at its start). No teleport that breaks what the game holds together: carried objects, tethers,
   a range the instruction gives a limit to. Where a teleport is needed, move what the game moves together, or walk
