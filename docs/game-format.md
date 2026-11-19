@@ -239,9 +239,10 @@ head or of the task's own start branch `starts/<task name>` and Unity `6000.3.x`
 under `Tasks/`. At least 4 of a game's tasks are `hard`; the others may be `medium` (what a task that names no
 difficulty is), none easier. It also holds each task to the bar of a long thread: tagged `long-thread`, with
 `seed.reference`, at least 3 required outcome probes of weight above 0 outside `still_works` (a required probe of
-weight 0 is a guard, not an outcome), and from start to reference at least 5
-game files (`Assets/`, `Packages/`, `ProjectSettings/`; an editor step or a `.meta` is not one), 100 code lines and 2
-systems, and for a seed on main 4 commits that change the game (`tools/validate-game.py` holds the numbers).
+weight 0 is a guard, not an outcome). The span from start to reference is measured against at least 5 game files
+(`Assets/`, `Packages/`, `ProjectSettings/`; an editor step or a `.meta` is not one), 100 code lines and 2 systems, and
+for a seed on main 4 commits that change the game: a span under them is a warning, never a rejection
+(`tools/validate-game.py` holds the numbers).
 
 In a dataset (`unity-dataset-layout/v1`) the packager copies the tasks from the tip of the tasks branch, maps each
 seed's commits through the history rewrite, scrubs them, and splits each into `Tasks/<name>/task.json` (what the agent

@@ -703,11 +703,17 @@ class TaskRules(Base):
         self.assertFalse(any('seed.reference' in e and 'project' in e for e in errs), errs)
 
     def test_short_thread(self):
-        errs = self.tasks(seed={'game': SLUG, 'commit': git(self.repo, 'rev-parse', f'{self.ref}~1'),
-                                'reference': self.ref, 'kind': 'bug_fix'})
+        """The size of a span is a soft bar (owner, 2026-11-19): a start and a reference one commit apart get a warning
+        for each number they are under, and no error."""
+        set_tasks(self.repo, game_tasks(self.start, self.ref, seed={
+            'game': SLUG, 'commit': git(self.repo, 'rev-parse', f'{self.ref}~1'), 'reference': self.ref,
+            'kind': 'bug_fix'}))
+        rep = self.check()
+        warns = [m for s, a, m in rep.items if s == 'warning' and a.startswith('repo: Tasks')]
         for floor in ('game file(s) against the start, fewer than 5', 'code line(s) against the start, fewer than 100',
                       'commit(s) change the game from seed.commit to seed.reference, fewer than 4'):
-            self.assertTrue(any(floor in e for e in errs), (floor, errs))
+            self.assertTrue(any(floor in w and 'soft bar' in w for w in warns), (floor, warns))
+            self.assertFalse(any(floor in e for e in errors(rep, 'repo: Tasks')), floor)
         r = subprocess.run([sys.executable, os.path.join(TOOLS, 'thread-stats.py'), self.repo, self.ref, '--span',
                             f'{self.start}..{self.ref}'], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)   # counted as the validator counts: the whole thread meets the floors
