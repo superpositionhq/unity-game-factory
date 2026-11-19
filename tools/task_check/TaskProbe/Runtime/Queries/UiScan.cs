@@ -1094,6 +1094,71 @@ namespace TaskProbe
             return found.ToString().TrimEnd('_');
         }
 
+        /// <summary>A click no widget takes, made on its text as shown (probe 1.7.0, Lab game grader 1.18.0's rule,
+        /// Unreal's FindShownText): the places on screen (the ui query's text elements, `shown`) whose text reads `want`
+        /// as Caption compares them, one text alone or texts side by side on one line joined left to right ("1",
+        /// "BUY RANK", "300 PT": their heights overlap by half, a gap of at most 6 of the line's heights); the same place
+        /// read twice (a text and its shadow) is one. How many places read it; with one, its centre (fractions, y down)
+        /// and 'text "&lt;text&gt;"' in `label`; with more, every place in `label`.</summary>
+        public static int ByShownText(List<UiElement> shown, string want, out double x, out double y, out string label)
+        {
+            x = y = 0.0;
+            label = "";
+            var key = Caption(want);
+            if (key.Length == 0) return 0;
+            var texts = new List<UiElement>();
+            foreach (var e in shown)
+                if (e.Kind == "text" && e.HasRect && e.W > 0.0 && e.H > 0.0 && Caption(e.Text).Length > 0) texts.Add(e);
+            texts.Sort((a, b) =>
+            {
+                double ca = a.Y + a.H / 2.0, cb = b.Y + b.H / 2.0;
+                return ca != cb ? ca.CompareTo(cb) : a.X.CompareTo(b.X);
+            });
+            var hits = new List<(double x0, double y0, double x1, double y1, string text)>();
+            void Add(double x0, double y0, double x1, double y1, string text)
+            {
+                foreach (var hit in hits)
+                    if (Math.Abs(hit.x0 + hit.x1 - x0 - x1) / 2.0 <= Math.Max(hit.x1 - hit.x0, x1 - x0) / 2.0
+                        && Math.Abs(hit.y0 + hit.y1 - y0 - y1) / 2.0 <= Math.Max(hit.y1 - hit.y0, y1 - y0) / 2.0) return;
+                hits.Add((x0, y0, x1, y1, text));
+            }
+            for (var i = 0; i < texts.Count; i++)
+            {
+                var a = texts[i];
+                double lx = a.X, ly = a.Y, hx = a.X + a.W, hy = a.Y + a.H;
+                var joined = a.Text;
+                if (Caption(joined) == key) { Add(lx, ly, hx, hy, joined); continue; }
+                var right = new List<UiElement>();
+                for (var j = 0; j < texts.Count; j++)
+                {
+                    var b = texts[j];
+                    var overlap = Math.Min(a.Y + a.H, b.Y + b.H) - Math.Max(a.Y, b.Y);
+                    if (j != i && b.X > a.X && overlap >= 0.5 * Math.Min(a.H, b.H)) right.Add(b);
+                }
+                right.Sort((p, q) => p.X.CompareTo(q.X));
+                foreach (var b in right)
+                {
+                    if (!key.StartsWith(Caption(joined), StringComparison.Ordinal)) break;
+                    if (b.X - hx > 6.0 * Math.Max(a.H, b.H)) break;  // another column, not the next piece of the label
+                    joined += " " + b.Text;
+                    lx = Math.Min(lx, b.X); ly = Math.Min(ly, b.Y); hx = Math.Max(hx, b.X + b.W); hy = Math.Max(hy, b.Y + b.H);
+                    if (Caption(joined) == key) { Add(lx, ly, hx, hy, joined); break; }
+                }
+            }
+            if (hits.Count == 1)
+            {
+                x = (hits[0].x0 + hits[0].x1) / 2.0;
+                y = (hits[0].y0 + hits[0].y1) / 2.0;
+                label = $"text \"{hits[0].text}\"";
+                return 1;
+            }
+            var places = new List<string>();
+            foreach (var hit in hits)
+                places.Add(FormattableString.Invariant($"\"{hit.text}\" at ({(hit.x0 + hit.x1) / 2.0:F3}, {(hit.y0 + hit.y1) / 2.0:F3})"));
+            label = string.Join("; ", places);
+            return hits.Count;
+        }
+
         static bool Reads(string caption, string want)
         {
             var wanted = Caption(want);

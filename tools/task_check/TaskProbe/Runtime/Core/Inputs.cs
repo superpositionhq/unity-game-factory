@@ -139,6 +139,12 @@ namespace TaskProbe
         /// once the layout has followed; the inputs after it wait for it, so their order stays.</summary>
         Dictionary<string, object> again;
 
+        /// <summary>A click made on its text as shown (ClickText): the left button goes down in the next frame and up
+        /// TextPress later; the inputs after it wait for the release.</summary>
+        double textUp = -1.0;
+        bool textClick;
+        const double TextPress = 0.1;
+
         /// <summary>Sends every input due at play time `elapsed`; stops at a wait (the inputs after it wait for its end),
         /// and at a click or tap that scrolled (the inputs after it wait for the next frame).</summary>
         public void Send(double elapsed)
@@ -150,7 +156,8 @@ namespace TaskProbe
                 again = null;
                 Try(row, elapsed, true);
             }
-            while (again == null && !Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
+            PressText(elapsed);
+            while (again == null && !textClick && !Waiting && next < rows.Count && At(rows[next]) <= elapsed + 1e-9)
             {
                 Try(rows[next++], elapsed, false);
                 Sent++;
@@ -245,7 +252,7 @@ namespace TaskProbe
                         Probe.Log($"scrolled {scrolled} for the click on '{widget}'");
                         again = row;
                     }
-                    else
+                    else if (!ClickText(widget))
                     {
                         Probe.Log($"no visible button matches '{widget}'");
                         Miss("click", widget, "no visible button matches it");
@@ -302,6 +309,58 @@ namespace TaskProbe
                     else Control(Json.Str(row, "key"), Json.Bool(row, "press", true) ? 1f : 0f, false);
                     break;
             }
+        }
+
+        /// <summary>No widget takes the click: the player clicks the words they see (probe 1.7.0, Lab game grader
+        /// 1.18.0's rule, Unreal's ClickText), whatever shows them (a uGUI or TextMeshPro text, a UI Toolkit element's
+        /// text, texts side by side on one line read joined: UiScan.ByShownText over the ui query's elements). Exactly one
+        /// place must read it: the pointer goes to its centre as a cursor input moves it, the left button goes down in the
+        /// next frame and up TextPress later (PressText), and the inputs after it wait for the release. True when it is
+        /// done with (pressed, or a miss naming the 2+ places that read it); false: no text reads it (or no Input System
+        /// mouse to click with), the plain miss.</summary>
+        bool ClickText(string widget)
+        {
+#if TASKPROBE_INPUTSYSTEM
+            if (mouse == null) return false;
+            var matches = UiScan.ByShownText(UiScan.Elements(), widget, out var x, out var y, out var label);
+            if (matches == 0) return false;
+            if (matches > 1)
+            {
+                Probe.Log($"'{widget}' is shown in {matches} places: {label}");
+                Miss("click", widget, $"no visible button matches it, and its text is shown in {matches} places, not one: {label}");
+                return true;
+            }
+            Cursor(x, y);
+            textClick = true;
+            textUp = -1.0;
+            Probe.Log(FormattableString.Invariant($"clicking {label} at ({x:F3}, {y:F3}) for '{widget}'"));
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        /// <summary>A click on its text: the left button down the frame after the pointer went there, up TextPress
+        /// later.</summary>
+        void PressText(double elapsed)
+        {
+#if TASKPROBE_INPUTSYSTEM
+            if (!textClick || mouse == null) { textClick = false; return; }
+            if (textUp < 0.0)
+            {
+                pointer = pointer.WithButton(MouseButton.Left, true);
+                QueueMouse();
+                textUp = elapsed + TextPress;
+            }
+            else if (elapsed + 1e-9 >= textUp)
+            {
+                pointer = pointer.WithButton(MouseButton.Left, false);
+                QueueMouse();
+                textClick = false;
+            }
+#else
+            textClick = false;
+#endif
         }
 
         // ---------------------------------------------------------------- keys, buttons, axes, the cursor
@@ -573,7 +632,7 @@ namespace TaskProbe
             var t = new Touching
             {
                 Kind = drag ? "drag" : "tap", Finger = (int)Math.Round(Json.Num(row, "finger", 0.0)), Start = elapsed,
-                Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 300.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 300.0),
+                Over = Math.Min(Math.Max(Json.Num(row, "over", 0.0), 0.0), 1200.0), Hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 1200.0),
             };
             var at = FormattableString.Invariant($"at {Json.Num(row, "t", 0.0):F2} s");
             if (t.Finger < 0 || t.Finger > 9) { probe.Error($"inputs: the {t.Kind} {at} missed: finger {t.Finger} (a finger is 0 to 9)"); Miss(t.Kind, "finger " + t.Finger, "a finger is 0 to 9"); return; }
@@ -830,7 +889,7 @@ namespace TaskProbe
 
         void StartHold(Dictionary<string, object> row, GameObject player, double elapsed)
         {
-            var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 600.0);
+            var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 1200.0);
             if (hold <= 0.0) return;
             holdAt = player.transform.position;
             holdUntil = elapsed + hold;

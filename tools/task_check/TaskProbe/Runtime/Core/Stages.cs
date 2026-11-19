@@ -99,7 +99,7 @@ namespace TaskProbe
                     return;
                 }
             }
-            var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 600.0);
+            var hold = Math.Min(Math.Max(Json.Num(row, "hold", 0.0), 0.0), 1200.0);  // up to checks.PLAY_SECONDS (probe 1.7.0)
             var here = go.transform.position;
             pinned.RemoveAll(p => p.Object == go);
             pinned.Add(new Pinned { Object = go, At = here, Until = elapsed + hold });

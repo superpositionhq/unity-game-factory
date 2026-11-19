@@ -1,6 +1,6 @@
 {
   "name": "com.taskprobe",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "displayName": "TaskProbe",
   "description": "The task checker's probe (unity-game-factory tools/task_check): screenshots, scripted inputs, a position track and the task's probe measures for a timed run of the game, only when started with -taskProbe. The checker adds this folder to its own copy of the game; the game's files are never changed.",
   "unity": "6000.0"

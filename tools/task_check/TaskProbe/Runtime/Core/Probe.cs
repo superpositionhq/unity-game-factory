@@ -136,7 +136,7 @@ namespace TaskProbe
             Directory.CreateDirectory(outDir);
             logFile = new StreamWriter(Path.Combine(outDir, "probe.log"), false, new UTF8Encoding(false)) { AutoFlush = true };
             if (kept != null) Log(kept);
-            seconds = Math.Min(Math.Max(Json.Num(spec, "seconds", 20.0), 1.0), 600.0);
+            seconds = Math.Min(Math.Max(Json.Num(spec, "seconds", 20.0), 1.0), 1200.0);  // a play up to checks.PLAY_SECONDS (probe 1.7.0)
             every = Math.Min(Math.Max(Json.Num(spec, "every", 0.5), 0.1), 1.0);
             shots = (int)Math.Min(Math.Max(Json.Num(spec, "shots", 4.0), 0.0), 64.0);
             scene = Json.Str(spec, "scene");

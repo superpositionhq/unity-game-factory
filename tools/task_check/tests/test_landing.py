@@ -106,6 +106,20 @@ class Landing(unittest.TestCase):
         self.assertEqual(start["checks"][0]["detail"], "The hero stands on the ground. | the play's input did not land: "
                                                        "click Continue at 1 s (no visible button takes it)")
 
+    def test_a_click_on_text_shown_in_two_places_is_a_miss_no_mark_allows(self):
+        """A click no button takes is made on its text as shown by the probe itself (probe 1.7.0, Inputs.ClickText):
+        a text that reads it in one place is clicked and leaves no row; one shown in two places or more is a miss
+        naming them, which `optional` doesn't allow (it allows only the plain `no visible button matches it`), so it
+        fails the play's checks like any missed input."""
+        twice = {**CONFIRM, "why": 'no visible button matches it, and its text is shown in 2 places, not one: "BUY RANK" '
+                                   'at (0.300, 0.400); "BUY RANK" at (0.700, 0.400)'}
+        self.assertEqual(probes.missed({"inputs_missed": [CONFIRM]}, tasks.play(MAYBE)), [])
+        self.assertEqual(probes.missed({"inputs_missed": [twice]}, tasks.play(MAYBE)), [twice])
+        task = task_with(probe(play=MAYBE, expect={"op": ">=", "value": 0}))
+        ref, _ = graded(task, [twice], [twice])
+        self.assertFalse(ref["checks"][0]["passed"])
+        self.assertIn("shown in 2 places", ref["checks"][0]["detail"])
+
     def test_a_disabled_click_on_a_button_shown_disabled_has_landed(self):
         """A click marked disabled (a button the game disables by design) has landed when the probe found its button
         shown but disabled; without the mark that row is a missed input, and the mark never allows a click that found

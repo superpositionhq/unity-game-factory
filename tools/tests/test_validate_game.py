@@ -1632,7 +1632,7 @@ class Schema(unittest.TestCase):
         play = {'name': 'route', 'seconds': 30, 'every': 0.5, 'inputs': inputs, 'scene': None, 'args': []}
         self.assertEqual(self.ok(play, 'TaskPlay'), [])
         for bad in ({'t': 1, 'key': 'W', 'press': True}, {'t': 1, 'key': '<Keyboard>/w'},
-                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 301, 'key': '<Keyboard>/w', 'press': True},
+                    {'t': 1, 'key': '<Joystick>/trigger', 'press': True}, {'t': 1201, 'key': '<Keyboard>/w', 'press': True},
                     {'t': 2, 'key': 'MouseX', 'axis': 4.0}, {'t': 2, 'key': '<Mouse>/delta/x', 'axis': 1001},
                     {'t': 3, 'widget': 'RetryButton', 'click': False}, {'t': 3, 'widget': ' Retry', 'click': True},
                     {'t': 3, 'widget': 'Re\ntry', 'click': True}, {'t': 3, 'widget': 'R' * 121, 'click': True},
@@ -1647,23 +1647,37 @@ class Schema(unittest.TestCase):
         self.assertNotEqual(self.ok(dict(play, args=['x' * 61]), 'TaskPlay'), [])
         self.assertEqual(self.ok(dict(play, args=self.ARGS, scene=self.SCENE), 'TaskPlay'), [])
 
-    def test_a_play_lasts_up_to_300_seconds(self):
-        """A task play and every time in it go up to 300 s: its seconds, an input's t, a hold, a touch's hold and
-        spread, an `at` and an event's within; one more is refused. A wait stays 300 s of real time."""
-        late = [{'t': 299, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 300},
-                {'t': 1, 'tap': [0.5, 0.5], 'hold': 300}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 300},
-                {'t': 298, 'shot': 'late', 'when': {'measure': {'probe': 'objects', 'select': {'name': 'Boss'},
-                                                                'field': 'count'},
-                                                    'expect': {'op': '==', 'value': 0}, 'within': 300}}]
-        play = {'name': 'long', 'seconds': 300, 'inputs': late}
+    def test_a_play_lasts_up_to_1200_seconds(self):
+        """A task play and every time in it go up to 1200 s (probe 1.7.0, as the Lab's grader; 300 s before): its
+        seconds, an input's t, a hold, a touch's hold and spread, an `at` and an event's within; one more is refused. A
+        wait stays 300 s of real time."""
+        late = [{'t': 1199, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 1200},
+                {'t': 1, 'tap': [0.5, 0.5], 'hold': 1200}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 1200},
+                {'t': 1198, 'shot': 'late', 'when': {'measure': {'probe': 'objects', 'select': {'name': 'Boss'},
+                                                                 'field': 'count'},
+                                                     'expect': {'op': '==', 'value': 0}, 'within': 1200}}]
+        play = {'name': 'long', 'seconds': 1200, 'inputs': late}
         self.assertEqual(self.ok(play, 'TaskPlay'), [])
-        self.assertNotEqual(self.ok(dict(play, seconds=301), 'TaskPlay'), [])
-        for bad in ({'t': 300.5, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 301},
-                    {'t': 1, 'tap': [0.5, 0.5], 'hold': 301}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 301}):
+        self.assertNotEqual(self.ok(dict(play, seconds=1201), 'TaskPlay'), [])
+        for bad in ({'t': 1200.5, 'key': '<Keyboard>/w', 'press': True}, {'t': 1, 'teleport': [0, 0, 0], 'hold': 1201},
+                    {'t': 1, 'tap': [0.5, 0.5], 'hold': 1201}, {'t': 1, 'drag': [[0.1, 0.1], [0.9, 0.9]], 'over': 1201}):
             self.assertNotEqual(self.ok(dict(play, inputs=[bad]), 'TaskPlay'), [], bad)
-        measure = {'probe': 'player', 'field': 'z', 'at': [299.5]}
+        self.assertNotEqual(self.ok(dict(play, inputs=[{'t': 1, 'wait': 301}]), 'TaskPlay'), [])
+        measure = {'probe': 'player', 'field': 'z', 'at': [1199.5]}
         self.assertEqual(self.ok(measure, 'PlayerMeasure'), [])
-        self.assertNotEqual(self.ok(dict(measure, at=[300.5]), 'PlayerMeasure'), [])
+        self.assertNotEqual(self.ok(dict(measure, at=[1200.5]), 'PlayerMeasure'), [])
+
+    def test_unreal_only_play_and_audio_shapes_are_refused(self):
+        """What the Lab's Unity grader does not take of Unreal's grader 1.18.0 and 1.19.0 (its decision 65), refused as
+        the Lab refuses it: a play's `attended` (no Unity play is launched with a flag a game reads as an automated
+        run), a play's `continues` (a play that names `after` already starts as a new process on what they saved) and
+        the audio field `waves` (a start is told by its clip, which `sounds` counts)."""
+        play = {'name': 'menu', 'seconds': 20, 'inputs': []}
+        self.assertEqual(self.ok(play, 'TaskPlay'), [])
+        self.assertNotEqual(self.ok(dict(play, attended=True), 'TaskPlay'), [])
+        self.assertNotEqual(self.ok(dict(play, continues='first'), 'TaskPlay'), [])
+        self.assertEqual(self.ok({'probe': 'audio', 'field': 'sounds', 'window': [1, 9]}, 'AudioMeasure'), [])
+        self.assertNotEqual(self.ok({'probe': 'audio', 'field': 'waves', 'window': [1, 9]}, 'AudioMeasure'), [])
 
     def test_task_level(self):
         S = self.S

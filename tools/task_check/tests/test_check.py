@@ -77,6 +77,24 @@ class Grades(unittest.TestCase):
         s.probe_play(check.tasks.play(waiting))
         self.assertEqual(timeouts, [(20, 320), (30, 330 + 13)])
 
+    def test_a_play_of_1200_s_is_read_and_gets_its_seconds_and_300_s(self):
+        """A task play may last up to 1200 s (probe 1.7.0, as the Lab's grader): it is read like any other, its time
+        limit its seconds and 300 s within the default --timeout (1800 s), and a window late in it is read."""
+        self.assertEqual(check.play_timeout(1200, 1800), 1500)
+        timeouts = []
+
+        class Timed(FakeProject):
+            def play(self, seconds, shots, timeout, **kwargs):
+                timeouts.append((seconds, timeout))
+                return super().play(seconds, shots, timeout, **kwargs)
+
+        dawn = {"name": "until_dawn", "seconds": 1200, "inputs": [{"t": 1100.0, "key": "<Keyboard>/e", "press": True}]}
+        task = task_with(probe("dawn", play=dawn, measure={"probe": "player", "field": "y", "window": [1150, 1199],
+                                                           "agg": "min"}))
+        s = check.Side("reference", Timed(measuring(1)), task, 1800, 60, None, lambda *a: None)
+        s.probe_play(check.tasks.play(dawn))
+        self.assertEqual(timeouts, [(1200, 1500)])
+
     def test_a_literal_probe_passes_on_the_measured_number_and_its_queries_reach_the_probe(self):
         task = task_with(probe(), probe("walls", measure={"probe": "objects", "select": WALLS, "field": "y",
                                                           "of": "max"}, expect={"op": ">", "value": 100}),
