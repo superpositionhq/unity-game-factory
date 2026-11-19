@@ -148,7 +148,9 @@ and the file's name carries its short form: `fix` for `bug_fix`, `corr` for `cor
 | `feature` | a mechanic the game itself built over a span of commits (code, prefabs, input, HUD) | the parent of the span's first commit | the span's last commit, once it played |
 | `change` | a look or content pass built over a span (lighting plus post-processing volumes plus materials, a camera rework, a HUD restyle) | the parent of the span's first commit | the span's last commit |
 
-`seed.reference` is always set: a task without the game's own accepted end of the thread is not a task. Merge, don't
+`seed.reference` is always set: a task without the game's own accepted end of the thread is not a task. A task the
+Lab returns may get a reference made now, a fix of the game committed on main and held on `starts/<task name>`
+(unity-check-tasks skill, section 9). Merge, don't
 split: a chain whose first fix didn't hold is one task, not two; a direction with several issues fixed in several
 commits is one compound task with a probe per issue; neighbouring fixes of the same system in the same stretch belong
 together. A separate thread in the same stretch (another system, other issues) is its own task, even over the same
@@ -561,7 +563,8 @@ it, for a judge in `still_works`). If either doesn't because the pictures don't 
 play (its inputs and shot moments; a shot with `when` where the build decides the moment) so it reliably shows it, or
 fix the game so the asked thing really appears on screen; never drop, repurpose or loosen the check or its rubric
 (unity-check-tasks skill, section 7). A task the Lab returns is fixed from the files as returned, only the tasks
-listed, with a note of what changed and why (unity-check-tasks skill, section 9). Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
+listed, with a note of what changed and why; when its play is not what fails, fix the game as new work on main and
+give the task a start and a reference on `starts/<task name>` that hold the fix (unity-check-tasks skill, section 9). Write both sides' scores in the task's notes (its `tasks-workflow.jsonl` row).
 
 ### Every ask has a check
 

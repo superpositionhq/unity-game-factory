@@ -211,7 +211,8 @@ What a row's `detail` says:
 Never make a check easier to get a case right (unity-write-tasks skill, section 1). A failing check is fixed in its
 play first (its staged state, its inputs and their timing, its windows and shot moments), then, when the play is not
 the cause, in the game (a commit the task's reference points at); it is never dropped or loosened. A sentence of the
-instruction that can be checked is never dropped. Only a task that cannot be fixed is dropped, whole, and you say so.
+instruction that can be checked is never dropped. Only a task that cannot be fixed is dropped, whole, and you say so
+(a returned task is never one for its size or for lacking a commit that does it: section 9).
 Fix what the pattern names:
 
 | what you see | what it means | what to do |
@@ -288,3 +289,30 @@ A task the Lab sends back is fixed from what came back, not from memory:
   message you return with. _(why: the reviewer reads the change against the reason it was returned for, and an
   unexplained change reads as a new fault)_
 - The rules of sections 7 and 8 hold as for any fix: both cases checked again on the final file, nothing made easier.
+- **You may change the game to fix a returned task, and the new commits are its reference (owner, 2026-11-18, as in
+  the Unreal factory).** A check that fails on the reference is fixed in its play first: its staged state, its inputs
+  and their timing, the moments of its shots, until the play gets the game into the state the check needs on the
+  start and on the reference. When the play is not the cause, the game is: the thing the instruction asks for was
+  never finished, or something in the game stops it (a prop in a doorway, a panel over a button, a level with no path
+  between two rooms). Then fix the game. You have authority to write that fix now, as new work, and to commit it: a
+  reference does not have to be something the game's history already did. Commit the fix on main like any work on
+  the game (many small commits, each asset with its `.meta`, workflow rows: unity-commit-always skill), then give the
+  task a start and a reference that hold it, on the branch `starts/<task name>` (unity-write-tasks skill, section 2,
+  "Starts on the engine": B is main's head with the fix, S is B with the task's whole change taken back out, R is a
+  child of S whose tree is B's), push main and that branch, and check the task again. "No commit in the game's
+  history changes this" is never a reason to stop, to narrow a check or to drop the task: make the commit. Keep the
+  fix to what the instruction asks, and add nothing it doesn't ask for. A fix that also changes what another task of
+  the game measures is that task's business too: say so in your note, and leave that task's files alone unless the
+  return lists it.
+- **A start or a reference broken for a reason outside the task.** A returned task's commits are often older than a
+  fix the whole game needed later (the player spawns outside the level and falls, the start doesn't open on Unity
+  6000.3, a menu blocks every play): every play fails before it reaches the task, on both sides, and the checks read
+  the breakage, not the task. Don't patch the checks around it and don't count it against the task: rebuild its start
+  and reference on main's head the same way (S is main's game with only this task's change taken out, R is main's
+  game), and say in your note which later fix the old commits lacked.
+- **A returned task is never "not fixable" for its size.** The validator only warns on a short span (unity-write-tasks
+  skill, section 6): say the numbers in your note and carry on. Only a task whose ask no play and no change of the
+  game can show is dropped, whole, and you say so.
+- **Never offer the person an eased check as a choice.** "Commit the narrower check, or drop the task" is no question
+  for them: when the original check can't pass, the next step is the game (above), not a weaker check. Tell them
+  about a check you could not fix only after both the play and the game have been tried.
