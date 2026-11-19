@@ -189,7 +189,8 @@ What a row's `detail` says:
 
 | detail | means |
 |---|---|
-| `not asked: ...` | a check that side doesn't run (a judge, a retired kind; on the start, everything but its probes): shows as passed, counts for nothing |
+| `not asked: ...` | a check that side doesn't run (a judge; on the start, everything but its probes): shows as passed, counts for nothing |
+| `retired: ...` | an `actions_judge` check or a `trace` probe: the Lab's grader refuses it, so the task is INVALID: remove it |
 | `not run: needs X` | an earlier check it `needs` failed: fix X first |
 | `uncalibrated: ...` | the probe has no threshold: no solution could pass it |
 | `the play's input did not land: ...` | an input of the task play missed; what it measured doesn't count |

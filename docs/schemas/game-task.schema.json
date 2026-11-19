@@ -3,7 +3,7 @@
   "$defs": {
     "ActionsJudge": {
       "additionalProperties": false,
-      "description": "Retired (the owner, 2026-11-13): never add one; a task that still carries one stays valid and is warned about.",
+      "description": "Retired (the owner, 2026-11-13): never add one. The schema still reads it, but validate-game.py and the task check refuse a task that carries one (owner, 2026-11-19): the Lab's grader gives a task with a trace probe reward 0 on every run and fails an actions_judge check on every run.",
       "properties": {
         "kind": {
           "const": "actions_judge",
@@ -4685,7 +4685,7 @@
     },
     "TraceMeasure": {
       "additionalProperties": false,
-      "description": "Retired (the owner, 2026-11-13): never add one; a task that still carries one stays valid and is warned about.",
+      "description": "Retired (the owner, 2026-11-13): never add one. The schema still reads it, but validate-game.py and the task check refuse a task that carries one (owner, 2026-11-19): the Lab's grader gives a task with a trace probe reward 0 on every run and fails an actions_judge check on every run.",
       "properties": {
         "fact": {
           "enum": [

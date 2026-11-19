@@ -4,7 +4,7 @@ import unittest
 
 from helpers import NO_FIX, SEED, FakeProject, checked, first_check, measuring, probe, record, side, task_with
 
-from task_check import check, verdict
+from task_check import check, tasks, verdict
 
 
 def broken_start_task(*checks, seed=SEED):
@@ -70,11 +70,8 @@ class Thresholds(unittest.TestCase):
 
 class Verdict(unittest.TestCase):
     def test_the_reference_passes_every_required_probe_and_the_start_fails_one(self):
-        task = task_with(probe(), probe("extra", required=False, weight=0),
-                         probe("built", play="trace", required=False, measure={"probe": "trace",
-                                                                               "fact": "build_ok_at_end"}))
-        ref = record(checked("hero_on_ground", "probe", True), checked("extra", "probe", False, "measured 3"),
-                     checked("built", "probe", True, "not asked"))
+        task = task_with(probe(), probe("extra", required=False, weight=0))
+        ref = record(checked("hero_on_ground", "probe", True), checked("extra", "probe", False, "measured 3"))
         start = record(checked("hero_on_ground", "probe", False), checked("extra", "probe", True))
         self.assertEqual(verdict.verdict(task, ref, start), (True, [], ["reference fails extra (probe): measured 3"]))
         ref["checks"][0] = checked("hero_on_ground", "probe", False, "measured -500, threshold >= 0")
@@ -83,6 +80,30 @@ class Verdict(unittest.TestCase):
         self.assertFalse(valid)
         self.assertEqual(why, ["reference fails hero_on_ground: measured -500, threshold >= 0",
                                "start already passes every required probe"])
+
+    def test_a_retired_check_makes_the_task_invalid_required_or_not(self):
+        """The Lab's Unity grader has no `trace` play (a task with a trace probe gets reward 0 on every run) and no
+        `actions_judge` kind (that check fails every run), so either makes the task INVALID, even optional; the
+        reference's failing row of it is no second reason."""
+        trace = probe("built", play="trace", required=False, weight=0,
+                      measure={"probe": "trace", "fact": "build_ok_at_end"})
+        acts = {"name": "worked_well", "kind": "actions_judge", "required": False, "weight": 0, "question": "q",
+                "rubric": [{"key": "k", "criterion": "c"}]}
+        task = task_with(probe(), trace, acts)
+        for c in (trace, acts):
+            self.assertTrue(tasks.retired(c))
+            self.assertFalse(check.Grade(task, "reference", None, None, {}).check(c)[0])
+        ref = record(checked("hero_on_ground", "probe", True),
+                     checked("built", "probe", False, verdict.retired_detail(trace)),
+                     checked("worked_well", "actions_judge", False, verdict.retired_detail(acts)))
+        start = record(checked("hero_on_ground", "probe", False))
+        valid, why, notes = verdict.verdict(task, ref, start)
+        self.assertFalse(valid)
+        self.assertEqual(why, ["built is retired: a trace probe: the Lab's grader has no trace play, so every run of "
+                               "the task gets reward 0: remove it",
+                               "worked_well is retired: an actions_judge check: the Lab's grader has no such check "
+                               "kind, so it fails every run: remove it"])
+        self.assertEqual(notes, [])
 
     def test_the_start_fails_every_outcome_probe(self):
         task = task_with(milestones=[{"name": "fixed", "checks": [probe("hud"), probe("camera"), probe("spawns")]}])

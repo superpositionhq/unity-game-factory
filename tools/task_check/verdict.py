@@ -31,8 +31,10 @@ A task is VALID when
 - a no-op scores zero (owner, 2026-11-04): no check the start passes carries weight. The cloud's score is the weighted
   share of checks passed, so build, boot and still-works checks and anything else true of the start take `"weight": 0`.
 A required `package` check fails on every side (the Lab's grader has no package step for a Unity game, so it fails
-closed there), so a task with one is never VALID. Judges (judge, code_judge) never take part here, and neither do the
-retired actions_judge checks and trace probes an older task still carries. A `seen` probe takes part as a probe, on the values
+closed there), so a task with one is never VALID. A retired check (an `actions_judge` check, a `trace` probe) makes a
+task INVALID, required or not: the Lab's grader has no `trace` play, so a task with a trace probe gets reward 0 on every
+run, and no `actions_judge` kind, so that check fails every run. Judges (judge, code_judge) never take part here. A
+`seen` probe takes part as a probe, on the values
 the task's writer read from its crops (seen.py); until they are read it measures nothing.
 
 A row whose check the checker itself couldn't run (`the checker failed (...)`) is no verdict on the task: `failures`
@@ -42,7 +44,8 @@ import math
 
 from . import probes, tasks
 
-JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
+JUDGES = ("judge", "code_judge")
+RETIRED = "retired"  # a retired check's detail starts so (check.Grade.check): it fails here as the Lab's grader fails it
 MARGIN = 0.25  # a calibrated threshold whose start measured nothing: the reference's value, this share toward the start
 FAILED = "the checker failed"  # a row's detail when the checker couldn't run its check (check.Grade.run)
 UNCALIBRATED = "uncalibrated"  # a probe row's detail when it has no threshold (check.Grade.probe_check)
@@ -117,6 +120,13 @@ def describe(check, value, limit, start, fix, why=None):
     return detail + (f": {why}" if why else "")
 
 
+def retired_detail(check):
+    """A retired check's row detail: why the Lab's grader refuses it."""
+    if check["kind"] == "probe":
+        return f"{RETIRED}: a trace probe: the Lab's grader has no trace play, so every run of the task gets reward 0"
+    return f"{RETIRED}: an {check['kind']} check: the Lab's grader has no such check kind, so it fails every run"
+
+
 def noop_score(task, start):
     """(score, names): what doing nothing earns, the weighted share of the deterministic checks the start passes, and
     the passed checks that carry weight. Judges and the retired trace probes aren't measured here (`detail` "not asked")."""
@@ -141,6 +151,7 @@ def verdict(task, reference, start):
     """(valid, why, notes) from the reference's and the start's check rows ({"checks": [{name, kind, passed,
     detail}]}). `reference` None: a start-only check."""
     why, notes = [], []
+    why.extend(f"{c['name']} is {retired_detail(c)}: remove it" for _, c in tasks.checks(task) if tasks.retired(c))
     required = tasks.gating(task)
     still = tasks.still_works(task)
     build = tasks.fails_at_start(task)
@@ -158,7 +169,7 @@ def verdict(task, reference, start):
     if reference is not None:
         # the task's own fix passes every required check the checker runs, as the Lab's grader holds it to them all
         for c in reference["checks"]:
-            if c["passed"]:
+            if c["passed"] or str(c["detail"]).startswith(RETIRED):  # (a retired check is a reason above)
                 continue
             if c["kind"] in ("build", "boot") or c.get("required", asked.get(c["name"], False)):
                 why.append(f"reference fails {c['name']}: {str(c['detail'])[:160]}")

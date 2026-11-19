@@ -13,7 +13,7 @@ relative to the start, so the same machine measures both sides. Judges (`judge`,
 `looks_as_asked` and a look judge in `still_works` (section 3.2). Text a model reads from a named screenshot (`seen`,
 section 2.22) is a visual check, counted with the judges, never one of a task's required probes. Nothing in a task
 reads the agent's tool calls: a task is graded on the game's outcome alone. Retired: `actions_judge` checks and
-`trace` probes; never add one, take them out of a task you edit.
+`trace` probes; never add one, take them out of any task that has one (the validator refuses them).
 
 Words used here:
 - **the start**: the game at the task's `seed.commit`, as the agent receives it;
@@ -1182,9 +1182,9 @@ One batchmode editor pass per side reads the project as saved. It never saves: e
 
 ### 2.12 `trace`: retired
 
-Retired: never add a `trace` probe, and take it out of a task you edit. A task that still
-carries one stays valid (`"required": false`, play `"trace"`, a literal threshold) and `validate-game.py` warns
-"retired: remove it".
+Retired: never add a `trace` probe, and take it out of any task that still carries one. The Lab's grader has no
+`trace` play, so a task with one gets reward 0 on every run: `validate-game.py` refuses it and the task check calls the
+task INVALID ("retired: ... remove it").
 
 ### 2.13 Points
 

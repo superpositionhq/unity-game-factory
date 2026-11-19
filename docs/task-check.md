@@ -202,11 +202,12 @@ A task is **VALID** when all of this holds:
 - a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
   `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other check true of the
   start: a `log_absent` or `file_exists` check (nothing measures those at the start, so their weight is yours to set)
-  or a probe, a `"required": false` one too (the task check measures that). Judges and the retired trace probes aren't measured
-  here, so their weights aren't covered by this rule.
+  or a probe, a `"required": false` one too (the task check measures that). Judges aren't measured here, so their
+  weights aren't covered by this rule.
 
-Never decided by the check: `code_judge` checks (no model is asked) and the retired `actions_judge` checks and
-`trace` probes an older task still carries. A `package` check fails on every side: the Lab's grader has no package step
+Never decided by the check: `code_judge` checks (no model is asked). A retired `actions_judge` check or `trace` probe
+makes the task INVALID, required or not: the Lab's grader gives a task with a trace probe reward 0 on every run and
+fails an `actions_judge` check on every run. A `package` check fails on every side: the Lab's grader has no package step
 for a Unity game and fails it closed, so a required one keeps every run from passing and the task is INVALID (`reference
 fails X: not packaged: ...`); drop it. The reference's failures of checks that aren't required are reported as notes
 and never make a task INVALID. Every check is required unless it says `"required": false`, a `log_absent` or

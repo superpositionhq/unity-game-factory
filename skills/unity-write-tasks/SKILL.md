@@ -337,8 +337,9 @@ threshold is always calibrated or relative to the start. Two judges are required
 `looks_as_asked`, whose rubric items are the brief's own look-and-feel asks, and one in `still_works` of what must still
 look as it did (below). Every other judge (`judge`, `code_judge`: taste, readability, code review) stays a `"required":
 false` quality check. Nothing in a task reads the agent's tool calls: a task is graded on the game's outcome alone.
-Retired: `actions_judge` checks and `trace` probes; never add one, take them out of a task you
-edit. A task still needs required probes the grader decides without a judge (section 6). The probe language, every play,
+Retired: `actions_judge` checks and `trace` probes; never add one, take them out of any task that has one (the Lab's
+grader gives a task with a trace probe reward 0 on every run and fails an `actions_judge` check on every run, so the
+validator and the task check refuse both). A task still needs required probes the grader decides without a judge (section 6). The probe language, every play,
 measure and threshold with the rules that gate a task, is the task author's contract
 [docs/task-probes.md](../../docs/task-probes.md), checked by the schema
 [docs/schemas/game-task.schema.json](../../docs/schemas/game-task.schema.json) and `tools/validate-game.py`.

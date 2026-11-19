@@ -76,7 +76,7 @@ def own_play(play, project):
     return seconds, shots, MOBILE_DRIVE if play == "drive" and mobile is not None and mobile() else inputs
 
 
-JUDGES = ("judge", "code_judge", "actions_judge")   # actions_judge: retired, still skipped in older tasks
+JUDGES = ("judge", "code_judge")
 NOT_JUDGED = "not asked: a judge decides on the writer's scores of its saved shots (judge-shots), never here"
 TASK_ERROR = "task error"  # a check's detail starts so when no version of the game can pass it (Grade.task_error)
 NO_PACKAGE = "not packaged: the Lab's grader has no package step for a Unity game, so a package check fails every run"
@@ -505,8 +505,8 @@ class Side:
 
 
 class Grade:
-    """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges and trace
-    probes (a package check fails closed), of the reference or of `side` (an agent's game, task-try.py); "start": its
+    """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges (a
+    package check and a retired check fail closed), of the reference or of `side` (an agent's game, task-try.py); "start": its
     probes and a `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`).
 
     A probe of a task play reads only a play that did what the task says: when an input of the play didn't land (the
@@ -590,10 +590,10 @@ class Grade:
 
     def check(self, check):
         kind = check["kind"]
+        if tasks.retired(check):  # the Lab's grader refuses it: fails here as there (verdict.RETIRED)
+            return False, verdict.retired_detail(check)
         if kind in JUDGES:
             return True, NOT_JUDGED
-        if kind == "probe" and check["measure"]["probe"] == "trace":
-            return True, "not asked: trace probes are retired: remove it"
         if seen.is_seen(check) and self.side.answers is None:
             return True, seen.NOT_READ
         if self.mode == "start":
@@ -736,7 +736,7 @@ def save_seen_shots(task, sides, folder, where="", held=None, log=print, rng=Non
 
 def probe_values(task, reference, start):
     """{probe: {group, required, op, expect, start, reference, threshold, start_passed, reference_passed}} from the two
-    grades' measures (trace probes left out)."""
+    grades' measures (retired trace probes left out)."""
 
     def passed(grade, name):
         return next((r["passed"] for r in (grade or {}).get("checks", []) if r["name"] == name), None)

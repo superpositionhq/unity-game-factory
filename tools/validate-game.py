@@ -1571,7 +1571,8 @@ def required_quality_judges(t):
 
 def retired_checks(t):
     """The task's retired checks, `actions_judge` checks and `trace` probes (the owner, 2026-11-13: nothing in a task
-    reads the agent's tool calls): still valid, so games made with one keep passing, and warned about."""
+    reads the agent's tool calls). Refused (owner, 2026-11-19): the Lab's Unity grader has no `trace` play, so a task
+    with a trace probe gives every run reward 0, and it has no `actions_judge` kind, so such a check fails every run."""
     return [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
             if isinstance(c, dict) and (c.get('kind') in RETIRED_KINDS or c.get('kind') == 'probe'
                                         and isinstance(c.get('measure'), dict) and c['measure'].get('probe') == 'trace')]
@@ -1594,8 +1595,9 @@ def check_task(rep, a, label, t, game, has_commit):
     judged = required_quality_judges(t)
     retired = retired_checks(t)
     if retired:
-        rep.warn(a, f'{label}: check(s) {retired}: `actions_judge` checks and `trace` probes are retired: remove it '
-                    f'(nothing in a task reads the agent\'s tool calls) (unity-write-tasks section 5)')
+        rep.error(a, f'{label}: check(s) {retired}: `actions_judge` checks and `trace` probes are retired: remove it '
+                     f'(the Lab\'s grader gives a task with a trace probe reward 0 on every run and fails an '
+                     f'actions_judge check on every run) (unity-write-tasks section 5)')
     seen_probes = [c.get('name') for m in t.get('milestones') or [] if isinstance(m, dict)
                    for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe' and visual(c)]
     if not gated:

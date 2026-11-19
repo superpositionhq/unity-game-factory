@@ -387,6 +387,17 @@ def fails_at_start(task):
     return next((c for _, c in checks(task) if c["kind"] == "build" and c["fails_at_start"]), None)
 
 
+RETIRED_KINDS = ("actions_judge",)  # check kinds the Lab's grader no longer has (with them the `trace` probe)
+
+
+def retired(check):
+    """Whether `check` is retired: an `actions_judge` check or a `trace` probe. The Lab's Unity grader has no `trace`
+    play, so a task with a trace probe gets reward 0 on every run, and no `actions_judge` kind, so that check fails
+    every run: the task check refuses both (verdict.RETIRED)."""
+    return check.get("kind") in RETIRED_KINDS or (check.get("kind") == "probe" and isinstance(check.get("measure"), dict)
+                                                  and check["measure"].get("probe") == "trace")
+
+
 def gating(task):
     """The names of the task's required probes (a retired trace probe never gated)."""
     return {c["name"] for _, c in checks(task) if c["kind"] == "probe" and c["required"]

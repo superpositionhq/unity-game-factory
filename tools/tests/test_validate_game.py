@@ -1116,8 +1116,8 @@ class Units(unittest.TestCase):
         self.assertFalse(any('fewer than 3' in e for e in vg.thread_errors(t, len(vg.outcome_probes(t)))))
 
     def test_retired_checks(self):
-        """`actions_judge` checks and `trace` probes are retired: a task that still carries one matches the schema and
-        is only warned about; a task without one has nothing to warn of. A trace probe never counted as a required
+        """`actions_judge` checks and `trace` probes are retired: a task that still carries one matches the schema
+        (check_task refuses it, below); a task without one has none. A trace probe never counted as a required
         or an outcome probe, so no floor moves."""
         def check(name, kind, **over):
             return {'name': name, 'kind': kind, 'question': 'q', 'rubric': [{'key': 'k', 'criterion': 'c'}], **over}
@@ -1384,24 +1384,25 @@ class Units(unittest.TestCase):
         self.assertEqual(errors(rep), [])
 
     def test_retired_actions_judge(self):
-        """A task that still carries an `actions_judge` check or a `trace` probe passes as it did, with a warning to
-        remove it; a task without one is not warned."""
-        def warned(t):
+        """A task that still carries an `actions_judge` check or a `trace` probe is refused (owner, 2026-11-19), as the
+        Lab's grader refuses it: no trace play there (every run gets reward 0) and no actions_judge kind (it fails
+        every run). A task without one has no such error."""
+        def retired(t):
             rep = vg.Report()
             self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
-            self.assertEqual(errors(rep), [])
-            return [m for s, a, m in rep.items if s == 'warning' and 'retired' in m]
+            return [m for m in errors(rep) if 'retired' in m]
         t = task('a' * 40, 'b' * 40)
-        self.assertEqual(warned(t), [])
+        self.assertEqual(retired(t), [])
         t['milestones'].append({'name': 'quality', 'checks': [
             {'name': 'worked_well', 'kind': 'actions_judge', 'required': False, 'question': 'Did it test?',
              'rubric': [{'key': 'tested', 'criterion': 'It played the scenario after the fix.'}]}]})
         t['milestones'][-1]['checks'].append(
             {'name': 'built', 'kind': 'probe', 'required': False, 'describe': 'The last build worked.', 'play': 'trace',
              'measure': {'probe': 'trace', 'fact': 'build_ok_at_end'}, 'expect': {'op': '>=', 'value': 1}})
-        self.assertEqual(warned(t), ["x: check(s) ['worked_well', 'built']: `actions_judge` checks and `trace` probes "
-                                     "are retired: remove it (nothing in a task reads the agent's tool calls) "
-                                     '(unity-write-tasks section 5)'])
+        self.assertEqual(retired(t), ["x: check(s) ['worked_well', 'built']: `actions_judge` checks and `trace` probes "
+                                      "are retired: remove it (the Lab's grader gives a task with a trace probe reward "
+                                      "0 on every run and fails an actions_judge check on every run) "
+                                      '(unity-write-tasks section 5)'])
 
     def test_a_union_with_a_tag_reports_the_shape_its_tag_names(self):
         """A check is told apart by its kind and a measure by its probe: a missing or unknown tag says so and lists
