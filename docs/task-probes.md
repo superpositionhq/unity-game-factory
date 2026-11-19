@@ -1773,7 +1773,8 @@ the same pictures, and `blind\key.json` says which side each is. A play a probe 
 once.
 
 Score them yourself, blind: every rubric item for A and for B from 0 to 1, into `blind\answers.json`, before you
-open the key, then check the task again ([task-check.md](task-check.md), "VALID and INVALID"). A required judge holds
+open the key, then check the task again, or settle that run when its pictures change on every run
+([task-check.md](task-check.md), "VALID and INVALID" and "Settling a run"). A required judge holds
 the task until it is scored, as the Lab's grader holds the task's own fix to its judge: the reference must pass it and
 the start must fail every required rubric item (pass it, for a judge in `still_works`). Write both sides' scores in the
 task's notes too (its `tasks-workflow.jsonl` row). A task try saves the same for the

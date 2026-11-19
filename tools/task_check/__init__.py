@@ -13,6 +13,7 @@ Modules:
 - seeds: a commit of the game materialized outside the repo, with its Git LFS objects and the probe package;
 - unity: player builds, plays and the editor pass (through the machine's unity-heavy.ps1 when it has one);
 - check: one task checked end to end; cli: `python tools/task-check.py`;
+- settle: a kept run decided on the writer's answers to its own judge pictures and seen crops (`--settle`);
 - trial: one task tried with the contractor's own coding agent and graded (`python tools/task-try.py`,
   docs/task-try.md).
 

@@ -46,7 +46,8 @@ puts the copies elsewhere (a short path: see "Requirements"), `--direct` runs Un
 `--timeout S` (the editor pass, default 1800; a play gets its own seconds and 300 s, start-up included, as the Lab's
 grader allows, or `--timeout` when that is shorter, and a task play's waits on top) and `--build-timeout S` (default
 and most 1800, the Lab's grader's limit for a build: a build slower than that fails there, so a longer value is cut to
-it).
+it). `--settle` plays nothing: it settles each named task's kept run in `<out>` on the answers you wrote for that run's
+own pictures ("Settling a run", below).
 
 ## Requirements
 
@@ -261,7 +262,10 @@ Until it is scored, a **required** judge keeps the task from VALID: the reason a
 3. Write both sides' scores in the task's notes too (its `tasks-workflow.jsonl` row on the tasks branch).
 
 The folder is kept from one check to the next, and a side's scores stand while its pictures are the same
-(`pictures.json`); pictures that changed (another commit, a play that changed) drop that side's scores, with a note. A
+(`pictures.json`); pictures that changed (another commit, a play that changed) drop that side's scores, with a note.
+A game whose pictures are never byte for byte the same from one run to the next (a camera, a countdown or an effect on
+the wall clock or on unseeded randomness) drops them on every check: score the run's own pictures and settle that run
+instead of checking again (`--settle`, "Settling a run" below). A
 start that doesn't build by design is never played: only the reference is saved, as `blind\A\`. A judge with
 `"required": false` never holds the task. `--no-judge-shots` skips the judge plays, so a task with a required judge
 can't be VALID in that run.
@@ -292,10 +296,38 @@ a required `seen` probe is not VALID. To answer:
    INVALID, as the Lab makes it a task error. The line then says `seen <check>: read from blind/answers.json`.
 
 The folder is kept from one check to the next, and an answer stands while its crop is the same (`crops.json`); a
-crop that changed (another commit, a play that changed) drops that side's answer, with a note. A start that doesn't
+crop that changed (another commit, a play that changed) drops that side's answer, with a note, and a run whose crops
+differ on every check is settled on the answers to its own crops (`--settle`, "Settling a run" below). A start that doesn't
 build by design is never played: only the reference is saved, as `blind\A\`. In the Lab the model must read the start
 and the reference the same 3 times out of 3, which this check can't show: a crop you can read only with a `?`, or
 only at full zoom, may not.
+
+### Settling a run
+
+`python tools\task-check.py <games>\<slug> --task <name> --settle` (`--out DIR` when the run used one; the task by
+name or by the same `.json` file the run checked) plays nothing. It takes the task's kept run, `<out>\<task>.json` and
+its folder, and decides it on the answers written into each judge's and `seen` probe's `blind\answers.json` for that
+run's own pictures, by the same rules a check that reads them applies: the same pass mark, the same start and
+reference rules, the same no-op score, a `seen` probe's threshold and pass made from the answered values as a check
+makes them. Every other row of the run (its probes, builds, boots, thresholds) stands as the run wrote it. It prints
+the task's verdict line and writes the final result over `<task>.json`, with the run's own result and what it checked
+under `settled`. It refuses, and writes nothing (`REFUSED <task>: why`), when:
+
+- there is no kept run, or the run is no verdict (an `ERROR`, or a task that didn't validate): check the task again;
+- the task file isn't the one the run checked (its sha256 differs from the run's `task_sha256`);
+- any picture or crop differs from the sha256 its `pictures.json` or `crops.json` lists, a side's folder or the blind
+  copy holds a picture more or less than the run saved, a blind picture isn't the picture of the side the key names,
+  or `pictures.json`, `crops.json` or `blind\key.json` isn't the file the run saved (the result records their sha256
+  as `bound`; a run of an older checker has no record, and is bound by the rest);
+- any picture, list or key was written after the run wrote its result, or `blind\answers.json` is older than the
+  pictures and the key it answers (each answer is for that run's pictures);
+- an answer is missing or can't be read (every letter of the key, every rubric item, each shot's lines) for a
+  required check, or for an optional one whose answers file is there;
+- a check that needs a `seen` probe was never graded the way the answer now grades that probe (only a check again can).
+
+Score blind as always: before opening the key. A settle can't see when the key was opened; it records the file times
+it saw (`settled.answers`: when the answers, the newest picture and the key were written, and the key's last read as
+the file system keeps it). A settled result settles again from the run it keeps; checking the task again replaces it.
 
 A task with no reference is checked on its start alone: it must build, fail every required probe outside
 `still_works` and pass its still-works probes, and every required probe, a still-works one too, needs a threshold
@@ -360,7 +392,10 @@ without), so this is for drafts only.
   before.
 - `<repo>\.task-checks\<task>\judge-shots\<check>\`: each judge check's pictures to score (VALID and INVALID
   above); the result's `judges` lists them, each `answer needed` or `scored in blind/answers.json`, with the scores
-  read (`scores`).
+  read (`scores`) and `bound`, the sha256 of its `pictures.json` and `blind\key.json` as the run saved them (`seen`
+  records `crops.json`'s the same way). A settled result (`--settle`) also has `settled`: when, the run's own verdict,
+  reasons and result (`run`), when the run's result was written, and per check the answers' sha256 and the file times
+  seen.
 - `<repo>\.task-checks\<task>\seen-shots\<check>\`: each `seen` probe's crops to answer (above); the result's `seen`
   lists them, each `answer needed` or `read from blind/answers.json`.
 - `<out>\progress.txt`: `task check: D of T task(s) done, started HH:MM, M min so far` (`, finished` at the end), each

@@ -521,7 +521,15 @@ def save(task, check, played, folder, blind=False, notes=(), rng=None, held=None
     done = key is not None and sorted(answered) == sorted(saved)
     return {"sides": {s: [n for _, _, p in rows for _, n in p] for s, rows in saved.items()},
             "blind": key is not None, "answered": sorted(answered), "scores": scores, "notes": notes,
-            "status": ANSWERED if done else PENDING.format(sides="/".join(saved) or "no side")}
+            "status": ANSWERED if done else PENDING.format(sides="/".join(saved) or "no side"),
+            **({"bound": bound(base, PICTURES)} if key is not None else {})}
+
+
+def bound(base, made):
+    """What a settle binds the writer's answers to (settle.py): the sha256 of the folder's list of picture hashes
+    (`made`: pictures.json, crops.json) and of its blind key, as this run saved them."""
+    return {made: hashlib.sha256((base / made).read_bytes()).hexdigest(),
+            "key.json": hashlib.sha256((base / "blind" / "key.json").read_bytes()).hexdigest()}
 
 
 def line(name, record):

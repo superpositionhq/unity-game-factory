@@ -41,6 +41,7 @@ PROMPT = ("This image is a crop of a video game's screen, scaled up. Write every
 MIN_SIDE = 360  # px: the Lab scales a crop's shorter side up to at least this
 MAX_SCALE = 4
 ANSWERS = "answers.json"  # under blind/
+CROPS = "crops.json"  # each crop's sha256, by side and shot: an answer stands while they are the same
 PENDING = "crops saved for {sides}, answer needed"
 ANSWERED = "read from blind/answers.json"
 NEEDED = "not read yet: its crops are saved under seen-shots, answer needed"
@@ -309,7 +310,7 @@ def kept(folder):
             raw = (base / "blind" / ANSWERS).read_bytes() if problem else None
         except OSError:
             raw = None
-        made, _ = _json(base / "crops.json")
+        made, _ = _json(base / CROPS)
         out[base.name] = {"key": key, "problem": problem, "raw": raw,
                           "sides": {side: {"lines": (answers or {}).get(letter),
                                            "crops": (made or {}).get(side) if isinstance(made, dict) else None}
@@ -388,7 +389,7 @@ def save(task, check, found, folder, held=None, rng=None, notes=()):
                 continue
             (base / side / f"{name}.png").write_bytes(c["png"])
             made[side][name], saved[side] = c["sha256"], saved[side] + [f"{name}.png"]
-    (base / "crops.json").write_text(json.dumps(made, indent=2) + "\n", encoding="utf-8")
+    (base / CROPS).write_text(json.dumps(made, indent=2) + "\n", encoding="utf-8")
     names = shots(check["measure"])
     complete = [s for s in found if len(made[s]) == len(names)]
     key, answered = None, []
@@ -416,7 +417,8 @@ def save(task, check, found, folder, held=None, rng=None, notes=()):
     (base / "ask.md").write_text(ask_text(task, check, found, key is not None, notes), encoding="utf-8")
     done = key is not None and sorted(answered) == sorted(found)
     return {"sides": saved, "blind": key is not None, "answered": sorted(answered), "notes": notes,
-            "status": ANSWERED if done else PENDING.format(sides="/".join(found) or "no side")}
+            "status": ANSWERED if done else PENDING.format(sides="/".join(found) or "no side"),
+            **({"bound": judges.bound(base, CROPS)} if key is not None else {})}
 
 
 def line(name, record):

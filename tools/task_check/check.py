@@ -774,6 +774,40 @@ def gap_notes(result):
     return notes
 
 
+def answered(task, result, start_grade, valid, why, notes):
+    """(valid, why, notes) once the writer's answers are applied: each judge check's record (result["judges"]) and
+    each seen check's (result["seen"]) as saved with the run, or as a settle bound them to the run's own pictures
+    (settle.py). The one rule for both."""
+    why, notes = list(why), list(notes)
+    notes += [judges.line(n, r) for n, r in result["judges"].items()]
+    # a required judge decides as the Lab's model decides it on the task's own fix: on the writer's blind scores,
+    # so the task isn't VALID until they are written and hold
+    unscored = {"status": "its shots weren't saved (--no-judge-shots), so it can't be scored"}
+    judged = [w for c in judges.judges(task) for w in judges.decide(c, result["judges"].get(c["name"], unscored))]
+    # a no-op scores zero on the judges too, as the Lab scores them: one the start passes on your scores carries no
+    # weight (a required one outside still_works is already a reason above)
+    if judges.judges(task):
+        held, unknown = judges.noop_passes(task, result["judges"])
+        asked = {c["name"]: c for c in judges.judges(task)}
+        told = {n for n in held if asked[n]["required"] and asked[n]["group"] != judges.STILL_WORKS}
+        paying = [n for n in held if n not in told and asked[n].get("weight", 1) > 0]
+        if paying:
+            earned, _ = verdict.noop_score(task, start_grade, held)
+            judged.append(f"a no-op scores {earned}, not 0: it passes judge(s) {', '.join(paying)} on your scores; "
+                          "give them \"weight\": 0")
+        notes += [f"judge {n} carries weight and its start isn't scored, so what a no-op scores on it isn't known"
+                  for n in unknown if not asked[n]["required"]]
+    valid, why = valid and not judged, why + judged
+    if seen.checks(task):
+        notes += [seen.line(n, r) for n, r in result["seen"].items()]
+        # a required seen check gates as a probe does, so the task isn't VALID until both sides are answered (an
+        # unanswered start would otherwise read as the start failing it)
+        waiting = [seen.line(c["name"], result["seen"][c["name"]]) for c in seen.checks(task)
+                   if c["required"] and result["seen"][c["name"]]["status"] != seen.ANSWERED]
+        valid, why = valid and not waiting, why + waiting
+    return valid, why, notes
+
+
 def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, timeout=1800, build_timeout=BUILD_LIMIT,
                log=print, clock=time.time, builds=None, judge_shots=True):
     """Check one task (a dict read from `repo`'s tasks branch, its file's bytes `raw`): its result (written to
@@ -862,35 +896,11 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
                      and not (label == "start" and build is not None and not start.built())}
             result["judges"] = save_judge_shots(task, shown, evidence / "judge-shots", f"{name}/judge-shots/",
                                                 blind=True, log=log, held=scored)
-            notes += [judges.line(n, r) for n, r in result["judges"].items()]
-        # a required judge decides as the Lab's model decides it on the task's own fix: on the writer's blind scores,
-        # so the task isn't VALID until they are written and hold
-        unscored = {"status": "its shots weren't saved (--no-judge-shots), so it can't be scored"}
-        judged = [w for c in judges.judges(task) for w in judges.decide(c, result["judges"].get(c["name"], unscored))]
-        # a no-op scores zero on the judges too, as the Lab scores them: one the start passes on your scores carries no
-        # weight (a required one outside still_works is already a reason above)
-        if judges.judges(task):
-            held, unknown = judges.noop_passes(task, result["judges"])
-            asked = {c["name"]: c for c in judges.judges(task)}
-            told = {n for n in held if asked[n]["required"] and asked[n]["group"] != judges.STILL_WORKS}
-            paying = [n for n in held if n not in told and asked[n].get("weight", 1) > 0]
-            if paying:
-                earned, _ = verdict.noop_score(task, start_grade, held)
-                judged.append(f"a no-op scores {earned}, not 0: it passes judge(s) {', '.join(paying)} on your scores; "
-                              "give them \"weight\": 0")
-            notes += [f"judge {n} carries weight and its start isn't scored, so what a no-op scores on it isn't known"
-                      for n in unknown if not asked[n]["required"]]
-        valid, why = valid and not judged, why + judged
         if seen.checks(task):  # a start that doesn't build by design is never played, so it has nothing to read
             shown = {label: s for label, s in (("start", start), ("reference", reference)) if s is not None
                      and not (label == "start" and build is not None and not start.built())}
             result["seen"] = save_seen_shots(task, shown, evidence / "seen-shots", f"{name}/seen-shots/", held, log=log)
-            notes += [seen.line(n, r) for n, r in result["seen"].items()]
-            # a required seen check gates as a probe does, so the task isn't VALID until both sides are answered (an
-            # unanswered start would otherwise read as the start failing it)
-            waiting = [seen.line(c["name"], result["seen"][c["name"]]) for c in seen.checks(task)
-                       if c["required"] and result["seen"][c["name"]]["status"] != seen.ANSWERED]
-            valid, why = valid and not waiting, why + waiting
+        valid, why, notes = answered(task, result, start_grade, valid, why, notes)
         result.update(probes=probe_values(task, ref_grade, start_grade), start_checks=start_grade["checks"],
                       reference_checks=ref_grade["checks"] if ref_grade else [])
         if failed_rows:  # a check the checker couldn't run says nothing of the task: no verdict until it runs again

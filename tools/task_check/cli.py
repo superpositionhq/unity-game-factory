@@ -1,5 +1,5 @@
 """python tools/task-check.py <game repo> [--task NAME|FILE.json ...] [--all] [--keep] [--out DIR] [--no-judge-shots]
-(docs/task-check.md)."""
+[--settle] (docs/task-check.md)."""
 
 import argparse
 import hashlib
@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import check, judges, seeds, seen, tasks, unity
+from . import check, judges, seeds, seen, settle, tasks, unity
 
 USAGE = __doc__
 
@@ -97,6 +97,26 @@ def write_progress(out, started, names, results, now=None):
          "finished": done == len(names)}, indent=2), encoding="utf-8")
 
 
+def settle_runs(sources, names, out):
+    """--settle: each named task's kept run under `out` settled on the answers to its own pictures (settle.py); one
+    line each, REFUSED with why when it can't be."""
+    settled = []
+    for name in names:
+        task, raw, why, _ = sources[name]
+        label = Path(name).stem if name.lower().endswith(".json") else name
+        try:
+            if task is None:
+                raise settle.Refused(why)
+            result = settle.settle(task, raw, out)
+        except settle.Refused as exc:
+            print(f"REFUSED {label}: {exc}", flush=True)
+            settled.append(False)
+            continue
+        print(line(result), flush=True)
+        settled.append(result["verdict"] == "VALID")
+    return 0 if all(settled) else 1
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="task-check.py", description=(
         "Check a game's tasks: build the game at each task's start and reference, play both with the TaskProbe "
@@ -120,6 +140,10 @@ def main(argv=None):
                         help="don't play judge checks' plays or save their screenshots (by default each judge check's "
                              "screenshots of the start and the reference are saved under <task>/judge-shots/ to be "
                              "looked at)")
+    parser.add_argument("--settle", action="store_true",
+                        help="play nothing: settle each task's kept run in --out on the answers written for that run's "
+                             "own judge pictures and seen crops (bound to them by their hashes and file times), and "
+                             "write its final verdict (docs/task-check.md, \"Settling a run\")")
     args = parser.parse_args(argv)
 
     repo = Path(args.repo).resolve()
@@ -155,6 +179,8 @@ def main(argv=None):
         return 2
     out = Path(args.out).resolve() if args.out else repo / ".task-checks"
     ignore_results(repo, out)
+    if args.settle:
+        return settle_runs(sources, names, out)
     scratch_root = Path(args.scratch).resolve() if args.scratch else default_scratch(repo)
     started = time.time()
     # the process too: two runs on one repo started in one tick of the clock (15.6 ms on Windows) shared a folder

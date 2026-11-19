@@ -78,7 +78,7 @@ Start-Process python -WindowStyle Hidden -WorkingDirectory <UGF_ROOT>\unity-game
   longer for a large game or a busy machine), and that they can leave it.
 
 The other options (`--keep` to keep the built copies, `--out`, `--direct`, `--timeout`, `--build-timeout`,
-`--no-judge-shots`) are in [docs/task-check.md](../../docs/task-check.md). `--no-judge-shots` leaves every required
+`--no-judge-shots`, `--settle`) are in [docs/task-check.md](../../docs/task-check.md). `--no-judge-shots` leaves every required
 judge unscored, so a task with one can't be VALID in that run.
 
 The try (`tools/task-try.py`, an agent run on the task) is the Lab's own tool: never run it, nor another agent on a
@@ -142,6 +142,12 @@ grader holds the task's own fix to its judge, and a required `seen` probe measur
 - Then check the task again. Scores and readings stand while their pictures stay the same (`pictures.json`,
   `crops.json`); pictures that changed need new ones. Write the judges' scores of both sides in the task's
   `tasks-workflow.jsonl` row too.
+- **Pictures that change on every run: settle the run instead.** When a game's pictures are never byte for byte the
+  same twice (a camera, a countdown or an effect on the wall clock or unseeded randomness), a check again drops your
+  answers every time. Answer the run you have, then run the check with `--settle` and the same `--task` and `--out`:
+  it plays nothing and decides that run on your answers by the same rules. It refuses when a picture, the key or the
+  task changed since the run, an answer is missing, or the answers are older than the pictures. Never edit a
+  picture, a key or a run's result. _(why: an answer counts only for the pictures it was given for)_
 
 _(why: blind scoring keeps you from scoring the side you know is the fix higher; the Lab's model sees no labels
 either)_
@@ -221,7 +227,7 @@ Fix what the pattern names:
 | `reference fails X: ... its event never happened (...)` | the measure's `since` waits for an event the reference's play never reaches, or reaches after its `within` | read the reference's samples of the event's measure (its `measures` in `probe.json`): change the event's measure or `expect` to what the reference shows at that moment, or lengthen the play or its `within`; a fast event needs the play's `"every": 0.1` |
 | `the play's input did not land: ...`, or `task error: ... in the reference's play X, an input did not land` | an input missed: a click before its button showed, a second click on a button already gone, a click on a control in a menu, tab or screen the play never opened (a click scrolls only its own scroll area), a click or tap on a control under something that takes the pointer (its row says `covered by another control`), a shot whose event never came (kind `shot_when`, `its event never happened`), a confirmation that shows only in some states, a click on a button shown but disabled (its row says `shown but disabled`), a teleport next to nothing, a key the probe has no control for, a stage nothing took | wait for the button (or until the game enables it), click by the caption the start has, written exactly as shown, drop a repeated click, open the menu, tab or screen first, close what covers the control first (no mark allows `covered by another control`), give a shot's event a measure and a `within` the reference meets, mark a click that may rightly find nothing `"optional": true` (never one the play needs), mark a click on a button the instruction says stays locked `"disabled": true` (never one the play needs to press), teleport next to something that is there; read `inputs_missed` and `probe.log` |
 | the reference's play never gets past a menu or a text field, and no input missed | the cursor clicked a control drawn with `OnGUI` (IMGUI takes the operating system's mouse and keys, never a play's), or keys went to no field (it wasn't clicked first, or it is an `OnGUI` `GUI.TextField`) | reach the state without the IMGUI click (a key the game binds in its Input System actions, a scenario, a teleport, a `set`); click a uGUI or UI Toolkit field before its keys; `probe.log` says `key <path> to <field>` for each key a field took |
-| `judge X: shots saved ..., answer needed` | a required judge isn't scored yet | score it blind (section 4) and check again |
+| `judge X: shots saved ..., answer needed` | a required judge isn't scored yet | score it blind (section 4) and check again; when its pictures change on every run, score them and settle that run (`--settle`) |
 | `reference fails judge X on your scores` / `start already passes judge X on your scores` | the pictures don't show what the item asks, or the item isn't decidable from them | rewrite the judge's plays so they reliably show it (below, "When a visual check's pictures don't show what is asked"); reword an item only into the instruction's own words; never drop, repurpose or loosen the check or its rubric |
 | `seen X: crops saved ..., answer needed`, or `nothing the check reads was read on the reference` | a required `seen` probe isn't read, or its crop shows nothing it reads | read it blind; if the reference's crop holds no such text, take the shot at a stiller moment or when the text's own event happens (`when`), widen the rect to where a build may draw it, or read the text from the UI (`ui`, `widgets`); the text asked for stays as the instruction words it |
 | `uncalibrated: X: the start and the reference both measure N` | the probe doesn't see the change | measure something the fix changes, or use a literal for a count or a fact |
