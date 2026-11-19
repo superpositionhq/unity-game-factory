@@ -186,9 +186,9 @@ def _median(values):
 
 
 def camera_text(probe):
-    """The camera's measures as the cloud's judge prompt gives them (judging.camera_text, word for word), or None. Its
-    formula is the Unreal grader's: it takes z as height and centimetres, so for a Unity game (y up, metres) its "m
-    above the player" is the z difference over 100, and its pitch is Unity's (positive looks down)."""
+    """The camera's measures as the cloud's judge prompt gives them (judging.camera_text, word for word), or None, in
+    Unity's axes: height is y, distances in metres (the horizontal one over x and z), the pitch Unity's (positive looks
+    down)."""
     try:
         camera = [row for row in (probe or {}).get("camera") or [] if len(row) == 7]
         if not camera:
@@ -199,8 +199,8 @@ def camera_text(probe):
         if not pairs:
             return f"camera (median of {len(camera)} samples, no player pawn to measure from): pitch {pitch:.0f}°, " \
                    f"field of view {fov:.0f}°"
-        above = _median([(c[2] - p[2]) / 100 for c, p in pairs])
-        away = _median([((c[0] - p[0]) ** 2 + (c[1] - p[1]) ** 2) ** 0.5 / 100 for c, p in pairs])
+        above = _median([c[1] - p[1] for c, p in pairs])
+        away = _median([((c[0] - p[0]) ** 2 + (c[2] - p[2]) ** 2) ** 0.5 for c, p in pairs])
         return (f"camera (median of {len(pairs)} samples): {above:.2f} m above the player, {away:.2f} m from it "
                 f"horizontally, pitch {pitch:.1f}°, field of view {fov:.0f}°")
     except (ArithmeticError, TypeError, ValueError, AttributeError):
@@ -209,12 +209,12 @@ def camera_text(probe):
 
 def readings(check, made):
     """[(play label, its readings line)] of one side's plays as the cloud's judge prompt gives them beside its pictures:
-    the player's position track (seconds, x, y, z) and the camera's measures."""
+    the player's position track (seconds, x, y, z in metres, y up) and the camera's measures."""
     out = []
     for name, label, _ in selection(check, made):
         probe = made.get(name, (None, {}))[0]
         seen = camera_text(probe)
-        out.append((label, f"player position track (seconds, x, y, z in cm): {track_text(probe)}"
+        out.append((label, f"player position track (seconds, x, y, z in m, y up): {track_text(probe)}"
                            + (f"; {seen}" if seen else "")))
     return out
 

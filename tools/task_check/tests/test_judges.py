@@ -181,18 +181,18 @@ class Cloud(unittest.TestCase):
         return {"look": (probe_, shots(n_look)), "drive": (probe_, shots(n_drive))}
 
     def test_readings_are_the_cloud_prompts_track_and_camera_lines(self):
-        """The track is about ten rows as JSON; the camera line is judging.camera_text's, word for word (its z as
-        height and centimetres, the Unreal grader's, kept as the cloud says it)."""
-        track = [[t / 10, 1.0, 2.0, 300.0] for t in range(30)]
-        camera = [[t / 10, 1.0, 2.0, 500.0, 20.0, 0.0, 60.0] for t in range(30)]
+        """The track is about ten rows as JSON; the camera line is judging.camera_text's, word for word, in Unity's
+        axes: y up, metres, the horizontal distance over x and z."""
+        track = [[t / 10, 1.0, 2.0, 3.0] for t in range(30)]
+        camera = [[t / 10, 1.0, 5.0, -1.0, 20.0, 0.0, 60.0] for t in range(30)]
         chk = judges.judge(judge())
         said = judges.readings(chk, self.made(probe_={"track": track, "camera": camera}))
         self.assertEqual([label for label, _ in said], ["idle play, 20 s, no input", "scripted drive, 22 s"])
-        self.assertEqual(said[0][1], "player position track (seconds, x, y, z in cm): "
-                         + json.dumps(track[::3])[:1200] + "; camera (median of 30 samples): 2.00 m above the player, "
-                         "0.00 m from it horizontally, pitch 20.0°, field of view 60°")
+        self.assertEqual(said[0][1], "player position track (seconds, x, y, z in m, y up): "
+                         + json.dumps(track[::3])[:1200] + "; camera (median of 30 samples): 3.00 m above the player, "
+                         "4.00 m from it horizontally, pitch 20.0°, field of view 60°")
         self.assertEqual(judges.readings(chk, self.made())[0][1],
-                         "player position track (seconds, x, y, z in cm): none (no player pawn)")
+                         "player position track (seconds, x, y, z in m, y up): none (no player pawn)")
 
     def test_a_route_note_says_what_the_cloud_adds_never_4_of_6(self):
         """The Unity grader shows a route's 8 screenshots after the plays: alone, within the 20 the judge is shown
