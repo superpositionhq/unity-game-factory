@@ -186,25 +186,29 @@ VALID is necessary, not sufficient: the Lab's review also reads the game's code 
 against the instruction, and marks a task whose checks pass both cases but do not decide what the instruction asks
 (unity-write-tasks skill, section 5, "Every ask has a check").
 
-A task is **VALID** when all of this holds:
+A task is **VALID** when all of this holds. Each rule either does what the Lab's grader does (it grades no task that
+breaks it, or grades every run of it the same way) or is the factory's own bar for a task, which the grader never
+checks: those are marked **local only**. A check of a run (a threshold, whether a value passes it, a judge's pass mark,
+a build's or a play's time limit, a task error, a retired check) is always the grader's, never stricter.
 
-- the start builds, or doesn't build exactly when a build check says `fails_at_start`;
+- the start builds, or doesn't build exactly when a build check says `fails_at_start` (the grader grades no run of a
+  task whose start doesn't build, unless it says so);
 - with a reference: the reference builds, boots (every `boot` check) and passes every **required** check the checker
-  runs: probes, `log_absent`, `file_exists` and `package` alike. The Lab's grader holds the task's own fix to every
-  required check, so a required check the reference fails is one no solution like the reference can pass;
+  runs: probes, `log_absent`, `file_exists` and `package` alike (**local only**: the grader never grades the reference
+  as a run; but a required check the reference fails is one no solution like the reference can pass);
 - every required `judge` check is scored by you, blind, and the scores hold: the reference passes it and the start
-  fails it (passes it, for a judge in `still_works`), as below;
+  fails it (passes it, for a judge in `still_works`), as below (**local only**: the grader's model judges runs only);
 - every probe has a threshold, a `"required": false` one too: a probe the checker can't calibrate (below) makes the
   Lab's grade of the task fail whole, so it is a reason, never a note;
-- the start fails every required probe outside `still_works` (or doesn't build by design): each is one issue of the
-  thread, and one the start already passes rewards no work. A required check of `"weight": 0` is a guard wherever it
+- (**local only**) the start fails every required probe outside `still_works` (or doesn't build by design): each is
+  one issue of the thread, and one the start already passes rewards no work. A required check of `"weight": 0` is a guard wherever it
   sits (it rewards nothing), so the start may pass it; that lets a task hold more guards than `still_works`' 32;
-- every required probe in the `still_works` milestone already passes at the start. What must keep working has to work
-  before the change, or the probe is broken and would fail every correct solution. A still-works probe the start has
+- (**local only**) every required probe in the `still_works` milestone already passes at the start. What must keep
+  working has to work before the change, or the probe is broken and would fail every correct solution. A still-works probe the start has
   no samples for (its play crashed or ended early, which is often the task's own bug) doesn't count against it; one
   that finds nothing to measure in a start that ran does;
-- a no-op scores zero, as the Lab scores it: the weighted share of every check passed, judges included. No check the
-  start passes carries weight, so build, boot and `still_works` checks take `"weight": 0` (`tools/validate-game.py`
+- (**local only**, scored as the grader scores a run) a no-op scores zero, as the Lab scores it: the weighted share
+  of every check passed, judges included. No check the start passes carries weight, so build, boot and `still_works` checks take `"weight": 0` (`tools/validate-game.py`
   refuses a task where one doesn't), and so does any other check true of the start: a `log_absent`, `file_exists` or
   probe check, a `"required": false` one too (the task check runs those on the start), and a judge your blind scores
   pass on the start (`a no-op scores N, not 0: it passes judge(s) X on your scores`). A weighted optional judge whose
@@ -214,7 +218,7 @@ Never decided by the check: `code_judge` checks (no model is asked). A retired `
 makes the task INVALID, required or not: the Lab's grader gives a task with a trace probe reward 0 on every run and
 fails an `actions_judge` check on every run. A `package` check fails on every side: the Lab's grader has no package step
 for a Unity game and fails it closed, so a required one keeps every run from passing and the task is INVALID (`reference
-fails X: not packaged: ...`); drop it. The reference's failures of checks that aren't required are reported as notes
+fails X: not packaged: ...`): a Unity task carries none. The reference's failures of checks that aren't required are reported as notes
 and never make a task INVALID, but for a task error (`task error: ...`: the reference's own play of the check can't be
 driven): the Lab's grader refuses to grade a task with a task error on any check, required or not, so it makes the
 task INVALID here too. Every check is required unless it says `"required": false`, a `log_absent` or
