@@ -867,6 +867,32 @@ class BigRows(unittest.TestCase):
         self.assertEqual([h for h in out['hits'] if h[0] == self.rel], [])
 
 
+class GitLog(unittest.TestCase):
+    """git.log: its header carries the README's first heading, in any script."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ugfg')
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, onerror=base.onerror)
+
+    def test_a_title_not_in_latin_letters_writes_as_utf8(self):
+        repo = os.path.join(self.tmp, 'repo')
+        os.makedirs(repo)
+        base.git(repo, 'init', '-q')
+        base.write(repo, 'README.md', '# \u4f59\u70ec\u4e4b\u8def\n')
+        base.git(repo, 'add', '-A')
+        base.git(repo, 'commit', '-q', '-m', '\u8d77\u70b9: first commit')
+        head = base.git(repo, 'rev-parse', 'HEAD')
+        out = os.path.join(self.tmp, 'git.log')
+        header = f'GIT-LOG 1\n# \u4f59\u70ec\u4e4b\u8def ({SLUG}): the git history up to commit {head}.\n\n'
+        self.assertEqual(PKG.write_git_log(repo, head, out, header), 1)
+        with open(out, 'rb') as f:
+            text = f.read().decode('utf-8')
+        self.assertTrue(text.startswith(header), text[:200])
+        self.assertIn('    \u8d77\u70b9: first commit', text)
+        self.assertIn('+# \u4f59\u70ec\u4e4b\u8def', text)
+
+
 class Scan(unittest.TestCase):
     """The scan's rules on files made here: what refuses, what is listed and what is allowed."""
     USER = 'nora'

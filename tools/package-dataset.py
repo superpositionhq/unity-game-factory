@@ -675,7 +675,9 @@ def write_git_log(bare, head, out_file, header):
 
     os.makedirs(lp(os.path.dirname(out_file)), exist_ok=True)
     with open(lp(out_file), 'w', encoding='latin-1', newline='') as w:
-        w.write(header)
+        # git's lines pass through byte for byte (latin-1 both ways); the header is text, so it goes in as UTF-8 bytes
+        # too: a README title in any script (a heading not in Latin letters) writes as it reads
+        w.write(header.encode('utf-8').decode('latin-1'))
         section, in_header, in_message = [], False, False
         for raw in p.stdout:
             line = raw.decode('latin-1')
