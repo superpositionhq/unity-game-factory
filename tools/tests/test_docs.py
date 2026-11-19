@@ -987,6 +987,32 @@ class Examples(unittest.TestCase):
                 problems = example_problems(read(rel))
                 self.assertFalse(problems, show(rel, problems))
 
+    def test_the_whole_example_task(self):
+        """unity-write-tasks section 9: the one whole task follows every rule it shows, not only the schema and the
+        validator's: at least 3 weighted outcome probes, the looks_as_asked judge in the outcome milestone with an item
+        for the brief's look, a still_works probe or judge for each keep and every still_works check of weight 0, no
+        calibrated threshold (its asks are tunings, relative to the start), and a judge's play written as the probe's."""
+        text = read(SKILL)
+        body = next(b for lang, _, b in fences(text[text.index('## 9. Examples'):]) if lang == 'json')
+        t = json.loads(body)
+        self.assertEqual(task_problems(t), [])
+        groups = {m['name']: m['checks'] for m in t['milestones']}
+        outcome = [c for c in groups['fixed'] if c['kind'] == 'probe' and c.get('weight', 1) > 0]
+        self.assertGreaterEqual(len(outcome), 3)
+        looks = [c for c in groups['fixed'] if c['kind'] == 'judge']
+        self.assertEqual([c['name'] for c in looks], ['looks_as_asked'])
+        self.assertTrue(looks[0]['before'] and looks[0]['reference'])
+        for item in looks[0]['rubric']:
+            self.assertTrue(item['required'])
+            self.assertIn(item['criterion'].split(' is ')[-1].rstrip('.').split(' against')[0], t['instruction'])
+        self.assertTrue(all(c.get('weight', 1) == 0 for c in groups['still_works']))
+        self.assertEqual(len(groups['still_works']), 4)   # throttle, steering, speed readout, the lamps
+        self.assertTrue(any(c['kind'] == 'judge' and c.get('before') for c in groups['still_works']))
+        self.assertNotIn('calibrate', json.dumps(t))
+        plays = {c['play']['name']: c['play'] for c in outcome if isinstance(c['play'], dict)}
+        for play in looks[0]['plays']:
+            self.assertEqual(play, plays[play['name']])
+
 
 class Paths(unittest.TestCase):
     """B. Every relative link, repo path, option and section reference leads somewhere."""
