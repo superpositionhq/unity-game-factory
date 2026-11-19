@@ -378,6 +378,16 @@ class Decide(unittest.TestCase):
         self.assertFalse(judges.passes(found, scores))
         self.assertEqual(judges.weighted(found, {"a": 2, "b": 0.6, "c": 0}), 0.6)
 
+    def test_a_no_op_earns_on_a_judge_its_start_passes(self):
+        """judges.noop_passes: the judges the writer's scores pass on the start (what a no-op earns on them), and the
+        weighted ones whose start isn't scored yet."""
+        task = task_with(probe(), judge("taste", required=False), judge("tidy", required=False),
+                         judge("free", required=False, weight=0))
+        records = {"taste": {"scores": {"start": {"door_open": 1, "lit": 1}}},
+                   "tidy": {"scores": {"start": {"door_open": 0, "lit": 0}}}}
+        self.assertEqual(judges.noop_passes(task, records), (["taste"], []))
+        self.assertEqual(judges.noop_passes(task, {}), ([], ["taste", "tidy"]))
+
     def test_the_start_fails_it_but_passes_a_judge_of_what_still_works(self):
         fails, passes_ = {"door_open": 0, "lit": 0}, {"door_open": 1, "lit": 1}
         self.assertEqual(self.decide("fixed", fails, passes_), [])

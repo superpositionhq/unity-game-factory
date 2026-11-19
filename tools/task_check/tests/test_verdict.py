@@ -228,7 +228,7 @@ class Verdict(unittest.TestCase):
                        checked("runs", "probe", True))
         valid, why, _ = verdict.verdict(task, ref, start)
         self.assertFalse(valid)
-        self.assertEqual(why, ['a no-op scores 0.667, not 0: give player_builds, runs "weight": 0, or drop them'])
+        self.assertEqual(why, ['a no-op scores 0.667, not 0: give player_builds, runs "weight": 0'])
         weightless = task_with(milestones=[{"name": "builds", "checks": [{"kind": "build", "name": "player_builds",
                                                                           "weight": 0}]},
                                            {"name": "fixed", "checks": [probe("hud")]},
@@ -240,6 +240,20 @@ class Verdict(unittest.TestCase):
         task = task_with(probe("hud"), {"kind": "judge", "name": "taste", "question": "q", "required": False, "rubric": [{"key": "k", "criterion": "c"}]})
         start = record(checked("hud", "probe", False), checked("taste", "judge", False, "not asked"))
         self.assertEqual(verdict.noop_score(task, start), (0.0, []))
+
+    def test_a_no_op_is_scored_as_the_lab_scores_it(self):
+        """The Lab's score of a no-op is the weighted share of every check, judges and log_absent/file_exists/package
+        too: a weighted log_absent the start passes earns, a judge the writer's scores pass on the start earns, and
+        every check's weight is in the share."""
+        acts = {"kind": "judge", "name": "taste", "question": "q", "required": False, "weight": 2,
+                "rubric": [{"key": "k", "criterion": "c"}]}
+        task = task_with(probe("hud"), {"kind": "log_absent", "name": "quiet", "pattern": "Exception"}, acts)
+        start = record(checked("hud", "probe", False), checked("quiet", "log_absent", True, "0 matching log line(s)"),
+                       checked("taste", "judge", True, check.NOT_JUDGED))
+        self.assertEqual(verdict.noop_score(task, start), (0.25, ["quiet"]))
+        self.assertEqual(verdict.noop_score(task, start, ["taste"]), (0.75, ["quiet", "taste"]))
+        valid, why, _ = verdict.verdict(task, record(checked("hud", "probe", True)), start)
+        self.assertEqual(why, ['a no-op scores 0.25, not 0: give quiet "weight": 0'])
 
     def test_a_still_works_probe_must_hold_at_the_start(self):
         """A still-works probe that never finds what it looks for would make a start-only task look valid."""

@@ -441,6 +441,20 @@ def decide(check, record):
     return why
 
 
+def noop_passes(task, records):
+    """(the judges the writer's scores pass on the start, the judges with weight whose start isn't scored): what a no-op
+    earns on its judges, as the Lab's judge scores a game that is the start (verdict.noop_score)."""
+    passed, unknown = [], []
+    for c in judges(task):
+        scores = ((records or {}).get(c["name"]) or {}).get("scores") or {}
+        if "start" in scores:
+            if passes(c, scores["start"]):
+                passed.append(c["name"])
+        elif c.get("weight", 1) > 0:
+            unknown.append(c["name"])
+    return passed, unknown
+
+
 def side_lines(saved):
     """One line per side: its pictures, by file name and what each is."""
     lines = []

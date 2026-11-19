@@ -203,11 +203,12 @@ A task is **VALID** when all of this holds:
   before the change, or the probe is broken and would fail every correct solution. A still-works probe the start has
   no samples for (its play crashed or ended early, which is often the task's own bug) doesn't count against it; one
   that finds nothing to measure in a start that ran does;
-- a no-op scores zero: no check the start passes carries weight, so build, boot and `still_works` checks take
-  `"weight": 0` (`tools/validate-game.py` refuses a task where one doesn't), and so does any other check true of the
-  start: a `log_absent` or `file_exists` check (nothing measures those at the start, so their weight is yours to set)
-  or a probe, a `"required": false` one too (the task check measures that). Judges aren't measured here, so their
-  weights aren't covered by this rule.
+- a no-op scores zero, as the Lab scores it: the weighted share of every check passed, judges included. No check the
+  start passes carries weight, so build, boot and `still_works` checks take `"weight": 0` (`tools/validate-game.py`
+  refuses a task where one doesn't), and so does any other check true of the start: a `log_absent`, `file_exists` or
+  probe check, a `"required": false` one too (the task check runs those on the start), and a judge your blind scores
+  pass on the start (`a no-op scores N, not 0: it passes judge(s) X on your scores`). A weighted optional judge whose
+  start isn't scored gets a note: what a no-op earns on it isn't known until it is.
 
 Never decided by the check: `code_judge` checks (no model is asked). A retired `actions_judge` check or `trace` probe
 makes the task INVALID, required or not: the Lab's grader gives a task with a trace probe reward 0 on every run and

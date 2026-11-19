@@ -244,7 +244,21 @@ class Grades(unittest.TestCase):
                           (True, check.NOT_JUDGED), (False, "not run: needs boots_clean")])
         start = grade(task, "start", side("start", FakeProject(measuring(-5)), task))
         self.assertEqual([c["passed"] for c in start["checks"]], [True, True, True, False])
-        self.assertEqual(start["checks"][0]["detail"], "not asked: the start is checked on its probes")
+        self.assertEqual(start["checks"][0]["detail"],
+                         "not asked: the start is checked on its probes, log_absent, file_exists and package")
+
+    def test_the_start_runs_what_a_no_op_is_scored_on(self):
+        """The Lab scores a no-op on its log_absent, file_exists and package checks too, so the start runs them (a
+        package check fails closed); build and boot stay unasked (the validator holds them to weight 0)."""
+        task = task_with({"kind": "boot", "name": "boots_clean", "seconds": 10},
+                         {"kind": "log_absent", "name": "no_exceptions", "pattern": "NullReferenceException"},
+                         {"kind": "package", "name": "packages"}, probe())
+        start = grade(task, "start", side("start", FakeProject(measuring(5)), task))
+        self.assertEqual([(c["name"], c["passed"], c["detail"]) for c in start["checks"][:3]],
+                         [("boots_clean", True, "not asked: the start is checked on its probes, log_absent, "
+                                                "file_exists and package"),
+                          ("no_exceptions", True, "0 matching log line(s)"),
+                          ("packages", False, check.NO_PACKAGE)])
 
     def test_a_boot_and_its_log(self):
         task = task_with({"kind": "boot", "name": "boots_clean", "seconds": 10},

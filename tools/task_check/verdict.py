@@ -129,15 +129,18 @@ def retired_detail(check):
     return f"{RETIRED}: an {check['kind']} check: the Lab's grader has no such check kind, so it fails every run"
 
 
-def noop_score(task, start):
-    """(score, names): what doing nothing earns, the weighted share of the deterministic checks the start passes, and
-    the passed checks that carry weight. Judges and the retired trace probes aren't measured here (`detail` "not asked")."""
-    weights = {c["name"]: c["weight"] for _, c in tasks.checks(task)
-               if c["kind"] not in JUDGES and not (c["kind"] == "probe" and c["measure"]["probe"] == "trace")}
+def noop_score(task, start, judged=()):
+    """(score, names): what doing nothing earns, as the Lab scores it: the weighted share of every check (judges
+    too) of the checks the start passes, and the passed checks that carry weight. The start's rows give the
+    deterministic checks (its probes, log_absent, file_exists and package; build and boot carry weight 0 by the
+    validator); `judged` names the judges the writer's scores pass on the start (judges.noop_passes). A code_judge
+    never passes a no-op (the Lab's code judge fails a run that changed no file)."""
+    weights = {c["name"]: c["weight"] for _, c in tasks.checks(task)}
     total = sum(weights.values())
     names = [c["name"] for c in start["checks"]
-             if c["name"] in weights and c["passed"] and weights[c["name"]] > 0
+             if c["name"] in weights and c["passed"] and weights[c["name"]] > 0 and c["kind"] not in JUDGES
              and not str(c["detail"]).startswith("not asked")]
+    names += [n for n in judged if weights.get(n, 0) > 0 and n not in names]
     return (round(sum(weights[n] for n in names) / total, 3) if total else 0.0), names
 
 
@@ -189,7 +192,7 @@ def verdict(task, reference, start):
     told = (required - still) | ({build["name"]} if build is not None else set())  # those have their own reasons below
     if earned and set(names) - told:
         why.append(f"a no-op scores {earned}, not 0: give {', '.join(n for n in names if n not in told)} "
-                   "\"weight\": 0, or drop them")
+                   "\"weight\": 0")
     if reference is None and broken:  # a start-only check's gate: the start doesn't build by design
         return not why, why, notes
     gates = [c for c in start["checks"] if c["name"] in required and c["name"] not in still] + broken

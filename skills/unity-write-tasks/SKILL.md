@@ -348,11 +348,12 @@ Each milestone is a reward group; a run that gets part of the way earns part of 
 milestones and a milestone 1 to 32 checks; their names are lower-case letters, digits and `_` (a milestone's at most
 32 characters, a check's 48). **A no-op scores zero (permanent):** the score is the weighted share of checks passed,
 so every check the start already passes takes `"weight": 0`: `builds`, `boots`, all of `still_works`, any
-`log_absent` or `file_exists` true of the start, and any probe the start already passes, required or not. They still
+`log_absent` or `file_exists` true of the start, any probe the start already passes, required or not, and any judge
+the start passes. They still
 gate: a run must pass the required ones to be solved.
-`validate-game.py` refuses a weighted `build`, `boot` or `still_works` check, and the task check a weighted probe the
-start passes; nothing checks a `log_absent` or `file_exists` outside `still_works`, so their `"weight": 0` is yours to
-set. The usual order:
+`validate-game.py` refuses a weighted `build`, `boot` or `still_works` check, and the task check a weighted probe,
+`log_absent` or `file_exists` the start passes, and a weighted judge your blind scores pass on the start, as the Lab
+scores a no-op on every check, judges included. The usual order:
 
 1. `builds`: `build` (`player_builds`: the scripts compile and a Windows player builds).
 2. `boots`: `boot` 60 s (`boots_clean`: the player runs 60 s without a crash), `needs` the build. A managed exception

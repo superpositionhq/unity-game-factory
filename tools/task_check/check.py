@@ -509,8 +509,9 @@ class Side:
 
 class Grade:
     """The checks of one side as a solution's grade would run them. `mode` "reference": every check but judges (a
-    package check and a retired check fail closed), of the reference or of `side` (an agent's game, task-try.py); "start": its
-    probes and a `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`).
+    package check and a retired check fail closed), of the reference or of `side` (an agent's game, task-try.py);
+    "start": its probes, its log_absent, file_exists and package checks (what a no-op scores on them) and a
+    `fails_at_start` build check. Thresholds are shared between the grades (`thresholds`).
 
     A probe of a task play reads only a play that did what the task says: when an input of the play didn't land (the
     play's `inputs_missed`, probes.missed), the check fails, saying so, whatever it measured; when the reference's own
@@ -602,9 +603,11 @@ class Grade:
         if self.mode == "start":
             if kind == "build" and check["fails_at_start"]:
                 return (True, "the start built") if self.start.built() else (False, self.start.why_unbuilt())
-            if kind != "probe":
-                return True, "not asked: the start is checked on its probes"
-            return self.probe_check(check)
+            if kind == "probe":
+                return self.probe_check(check)
+            if kind not in ("log_absent", "file_exists", "package"):  # build and boot: weight 0 (the validator)
+                return True, "not asked: the start is checked on its probes, log_absent, file_exists and package"
+            # these, as on a solution: the Lab scores a no-op on them, so one the start passes may carry no weight
         side = self.side
         if kind == "build":
             r = side.build()
@@ -864,6 +867,19 @@ def check_task(repo, task, raw, scratch, out_dir, keep=False, direct=False, time
         # so the task isn't VALID until they are written and hold
         unscored = {"status": "its shots weren't saved (--no-judge-shots), so it can't be scored"}
         judged = [w for c in judges.judges(task) for w in judges.decide(c, result["judges"].get(c["name"], unscored))]
+        # a no-op scores zero on the judges too, as the Lab scores them: one the start passes on your scores carries no
+        # weight (a required one outside still_works is already a reason above)
+        if judges.judges(task):
+            held, unknown = judges.noop_passes(task, result["judges"])
+            asked = {c["name"]: c for c in judges.judges(task)}
+            told = {n for n in held if asked[n]["required"] and asked[n]["group"] != judges.STILL_WORKS}
+            paying = [n for n in held if n not in told and asked[n].get("weight", 1) > 0]
+            if paying:
+                earned, _ = verdict.noop_score(task, start_grade, held)
+                judged.append(f"a no-op scores {earned}, not 0: it passes judge(s) {', '.join(paying)} on your scores; "
+                              "give them \"weight\": 0")
+            notes += [f"judge {n} carries weight and its start isn't scored, so what a no-op scores on it isn't known"
+                      for n in unknown if not asked[n]["required"]]
         valid, why = valid and not judged, why + judged
         if seen.checks(task):  # a start that doesn't build by design is never played, so it has nothing to read
             shown = {label: s for label, s in (("start", start), ("reference", reference)) if s is not None
