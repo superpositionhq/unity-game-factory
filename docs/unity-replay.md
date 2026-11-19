@@ -155,7 +155,10 @@ At the end (`unity_replay.py verify`, against the final commit):
    values and scene settings. Known non-content differences are normalised first and counted in `verdict.exclusions`
    (a list of `{id, what, count}`): the bytes of Unity's serialized files under `Assets/` (every new object gets a
    random file id), GUID strings inside values, absolute paths into the folder the editor ran in, the adopted GUIDs,
-   git-ignored extra files, scenes outside `scene_roots` (store packs' demo scenes), folders in `dump_exclusions`
+   an audio mixer's ids (`id_numbers`: Unity gives each group, effect, snapshot and parameter a random id, four
+   numbers in a dump, when it is created; compared by mapping, each id of the final commit paired with one id of the
+   replay wherever it appears, so a parameter wired elsewhere, a value kept for another parameter or a missing object
+   still fails; an id of zeros is a value), git-ignored extra files, scenes outside `scene_roots` (store packs' demo scenes), folders in `dump_exclusions`
    (assets that fail to load, in the final commit too). Workflow-row comparison is informational.
 
 `report.json` follows [schemas/replay-report.schema.json](schemas/replay-report.schema.json) (the tool checks it when

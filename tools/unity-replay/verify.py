@@ -16,7 +16,8 @@ Pass criteria (all must hold):
   2. every asset of the final commit exists in the replay with the same type, import settings and structure;
   3. every scene (settings scene_roots) has the same GameObjects (by hierarchy path) with the same components and values,
      and the same scene settings.
-Known differences that are not content are normalised before comparing, counted and listed in the report (NORMALISE);
+Known differences that are not content are normalised before comparing, counted and listed in the report (NORMALISE;
+an audio mixer's random ids by mapping, mixer_id_view);
 the bytes of Unity's serialized files under Assets/ are not compared for the verdict (Unity gives every new object a
 random file id), they are compared by structure instead.
 """
@@ -227,12 +228,115 @@ def name_pairs(view, keys):
     return out
 
 
+# An audio mixer gives each of its groups, effects and snapshots, and each parameter (a group's volume and pitch, an
+# effect's mix level and settings), an id Unity makes at random when the object is created: a GUID, which a dump shows
+# as four numbers, <field>.data[0..3]. Two builds of the same mixer never share them. They are compared by mapping,
+# never blanked: each id an object defines on the truth side is paired with the id at the same place on the replay
+# side, one to one, and every place either id appears (the object itself, an exposed parameter, a snapshot's value for
+# that parameter) is rewritten to the pair's label. An id that is paired twice two ways, a reference to an id no object
+# defines, or a value kept for another parameter keeps its numbers and fails as before. An id of zeros (nothing
+# set) is a value, not an id, and stays.
+MIXER_TYPES = ("UnityEditor.Audio.AudioMixerController", "UnityEditor.Audio.AudioMixerGroupController",
+               "UnityEditor.Audio.AudioMixerSnapshotController", "UnityEditor.Audio.AudioMixerEffectController")
+MIXER_ID_DEFINED = ("m_GroupID", "m_EffectID", "m_SnapshotID", "m_Volume", "m_Pitch", "m_Send", "m_MixLevel", "m_GUID")
+MIXER_ID_REFERENCE = ("guid",)   # an exposed parameter names the parameter it exposes
+MIXER_ID_KEY = re.compile(r"^(?P<base>(?:.+\.)?(?P<field>[A-Za-z_][A-Za-z0-9_]*))\.data\[(?P<k>[0-3])\]$")
+# a map keyed by parameter id (a snapshot's m_FloatValues, m_TransitionOverrides): <map>.Array.data[i].first is the id
+MIXER_MAP_KEY = re.compile(r"^(?P<map>.+)\.Array\.data\[(?P<i>\d+)\]\.(?P<rest>.+)$")
+
+
+def _mixer_ids(props):
+    """{base: (id tuple, kind)} of the four-number ids in one mixer object's props; kind 'defined', 'reference' or
+    'map'. A base without all four whole numbers, or with all four zero, is not an id."""
+    parts = collections.defaultdict(dict)
+    for k, v in props.items():
+        m = MIXER_ID_KEY.match(k)
+        if m and isinstance(v, int) and not isinstance(v, bool):
+            parts[m.group("base")][int(m.group("k"))] = v
+    out = {}
+    for base, p in parts.items():
+        if len(p) != 4 or not any(p.values()):
+            continue
+        field = base.rsplit(".", 1)[-1]
+        if field == "first" and re.search(r"\.Array\.data\[\d+\]\.first$", base):
+            kind = "map"
+        elif field in MIXER_ID_DEFINED:
+            kind = "defined"
+        elif field in MIXER_ID_REFERENCE:
+            kind = "reference"
+        else:
+            continue
+        out[base] = (tuple(p[i] for i in range(4)), kind)
+    return out
+
+
+def _relabel_mixer_props(props, ids, label):
+    """props with each id rewritten to its label (label(id) -> str or None for an unpaired id, which keeps its
+    numbers); a map's elements are keyed by their id's label instead of their place, so their order does not count."""
+    out = dict(props)
+    for base, (ident, kind) in ids.items():
+        lab = label(ident)
+        if lab is None:
+            continue
+        for i in range(4):
+            out.pop("%s.data[%d]" % (base, i), None)
+        if kind != "map":
+            out[base] = lab
+    maps = [(base[:-len(".first")], ids[base]) for base in ids if ids[base][1] == "map" and label(ids[base][0])]
+    for elem, (ident, _) in maps:
+        m = re.match(r"^(?P<map>.+)\.Array\.data\[\d+\]$", elem)
+        new = "%s[%s]" % (m.group("map"), label(ident))
+        for k in [k for k in out if k.startswith(elem + ".")]:
+            out[new + k[len(elem):]] = out.pop(k)
+    return out
+
+
+def mixer_id_view(rv, tv):
+    """(replay view, truth view, ids mapped) of an asset that holds audio mixer objects, with their random ids
+    compared by mapping (above); views unchanged when the asset holds none or its objects do not pair up (same count,
+    type and name at each place: a difference the comparison then reports)."""
+    ro, to = rv.get("objects") or [], tv.get("objects") or []
+    if not any(o.get("type") in MIXER_TYPES for o in ro + to):
+        return rv, tv, 0
+    if len(ro) != len(to) or any((x.get("type"), x.get("name")) != (y.get("type"), y.get("name")) for x, y in zip(ro, to)):
+        return rv, tv, 0
+    rid = [_mixer_ids(o.get("props") or {}) if o.get("type") in MIXER_TYPES else {} for o in ro]
+    tid = [_mixer_ids(o.get("props") or {}) if o.get("type") in MIXER_TYPES else {} for o in to]
+    fwd, back, order = {}, {}, []
+    clash = set()
+    for i in range(len(to)):
+        for base in sorted(tid[i]):
+            t, kind = tid[i][base]
+            r = rid[i].get(base)
+            if kind != "defined" or not r or r[1] != "defined":
+                continue
+            r = r[0]
+            if fwd.get(t, r) != r or back.get(r, t) != t:
+                clash.update((("t", t), ("r", r)))   # one id paired two ways: neither side's pairing is trusted
+                continue
+            if t not in fwd:
+                fwd[t], back[r] = r, t
+                order.append(t)
+    for side, ident in clash:
+        t = ident if side == "t" else back.get(ident)
+        if t in fwd:
+            back.pop(fwd.pop(t), None)
+    labels = {t: "<mixer id %d>" % n for n, t in enumerate(x for x in order if x in fwd)}
+    tl = lambda ident: labels.get(ident)
+    rl = lambda ident: labels.get(back.get(ident))
+    nt = dict(tv, objects=[dict(o, props=_relabel_mixer_props(o.get("props") or {}, tid[i], tl)) if tid[i] else o
+                           for i, o in enumerate(to)])
+    nr = dict(rv, objects=[dict(o, props=_relabel_mixer_props(o.get("props") or {}, rid[i], rl)) if rid[i] else o
+                           for i, o in enumerate(ro)])
+    return nr, nt, sum(1 for t, r in fwd.items() if t != r)
+
+
 def verify_assets(rep, tru, counts=None):
     counts = counts if counts is not None else collections.Counter()
     a = {x["path"]: x for x in rep["assets"]}
     b = {x["path"]: x for x in tru["assets"]}
     by_type = collections.defaultdict(collections.Counter)
-    diffs, load_err = [], []
+    diffs, load_err, mixer = [], [], []
     for k, t in b.items():
         cls = (t.get("type") or "?").rsplit(".", 1)[-1]
         if k not in a:
@@ -251,7 +355,11 @@ def verify_assets(rep, tru, counts=None):
                 counts["asset_load_error_both"] += 1
                 load_err.append({"asset": k, "type": cls, "error": t.get("error")})
         else:
-            dk = name_pairs(asset_view(t), tolerant_diff(asset_view(r), asset_view(t), counts))
+            rv, tv, n_ids = mixer_id_view(asset_view(r), asset_view(t))
+            if n_ids:
+                counts["id_numbers"] += n_ids
+                mixer.append("%s: %d ids" % (k, n_ids))
+            dk = name_pairs(tv, tolerant_diff(rv, tv, counts))
             if "hierarchy" in t or "hierarchy" in r:
                 hv = verify_objects(r.get("hierarchy") or [], t.get("hierarchy") or [], counts)
                 if hv["differs"] or hv["missing"] or hv["extra"]:
@@ -270,7 +378,7 @@ def verify_assets(rep, tru, counts=None):
     for c in by_type.values():
         total.update(c)
     return {"total": dict(total), "by_type": {k: dict(v) for k, v in sorted(by_type.items())}, "diffs": diffs,
-            "load_error_both": load_err}
+            "load_error_both": load_err, "id_numbers": mixer}
 
 
 # ------------------------------------------------------------------------------------------------ rows
@@ -390,6 +498,10 @@ def verdict(report, ctx, counts):
     if counts.get("asset_load_error_both"):
         exclusions.append({"id": "asset_load_error_both", "what": "assets that fail to load the same way in truth and replay "
                            "(the final commit's own content): compared by type and error only", "count": counts["asset_load_error_both"]})
+    exclusions.append({"id": "id_numbers", "what": "ids Unity writes at random as four numbers when an audio mixer's "
+                       "group, effect, snapshot or parameter is created (identity, not content): compared by mapping, "
+                       "each truth id to one replay id wherever it appears", "count": counts.get("id_numbers", 0),
+                       "items": (report.get("assets") or {}).get("id_numbers", [])[:200]})
     adopted = sum((w.get("content") or {}).get("adopted_guids", 0) for w in report.get("windows", []))
     exclusions.append({"id": "guids_adopted", "what": "GUIDs of assets the replay created, given the ones the commit has at "
                        "the same paths at each boundary (Unity makes a random one in every editor; identity, not content)",
