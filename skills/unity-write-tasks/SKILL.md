@@ -486,7 +486,10 @@ another fair build names it otherwise and reads as absent. Select what the threa
 what it does or where it is (`has`, `near`, `ui` with a `rect` or text, `drawn`, `lit`, `changed`; a part's direction
 by `components` `world_yaw`/`world_pitch` with `near`, not `world_yaw:<Part>`); `validate-game.py` refuses a required
 probe that names something the start lacks and the reference has, a part in a field such as `world_yaw:<Part>`
-included. **Test the outcome a player
+included, and the same in the plays of a required probe or judge: a widget a click, tap or drag presses (its name or
+its caption), a member a `set` stage writes or a `where` compares, the select of a teleport or a stage, a scene a play
+opens or loads, a flag of a play's `args` or of the task's `play_args`. A caption, scene or flag the instruction or
+its title states in so many words (case included) is the ticket's own and passes; a code name never does. **Test the outcome a player
 sees, never the implementation**: another valid fix must
 pass ("the hero stands on ground", "the stone breaks the wall piece it hits", "the light reaching the tunnel floor
 times the camera's exposure is brighter", not "spawnHeight is 0.92" or "the method was changed"). So prefer what the
@@ -733,8 +736,9 @@ Fix what you find in the task before it is packed:
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
 - `tools/validate-game.py` fails a game with fewer than 5 tasks or fewer than 4 `hard` ones, and a task that is
   `easy`, has no `seed.reference`, has fewer than 3 required probes of weight above 0 outside `still_works`, or has a
-  required probe that names a component type, tag, layer, scene or asset the reference has and the start doesn't
-  (section 5). **The size of the span is a soft bar (owner, 2026-11-19, as in the Unreal factory since 2026-11-18): it
+  required probe or judge whose measure or plays name something the reference has and the start doesn't (a component
+  type, tag, layer, member, scene or asset; a widget a play presses or a flag it sets, unless the instruction states
+  it: section 5). **The size of the span is a soft bar (owner, 2026-11-19, as in the Unreal factory since 2026-11-18): it
   warns and never rejects.** The validator warns when the reference changes fewer than 5 game files, fewer than 100
   code lines or fewer than 2 systems against its start, and for a seed on main when fewer than 4 game-changing commits
   lie from `seed.commit` to `seed.reference`. For a new task these are still floors, not targets: pick the longest
@@ -838,7 +842,7 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 | a probe that tests the reference's implementation ("spawnHeight = 0.92") | measure the outcome; another valid fix must pass |
 | the brief says "scenario 1" but the task doesn't set `-scenario 1` | `play_scene` and `play_args` always set and checked at the seed |
 | a UI element or component name guessed | read the names from the code and assets at `seed.commit` |
-| a probe names a component, tag or scene only the reference has, so a fair build that names it otherwise reads as absent | select what the thread creates by what it does or where it is; the validator refuses a reference-only name |
+| a probe or a play names a component, tag, member, scene, widget or flag only the reference has, so a fair build that names it otherwise reads as absent or misses the input | select what the thread creates by what it does or where it is, press a control by words the start shows or the instruction states; the validator refuses a reference-only name in a required probe or judge and its plays |
 | a run writes the feature but never runs the game to see it, and the task has no probe of the moment | a play that triggers each piece of feedback, and a probe of what the player sees then |
 | a visual check fails because its screenshot doesn't show what is asked, and the check or its rubric is dropped, repurposed or loosened ("wording may vary" against an instruction that names the wording) | rewrite the play so it reliably makes that screenshot (inputs, shot moments, `when` on the event), or fix the game so the thing really appears; the check and its rubric stay (unity-check-tasks skill, section 7) |
 | a returned task fixed from an old copy, with other tasks touched and no word of what changed | start from the task files as returned, touch only the tasks listed, note what changed and why (unity-check-tasks skill, section 9) |

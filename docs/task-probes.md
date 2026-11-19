@@ -123,7 +123,10 @@ instead), normalised to (-180, 180]; a positive `pitch` looks down.
     itself or one that changes how the player runs (any case, after one dash or more): `batchmode`, `nographics`,
     `quit`, `logfile`, `nolog`, `projectpath`, `executemethod`, `popupwindow`, `monitor`, `parentHWND`,
     `single-instance`, `window-mode`, any flag starting with `screen-` or `force-`, nor the probe's own (any flag
-    starting with `taskprobe`); `tools/validate-game.py` lists what it refuses.
+    starting with `taskprobe`); `tools/validate-game.py` lists what it refuses. A scene or flag only the reference
+    has (an option the task's thread added) is never used, here or in `play_args`: a play starts with what the start
+    commit has, and the validator refuses a flag the reference's code has and the start's lacks, unless the
+    instruction states it.
   - `inputs` (at most 400; a play with none leaves the key out), each at time `t` (seconds of play, 0-1200). Keys,
     buttons and axes go through the **Input System**, on the probe's own virtual Keyboard, Mouse and Gamepad: a game
     that reads the old Input Manager (`UnityEngine.Input`) sees none of them (section 5). One sent at `t` is queued
@@ -408,7 +411,8 @@ of the first visible, laid-out widget of that name (a wildcard) or type, whateve
 panel): a uGUI object of a canvas or a UI Toolkit element, found as a `widgets` select finds one (section 2.6), by
 name first, then by type, then a button by the words it shows (its caption, matched as a click matches one). Name the
 control by the words it shows where it shows some, else by a name or type the start (`seed.commit`) already has;
-never by a name only the reference has (a control the task's thread adds is named otherwise in another fair build).
+never by a name only the reference has (a control the task's thread adds is named otherwise in another fair build;
+`tools/validate-game.py` refuses such a name in a required check's play unless the instruction states it).
 A point is the last resort: its place differs between landscape and portrait. A widget's spot is where it is when
 the finger goes down.
 

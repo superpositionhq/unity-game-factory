@@ -637,14 +637,44 @@ class TaskRules(Base):
         ms = self.probe(2, probe='objects', select={'component': 'Enemy', 'has': {'lit': True}}, field='glow', of='max')
         self.assertEqual(self.tasks(milestones=ms),
                          [f'tasks:Tasks/{SLUG}-{TASKS[0]}.json: check enemies_glow names Enemy, which only the reference '
-                          'has: another fair build names it otherwise; select by what it does or where it is '
-                          '(unity-write-tasks section 5)'])
+                          'has: another fair build names it otherwise; select by what it does or where it is, press a '
+                          'control by words the start shows or the instruction states (unity-write-tasks section 5)'])
         ms[2]['checks'][2]['measure']['select']['component'] = 'Kiln'   # the start has it: any build can match it
         self.assertEqual(self.tasks(milestones=ms), [])
         ms[2]['checks'][2]['measure']['select']['component'] = 'Enemy'
         ms[2]['checks'][2]['required'] = False                          # an optional probe gates nothing
         errs = self.tasks(milestones=ms)
         self.assertFalse([e for e in errs if 'only the reference' in e], errs)
+
+    def test_reference_only_play_inputs(self):
+        """A play's click, tap and drag widgets, its set stages, its command-line flags and the task's play_args name
+        nothing only the reference has (Hud, Enemy, field29, field30), unless the instruction states a shown name."""
+        def names(t):
+            return sorted(re.search(r'names (\S+), which only|set -(\S+), a flag', e).group(1, 2)
+                          for e in self.tasks(**t) if 'only the reference has' in e)
+        ms = task(self.start, self.ref)['milestones']
+        play = ms[2]['checks'][1]['play']
+        play['inputs'] += [{'t': 9, 'widget': 'Hud', 'click': True}, {'t': 10, 'tap': {'widget': 'Enemy'}},
+                           {'t': 11, 'drag': [{'widget': 'Kiln'}, [0.5, 0.5]]},
+                           {'t': 12, 'set': 'field30', 'on': {'component': 'Kiln'}, 'value': 1},
+                           {'t': 13, 'widget': 'Hu*', 'click': True}]   # a wildcard matches by pattern: never refused
+        play['args'] += ['-field29']
+        self.assertEqual(names({'milestones': ms}), [('Enemy', None), ('Hud', None), ('field29', None),
+                                                     ('field30', None)])
+        # a widget or flag the instruction states is the ticket's own word; a member never is
+        said = task(self.start, self.ref)['instruction'] + ' QA presses Hud, then Enemy, with the field29 option.'
+        self.assertEqual(names({'milestones': ms, 'instruction': said}), [('field30', None)])
+        # the task's play_args start every play
+        ms = task(self.start, self.ref)['milestones']
+        self.assertEqual(names({'milestones': ms, 'play_args': ['-scenario', '2', '-field29']}), [(None, 'field29')])
+        # a required judge's plays are held to it; an optional one gates nothing
+        judge = {'name': 'looks_as_asked', 'kind': 'judge', 'needs': ['boots_clean'], 'question': 'Does it read?',
+                 'rubric': [{'key': 'x', 'criterion': 'The score is legible.', 'required': True}],
+                 'plays': [{'name': 'open_hud', 'seconds': 5, 'inputs': [{'t': 1, 'widget': 'Hud', 'click': True}]}]}
+        ms[2]['checks'].append(judge)
+        self.assertEqual(names({'milestones': ms}), [('Hud', None)])
+        judge['required'] = False
+        self.assertEqual(names({'milestones': ms}), [])
 
     def test_never_literal(self):
         ms = self.probe(2, probe='objects', select={'component': 'Enemy'}, field='spread', of='max')

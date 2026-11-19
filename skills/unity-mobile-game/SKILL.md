@@ -106,7 +106,8 @@ player as the product, the rule here is the one that applies.
   screen as fractions of its width and height, or `{"widget": ...}`; `hold` for a held touch, `finger` for a second
   finger. The back button is the key `<Keyboard>/escape`. **Press a control by what a player sees:** `{"widget": ...}`
   with the words the button shows (`{"widget": "Jump"}` taps the button reading "Jump"), else by a name or type the
-  start (`seed.commit`) already has, as a desktop click; never by a widget name the task's thread creates. A control
+  start (`seed.commit`) already has, as a desktop click; never by a widget name the task's thread creates (the validator refuses a widget only the reference has, unless the
+  instruction states it). A control
   that shows no words and that the thread adds is touched at its place on the screen where the instruction or the
   start's layout fixes it. _(why: a control the thread adds has its name only in the reference; another fair build
   names it otherwise, and a correct solution then fails the play. A spot is the last resort: its place differs
