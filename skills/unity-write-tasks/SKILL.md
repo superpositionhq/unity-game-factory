@@ -311,8 +311,8 @@ lamp looks), and give it its own probe.
 
 ## 4. `play_scene` and `play_args`
 
-The game's first build scene is usually a title menu that simulated keys cannot leave, so a task almost always needs
-`play_scene` and `play_args`: the scene that starts straight in the gameplay where the issue shows, and the player's
+The game's first build scene is usually a title menu, so a task almost always needs `play_scene` and `play_args`
+(a play may also click through the menu by its text, section 5): the scene that starts straight in the gameplay where the issue shows, and the player's
 command-line arguments that pick its scenario (e.g. `"play_scene": "Assets/Scenes/Harbor.unity"`, `"play_args":
 ["-scenario", "2"]`). Read the game's command-line and scenario handling at `seed.commit` and check the scene exists
 there and at `seed.reference`; it needn't be in the game's build settings (the checker adds every scene the plays open
