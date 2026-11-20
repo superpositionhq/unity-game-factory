@@ -29,20 +29,22 @@ creation replay to its post-commit hook, and a game made before the AutoPlay dro
 
 On a fresh Windows 11 PC (8+ threads, 16 GB RAM or more, 200 GB free; an NVIDIA GPU only for recording), with a
 Unity ID with a licence (Unity Personal where its terms allow, otherwise the seat the org gives you) and an account for the
-coding agent (Claude Code, or OpenAI Codex CLI with a ChatGPT account or API key). Contractors need no GitHub
+coding agent (Claude Code, OpenAI Codex CLI with a ChatGPT account or API key, or Google Antigravity with a Google
+account). Contractors need no GitHub
 account: the game stays on the PC and ships in the dataset zip. Only staff who push the private `unity-game-<slug>`
 repos need a GitHub account in `<org>` (the organisation that owns this repo):
 
 1. Get `machine/setup.ps1` (Download ZIP on github.com, or `gh api`; [docs/new-machine.md](docs/new-machine.md)) and
-   run the one command: `powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>` (add `-Agent codex` or
-   `-Agent both`; it asks otherwise). It installs the toolchain (Unity Hub included, and the Codex CLI for Codex)
+   run the one command: `powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>` (add `-Agent codex`,
+   `-Agent antigravity`, `-Agent both` or `-Agent all`; it asks otherwise). It installs the toolchain (Unity Hub
+   included, the Codex CLI for Codex and the Antigravity CLI `agy` for Antigravity)
    through winget, asks before changing Windows settings, offers the GitHub sign-in (staff only) and signs in to
    Codex, clones this repo into the root, runs `machine/bootstrap.ps1` (which asks before installing the recording hooks) and `machine/check.ps1`, and
    ends with a PASS / TODO list.
 2. Do the TODOs only you can do (sign in to Unity Hub and activate a licence, the Unity 6.3 LTS editor with Windows
-   Build Support (IL2CPP), the NVIDIA driver, the Asset Store, and signing in to Claude Code or Codex) and run setup
+   Build Support (IL2CPP), the NVIDIA driver, the Asset Store, and signing in to Claude Code, Codex or Antigravity) and run setup
    again until nothing is left.
-3. Start the first session: solo in a terminal in the root (`claude`, or `codex -s danger-full-access`), one game with
+3. Start the first session: solo in a terminal in the root (`claude`, `codex -s danger-full-access` or `agy`), one game with
    [docs/briefs/solo-game.md](docs/briefs/solo-game.md).
 
 ## How a game goes from idea to dataset
@@ -52,8 +54,8 @@ repos need a GitHub account in `<org>` (the organisation that owns this repo):
    AutoPlay drop-in (`Assets/AutoPlay/`) and the scenario list, `ReplayConfig.json` (`"live": true`),
    `Scripts/unity.ps1`, hooks that record every action and commit and start the live replay, the first editor open
    (packages, URP, TextMeshPro, player settings), a private GitHub repo.
-3. **Build**: the session (Claude Code or Codex) follows the `unity-commit-always`, `unity-game-session` and
-   `unity-sound` skills; every action is recorded (`workflow.jsonl`, the action hooks of either agent, git history).
+3. **Build**: the session (Claude Code, Codex or Antigravity) follows the `unity-commit-always`, `unity-game-session` and
+   `unity-sound` skills; every action is recorded (`workflow.jsonl`, the action hooks of every agent, git history).
 4. **Creation replay in the background**: after every commit, the post-commit hook starts the live replay
    (`tools/unity-replay`, `unity_replay.py live`). It replays the new commits into an isolated copy of the project at
    low priority and checks them against the commit. Anything that keeps the history from replaying comes back to the
@@ -125,9 +127,9 @@ packager's first run.
 - [docs/unity-pipeline.md, Dataset packager](docs/unity-pipeline.md#dataset-packager): the per-game dataset
   (`tools/package-dataset.py`) and its scrub.
 - [AGENTS.md](AGENTS.md): what every session reads first (Claude Code through [CLAUDE.md](CLAUDE.md), Codex
-  directly): the skills in `skills/` (unity-commit-always, unity-game-session, unity-desktop-game or unity-mobile-game,
+  and Antigravity directly): the skills in `skills/` (unity-commit-always, unity-game-session, unity-desktop-game or unity-mobile-game,
   unity-sound, unity-write-tasks, unity-check-tasks), the
-  priorities, how the two agents differ, and the rules for agents working here (each with the failure behind it).
+  priorities, how the three agents differ, and the rules for agents working here (each with the failure behind it).
 - [docs/new-machine.md](docs/new-machine.md): setting up another Windows machine (`machine/setup.ps1`, which runs
   `machine/bootstrap.ps1` and `machine/check.ps1`).
 - [docs/briefs/](docs/briefs/README.md): the prompts that start a game session (solo and coordinated).

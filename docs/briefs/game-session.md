@@ -27,8 +27,8 @@ problems. The asset-scout session ({{ASSET_SCOUT_ID}}) keeps the asset library i
 each game its packs. Everything shares one Windows PC ({{MACHINE}}). I am the coordinator ({{COORDINATOR_ID}}): I own
 the recording queue and the GPU slots, review your commits and tell you when to push.
 
-Rules: follow the unity-game-session, unity-desktop-game, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\ or
-~\.agents\skills\, source unity-game-factory/skills/), and no other skill: never install, enable or invoke a personal,
+Rules: follow the unity-game-session, unity-desktop-game, unity-commit-always and unity-sound skills (installed in ~\.claude\skills\,
+~\.agents\skills\ or ~\.gemini\config\skills\, source unity-game-factory/skills/), and no other skill: never install, enable or invoke a personal,
 project, plugin, marketplace or agent built-in skill, nor another factory's skills. In short: every heavy or
 GPU job through {{UGF_ROOT}}\tools\unity-heavy.ps1 (the game's Scripts\unity.ps1 does it for you), one Unity process
 per project; content made by committed C# editor steps (Assets/Editor/Steps/, never hand-edited scene or prefab YAML);

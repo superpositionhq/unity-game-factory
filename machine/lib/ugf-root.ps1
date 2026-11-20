@@ -10,7 +10,7 @@
 # ({"6000.3.28f1": "<path to Unity.exe>", ...}), "record_extra_projects" (top-level folders under the root that the
 # recording hooks treat as projects besides games\<slug>), "github_org" (the GitHub organisation or user that owns
 # unity-game-factory and the private unity-game-<slug> repos; Get-UGFOrg), "agents" (the coding agents bootstrap.ps1
-# wired up: "claude", "codex"), "hooks_dir" (where the recording hooks live, shared by both agents;
+# wired up: "claude", "codex", "antigravity"), "hooks_dir" (where the recording hooks live, shared by every agent;
 # Get-UGFHooksDir) and "ugb" (default C:\UGB: the release builds' private clones and build temp, outside the user profile
 # so the user name is not compiled into a player). Installed copies of the hooks and unity-heavy.ps1 carry a copy of this
 # file next to them.
@@ -55,14 +55,17 @@ function Get-UGFConfig {
 
 function Get-UGFRoot { return (Get-UGFConfig).root }
 
-# The coding agents this machine is set up for ("claude", "codex"): "agents" in the config (bootstrap.ps1 -Agent writes
-# it); else the ones found installed (the claude / codex command or their home folder); else both.
+# The coding agents this machine is set up for ("claude", "codex", "antigravity"): "agents" in the config (bootstrap.ps1
+# -Agent writes it); else the ones found installed (the claude / codex / agy command or their home folder, Antigravity's
+# under ~\.gemini); else Claude Code and Codex.
 function Get-UGFAgents($Cfg = (Get-UGFConfig)) {
-    if ($Cfg.PSObject.Properties['agents'] -and @($Cfg.agents | Where-Object { $_ }).Count) { return @($Cfg.agents | ForEach-Object { ([string]$_).ToLower() } | Where-Object { $_ -in 'claude', 'codex' } | Select-Object -Unique) }
+    if ($Cfg.PSObject.Properties['agents'] -and @($Cfg.agents | Where-Object { $_ }).Count) { return @($Cfg.agents | ForEach-Object { ([string]$_).ToLower() } | Where-Object { $_ -in 'claude', 'codex', 'antigravity' } | Select-Object -Unique) }
     $found = @()
     if ((Get-Command claude -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath (Join-Path $env:USERPROFILE '.claude'))) { $found += 'claude' }
     $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
     if ((Get-Command codex -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath $codexHome)) { $found += 'codex' }
+    $gemini = Join-Path $env:USERPROFILE '.gemini'
+    if ((Get-Command agy -ErrorAction SilentlyContinue) -or @('antigravity', 'antigravity-cli', 'antigravity-ide' | Where-Object { Test-Path -LiteralPath (Join-Path $gemini $_) }).Count) { $found += 'antigravity' }
     if (-not $found) { $found = @('claude', 'codex') }
     return $found
 }

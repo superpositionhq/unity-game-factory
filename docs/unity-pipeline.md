@@ -526,7 +526,7 @@ records:
 |---|---|
 | git history (`games\<slug>`) | the exact inputs (code, editor steps, settings, source art) at every commit, and the committed content to compare against |
 | `workflow.jsonl` | what each editor step run did (rows with `source.script`, `source.sha256`, time, `status`, params such as piece counts) |
-| `.recording\<slug>\actions.jsonl` | the agent's tool calls in order: every editor step run (with the command line and its output), every `Write`/`Edit` (`apply_patch` under Codex) of a file, every shell copy |
+| `.recording\<slug>\actions.jsonl` | the agent's tool calls in order: every editor step run (with the command line and its output), every `Write`/`Edit` (`apply_patch` under Codex; under Antigravity `write_file`/`edit_file`, read as `Write`/`Edit`, ledger.py `as_claude`) of a file, every shell copy |
 
 It also reads `.recording\<slug>\commits.jsonl` for the moment each commit was made. What makes that work is the
 unity-game-session skill's "Replay-friendly work" rules. Content is never copied from a commit when the replay produced

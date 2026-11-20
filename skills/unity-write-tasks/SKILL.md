@@ -773,7 +773,7 @@ Fix what you find in the task before it is packed:
   (section 5) and anything against the format rules of section 0.
 - **Judge difficulty in the session; never run the task with another agent** (a try is long and tells you nothing
   the session can't judge). Don't run `tools/task-try.py` or start a fresh
-  Claude Code or Codex session on a task. Before committing, review each task against section 1 here, with the
+  Claude Code, Codex or Antigravity session on a task. Before committing, review each task against section 1 here, with the
   person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
   cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
   mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring

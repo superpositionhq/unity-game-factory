@@ -1,11 +1,11 @@
 # AGENTS.md — unity-game-factory: instructions for every session
 
-This repo coordinates coding-agent sessions (Claude Code or OpenAI Codex CLI) that build Unity 6.3 LTS games
-(`%UGF_ROOT%\games\<slug>`, private `<org>/unity-game-<slug>` repos, `<org>` = `github_org` in the machine config) and
-turn them into game-creation datasets. `%UGF_ROOT%` is the machine root (env `UGF_ROOT`, else
+This repo coordinates coding-agent sessions (Claude Code, OpenAI Codex CLI or Google Antigravity) that build Unity
+6.3 LTS games (`%UGF_ROOT%\games\<slug>`, private `<org>/unity-game-<slug>` repos, `<org>` = `github_org` in the machine
+config) and turn them into game-creation datasets. `%UGF_ROOT%` is the machine root (env `UGF_ROOT`, else
 `%USERPROFILE%\.unity-game-factory\config.json`, else `%USERPROFILE%\UnityWork`); see
-[machine/README.md](machine/README.md). Claude Code reads this file through [CLAUDE.md](CLAUDE.md); Codex reads it
-directly (and through `<root>\AGENTS.md`).
+[machine/README.md](machine/README.md). Claude Code reads this file through [CLAUDE.md](CLAUDE.md); Codex and
+Antigravity read it directly (and through `<root>\AGENTS.md`).
 
 **Before every new game, update unity-game-factory:** `git -C <UGF_ROOT>\unity-game-factory pull`, then
 `powershell -ExecutionPolicy Bypass -File <UGF_ROOT>\unity-game-factory\machine\bootstrap.ps1` so the skills your
@@ -16,8 +16,9 @@ creation replay to its post-commit hook, and a game made before the AutoPlay dro
 (its own commit; [docs/autoplay-contract.md](docs/autoplay-contract.md), "Getting the drop-in"). Every release starts
 by running it again to ensure AutoPlay, a required step (unity-game-session skill, "Dataset", release step 1).
 
-Skills (one source, [skills/](skills/); `machine/bootstrap.ps1` copies them to `~\.claude\skills\` for Claude Code and
-`~\.agents\skills\` for Codex; read the `SKILL.md` named here before the work it covers, whichever agent you are). They
+Skills (one source, [skills/](skills/); `machine/bootstrap.ps1` copies them to `~\.claude\skills\` for Claude Code,
+`~\.agents\skills\` for Codex and `~\.gemini\config\skills\` for Antigravity; read the `SKILL.md` named here before the
+work it covers, whichever agent you are). They
 carry a `unity-` prefix so they install next to another factory's skills on a machine that also runs one:
 
 - **unity-commit-always** ([skills/unity-commit-always/SKILL.md](skills/unity-commit-always/SKILL.md)): every session.
@@ -50,8 +51,8 @@ carry a `unity-` prefix so they install next to another factory's skills on a ma
 use the skills above (of unity-desktop-game and unity-mobile-game, the one of the game's platform, never both) and no
 others. Never install, enable or invoke any other skill: not the person's own
 personal or project skills, not a plugin's or a marketplace's skills, not the skills bundled with the agent (Claude
-Code's built-in skills and slash-command skills, Codex's system skills), and not another factory's skills
-(`commit-always`, `game-session`, `desktop-game`, `mobile-game`, `sound`, `write-tasks`) even when the machine has
+Code's built-in skills and slash-command skills, Codex's system skills, Antigravity's built-in skills), and not another
+factory's skills (`commit-always`, `game-session`, `desktop-game`, `mobile-game`, `sound`, `write-tasks`) even when the machine has
 them installed. A skill the agent offers by name or description that is not one of them is ignored. Work no skill here covers is done by hand under
 these rules, or asked about (the coordinator, or the person in a solo session). _(why: the recorded sessions are the
 dataset, so how a game gets made must follow these rules only; another skill brings instructions and habits nobody
@@ -118,21 +119,23 @@ as open. Never stand in for a missing tool by hand or with another factory's too
 
 ## Agents
 
-Both agents run the same skills, the same recording hooks and the same workflow; what differs:
+All three agents run the same skills, the same recording hooks and the same workflow; what differs:
 
-| | Claude Code | Codex CLI |
-|---|---|---|
-| start | `claude` in `<root>` (reads `<root>\CLAUDE.md`) | `codex -s danger-full-access` in `<root>` (reads `<root>\AGENTS.md`) |
-| skills | `~\.claude\skills\unity-*` (also offered by name) | `~\.agents\skills\unity-*` (`$<name>` or `/skills`; also offered by description) |
-| recording hooks | `~\.claude\settings.json`: PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit, SessionEnd | `~\.codex\hooks.json`: PostToolUse, Stop, UserPromptSubmit, SessionEnd (trusted in `config.toml`; `/hooks` shows them) |
-| file edits in `actions.jsonl` | `Write` / `Edit` rows | `apply_patch` rows (the patch text) |
-| permissions | as set in Claude Code (asks before commands by default) | `codex -s danger-full-access`: the default workspace sandbox blocks what game sessions need (Unity's `%LOCALAPPDATA%` and `%APPDATA%` caches and licence, the machine-wide job-slot mutexes, `git push` / `gh`) |
-| transcript (backfill) | `~\.claude\projects\…\<session>.jsonl` | `~\.codex\sessions\YYYY\MM\DD\rollout-…-<session>.jsonl` |
+| | Claude Code | Codex CLI | Antigravity |
+|---|---|---|---|
+| start | `claude` in `<root>` (reads `<root>\CLAUDE.md`) | `codex -s danger-full-access` in `<root>` (reads `<root>\AGENTS.md`) | `agy` in `<root>` (reads `<root>\AGENTS.md`), or `<root>` opened in the Antigravity App or IDE |
+| skills | `~\.claude\skills\unity-*` (also offered by name) | `~\.agents\skills\unity-*` (`$<name>` or `/skills`; also offered by description) | `~\.gemini\config\skills\unity-*` (offered by description) |
+| recording hooks | `~\.claude\settings.json`: PostToolUse, PostToolUseFailure, Stop, UserPromptSubmit, SessionEnd | `~\.codex\hooks.json`: PostToolUse, Stop, UserPromptSubmit, SessionEnd (trusted in `config.toml`; `/hooks` shows them) | `~\.gemini\config\hooks.json`: PostToolUse, Stop (the hook `unity-game-factory-recording`; `/hooks` shows it) |
+| file edits in `actions.jsonl` | `Write` / `Edit` rows | `apply_patch` rows (the patch text) | its own tool rows (`write_file`, `edit_file`, `replace_file_content`, ...) with their arguments |
+| permissions | as set in Claude Code (asks before commands by default) | `codex -s danger-full-access`: the default workspace sandbox blocks what game sessions need (Unity's `%LOCALAPPDATA%` and `%APPDATA%` caches and licence, the machine-wide job-slot mutexes, `git push` / `gh`) | as set in Antigravity (asks before commands by default); keep its terminal sandbox off (no `agy --sandbox`): like Codex's workspace sandbox, it blocks what game sessions need |
+| transcript (backfill) | `~\.claude\projects\…\<session>.jsonl` | `~\.codex\sessions\YYYY\MM\DD\rollout-…-<session>.jsonl` | `~\.gemini\antigravity-cli\brain\<conversation>\.system_generated\logs\transcript_full.jsonl` (App: `antigravity`, IDE: `antigravity-ide` in place of `antigravity-cli`) |
 
-Under Codex, the shell tool is recorded as `Bash` whatever shell ran the command. Read a skill by opening its
-`SKILL.md` when the task matches, even if the agent did not offer it. Both agents' hooks also store every prompt the
-person typed, every reply the model wrote and every reasoning summary the agent saved (`messages.jsonl`, read from the
-session's transcript; `machine/bootstrap.ps1` turns the summaries on in both agents' settings), and each tool call with
+Under Codex, the shell tool is recorded as `Bash` whatever shell ran the command. Under Antigravity, a tool call's row
+is written once its result reaches the transcript (at the next tool call, or at the end of the turn), and the shell
+tool is `run_command` (`input.CommandLine`). Read a skill by opening its `SKILL.md` when the task matches, even if the
+agent did not offer it. Every agent's hooks also store every prompt the person typed, every reply the model wrote and
+every reasoning summary the agent saved (`messages.jsonl`, read from the session's transcript; `machine/bootstrap.ps1`
+turns the summaries on in Claude Code's and Codex's settings), and each tool call with
 its whole result (`actions.jsonl`); a dataset carries them in `History/sessions/`. The person's directions are still `user.direction` rows that the session writes
 itself (unity-commit-always skill).
 

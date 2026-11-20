@@ -273,7 +273,8 @@ Never write **Superposition**, **game-factory** or **unity-game-factory** (any s
 `gamefactory`) anywhere in the game: code, comments, namespaces, `ProjectSettings` (`companyName` is written to the
 build's `<Game>_Data\app.info` and names the `Application.persistentDataPath` folder), editor steps, docs, commit
 messages, builds, in-game text, process arguments. `companyName` is the game's own studio name (the template sets it to the title). Keep agent, model
-and provider names (**Claude / Anthropic / Opus**, **OpenAI / Codex CLI / GPT** model ids) out of game content and
+and provider names (**Claude / Anthropic / Opus**, **OpenAI / Codex CLI / GPT** model ids, **Google Antigravity /
+Gemini** model ids) out of game content and
 commit messages too (deliverables refuse or scrub them). Recording traces are fine: `workflow.jsonl` stays in the repo,
 row ids in commit messages are fine.
 
@@ -289,7 +290,7 @@ row ids in commit messages are fine.
   (`Assets/Editor/Tools/WorkflowLog.cs`): the op and target are the step's (`scene.build`,
   `Assets/Scenes/Harbor.unity`); it fills in the id, `seq` and time, the step's own file and its sha256 as `source`,
   and the `-Reason` given to `unity.ps1 step` as `reason` (`direction:` names the `user.direction` row it acts on).
-- The machine hooks (the same scripts under Claude Code and Codex) record every tool call to
+- The machine hooks (the same scripts under Claude Code, Codex and Antigravity) record every tool call to
   `<UGF_ROOT>\.recording\<slug>\actions.jsonl`, every prompt the person types and every reply you write to
   `messages.jsonl` beside it, and every commit to `commits.jsonl`; a dataset delivers the first two in
   `History/sessions/`. Leftover changes are auto-committed as `WIP` at the end of a turn (commit properly instead).
@@ -311,7 +312,8 @@ game without one replays with the defaults). What it cannot replay costs a manua
   `Probe`; the replay skips them. One that writes something a later step reads is named otherwise (or listed in
   `ReplayConfig.json` `not_readonly`).
 - **One workflow row per run at least**, written by the step.
-- **Edit scripts with the agent's own file tools** (Claude Code: Write/Edit; Codex: apply_patch), and never a step
+- **Edit scripts with the agent's own file tools** (Claude Code: Write/Edit; Codex: apply_patch; Antigravity:
+  write_file/edit_file), and never a step
   that ran: write `BuildTownV2` (a new class in a new file), so its rows' `source.sha256` still match the code that
   ran. A `sed -i`/`perl -i`/Python rewrite of a script hides its text at run time from the replay.
 - **No GUI-only edits for content** (a GUI edit leaves only its YAML diff, nothing to replay): do it in an editor step.

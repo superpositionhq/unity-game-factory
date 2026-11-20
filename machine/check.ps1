@@ -9,15 +9,16 @@
   tools/unity-pipeline/record.ps1 needs; WARN only: a machine that does not record needs none): NVIDIA driver (NVENC
   with the pinned ffmpeg), the primary display, refresh rate, display sleep off, the pinned ffmpeg (tools/sfx.py uses it
   too). Space: free disk on the root's drive. Content: the asset
-  library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code and/or Codex):
-  installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1, the
-  recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust), skills, root CLAUDE.md /
+  library folder and the Unity Asset Store download cache. Agents (the config's "agents": Claude Code, Codex,
+  Antigravity): installed, signed in where it can tell. Setup done by bootstrap.ps1: config, job slots, unity-heavy.ps1,
+  the recording hooks and each agent's wiring (Claude Code settings.json; Codex hooks.json + trust; Antigravity
+  ~\.gemini\config\hooks.json), skills, root CLAUDE.md /
   AGENTS.md, and each game repo's post-commit hook (the commit recorder and the live creation replay).
   Exit code = number of FAILs. -Json writes the report as JSON too.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File machine\check.ps1
   powershell -ExecutionPolicy Bypass -File machine\check.ps1 -Root C:\ugf-test\UnityWork -ClaudeDir C:\ugf-test\home\.claude -CodexDir C:\ugf-test\home\.codex `
-      -AgentsSkillsDir C:\ugf-test\home\.agents\skills -HooksDir C:\ugf-test\home\.unity-game-factory\hooks `
+      -AgentsSkillsDir C:\ugf-test\home\.agents\skills -AntigravityDir C:\ugf-test\home\.gemini\config -HooksDir C:\ugf-test\home\.unity-game-factory\hooks `
       -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Json C:\ugf-test\check.json
 #>
 param(
@@ -26,6 +27,7 @@ param(
     # default: CODEX_HOME / %USERPROFILE%\.codex
     [string]$CodexDir,
     [string]$AgentsSkillsDir = (Join-Path $env:USERPROFILE '.agents\skills'),
+    [string]$AntigravityDir = (Join-Path $env:USERPROFILE '.gemini\config'),   # Antigravity's global hooks.json and skills
     # default: config hooks_dir
     [string]$HooksDir,
     [string]$ConfigPath,
@@ -340,11 +342,39 @@ if ($Agents -contains 'codex') {
         else { Add-Result FAIL 'Codex reasoning summaries' "config.toml: not set: $($off -join ', ')" 'machine\bootstrap.ps1 -Agent codex (sets both)' }
     }
 }
+if ($Agents -contains 'antigravity') {
+    Try-Check 'Antigravity' {
+        $cmd = Get-Command agy -ErrorAction SilentlyContinue
+        $v = if ($cmd) { (Run $cmd.Source @('--version')).out } else { $null }
+        if ($cmd) { Add-Result PASS 'Antigravity' "agy $v ($($cmd.Source)); sign-in is not detectable: run agy once and sign in" }
+        else { Add-Result WARN 'Antigravity' 'agy not on PATH (the Antigravity App or IDE alone also works)' 'winget install -e --id Google.AntigravityCLI, then run agy once and sign in' }
+    }
+    Try-Check 'Antigravity hooks' {
+        # every handler of every enabled named hook, by event (PostToolUse groups them under "hooks"; Stop lists them),
+        # against the command lines bootstrap.ps1 writes for this hooks dir (hooks\antigravity-hooks.json)
+        $hp = Join-Path $AntigravityDir 'hooks.json'
+        $h = if (Test-Path $hp) { [IO.File]::ReadAllText($hp) | ConvertFrom-Json } else { $null }
+        $frag = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\antigravity-hooks.json')).Replace('{{HOOKS_DIR}}', ($HooksDir -replace '\\', '/')) | ConvertFrom-Json
+        $handlers = { param($Hook, $Ev) foreach ($x in @($Hook.$Ev)) { if ($x) { [string]$x.command; foreach ($y in @($x.hooks)) { if ($y) { [string]$y.command } } } } }
+        $wired = @()
+        foreach ($ev in 'PostToolUse', 'Stop') {
+            $want = @(foreach ($n in $frag.PSObject.Properties) { & $handlers $n.Value $ev })
+            $cmds = @(if ($h) { foreach ($n in $h.PSObject.Properties) {
+                        if ($n.Value.PSObject.Properties['enabled'] -and $n.Value.enabled -eq $false) { continue }
+                        & $handlers $n.Value $ev
+                    } })
+            if (@($want | Where-Object { $cmds -contains $_ }).Count -eq $want.Count) { $wired += $ev }
+        }
+        if ($wired.Count -eq 2) { Add-Result PASS 'Antigravity hooks' "$hp wires PostToolUse, Stop" }
+        else { Add-Result FAIL 'Antigravity hooks' "$hp runs $HooksDir\record-unity-action.ps1 with bootstrap.ps1's command line on: $(if ($wired) { $wired -join ', ' } else { 'none' })" 'machine\bootstrap.ps1 -Agent antigravity (asks before installing them)' }
+    }
+}
 Try-Check 'Skills' {
     $names = @(Get-ChildItem (Join-Path $repo 'skills') -Directory | Select-Object -ExpandProperty Name)
     $where = @()
     if ($Agents -contains 'claude') { $where += , @('Claude Code', (Join-Path $ClaudeDir 'skills')) }
     if ($Agents -contains 'codex') { $where += , @('Codex', $AgentsSkillsDir) }
+    if ($Agents -contains 'antigravity') { $where += , @('Antigravity', (Join-Path $AntigravityDir 'skills')) }
     $bad = @(foreach ($w in $where) { foreach ($n in $names) { if (-not (Same-File (Join-Path $repo "skills\$n\SKILL.md") (Join-Path $w[1] "$n\SKILL.md"))) { "$($w[0]): $n" } } })
     if (-not $bad) { Add-Result PASS 'Skills' "$($names -join ', ') in $(($where | ForEach-Object { $_[1] }) -join ' and ')" }
     else { Add-Result FAIL 'Skills' "missing or outdated: $($bad -join ', ')" 'machine\bootstrap.ps1' }
@@ -356,7 +386,7 @@ if ($Agents -contains 'claude') {
         else { Add-Result FAIL 'Root CLAUDE.md' "$p missing or not importing unity-game-factory/CLAUDE.md" 'machine\bootstrap.ps1' }
     }
 }
-if ($Agents -contains 'codex') {
+if ($Agents -contains 'codex' -or $Agents -contains 'antigravity') {
     Try-Check 'Root AGENTS.md' {
         $p = Join-Path $Root 'AGENTS.md'
         if ((Test-Path $p) -and ((Get-Content $p -Raw) -match [regex]::Escape((Join-Path $repo 'AGENTS.md')))) { Add-Result PASS 'Root AGENTS.md' "$p names the repo AGENTS.md" }
@@ -409,7 +439,7 @@ $nFail = @($results | Where-Object status -eq 'FAIL').Count
 $nWarn = @($results | Where-Object status -eq 'WARN').Count
 Write-Host ("{0} checks: {1} PASS, {2} WARN, {3} FAIL" -f $results.Count, ($results.Count - $nFail - $nWarn), $nWarn, $nFail)
 if ($Json) {
-    $obj = [ordered]@{ time = (Get-Date).ToString('o'); root = $Root; agents = $Agents; hooks_dir = $HooksDir; claude_dir = $ClaudeDir; codex_dir = $CodexDir; fail = $nFail; warn = $nWarn; results = $results }
+    $obj = [ordered]@{ time = (Get-Date).ToString('o'); root = $Root; agents = $Agents; hooks_dir = $HooksDir; claude_dir = $ClaudeDir; codex_dir = $CodexDir; antigravity_dir = $AntigravityDir; fail = $nFail; warn = $nWarn; results = $results }
     [IO.File]::WriteAllText($Json, ($obj | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding($false)))
 }
 exit $nFail

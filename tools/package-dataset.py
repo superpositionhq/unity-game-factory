@@ -376,6 +376,9 @@ def build_rules(user, machine, session_ids, identities):
     # Codex: the tool's names, its model ids and the provider; a bare "codex" stays (games have lore codices)
     add('agent-mention', 'all', r'(?i)\b(?:openai[-_ ])?codex[-_ ](?:cli|exec)\b|\bopenai[-_ ]codex\b', 'agent-tool', 'codex')
     add('agent-mention', 'all', r'(?i)\bgpt-\d+(?:\.\d+)?(?:-[a-z0-9]+)*\b', 'agent-model', 'gpt-')
+    # Antigravity (Google): the tool's names and Gemini model ids; a bare "antigravity" or "Gemini" stays (game words)
+    add('agent-mention', 'all', r'(?i)\bgoogle[-_ ]antigravity\b|\bantigravity[-_ ](?:cli|ide|app)\b', 'agent-tool', 'antigravity')
+    add('agent-mention', 'all', r'(?i)\bgemini[-_ ]?\d+(?:\.\d+)*(?:-[a-z0-9]+)*\b', 'agent-model', 'gemini')
     add('agent-mention', 'all', r'(?i)chatgpt', cased('agent', 'Agent', 'AGENT'), 'chatgpt')
     add('agent-mention', 'all', r'(?i)openai', cased('provider', 'Provider', 'PROVIDER'), 'openai')
     add('agent-mention', 'all', r'(?i)\bclaude[-_ ]?(?:opus|sonnet|haiku|fable|instant)(?:[-_ ]?[0-9]+(?:[._-][0-9]+)*)?[\w.-]*', 'agent-model', 'claude')
@@ -2398,6 +2401,8 @@ def self_check():
     cases = [('studio-and-tools', 'scrub', 'pass', 'Made with unity-game-factory at Superposition (game factory, game_factory).'),
              ('agents-and-providers', 'scrub', 'pass', 'Claude Code and Codex CLI wrote it for Anthropic and OpenAI, with gpt-5 and claude-opus-4.'),
              ('model-in-prose', 'scrub', 'pass', 'The Opus run went well.'),
+             ('antigravity-and-gemini', 'scrub', 'pass', 'Google Antigravity ran gemini-3.8-flash-medium.'),
+             ('antigravity-game-words', 'scan', 'pass', 'antigravity boots under the Gemini constellation'),
              ('codec-forms', 'scan', 'pass', 'libopus, opus_decode, audio/opus, theme.opus'),
              ('email', 'scrub', 'pass', 'mail jane.tester@corp.example'),
              ('clip-names', 'scan', 'pass', 'Assets/Art/Keeper@Walk.anim'),

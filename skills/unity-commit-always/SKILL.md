@@ -39,8 +39,8 @@ The user's standing rule: **every session commits its work continuously.**
   human direction also names it: `Direction: td-00398 (<the direction in a few words>)`.
 - Game repos: no AI attribution trailers or footers (`Co-Authored-By: <agent> ...`, `Generated with <tool>`) and never
   the names Superposition, game-factory or unity-game-factory: commit messages ship in the dataset's `git.log`. Agent,
-  model and provider names (Claude, Anthropic, Opus, OpenAI, Codex CLI, GPT model ids) stay out too; deliverables
-  block or scrub them. unity-game-factory commits follow the normal attribution rules.
+  model and provider names (Claude, Anthropic, Opus, OpenAI, Codex CLI, GPT model ids, Google Antigravity, Gemini model
+  ids) stay out too; deliverables block or scrub them. unity-game-factory commits follow the normal attribution rules.
 
 ## workflow.jsonl (game repos)
 
@@ -152,7 +152,7 @@ go back and redo everything after it.
 
 ## The WIP auto-commit
 
-The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code and Codex alike) commits leftover changes in a
+The Stop hook (`record-unity-action.ps1 -Stop`, wired into Claude Code, Codex and Antigravity alike) commits leftover changes in a
 game repo as `WIP` at the end of every turn, except while conflicts are unresolved or HEAD is detached (a merge, a
 rebase, a bisect under way): finish those and commit yourself.
 It is a safety net so nothing is lost, not a way of working: a `WIP` commit carries no reason and no row ids, and it

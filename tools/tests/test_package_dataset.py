@@ -815,6 +815,18 @@ def mkv(frame, tags=b''):
     return head + ebml(b'\x18\x53\x80\x67', tracks + cluster + (ebml(b'\x12\x54\xc3\x67', tags) if tags else b''))
 
 
+class AgentNames(unittest.TestCase):
+    """Antigravity's tool names and Gemini model ids in the sessions' record are scrubbed as the other agents' are; the
+    bare words, which games use (antigravity boots, the Gemini constellation), stay."""
+
+    def test_antigravity_and_gemini_ids_are_scrubbed_and_the_game_words_stay(self):
+        rules = PKG.build_rules('nora', 'NORA-PC', set(), [])
+        got = PKG.apply_rules('Google Antigravity ran gemini-3.8-flash-medium; the Antigravity CLI too', rules, False, False)
+        self.assertEqual(got, 'agent-tool ran agent-model; the agent-tool too')
+        words = 'antigravity boots under the Gemini constellation'
+        self.assertEqual(PKG.apply_rules(words, rules, False, False), words)
+
+
 class BigRows(unittest.TestCase):
     """A row file too large to read whole (History/sessions/actions.jsonl holds every tool call's whole output) is
     scrubbed, given the delivered commit ids and scanned a row at a time, with the result reading it whole gives; it is

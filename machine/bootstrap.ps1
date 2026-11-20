@@ -13,16 +13,18 @@
      private clones and their temp folder, outside the user profile so the user name is not compiled into a player).
   2. Tools: <root>\tools\unity-heavy.ps1 (+ ugf-root.ps1) and the pinned ffmpeg
      (machine\get-ffmpeg.ps1, downloaded and SHA-256 verified, never committed).
-  3. Coding agents (-Agent claude|codex|both; default: the config's "agents", else the ones installed, else both;
-     written to the config): the recording hooks into the hooks dir (config "hooks_dir", default
-     ~\.unity-game-factory\hooks), their entries merged into each agent's settings (Claude Code:
-     <ClaudeDir>\settings.json; Codex: <CodexDir>\hooks.json plus the trust entries in config.toml; a backup
-     .bak-<time> first; other settings and hooks are kept, including another factory's own recording hooks;
-     before adding or changing them it prints what they record and asks, -Yes skips the question, a non-interactive run
-     without -Yes leaves them out), the repo's skills (skills\, all unity-*) into each agent's personal skills folder
-     (<ClaudeDir>\skills\, ~\.agents\skills\; other skill folders are never touched), and the
-     root instructions (Claude Code: <root>\CLAUDE.md importing unity-game-factory\CLAUDE.md; Codex: <root>\AGENTS.md
-     naming unity-game-factory\AGENTS.md; sessions start in the root).
+  3. Coding agents (-Agent claude|codex|antigravity|both|all, or a list such as claude,antigravity; both = Claude Code
+     and Codex; default: the config's "agents", else the ones installed, else Claude Code and Codex; written to the
+     config): the recording hooks into the hooks dir (config "hooks_dir", default ~\.unity-game-factory\hooks), their
+     entries merged into each agent's settings (Claude Code: <ClaudeDir>\settings.json; Codex: <CodexDir>\hooks.json plus
+     the trust entries in config.toml; Antigravity: <AntigravityDir>\hooks.json, the hook named
+     "unity-game-factory-recording"; a backup .bak-<time> first; other settings and hooks are kept, including another
+     factory's own recording hooks; before adding or changing them it prints what they record and asks, -Yes skips the
+     question, a non-interactive run without -Yes leaves them out), the repo's skills (skills\, all unity-*) into each
+     agent's personal skills folder (<ClaudeDir>\skills\, ~\.agents\skills\, <AntigravityDir>\skills\; other skill
+     folders are never touched), and the root instructions (Claude Code: <root>\CLAUDE.md importing
+     unity-game-factory\CLAUDE.md; Codex and Antigravity: <root>\AGENTS.md naming unity-game-factory\AGENTS.md; sessions
+     start in the root).
   4. Git: git-lfs filters (git lfs install --skip-repo), gh login check, the post-commit hook's two lines in every
      <root>\games\*\.git, the commit recorder and the live creation replay (machine\install-git-hook.ps1); -CloneGames
      clones every <org>/unity-game-* repo first.
@@ -38,7 +40,8 @@
   # scratch test that leaves the real profile alone:
   powershell -ExecutionPolicy Bypass -File machine\bootstrap.ps1 -Root C:\ugf-test\UnityWork -Ugb C:\ugf-test\UGB `
       -ClaudeDir C:\ugf-test\home\.claude -CodexDir C:\ugf-test\home\.codex -AgentsSkillsDir C:\ugf-test\home\.agents\skills `
-      -HooksDir C:\ugf-test\home\.unity-game-factory\hooks -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Agent both -FfmpegArchive <.7z>
+      -AntigravityDir C:\ugf-test\home\.gemini\config -HooksDir C:\ugf-test\home\.unity-game-factory\hooks `
+      -ConfigPath C:\ugf-test\home\.unity-game-factory\config.json -Agent all -FfmpegArchive <.7z>
 #>
 param(
     # default: UGF_ROOT / existing config / %USERPROFILE%\UnityWork
@@ -49,13 +52,15 @@ param(
     [string]$UnityHubEditors,
     # default: config / 6000.3 (its newest installed patch; new games)
     [string]$UnityVersion,
-    # which coding agents to wire up
-    [ValidateSet('auto', 'claude', 'codex', 'both')][string]$Agent = 'auto',
+    # which coding agents to wire up (see 3. above)
+    [string]$Agent = 'auto',
     [string]$ClaudeDir = (Join-Path $env:USERPROFILE '.claude'),
     # default: CODEX_HOME / %USERPROFILE%\.codex
     [string]$CodexDir,
     # Codex's personal skills folder
     [string]$AgentsSkillsDir = (Join-Path $env:USERPROFILE '.agents\skills'),
+    # Antigravity's global hooks.json and skills
+    [string]$AntigravityDir = (Join-Path $env:USERPROFILE '.gemini\config'),
     # default: config hooks_dir (lib\ugf-root.ps1 Get-UGFHooksDir)
     [string]$HooksDir,
     # default: UGF_CONFIG / %USERPROFILE%\.unity-game-factory\config.json
@@ -86,7 +91,14 @@ $Ugb = if ($Ugb) { [IO.Path]::GetFullPath($Ugb.TrimEnd('\', '/')) } else { [stri
 if (-not $CodexDir) { $CodexDir = Get-UGFCodexHome }
 if (-not $HooksDir) { $HooksDir = Get-UGFHooksDir $cfg }
 $HooksDir = [IO.Path]::GetFullPath($HooksDir)
-$Agents = switch ($Agent) { 'claude' { @('claude') } 'codex' { @('codex') } 'both' { @('claude', 'codex') } default { @(Get-UGFAgents $cfg) } }
+$picked = @(foreach ($a in @($Agent -split '[,\s]+' | Where-Object { $_ })) {
+    switch ($a.ToLower()) {
+        'claude' { 'claude' } 'codex' { 'codex' } 'antigravity' { 'antigravity' } 'both' { 'claude'; 'codex' }
+        'all' { 'claude'; 'codex'; 'antigravity' } 'auto' { Get-UGFAgents $cfg }
+        default { throw "-Agent ${a}: use claude, codex, antigravity, both, all or auto (or a list: claude,antigravity)" }
+    }
+})
+$Agents = @('claude', 'codex', 'antigravity' | Where-Object { $picked -contains $_ })
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $utf8 = New-Object Text.UTF8Encoding($false)
 $report = New-Object Collections.Generic.List[object]
@@ -331,7 +343,24 @@ if ($Agents -contains 'codex') {
     $codexSummaryChanged = @($script:UGFCodexSummary.Keys | Where-Object { $haveTop[$_] -ne $script:UGFCodexSummary[$_] }).Count -gt 0
 }
 
-if (($claudeChanged -or $codexChanged -or $codexTrustChanged -or $codexSummaryChanged) -and -not $Yes) {
+# Antigravity: ~\.gemini\config\hooks.json (its CLI, App and IDE read it) gets the named hook
+# "unity-game-factory-recording" with PostToolUse and Stop (it has no UserPromptSubmit, SessionEnd or PostToolUseFailure:
+# machine/hooks/antigravity-hooks.json). The named hook is replaced as a whole; every other named hook (another
+# factory's included) stays.
+$agChanged = $false
+if ($Agents -contains 'antigravity') {
+    $agHooksPath = Join-Path $AntigravityDir 'hooks.json'
+    $agHooks = Read-JsonOrEmpty $agHooksPath
+    $afrag = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\antigravity-hooks.json')).Replace('{{HOOKS_DIR}}', $hooksSlash) | ConvertFrom-Json
+    foreach ($h in $afrag.PSObject.Properties) {
+        $have = $agHooks.PSObject.Properties[$h.Name]
+        if (-not $have -or (($have.Value | ConvertTo-Json -Depth 32 -Compress) -ne ($h.Value | ConvertTo-Json -Depth 32 -Compress))) {
+            $agHooks | Add-Member -NotePropertyName $h.Name -NotePropertyValue $h.Value -Force; $agChanged = $true
+        }
+    }
+}
+
+if (($claudeChanged -or $codexChanged -or $codexTrustChanged -or $codexSummaryChanged -or $agChanged) -and -not $Yes) {
     # Say plainly what the hooks do before wiring them into every session of the chosen agents on this Windows account.
     Write-Host ""
     Write-Host "  About to add the unity-game-factory recording hooks (a backup .bak-$stamp of each file is kept):" -ForegroundColor Yellow
@@ -339,6 +368,7 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged -or $codexSummaryCh
     if ($claudeChanged) { Write-Host "      and its reasoning summaries turned on there (showThinkingSummaries, alwaysThinkingEnabled)" }
     if ($codexChanged -or $codexTrustChanged) { Write-Host "    - Codex: PostToolUse, Stop, SubagentStop, UserPromptSubmit and SessionEnd in $CodexDir\hooks.json, marked trusted in $CodexDir\config.toml" }
     if ($codexSummaryChanged) { Write-Host "    - Codex: its reasoning summaries turned on in $CodexDir\config.toml (model_reasoning_summary, hide_agent_reasoning)" }
+    if ($agChanged) { Write-Host "    - Antigravity: PostToolUse and Stop in $AntigravityDir\hooks.json (the hook unity-game-factory-recording)" }
     Write-Host "    They run $hooksDir\record-unity-action.ps1 after every tool call, at every prompt and at the end of every turn and"
     Write-Host "    session, for every session of that agent on this account."
     Write-Host "    - A session that works on a game (a tool call naming $Root\games\<slug>) has every tool call recorded"
@@ -359,8 +389,9 @@ if (($claudeChanged -or $codexChanged -or $codexTrustChanged -or $codexSummaryCh
         $hooksDeclined = $true
         if ($claudeChanged) { Note warn 'Claude Code hooks' 'not installed (declined or non-interactive; -Yes installs them without asking)' }
         if ($codexChanged -or $codexTrustChanged) { Note warn 'Codex hooks' 'not installed (declined or non-interactive; -Yes installs them without asking)' }
+        if ($agChanged) { Note warn 'Antigravity hooks' 'not installed (declined or non-interactive; -Yes installs them without asking)' }
         $codexSummaryChanged = $false
-        $claudeChanged = $false; $codexChanged = $false; $codexTrustChanged = $false
+        $claudeChanged = $false; $codexChanged = $false; $codexTrustChanged = $false; $agChanged = $false
     }
 }
 if ($claudeChanged) {
@@ -383,15 +414,22 @@ if ($codexSummaryChanged) {
     Set-UGFCodexTopLevel $codexToml $script:UGFCodexSummary
     Note changed 'Codex reasoning summaries' "config.toml: model_reasoning_summary detailed, hide_agent_reasoning false (backup .bak-$stamp)"
 } elseif ($Agents -contains 'codex' -and -not $hooksDeclined) { Note ok 'Codex reasoning summaries' }
+if ($agChanged) {
+    if (Test-Path -LiteralPath $agHooksPath) { Copy-Item -LiteralPath $agHooksPath "$agHooksPath.bak-$stamp" }
+    Write-JsonFile $agHooksPath $agHooks
+    Note changed 'Antigravity hooks' "hooks.json unity-game-factory-recording: PostToolUse/Stop -> $hooksDir\record-unity-action.ps1 -Agent antigravity (backup .bak-$stamp)"
+} elseif ($Agents -contains 'antigravity' -and -not $hooksDeclined) { Note ok 'Antigravity hooks' }
 
 # Skills: one source (<repo>\skills\<name>\SKILL.md), copied to where each agent looks for personal skills
-# (Claude Code: ~\.claude\skills; Codex: ~\.agents\skills). Copies, not links: links need Developer Mode on Windows.
+# (Claude Code: ~\.claude\skills; Codex: ~\.agents\skills; Antigravity: ~\.gemini\config\skills). Copies, not links:
+# links need Developer Mode on Windows.
 # Only the repo's own skill folders are written (all named unity-*, so they sit beside another factory's
 # commit-always, game-session, sound and write-tasks); every other skill there is left alone.
 $skillsSrc = Join-Path $repo 'skills'
 $skillDirs = @()
 if ($Agents -contains 'claude') { $skillDirs += , @('Claude Code', (Join-Path $ClaudeDir 'skills')) }
 if ($Agents -contains 'codex') { $skillDirs += , @('Codex', $AgentsSkillsDir) }
+if ($Agents -contains 'antigravity') { $skillDirs += , @('Antigravity', (Join-Path $AntigravityDir 'skills')) }
 foreach ($sd in $skillDirs) {
     foreach ($s in Get-ChildItem -LiteralPath $skillsSrc -Directory) {
         Sync-Dir $s.FullName (Join-Path $sd[1] $s.Name) (Join-Path $sd[1] "_backup\$stamp\$($s.Name)") "$($sd[0]) skills\$($s.Name)"
@@ -399,7 +437,8 @@ foreach ($sd in $skillDirs) {
 }
 
 # Root instructions: sessions start in the root. Claude Code reads <root>\CLAUDE.md (it imports the repo's CLAUDE.md,
-# which imports AGENTS.md); Codex reads <root>\AGENTS.md (no imports: it names the repo's AGENTS.md to read first).
+# which imports AGENTS.md); Codex and Antigravity read <root>\AGENTS.md (no imports: it names the repo's AGENTS.md to
+# read first).
 $inRoot = [IO.Path]::GetFullPath($repo).TrimEnd('\') -eq $expectedRepo
 function Set-RootFile([string]$Path, [string]$Line, [string]$NewText) {
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -416,11 +455,12 @@ if ($Agents -contains 'claude') {
     $importPath = if ($inRoot) { 'unity-game-factory/CLAUDE.md' } else { ($repo -replace '\\', '/') + '/CLAUDE.md' }
     Set-RootFile (Join-Path $Root 'CLAUDE.md') "@$importPath" "# UnityWork root`n`nEvery session in this folder follows the unity-game-factory rules and skills:`n`n@$importPath`n"
 }
-if ($Agents -contains 'codex') {
+if ($Agents -contains 'codex' -or $Agents -contains 'antigravity') {
     $agentsPath = Join-Path $repo 'AGENTS.md'
     $line = "Before anything else, read $agentsPath and follow it (rules, skills, priorities)."
+    $where = @($(if ($Agents -contains 'codex') { "$AgentsSkillsDir (Codex)" }), $(if ($Agents -contains 'antigravity') { "$(Join-Path $AntigravityDir 'skills') (Antigravity)" }) | Where-Object { $_ })
     Set-RootFile (Join-Path $Root 'AGENTS.md') $line ("# UnityWork root`n`nEvery session in this folder follows the unity-game-factory rules and skills.`n$line`n" +
-        "The skills it names (unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks, unity-check-tasks) are installed in $AgentsSkillsDir.`n")
+        "The skills it names (unity-commit-always, unity-game-session, unity-desktop-game, unity-mobile-game, unity-sound, unity-write-tasks, unity-check-tasks) are installed in $($where -join ' and ').`n")
 }
 
 # --- 4. git, LFS, gh, game repos --------------------------------------------------------------------------------------

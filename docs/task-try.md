@@ -4,7 +4,7 @@
 game session instead (unity-write-tasks skill, section 6).
 
 The task check ([task-check.md](task-check.md)) proves a task is fair: the start fails it and the reference passes.
-The task try tells you whether it is hard enough. It gives the task to your own coding agent, Claude Code or Codex on
+The task try tells you whether it is hard enough. It gives the task to your own coding agent, Claude Code, Codex or Antigravity on
 your own subscription, exactly as an agent gets it in the cloud, then grades what the agent left with the task's own
 probes. Every task must be a long thread of multiple edits (unity-write-tasks skill, section 1); if your agent solves
 it easily, the task isn't done yet.
@@ -12,6 +12,7 @@ it easily, the task isn't done yet.
 ```powershell
 python tools\task-try.py C:\Users\<you>\UnityWork\games\<slug> --task <task-name> --agent claude
 python tools\task-try.py C:\Users\<you>\UnityWork\games\<slug> --task <task-name> --agent codex --runs 3
+python tools\task-try.py C:\Users\<you>\UnityWork\games\<slug> --task <task-name> --agent antigravity
 python tools\task-try.py C:\Users\<you>\UnityWork\games\<slug> --task C:\Users\<you>\UnityWork\tasks\<slug>\Tasks\<task-name>.json --agent claude
 ```
 
@@ -31,9 +32,10 @@ check's).
 
 - The task check says VALID (`tools/task-check.py`). The try builds the start and the reference too, but tells you
   nothing useful about a task that isn't valid.
-- `claude` or `codex` is on PATH and logged in (run it once by hand). The try runs it headless: Claude Code with
-  `-p --permission-mode bypassPermissions` and its hooks off, Codex with `exec -s danger-full-access`; the agent can
-  run anything on your computer, as a game session can.
+- `claude`, `codex` or `agy` (Antigravity's CLI) is on PATH and logged in (run it once by hand). The try runs it
+  headless: Claude Code with `-p --permission-mode bypassPermissions` and its hooks off, Codex with
+  `exec -s danger-full-access`, Antigravity with `--dangerously-skip-permissions` and the brief as its `--print`
+  argument; the agent can run anything on your computer, as a game session can.
 - Requirements as the task check's: Windows, the project's Unity 6.3 LTS editor installed and an active Unity licence
   (a batchmode run without one exits 198), Python 3.12, git and Git LFS with both commits' objects fetched, and short
   paths (Unity fails past 260 characters: give `--scratch` a short folder when the default is refused). Disk: one full
@@ -110,12 +112,12 @@ task check keeps them.
 - **`peeked` lists a folder** (the printed line: `transcript names ...: it may have read the answer`): the transcript
   names your game repo or another of its worktrees (the tasks worktree: the history and the answer), the try's
   results folder (the start's and the reference's plays), the machine root or your agent's own folders (`~\.claude`,
-  `~\.codex`, `~\.agents`: its sessions, memory and skills), as a whole name (`~\.claude` is not `~\.claude.json`), in
+  `~\.codex`, `~\.agents`, `~\.gemini`: its sessions, memory and skills), as a whole name (`~\.claude` is not `~\.claude.json`), in
   any spelling a shell gives them (`C:\...`, `C:/...`, `/c/...`, `~/...`, `$HOME`, `$USERPROFILE`,
   `$env:USERPROFILE`, `%USERPROFILE%`). That run doesn't count: the cloud agent can't reach them. Run it again, or
   from an account that can't read those folders. A relative path or a variable the agent read isn't seen, so a run
   without `peeked` is no proof it stayed inside.
 
 The try is advice for you. The cloud's own runs and grade decide approval, difficulty and pay. Codex runs with a home
-of its own (your login, every skill off), but Claude Code also has your own harness settings, skills and memory, which
-the cloud agent doesn't; keep them out of its way when you can.
+of its own (your login, every skill off), but Claude Code and Antigravity also have your own harness settings, skills and
+memory, which the cloud agent doesn't; keep them out of its way when you can.

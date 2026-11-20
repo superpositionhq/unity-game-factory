@@ -28,7 +28,7 @@ holds its GPU jobs back while the other factory records), so together they never
 | An NVIDIA GPU (8 GB+ VRAM) | only for recording gameplay videos (NVENC); without one, recording falls back to slower encoders (AMF, then the CPU) |
 | Staff only: a GitHub account that is a member of `<org>` (the organisation, or user, that owns `unity-game-factory` and the private `unity-game-<slug>` repos), allowed to create private repos there. Contractors need no GitHub account: the skill pack is public, the game stays on your PC and ships in the dataset zip, and a note that no GitHub repo was made is expected | staff push the game repos (an owner of `<org>` adds you); setup asks whether to sign in, and contractors answer No |
 | A Unity ID with an active licence (Unity Personal is fine where its terms allow; otherwise the seat the org gives you) | Unity Hub and the editor need a signed-in, licensed account; the Asset Store uses the same account |
-| A coding-agent account: Claude, or OpenAI (a ChatGPT plan or an API key) | the agent that builds the game: Claude Code in a terminal or the Claude desktop app (Code tab), or the Codex CLI in a terminal (`setup.ps1 -Agent claude\|codex\|both`) |
+| A coding-agent account: Claude, OpenAI (a ChatGPT plan or an API key) or Google (for Antigravity) | the agent that builds the game: Claude Code in a terminal or the Claude desktop app (Code tab), the Codex CLI in a terminal, or Antigravity (its CLI `agy` in a terminal, or its App or IDE) (`setup.ps1 -Agent claude\|codex\|antigravity\|both\|all`) |
 | Admin rights on the PC | a few UAC prompts (some of the installs, long paths) |
 
 ## 1. Run setup
@@ -55,7 +55,8 @@ Then the one command (in the folder holding `setup.ps1`):
 powershell -ExecutionPolicy Bypass -File setup.ps1 -Org <org>
 ```
 
-Options: `-Agent claude|codex|both` (the coding agent; asked on the first run, remembered), `-Root D:\UnityWork` (the
+Options: `-Agent claude|codex|antigravity|both|all` (the coding agent; `both` is Claude Code and Codex, a list such
+as `claude,antigravity` also works; asked on the first run, remembered), `-Root D:\UnityWork` (the
 machine root; default `%USERPROFILE%\UnityWork`, asked on the first run; a short path such as `C:\UnityWork` helps
 with deep package paths), `-CloneGames` (clone every `<org>/unity-game-*` repo; asked otherwise), `-Yes` (answer yes
 to every question).
@@ -65,7 +66,8 @@ What it does, in order (log: `<root>\.setup\setup.log`; answers remembered in `<
 1. **Hardware precheck** against the minimums above.
 2. **Software through winget**, after one question (winget accepts each package's licence; some show a UAC prompt):
    Git + Git LFS, GitHub CLI, Python 3.12, 7-Zip, Unity Hub (`Unity.UnityHub`); with Codex the Codex CLI
-   (`OpenAI.Codex`); with Claude Code the Claude desktop app is offered separately (optional).
+   (`OpenAI.Codex`); with Antigravity its CLI `agy` (`Google.AntigravityCLI`; the App, `Google.Antigravity`, works too
+   when you prefer it); with Claude Code the Claude desktop app is offered separately (optional).
 3. **Windows settings, each asked first**: long paths (one UAC prompt) and no sleep for the PC and the display while
    plugged in (long builds and overnight queues).
 4. **GitHub sign-in, asked first** (staff only, `gh auth login` in the browser; contractors answer No and nothing
@@ -91,7 +93,7 @@ Setup prints these as TODOs (as notes where a PC may not need them) and detects 
 | NVIDIA driver (if you have an NVIDIA GPU; for recording) | the current Game Ready or Studio driver, 610 or newer, from nvidia.com/drivers or the NVIDIA app | `nvidia-smi` |
 | Display (for recording) | a multiple of 60 Hz (60/120/240) and a primary display that holds a 1920x1080 window (a mobile game held upright, 1080x1920, is recorded on it too: in a window larger than the screen, captured as a window): Settings > System > Display | `check.ps1` |
 | Asset Store | only to download store packs for a **new** game: in the editor, **Window > Package Manager > My Assets** (signed in with the account that owns them) > Download. Downloads land in `%APPDATA%\Unity\Asset Store-5.x\`. Purchases and licence choices stay with their owner. | `check.ps1` counts the downloads |
-| Agent sign-in | Claude Code: run `claude` once (or open the desktop app) and sign in. Codex: `codex login` (setup runs it; `--device-auth` without a browser) | Claude: not detectable; Codex: `codex login status` |
+| Agent sign-in | Claude Code: run `claude` once (or open the desktop app) and sign in. Codex: `codex login` (setup runs it; `--device-auth` without a browser). Antigravity: run `agy` once (or open the App) and sign in with your Google account | Claude, Antigravity: not detectable; Codex: `codex login status` |
 
 Cloned games carry their store packs (committed through Git LFS in each private repo), so the Asset Store cache and
 the shared asset library (`<root>\asset-library`) are only needed for new games.
@@ -101,9 +103,9 @@ the shared asset library (`<root>\asset-library`) are only needed for new games.
 - **Desktop app, several games at once (Claude only):** open the Code tab in the root folder and start a coordinator
   session; add its session id to `<hooks dir>\recording-exclude.txt`. It starts the game sessions (`CONTINUE` for
   cloned games, `NEW` for new ones) from [briefs/game-session.md](briefs/game-session.md).
-- **Solo, one game in a terminal:** `cd <root>`, run `claude` or `codex -s danger-full-access`, and paste
+- **Solo, one game in a terminal:** `cd <root>`, run `claude`, `codex -s danger-full-access` or `agy`, and paste
   [briefs/solo-game.md](briefs/solo-game.md) with its placeholders filled. Same rules and the same recording with
-  either agent; you take the coordinator's decisions (pushes, recordings). What differs between the agents:
+  every agent; you take the coordinator's decisions (pushes, recordings). What differs between the agents:
   [AGENTS.md](../AGENTS.md), "Agents".
 
 Start sessions in the UnityWork root (or a game folder under it), never in another factory's root: the root's
@@ -125,10 +127,11 @@ Start sessions in the UnityWork root (or a game folder under it), never in anoth
 - `tools\unity-heavy.ps1` (the machine-wide job limiter) with `tools\ugf-root.ps1`, the pinned ffmpeg 8.1.2 (SHA-256
   verified);
 - the recording hooks in the hooks dir (`hooks_dir` in the config, default `~\.unity-game-factory\hooks\`), wired into
-  `~\.claude\settings.json` for Claude Code and `~\.codex\hooks.json` + trust entries in `~\.codex\config.toml` for
-  Codex (backup first; asked first, `-Yes` skips the question; only the handlers that run `record-unity-action.ps1`
-  are added or updated, any other hook stays); the `unity-*` skills from `skills\` in
-  `~\.claude\skills\` and/or `~\.agents\skills\` (other skill folders untouched); `<root>\CLAUDE.md` importing
+  `~\.claude\settings.json` for Claude Code, `~\.codex\hooks.json` + trust entries in `~\.codex\config.toml` for
+  Codex and `~\.gemini\config\hooks.json` (the hook `unity-game-factory-recording`) for Antigravity (backup first;
+  asked first, `-Yes` skips the question; only the handlers that run `record-unity-action.ps1` are added or updated,
+  any other hook stays); the `unity-*` skills from `skills\` in `~\.claude\skills\`, `~\.agents\skills\` and/or
+  `~\.gemini\config\skills\` (other skill folders untouched); `<root>\CLAUDE.md` importing
   `unity-game-factory/CLAUDE.md` and/or `<root>\AGENTS.md` naming `unity-game-factory\AGENTS.md`;
 - Git LFS filters, the post-commit hook in every game repo (the commit recorder and the live creation replay), and
   with `-CloneGames` every `<org>/unity-game-*` repo.
@@ -196,7 +199,7 @@ it is given a scratch config, hooks dir and agent folders (bootstrap writes to a
 only:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File machine/setup.ps1 -Org <org> -DryRun -Agent both -Root C:/ugf-test/UnityWork -ClaudeDir C:/ugf-test/home/.claude -CodexDir C:/ugf-test/home/.codex -AgentsSkillsDir C:/ugf-test/home/.agents/skills -HooksDir C:/ugf-test/home/.unity-game-factory/hooks -ConfigPath C:/ugf-test/home/.unity-game-factory/config.json
+powershell -ExecutionPolicy Bypass -File machine/setup.ps1 -Org <org> -DryRun -Agent all -Root C:/ugf-test/UnityWork -ClaudeDir C:/ugf-test/home/.claude -CodexDir C:/ugf-test/home/.codex -AgentsSkillsDir C:/ugf-test/home/.agents/skills -AntigravityDir C:/ugf-test/home/.gemini/config -HooksDir C:/ugf-test/home/.unity-game-factory/hooks -ConfigPath C:/ugf-test/home/.unity-game-factory/config.json
 ```
 
 With `UGF_CONFIG` set to the scratch config, `powershell -ExecutionPolicy Bypass -File templates/new-game.ps1 -Slug
