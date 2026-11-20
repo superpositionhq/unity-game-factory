@@ -167,5 +167,41 @@ class MixerIds(unittest.TestCase):
         self.assertEqual((ex['count'], ex['items']), (11, ['%s: 11 ids' % MIXER]))
 
 
+
+class TrackedFilesUnderIgnoredFolders(unittest.TestCase):
+    """verify_files compares every file the final commit tracks, under a build-output folder too; untracked files
+    there stay out of the extras."""
+
+    def run_files(self, on_disk, tracked):
+        import tempfile, types
+        with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(__file__))) as proj:
+            for rel, text in on_disk.items():
+                full = os.path.join(proj, rel)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write(text)
+            was = verify.runner.tree_ids, verify.runner.file_matches
+            verify.runner.tree_ids = lambda repo, sha, prefix='': {p: ('text', t) for p, t in tracked.items()}
+            verify.runner.file_matches = lambda fp, ident: open(fp).read() == ident[1]
+            try:
+                return verify.verify_files(types.SimpleNamespace(proj=proj), 'final')
+            finally:
+                verify.runner.tree_ids, verify.runner.file_matches = was
+
+    def test_a_tracked_file_in_a_build_folder_is_compared(self):
+        tracked = {'Assets/Build/Stage.cs': 'a', 'Builds/notes.txt': 'b', 'Assets/Game.cs': 'c'}
+        same = self.run_files(dict(tracked, **{'Builds/Game.exe': 'x', 'Library/cache': 'y'}), tracked)
+        self.assertEqual((same['missing'], same['differs'], same['extra']), ([], [], []))
+        self.assertEqual(same['assets'], {'identical': 2})
+        self.assertEqual(same['other'], {'identical': 1})
+
+    def test_absent_is_missing_and_other_bytes_differ(self):
+        tracked = {'Assets/Build/Stage.cs': 'a', 'Builds/notes.txt': 'b'}
+        got = self.run_files({'Builds/notes.txt': 'changed', 'Builds/Game.exe': 'x'}, tracked)
+        self.assertEqual(got['missing'], ['Assets/Build/Stage.cs'])
+        self.assertEqual(got['differs'], ['Builds/notes.txt'])
+        self.assertEqual(got['extra'], [])
+
+
 if __name__ == '__main__':
     unittest.main()

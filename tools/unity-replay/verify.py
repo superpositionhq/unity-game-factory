@@ -123,6 +123,9 @@ def tolerant_diff(a, b, counts):
 
 # ------------------------------------------------------------------------------------------------ files
 def verify_files(ctx, final):
+    """The replayed project's files against the final commit's. Every file the commit tracks is compared wherever it
+    lives, under an ignored folder too (a tracked Assets/Build/ or Builds/ file absent is missing, with other bytes it
+    differs); IGNORED_DIRS only keeps what is not tracked there (build output, caches) out of the extras."""
     ids = runner.tree_ids(ctx.proj, final)
     have = {}
     for dp, dns, fns in os.walk(ctx.proj):
@@ -135,6 +138,9 @@ def verify_files(ctx, final):
             if rel == runner.TOOL_DIR + ".meta":
                 continue
             have[rel] = os.path.join(dp, fn)
+    for p in ids:   # a tracked file under a folder the walk leaves out
+        if p not in have and os.path.isfile(os.path.join(ctx.proj, p)):
+            have[p] = os.path.join(ctx.proj, p)
     res = {"assets": collections.Counter(), "other": collections.Counter(), "differs": [], "missing": [], "extra": []}
     for p, ident in ids.items():
         cat = "assets" if p.startswith("Assets/") else "other"

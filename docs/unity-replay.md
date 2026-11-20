@@ -131,7 +131,9 @@ Per window (`work/windows.jsonl`):
 3. **Content**: every content file the commit adds or changes is identical, differs (kept as the replay made it) or,
    when no replayed step produced it, is taken from the commit (`fallback`, with the reason; listed as a deviation);
    files the commit deletes are deleted; the set of files under `Assets/` and `ProjectSettings/` against the commit
-   (`missing`, `extra`).
+   (`missing`, `extra`) Every file the commit tracks is compared wherever it lives, under a build-output
+   folder too (`Build/`, `Builds/`, `Library/` and the like: absent is missing, other bytes differ); those folders
+   only keep what is not tracked there out of the extras.
 4. **Behaviour** (in the report): each replayed run's workflow rows against the original run's (same `op`, `target`,
    `status`, the same `params` once times and absolute paths are masked), and the sha256 of the step's text the rows
    carry, as the builder ran it and as the replay ran it.
