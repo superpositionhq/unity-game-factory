@@ -31,6 +31,9 @@ per finding: `x` an error, `!` a warning, `-` a note, then what it is about (`re
 `dataset`, ...). Options: `--quick` (do not unpack the history), `--no-hash`, `--no-layout`, `--no-zip` (skip the
 repo's `Dataset.zip`), `--json <file>`, `--quiet` (print only errors and warnings). Standard library Python 3.10+.
 
+A dataset's files may unpack to at most 256 GiB in all, four times the largest dataset upload. Both checks refuse
+a bigger one before reading any file in it, so every check can read a whole dataset in its time.
+
 ## Package
 
 ```bash

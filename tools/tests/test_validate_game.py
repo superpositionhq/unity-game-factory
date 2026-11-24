@@ -2245,6 +2245,37 @@ class Mobile(unittest.TestCase):
         self.assertEqual(list(vg.check_schema(build, schema['build'], vg.SCHEMAS['dataset-manifest'])), [])
         self.assertTrue(list(vg.check_schema(dict(build, apk='Build/KilnRun.apk'), schema['build'], vg.SCHEMAS['dataset-manifest'])))
 
+class UnpackedSize(unittest.TestCase):
+    def test_a_dataset_that_unpacks_past_the_bound_is_refused_unread(self):
+        """A dataset whose files unpack to more than MAX_UNPACKED in all (a zip's sizes as its directory says them, or
+        a folder's files) is refused before any file in it is read; one at the bound is checked as ever."""
+        tmp = tempfile.mkdtemp(prefix='unpacked')
+        try:
+            folder = os.path.join(tmp, 'g')
+            os.makedirs(folder)
+            with open(os.path.join(folder, 'manifest.json'), 'w', encoding='utf-8') as f:
+                f.write('{}')
+            z = os.path.join(tmp, 'g.zip')
+            with zipfile.ZipFile(z, 'w', zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr('g/manifest.json', '{}')
+                zf.writestr('g/git.log', 'x' * 100_000)
+            for path, size in ((folder, 2), (z, 100_002)):
+                with unittest.mock.patch.object(vg, 'MAX_UNPACKED', size - 1):
+                    rep = vg.Report()
+                    vg.check_dataset(rep, path, 'dataset')
+                    found = [m for s, a, m in rep.items if s == 'error']
+                    self.assertEqual(len(found), 1, found)   # nothing else is read
+                    self.assertTrue(found[0].startswith('the files unpack to '), found)
+                with unittest.mock.patch.object(vg, 'MAX_UNPACKED', size):
+                    rep = vg.Report()
+                    vg.check_dataset(rep, path, 'dataset')
+                    found = [m for s, a, m in rep.items if s == 'error']
+                    self.assertFalse([m for m in found if m.startswith('the files unpack to ')], found)
+                    self.assertTrue(found, 'checked as ever: its manifest is empty')
+            self.assertEqual(vg.MAX_UNPACKED, 256 << 30)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
 
 if __name__ == '__main__':
     unittest.main()

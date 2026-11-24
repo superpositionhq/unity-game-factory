@@ -301,6 +301,11 @@ def check_assets_manifest(rep, area, data, present):
 
 
 # ---- dataset (folder or zip) -------------------------------------------------------------------------------------------
+# What a dataset's files may unpack to in all: four times the largest dataset upload (64 GiB). A bigger dataset is
+# refused before any file in it is read, so every check can read a whole dataset in its time.
+MAX_UNPACKED = 256 << 30
+
+
 class DatasetView:
     def __init__(self, path):
         self.path = path
@@ -321,6 +326,8 @@ class DatasetView:
                     rel = os.path.relpath(full, path).replace('\\', '/')
                     self.names[rel] = full
                     self.sizes[rel] = os.path.getsize(full)
+        # what its files unpack to: a zip's sizes as its directory says them, or a folder's files
+        self.unpacked = sum(i.file_size for i in self.zip.infolist()) if self.zip else sum(self.sizes.values())
 
     def has(self, rel): return rel in self.names
     def has_dir(self, rel): return any(n.startswith(rel.rstrip('/') + '/') for n in self.names)
@@ -345,6 +352,10 @@ def check_dataset(rep, path, area='dataset'):
 
 
 def _check_dataset(rep, v, area):
+    if v.unpacked > MAX_UNPACKED:
+        rep.error(area, f'the files unpack to {v.unpacked / (1 << 30):.1f} GiB in all, more than {MAX_UNPACKED >> 30} '
+                        'GiB: a dataset this large is refused before any file in it is read')
+        return
     if v.zip and not v.top:
         rep.error(area, 'the zip must hold exactly one top folder (<game>/)')
         return

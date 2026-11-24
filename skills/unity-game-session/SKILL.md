@@ -397,7 +397,8 @@ A finished game ships as: `README.md, git.log, workflow.jsonl, Brief/, History/,
 ReplayScripts/, Gameplay/<slug>_S<n>.mp4, Screenshots/, Build/, manifest.json` (docs/game-format.md). The repo's
 `Dataset/` folder holds the same minus `UnityProject/`, `Build/`, `History/` and `Tasks/`; the packager produces it and
 you commit it. The full dataset zip is `Dataset.zip` in the game folder, next to `Dataset/`: git-ignored (with
-`.dataset/`, the packager's scratch), never committed.
+`.dataset/`, the packager's scratch), never committed. Its files may unpack to at most 256 GiB in all: a bigger
+dataset is refused before it is read, since no check could read it all in its time.
 
 The packager is `python <UGF_ROOT>/unity-game-factory/tools/package-dataset.py <slug>` (docs/unity-pipeline.md,
 "Dataset packager"). It packs the release commit, not the working tree, with three products of that commit: the
