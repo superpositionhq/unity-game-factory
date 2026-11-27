@@ -38,6 +38,11 @@ start from the reference, never that it reads what the instruction asks)_
   your tasks; fix every `x` line there before the task check, among them the task bar (at least 30 checks and 10
   required `still_works` probes a task, a large-feature task a game: unity-write-tasks skill, section 1). _(why: the task check refuses a task that doesn't
   validate, and the validator is seconds while a check is many minutes)_
+- Read the task against the five rules of unity-write-tasks section 1 (several independent asks, one where two
+  systems meet; a check of what must not happen for every positive ask; measured results of play; one change that
+  takes effect in several places, a check each; a ticket with no implementation steps and no count of defects).
+  Neither the validator nor the task check can read them. _(why: a capable solver completes the stated main path and
+  misses what it must think of itself, so a task that breaks one of them is easy however many checks it has)_
 - **Unity Hub is signed in with an active licence.** Without one every build and the editor pass exit 198 and the
   check is an ERROR, never a verdict. _(why: a machine that can't run Unity says nothing about the task)_
 - A Unity 6000.3 editor at or above the patch both commits name is installed: the start and the reference are

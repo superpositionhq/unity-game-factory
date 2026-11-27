@@ -264,6 +264,27 @@ strong coding model does not finish in one run. A task such a model would solve 
 it more depth (a longer stretch of the thread, more of the contract, more cases of each rule, the systems around the
 change), never easier checks. Judge this in the session as section 6 says.
 
+**What makes a task hard: five rules (owner, 2026-11-26).** A capable solver completes the stated main path and misses
+what it must think of itself, so a task is hard through independent asks and unstated consequences, not through many
+checks of one mechanism. Every task meets all five:
+
+1. **Several independent asks, one where two systems meet.** The task carries several asks that do not depend on one
+   another, so finishing one gives no help with the next, and at least one of them sits where two of the game's
+   systems meet (the HUD and the save, the input and the camera, the economy and the level).
+2. **Every positive ask has its negative.** Each ask that something happens comes with a check of what must not
+   happen: the wrong input does nothing, the notice does not show without its cause, the thing switched off shows
+   nothing. A build that makes it happen always passes the positive check alone.
+3. **Measured results of play.** At least part of the checks read a measured result of play (an amount, who wins,
+   what arrives when), not only that a feature is present: presence is the part of the work a solver never misses.
+4. **One change, several places.** At least one ask is a change that must take effect in several places at once (a
+   setting, a mode, a rule every screen or actor follows), with a check for each place, since a solver tends to change
+   the place it found first.
+5. **The ticket says what the player sees and wants, nothing more.** It lists no implementation steps, and a repair
+   task never says how many defects there are: a count or a list of steps turns the solver's search into a checklist.
+
+The validator cannot read these from a task's file, so they are judged in the session (section 6), as the person
+reviews each task.
+
 ## 2. Picking the commits
 
 ### Starts on the engine
@@ -832,7 +853,8 @@ Fix what you find in the task before it is packed:
   person: would a strong agent given only the brief and the start solve it easily (25 minutes is a guide, not a
   cut-off)? It would when the brief points at one place, the issues share one obvious cause, or the reference diff is
   mostly one file or one system. If so, extend the thread back to an earlier attempt, merge it with its neighbouring
-  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each.
+  issues, or drop it. Tell the person which tasks you judged long enough and why, in a line each. Review each task against the five rules of section 1 (independent asks, a negative for every
+  positive ask, measured results, one change in several places, a ticket with no steps or defect count) in the same pass.
 
 Probes may measure the cause's effect directly, since the agent never sees them.
 
