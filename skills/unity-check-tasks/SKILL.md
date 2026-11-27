@@ -35,7 +35,8 @@ start from the reference, never that it reads what the instruction asks)_
 
 - Commit the task on the tasks branch and run the validator first: `python
   <UGF_ROOT>\unity-game-factory\tools\validate-game.py <UGF_ROOT>\games\<slug>`. Its `repo: Tasks` lines are about
-  your tasks; fix every `x` line there before the task check. _(why: the task check refuses a task that doesn't
+  your tasks; fix every `x` line there before the task check, among them the task bar (at least 30 checks and 10
+  required `still_works` probes a task, a large-feature task a game: unity-write-tasks skill, section 1). _(why: the task check refuses a task that doesn't
   validate, and the validator is seconds while a check is many minutes)_
 - **Unity Hub is signed in with an active licence.** Without one every build and the editor pass exit 198 and the
   check is an ERROR, never a verdict. _(why: a machine that can't run Unity says nothing about the task)_
@@ -163,7 +164,8 @@ hold each case to this:
 - every required probe outside `still_works` fails, **for the reason its `describe` gives**: its row reads a measured
   value on the wrong side of the threshold, not `measured nothing`, `the play's input did not land`, `not run: needs
   X` or an empty selection;
-- every required `still_works` probe passes, and every check the start passes carries `"weight": 0`;
+- every required `still_works` probe passes (these are the task's regression checks: they read what the change
+  leaves alone, so the reference passes them too), and every check the start passes carries `"weight": 0`;
 - every required judge fails on your blind scores of the start (each required item below 0.5), and passes, for a
   judge in `still_works`. The one look judge `looks_as_asked` is read item by item by its keys: each `asked_` item
   below 0.5 on the start and each `keep_` item at 0.5 or more (a look that must stay as it was); with `keep_` items

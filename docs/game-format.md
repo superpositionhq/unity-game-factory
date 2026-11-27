@@ -29,7 +29,9 @@ alone, the way a consumer receives it. Both run `tools/validate-dataset.ps1` (la
 Windows. Verdict **VALID** or **INVALID** (exit 0 / 2); warnings never change it. After the verdict it prints one line
 per finding: `x` an error, `!` a warning, `-` a note, then what it is about (`repo`, `repo: README`, `repo: Tasks`,
 `dataset`, ...). Options: `--quick` (do not unpack the history), `--no-hash`, `--no-layout`, `--no-zip` (skip the
-repo's `Dataset.zip`), `--json <file>`, `--quiet` (print only errors and warnings). Standard library Python 3.10+.
+repo's `Dataset.zip`), `--json <file>`, `--quiet` (print only errors and warnings), `--task-bar warn` (the task bar of
+2026-11-26, 30 checks and 10 regression checks a task and a large-feature task a game, prints as warnings for a game
+made before it; it rejects otherwise). Standard library Python 3.10+.
 
 A dataset's files may unpack to at most 256 GiB in all, four times the largest dataset upload. Both checks refuse
 a bigger one before reading any file in it, so every check can read a whole dataset in its time.

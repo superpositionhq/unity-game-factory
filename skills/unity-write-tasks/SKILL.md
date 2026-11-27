@@ -1,6 +1,6 @@
 ---
 name: unity-write-tasks
-description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of multiple edits from the game''s real history: many commits, many files, several systems, at least 4 hard, the rest medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (the parent of the thread''s first attempt) and seed.reference (its final accepted fix), observation-only briefs, play_scene and play_args, deterministic probe checks (never by pixels; judges only for asked looks; one required probe per issue), every ask with a check, limits, and what keeps a task gradable and unleaked (checking it: unity-check-tasks). Use when a Unity game session writes, moves, checks or reviews tasks, or reads a task check''s result, and before calling a game complete.'
+description: 'How to write the tasks a Unity game ships with (Tasks/ on the repo''s orphan tasks branch, never on main, one GameTask JSON per task, 5 to about 10 per game, one a large feature, each with 30 checks, 10 of them regression checks) so an agent can be given them in the game-creation environment: the tasks branch and its worktree, the one bar every task meets (a long thread of the game''s real history: many commits, files and systems, at least 4 hard, the rest medium, never easy or a single fix), the four kinds as where a thread comes from, picking seed.commit (before the thread''s first attempt) and seed.reference (its accepted fix), observation-only briefs, play_scene and play_args, deterministic probe checks (never by pixels; judges only for asked looks; one required probe per issue), every ask checked, limits, and what keeps a task gradable and unleaked (checking it: unity-check-tasks). Use when a Unity game session writes, moves, checks or reviews tasks, reads a task check''s result, or calls a game complete.'
 ---
 
 # Writing a game's tasks (Unity)
@@ -215,6 +215,55 @@ decoration earn nothing, and still frames cannot show how controls feel: write a
 player meets (the game-session skill's feel words point at what to measure), and a judge item only for what a frame
 can show.
 
+**Every task: at least 30 checks, at least 10 of them regression checks (owner, 2026-11-26).** A task is judged by
+how much of the game it holds to account, so a thin task is a weak task however long its thread. Every check counts
+toward the 30: build, boot, probes, judges. A regression check is a required probe in `still_works` that reads
+behaviour outside what the task asks to change and holds at both the start and the reference (the task check already
+holds every required `still_works` probe on both sides). Most of a task's checks belong to its asks: several
+scenarios for each stated rule, each case and number checked on its own, so partial work earns partial credit and a
+build that skips one case fails it. The validator rejects a task under either number.
+
+**One shared regression suite per game.** Write a game's regression checks once, not per task: a suite of 20 to 30
+probes over the game's core features (starting a game from the title or menu, the main loop a player repeats, each
+recorded scenario, saving and loading, the settings that exist, pause and resume, each mode and map), each a keep
+read the way section 5 says (a literal, or relative to the start, never calibrated; by what a player meets, never
+by a name only one commit has). Keep it on the tasks branch as `Regression/suite.json`, a list of checks outside
+`Tasks/` that nothing loads as a task, and check it once on the game's head with the task check (paste it into one
+task's `still_works`; unity-check-tasks skill). Every task then takes the whole suite into its `still_works`, minus each check that reads
+something the task asks to change (a check of the very speed the task retunes goes; the menu it leaves alone stays),
+with a start-relative threshold where the task's start is older than the suite. A task left with fewer than 10
+regression checks after that cut gets more of its own keeps, read from the systems around its change. When the game
+gains a feature, add its checks to the suite.
+
+**Large features: at least one task a game (owner, 2026-11-26).** Besides the long threads above, every game carries
+at least one large-feature task: a new play mode, a new map or level (a scene), or a new system, taken from a span of the game's
+history that built it (`seed.kind` `feature`, the tags `long-thread` and `large-feature`). Its brief states the
+contract a player can observe and never how to build it: how the new thing is reached, by the words on the control
+that opens it; each rule, with its numbers; how it ends (a win, a loss, a timer, a score). Its checks come in
+layers:
+
+1. it builds and boots;
+2. the entry is reachable by its caption: a play clicks or taps the words the brief gives and the new mode, map or
+   system starts;
+3. each stated rule in several scripted scenarios, most of the task's checks: the rule holding, its numbers at and
+   past their limits, and the case the rule refuses;
+4. for a map or level, its properties and never its layout: every objective reachable from the spawn, the bounds
+   closed (nothing falls out of the world), the required things present in the stated numbers, a whole match or run
+   playable to its end;
+5. the look, by the `looks_as_asked` judge over several pictures of the new thing;
+6. regression of the modes and maps that existed before (the shared suite);
+7. saving, settings and pause inside the new mode.
+
+No check is tied to the reference's own names, coordinates, sizes, counts of parts or timing: another fair build of
+the same contract names, places and sizes things otherwise, and must pass. A rule the brief states with a number is
+held to that number; a quantity it leaves open is read as a property (reachable, present, ends), never as the
+reference's value.
+
+**Difficulty is what a strong model cannot do (owner, 2026-11-26).** The aim of every task is work that a current
+strong coding model does not finish in one run. A task such a model would solve in one run is not hard enough: give
+it more depth (a longer stretch of the thread, more of the contract, more cases of each rule, the systems around the
+change), never easier checks. Judge this in the session as section 6 says.
+
 ## 2. Picking the commits
 
 ### Starts on the engine
@@ -380,7 +429,8 @@ scores a no-op on every check, judges included. The usual order:
    and passes on the reference. The look judge `looks_as_asked` goes here, with weight, when it has at least one
    `asked_` item (keep items may sit in it beside them).
 4. `still_works`: probes that what must keep working still does (the player still moves, the HUD still shows, the
-   scene still loads its scenario); the look judge goes here, with `"weight": 0`, only when all its items are `keep_`.
+   scene still loads its scenario): at least 10 required ones, the game's shared regression suite minus what the
+   task changes (section 1); the look judge goes here, with `"weight": 0`, only when all its items are `keep_`.
 5. `quality` (optional, never required): a `judge` for taste items no probe can capture ("reads as a castle",
    readability of text over the scene), and a `code_judge` for code quality. A
    judge is written
@@ -756,8 +806,13 @@ Fix what you find in the task before it is packed:
 ## 6. Difficulty, limits and what the validator enforces
 
 - `difficulty` is `hard`; a game needs at least 4 `hard` tasks, the others may be `medium`, none easier (a task that
-  names no difficulty counts as medium; four is the floor, so aim every task at hard), and `tags` hold `long-thread`. It is your own judgement of the thread, made in the session (last item
+  names no difficulty counts as medium; four is the floor, so aim every task at hard), and `tags` hold `long-thread`; a large-feature task also holds `large-feature`. It is your own judgement of the thread, made in the session (last item
   below).
+- **The task bar of 2026-11-26 rejects** (section 1): `tools/validate-game.py` fails a task with fewer than 30 checks
+  or fewer than 10 required probes in `still_works`, a task tagged `large-feature` whose `seed.kind` is not
+  `feature`, and a game with no task tagged `large-feature`. A game made before that date, fixed for a project that
+  only warns on these, is validated with `--task-bar warn`: the same findings print as warnings. Never thin a task to
+  pass: these are floors, and the aim is work a strong model cannot finish in one run.
 - `limits`: 400 turns, 480 min, 150 USD, 1800 s tool timeout unless the task needs more; a long thread needs room.
 - `tools/validate-game.py` fails a game with fewer than 5 tasks or fewer than 4 `hard` ones, and a task that is
   `easy`, has no `seed.reference`, has fewer than 3 required probes of weight above 0 outside `still_works`, or has a
@@ -900,9 +955,10 @@ the reference fixes). The grader's half (`milestones`: probes, rubrics, question
 ## 9. Examples
 
 One whole task that follows every rule of this skill: a long thread's compound brief, observations only;
-`play_scene` and `play_args`; a probe for each ask, of what the player sees, in a play that reaches its moment; the
+`play_scene` and `play_args`; several probes for each ask, of what the player sees, in plays that reach its moment
+(thirty checks in all, section 1); the
 one look judge, `looks_as_asked`, with an `asked_` item for the look the brief asks and a `keep_` item for the look it
-names to keep, each in the brief's words; a `still_works` probe for every other keep the brief names, of weight 0. Its game and its commits are made up (`Buoy_1`, `Buoy_3` and the speed
+names to keep, each in the brief's words; ten `still_works` probes of weight 0, one for every other keep the brief names and the rest from the game's shared regression suite. Its game and its commits are made up (`Buoy_1`, `Buoy_3` and the speed
 readout and the `QuayLamp` objects stand for things the start has), so it has passed the schema and the validator's rules for a task, never the
 task check: copy its shape, never its names or thresholds.
 
@@ -912,9 +968,7 @@ task check: copy its shape, never its names or thresholds.
   "title": "The chase camera crowds the boat and the lap count never changes",
   "instruction": "QA played the harbor circuit (W and S throttle, A and D steer) and reports four things.\n1. The camera rides so close behind the boat that the course ahead can hardly be seen. It should sit further back from the boat and higher above it.\n2. In the turn at the fish market buoy, the quay cuts off the view of the boat. The boat should stay in clear view through that turn.\n3. The lap count at the top of the screen stays at LAP 1/3 after the boat rounds the last buoy. It should show the lap the boat is on.\n4. The lap count is hard to read against the bright water. It should be easy to read at a glance.\nSteering, throttle and the speed readout must keep working as they do now, and the lamps along the quay must still glow as they do now.",
   "engine": "unity-6000.3",
-  "seed": {"game": "harbor-run", "kind": "correction",
-           "commit": "1111111111111111111111111111111111111111",
-           "reference": "2222222222222222222222222222222222222222"},
+  "seed": {"game": "harbor-run", "kind": "correction", "commit": "1111111111111111111111111111111111111111", "reference": "2222222222222222222222222222222222222222"},
   "play_scene": "Assets/Scenes/Harbor.unity",
   "play_args": ["-scenario", "2"],
   "difficulty": "hard",
@@ -922,75 +976,43 @@ task check: copy its shape, never its names or thresholds.
   "limits": {"max_turns": 400, "max_minutes": 480, "max_usd": 150, "tool_timeout_seconds": 1800},
   "milestones": [
     {"name": "builds", "checks": [
-      {"name": "player_builds", "kind": "build", "weight": 0}]},
+      {"name": "player_builds", "kind": "build", "weight": 0}
+    ]},
     {"name": "boots", "checks": [
-      {"name": "boots_clean", "kind": "boot", "seconds": 60, "weight": 0, "needs": ["player_builds"]}]},
+      {"name": "boots_clean", "kind": "boot", "seconds": 60, "weight": 0, "needs": ["player_builds"]}
+    ]},
     {"name": "fixed", "checks": [
-      {"name": "camera_further_back", "kind": "probe", "weight": 2, "needs": ["boots_clean"],
-       "describe": "While the boat is driven, the camera sits further back from it than at the start.",
-       "play": "drive",
-       "measure": {"probe": "camera", "field": "distance", "window": [8, 21], "agg": "mean"},
-       "expect": {"op": ">=", "start_plus": 1.5}},
-      {"name": "camera_higher", "kind": "probe", "weight": 2, "needs": ["boots_clean"],
-       "describe": "While the boat is driven, the camera sits higher above it than at the start.",
-       "play": "drive",
-       "measure": {"probe": "camera", "field": "height", "window": [8, 21], "agg": "mean"},
-       "expect": {"op": ">=", "start_plus": 1}},
-      {"name": "boat_in_view_in_turn", "kind": "probe", "weight": 3, "needs": ["boots_clean"],
-       "describe": "Driven through the turn at the fish market buoy, nothing stands between the camera and the boat.",
-       "play": {"name": "market_turn", "seconds": 14, "every": 0.1,
-                "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1},
-                           {"t": 3, "key": "<Keyboard>/w", "press": true},
-                           {"t": 5, "key": "<Keyboard>/d", "press": true},
-                           {"t": 9, "key": "<Keyboard>/d", "press": false},
-                           {"t": 12, "key": "<Keyboard>/w", "press": false}]},
-       "measure": {"probe": "camera", "field": "occluded", "window": [4, 12], "agg": "max"},
-       "expect": {"op": "<=", "value": 0}},
-      {"name": "lap_count_updates", "kind": "probe", "weight": 3, "needs": ["boots_clean"],
-       "describe": "After the boat is put beside the last buoy and driven on past it, the top of the screen shows lap 2 of 3.",
-       "play": {"name": "round_last_buoy", "seconds": 12,
-                "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1},
-                           {"t": 4, "key": "<Keyboard>/w", "press": true},
-                           {"t": 9, "key": "<Keyboard>/w", "press": false}]},
-       "measure": {"probe": "ui", "select": {"kind": "text", "rect": [0.25, 0, 0.75, 0.15]}, "field": "text",
-                   "match": "LAP\\s*2\\s*/\\s*3", "of": "any", "at": "end"},
-       "expect": {"op": ">=", "value": 1}},
-      {"name": "looks_as_asked", "kind": "judge", "weight": 1, "needs": ["boots_clean"], "before": true,
-       "reference": true,
-       "question": "Is the lap count easy to read, and do the quay lamps glow as in the BEFORE pictures?",
-       "rubric": [{"key": "asked_lap_count_readable",
-                   "criterion": "The lap count at the top of the screen is easy to read at a glance against the water.",
-                   "required": true},
-                  {"key": "keep_quay_lamps_glow",
-                   "criterion": "The lamps along the quay still glow as they do now (in the BEFORE pictures).",
-                   "required": true}],
-       "plays": [{"name": "round_last_buoy", "seconds": 12,
-                  "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1},
-                             {"t": 4, "key": "<Keyboard>/w", "press": true},
-                             {"t": 9, "key": "<Keyboard>/w", "press": false}]},
-                 {"name": "by_quay_lamps", "seconds": 6,
-                  "inputs": [{"t": 1, "teleport_to": {"name": "QuayLamp"}, "distance": 8, "hold": 4}]}]}]},
+      {"name": "camera_further_back", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "While the boat is driven, the camera sits further back from it than at the start.", "play": "drive", "measure": {"probe": "camera", "field": "distance", "window": [8, 21], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "camera_higher", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "While the boat is driven, the camera sits higher above it than at the start.", "play": "drive", "measure": {"probe": "camera", "field": "height", "window": [8, 21], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1}},
+      {"name": "boat_in_view_in_turn", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "Driven through the turn at the fish market buoy, nothing stands between the camera and the boat.", "play": {"name": "market_turn", "seconds": 14, "every": 0.1, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1}, {"t": 3, "key": "<Keyboard>/w", "press": true}, {"t": 5, "key": "<Keyboard>/d", "press": true}, {"t": 9, "key": "<Keyboard>/d", "press": false}, {"t": 12, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "occluded", "window": [4, 12], "agg": "max"}, "expect": {"op": "<=", "value": 0}},
+      {"name": "lap_count_updates", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "After the boat is put beside the last buoy and driven on past it, the top of the screen shows lap 2 of 3.", "play": {"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text", "rect": [0.25, 0, 0.75, 0.15]}, "field": "text", "match": "LAP\\s*2\\s*/\\s*3", "of": "any", "at": "end"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "camera_further_back_early_in_drive", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Early in the drive, the camera sits further back from the boat than at the start.", "play": "drive", "measure": {"probe": "camera", "field": "distance", "window": [2, 8], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "camera_higher_early_in_drive", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Early in the drive, the camera sits higher above the boat than at the start.", "play": "drive", "measure": {"probe": "camera", "field": "height", "window": [2, 8], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1}},
+      {"name": "camera_further_back_in_turn", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Through the turn at the fish market buoy, the camera sits further back than at the start.", "play": {"name": "market_turn", "seconds": 14, "every": 0.1, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1}, {"t": 3, "key": "<Keyboard>/w", "press": true}, {"t": 5, "key": "<Keyboard>/d", "press": true}, {"t": 9, "key": "<Keyboard>/d", "press": false}, {"t": 12, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "distance", "window": [4, 12], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "camera_higher_in_turn", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Through the turn at the fish market buoy, the camera sits higher than at the start.", "play": {"name": "market_turn", "seconds": 14, "every": 0.1, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1}, {"t": 3, "key": "<Keyboard>/w", "press": true}, {"t": 5, "key": "<Keyboard>/d", "press": true}, {"t": 9, "key": "<Keyboard>/d", "press": false}, {"t": 12, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "height", "window": [4, 12], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1}},
+      {"name": "camera_further_back_by_last_buoy", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Rounding the last buoy, the camera sits further back than at the start.", "play": {"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "distance", "window": [4, 10], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "camera_higher_by_last_buoy", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Rounding the last buoy, the camera sits higher than at the start.", "play": {"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "height", "window": [4, 10], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1}},
+      {"name": "camera_further_back_reversing", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Reversing with S, the camera sits further back than at the start.", "play": {"name": "reverse", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/s", "press": true}, {"t": 8, "key": "<Keyboard>/s", "press": false}]}, "measure": {"probe": "camera", "field": "distance", "window": [2, 8], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "camera_higher_reversing", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Reversing with S, the camera sits higher than at the start.", "play": {"name": "reverse", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/s", "press": true}, {"t": 8, "key": "<Keyboard>/s", "press": false}]}, "measure": {"probe": "camera", "field": "height", "window": [2, 8], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1}},
+      {"name": "camera_further_back_steering", "kind": "probe", "weight": 2, "needs": ["boots_clean"], "describe": "Steering right with D, the camera sits further back than at the start.", "play": {"name": "steer_right", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/w", "press": true}, {"t": 3, "key": "<Keyboard>/d", "press": true}, {"t": 7, "key": "<Keyboard>/d", "press": false}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "distance", "window": [2, 9], "agg": "mean"}, "expect": {"op": ">=", "start_plus": 1.5}},
+      {"name": "boat_in_view_in_left_turn", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "Steered left through the turn at the fish market buoy, nothing stands between the camera and the boat.", "play": {"name": "market_turn_left", "seconds": 14, "every": 0.1, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1}, {"t": 3, "key": "<Keyboard>/w", "press": true}, {"t": 5, "key": "<Keyboard>/a", "press": true}, {"t": 9, "key": "<Keyboard>/a", "press": false}, {"t": 12, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "occluded", "window": [4, 12], "agg": "max"}, "expect": {"op": "<=", "value": 0}},
+      {"name": "lap_count_leaves_lap_1", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "After the boat passes the last buoy, the top of the screen no longer shows lap 1 of 3.", "play": {"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text", "rect": [0.25, 0, 0.75, 0.15]}, "field": "text", "match": "LAP\\s*1\\s*/\\s*3", "of": "any", "at": "end"}, "expect": {"op": "<=", "value": 0}},
+      {"name": "lap_count_shows_lap_2_soon", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "Within the last two seconds of rounding the last buoy, the top of the screen shows lap 2 of 3.", "play": {"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text", "rect": [0.25, 0, 0.75, 0.15]}, "field": "text", "match": "LAP\\s*2\\s*/\\s*3", "of": "any", "window": [10, 12], "agg": "max"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "lap_count_holds_lap_2", "kind": "probe", "weight": 3, "needs": ["boots_clean"], "describe": "Driven on well past the last buoy, the top of the screen still shows lap 2 of 3.", "play": {"name": "round_last_buoy_long", "seconds": 16, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 13, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text", "rect": [0.25, 0, 0.75, 0.15]}, "field": "text", "match": "LAP\\s*2\\s*/\\s*3", "of": "any", "at": "end"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "looks_as_asked", "kind": "judge", "weight": 1, "needs": ["boots_clean"], "before": true, "reference": true, "question": "Is the lap count easy to read, and do the quay lamps glow as in the BEFORE pictures?", "rubric": [{"key": "asked_lap_count_readable", "criterion": "The lap count at the top of the screen is easy to read at a glance against the water.", "required": true}, {"key": "keep_quay_lamps_glow", "criterion": "The lamps along the quay still glow as they do now (in the BEFORE pictures).", "required": true}], "plays": [{"name": "round_last_buoy", "seconds": 12, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_3"}, "distance": 4, "hold": 1}, {"t": 4, "key": "<Keyboard>/w", "press": true}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, {"name": "by_quay_lamps", "seconds": 6, "inputs": [{"t": 1, "teleport_to": {"name": "QuayLamp"}, "distance": 8, "hold": 4}]}]}
+    ]},
     {"name": "still_works", "checks": [
-      {"name": "throttle_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"],
-       "describe": "Under the drive's throttle the boat still travels about as far as at the start.",
-       "play": "drive",
-       "measure": {"probe": "player", "field": "moved", "agg": "max"},
-       "expect": {"op": ">=", "start_times": 0.5}},
-      {"name": "steering_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"],
-       "describe": "Held D turns the boat, and the view with it, about as far as at the start.",
-       "play": {"name": "steer_right", "seconds": 10,
-                "inputs": [{"t": 1, "key": "<Keyboard>/w", "press": true},
-                           {"t": 3, "key": "<Keyboard>/d", "press": true},
-                           {"t": 7, "key": "<Keyboard>/d", "press": false},
-                           {"t": 9, "key": "<Keyboard>/w", "press": false}]},
-       "measure": {"probe": "camera", "field": "yaw", "window": [2, 9], "agg": "range"},
-       "expect": {"op": ">=", "start_times": 0.5}},
-      {"name": "speed_readout_shows", "kind": "probe", "weight": 0, "needs": ["boots_clean"],
-       "describe": "While the boat is driven, the speed readout still shows a number of knots.",
-       "play": "drive",
-       "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)",
-                   "of": "any", "window": [8, 21], "agg": "any"},
-       "expect": {"op": ">=", "value": 1}}]}
+      {"name": "throttle_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Under the drive's throttle the boat still travels about as far as at the start.", "play": "drive", "measure": {"probe": "player", "field": "moved", "agg": "max"}, "expect": {"op": ">=", "start_times": 0.5}},
+      {"name": "steering_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Held D turns the boat, and the view with it, about as far as at the start.", "play": {"name": "steer_right", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/w", "press": true}, {"t": 3, "key": "<Keyboard>/d", "press": true}, {"t": 7, "key": "<Keyboard>/d", "press": false}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "yaw", "window": [2, 9], "agg": "range"}, "expect": {"op": ">=", "start_times": 0.5}},
+      {"name": "speed_readout_shows", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "While the boat is driven, the speed readout still shows a number of knots.", "play": "drive", "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)", "of": "any", "window": [8, 21], "agg": "any"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "reverse_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Under S the boat still travels about as far as at the start.", "play": {"name": "reverse", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/s", "press": true}, {"t": 8, "key": "<Keyboard>/s", "press": false}]}, "measure": {"probe": "player", "field": "moved", "agg": "max"}, "expect": {"op": ">=", "start_times": 0.5}},
+      {"name": "steering_left_still_works", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Held A turns the boat, and the view with it, about as far as at the start.", "play": {"name": "steer_left", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/w", "press": true}, {"t": 3, "key": "<Keyboard>/a", "press": true}, {"t": 7, "key": "<Keyboard>/a", "press": false}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "camera", "field": "yaw", "window": [2, 9], "agg": "range"}, "expect": {"op": ">=", "start_times": 0.5}},
+      {"name": "speed_readout_shows_in_turn", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Through the turn at the fish market buoy, the speed readout still shows a number of knots.", "play": {"name": "market_turn", "seconds": 14, "every": 0.1, "inputs": [{"t": 2, "teleport_to": {"name": "Buoy_1"}, "distance": 12, "hold": 1}, {"t": 3, "key": "<Keyboard>/w", "press": true}, {"t": 5, "key": "<Keyboard>/d", "press": true}, {"t": 9, "key": "<Keyboard>/d", "press": false}, {"t": 12, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)", "of": "any", "window": [4, 12], "agg": "any"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "speed_readout_shows_reversing", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Reversing, the speed readout still shows a number of knots.", "play": {"name": "reverse", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/s", "press": true}, {"t": 8, "key": "<Keyboard>/s", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)", "of": "any", "window": [2, 8], "agg": "any"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "speed_readout_shows_steering", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "Steering left, the speed readout still shows a number of knots.", "play": {"name": "steer_left", "seconds": 10, "inputs": [{"t": 1, "key": "<Keyboard>/w", "press": true}, {"t": 3, "key": "<Keyboard>/a", "press": true}, {"t": 7, "key": "<Keyboard>/a", "press": false}, {"t": 9, "key": "<Keyboard>/w", "press": false}]}, "measure": {"probe": "ui", "select": {"kind": "text"}, "field": "text", "match": "\\d+\\s*(KN|kn)", "of": "any", "window": [2, 9], "agg": "any"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "fish_market_buoy_still_there", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "The buoy at the fish market is still on the course.", "play": "look", "measure": {"probe": "objects", "select": {"name": "Buoy_1"}, "field": "count", "agg": "min"}, "expect": {"op": ">=", "value": 1}},
+      {"name": "last_buoy_still_there", "kind": "probe", "weight": 0, "needs": ["boots_clean"], "describe": "The last buoy is still on the course.", "play": "look", "measure": {"probe": "objects", "select": {"name": "Buoy_3"}, "field": "count", "agg": "min"}, "expect": {"op": ">=", "value": 1}}
+    ]}
   ]
 }
 ```
@@ -1000,9 +1022,11 @@ Ask by ask: "further back" and "higher above" are two requests, so two probes, e
 `expect`). "Clear view through that turn" is read over a play that drives through the turn, sampled every 0.1 s. "Show
 the lap the boat is on" reads the text at the top of the screen once the boat has passed the last buoy. "Easy to read
 at a glance" is a look no probe measures: the look judge's `asked_` item, in the brief's words, shown in the same play
-the lap probe uses (written identically). Keeps: throttle, steering and the speed readout each have a required
-`still_works` probe of weight 0, since the start passes them, relative to the start ("as they do now"), never
-calibrated; the quay lamps, a look only a frame shows, are the look judge's `keep_` item, pictured in a play of their
+the lap probe uses (written identically). Each ask is read in several plays (early in the drive, through the turn
+both ways, by the last buoy, reversing, steering), so a build that fixes one case alone fails the others. Keeps:
+throttle, steering and the speed readout each have a required `still_works` probe of weight 0, since the start passes
+them, relative to the start ("as they do now"), never calibrated, and the regression suite adds reversing, steering
+left, the readout in other plays and the buoys still on the course, ten in all; the quay lamps, a look only a frame shows, are the look judge's `keep_` item, pictured in a play of their
 own. The start fails the `asked_` item, so the judge sits in `fixed` with weight. `builds` and `boots` carry weight 0
-as the start passes them; the four outcome probes and the look judge carry the weight. `limits` are
+as the start passes them; the seventeen outcome probes and the look judge carry the weight. Thirty checks in all. `limits` are
 written out: left out, the schema's lower defaults apply. The optional `quality` milestone is left out.

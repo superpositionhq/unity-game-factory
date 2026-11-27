@@ -16,7 +16,7 @@ What is not checked, so a green run does not claim it:
   without its time) is held to its keys only: each object in it must be a part of the task format with those keys.
   An example written out in full is held to the schema and the validator's rules.
 """
-import ast, copy, importlib.util, json, os, re, subprocess, sys, unittest
+import ast, copy, importlib.util, json, os, re, subprocess, sys, unittest, unittest.mock
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TOOLS)
@@ -277,10 +277,13 @@ def measure_problems(m):
     return schema_problems(c, 'Probe') + vg.probe_errors(c, {'commit': 'a', 'reference': 'b'}, 'b', {})
 
 
-def task_problems(t):
+def task_problems(t, bar=False):
+    """A task example's errors. A document's example shows one part of a task, so the task bar (30 checks, 10
+    regression checks) is held only with `bar`, for the one whole example task."""
     rep = vg.Report()
     game = t['seed'].get('game') if isinstance(t.get('seed'), dict) else None
-    vg.check_task(rep, 'docs', t.get('name'), t, game, None)
+    with unittest.mock.patch.dict(vg.OPTS, task_bar='reject' if bar else 'warn'):
+        vg.check_task(rep, 'docs', t.get('name'), t, game, None)
     return [msg for sev, _, msg in rep.items if sev == 'error']
 
 
@@ -995,7 +998,8 @@ class Examples(unittest.TestCase):
         text = read(SKILL)
         body = next(b for lang, _, b in fences(text[text.index('## 9. Examples'):]) if lang == 'json')
         t = json.loads(body)
-        self.assertEqual(task_problems(t), [])
+        self.assertEqual(task_problems(t, bar=True), [])
+        self.assertEqual(vg.task_size_errors(t), [])   # 30 checks, 10 regression checks
         groups = {m['name']: m['checks'] for m in t['milestones']}
         outcome = [c for c in groups['fixed'] if c['kind'] == 'probe' and c.get('weight', 1) > 0]
         self.assertGreaterEqual(len(outcome), 3)
@@ -1010,7 +1014,7 @@ class Examples(unittest.TestCase):
             words = item['criterion'].split(' is ')[-1].split(' still ')[-1].split(' against')[0].split(' (')[0]
             self.assertIn(words.rstrip('.'), t['instruction'])
         self.assertTrue(all(c.get('weight', 1) == 0 and c['kind'] == 'probe' for c in groups['still_works']))
-        self.assertEqual(len(groups['still_works']), 3)   # throttle, steering, speed readout
+        self.assertEqual(len(groups['still_works']), 10)   # the keeps and the game's shared regression suite
         self.assertNotIn('calibrate', json.dumps(t))
         plays = {c['play']['name']: c['play'] for c in outcome if isinstance(c['play'], dict)}
         for play in looks[0]['plays']:

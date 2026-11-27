@@ -551,7 +551,10 @@ when it asks for it: they are a vocabulary, never a target, and no task threshol
 can be given on this game, one `Tasks/<game>-<kind>-<slug>.json` each in the task format `GameTask`, at least 5 and up
 to about 10 per game (at least 4 of them hard; the others may be medium, none easier),
 every one a long thread of multiple edits from your real history (a bug that took several attempts, a direction that
-took several rounds, a feature or look pass built over many commits), never a single fix. They live on the repo's
+took several rounds, a feature or look pass built over many commits), never a single fix. At least one is a large
+feature (a new play mode, a new scene or level, or a new system the game built), and every task has at least 30
+checks, 10 of them regression checks from the game's shared regression suite (unity-write-tasks skill, section 1):
+so while you build, keep a large feature's thread open as a task, and grow the suite as each core feature lands. They live on the repo's
 orphan `tasks` branch, checked out as a worktree outside the game folder (`<root>/tasks/<slug>`), committed and pushed
 there, never on main: task work never enters the game's history (the hooks ignore that branch). Seeds point at main's
 commits. Follow the unity-write-tasks skill (the branch and worktree, seeds, the brief written from context, the play

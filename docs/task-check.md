@@ -208,7 +208,10 @@ a build's or a play's time limit, a task error, a retired check) is always the g
 - (**local only**) every required probe in the `still_works` milestone already passes at the start. What must keep
   working has to work before the change, or the probe is broken and would fail every correct solution. A still-works probe the start has
   no samples for (its play crashed or ended early, which is often the task's own bug) doesn't count against it; one
-  that finds nothing to measure in a start that ran does;
+  that finds nothing to measure in a start that ran does. These are the task's regression checks: with the reference
+  passing every required check, each one holds on both sides, so it reads behaviour the change leaves alone. A task
+  needs at least 10 of them and at least 30 checks in all (`tools/validate-game.py` counts them; unity-write-tasks
+  skill, section 1, the game's shared regression suite);
 - (**local only**, scored as the grader scores a run) a no-op scores zero, as the Lab scores it: the weighted share
   of every check passed, judges included. No check the start passes carries weight, so build, boot and `still_works` checks take `"weight": 0` (`tools/validate-game.py`
   refuses a task where one doesn't), and so does any other check true of the start: a `log_absent`, `file_exists` or

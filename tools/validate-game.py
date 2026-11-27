@@ -3,7 +3,8 @@
 
     python tools/validate-game.py <games>/<slug>                 # the repo, its Dataset/ and Dataset.zip if present
     python tools/validate-game.py --dataset <Dataset.zip|folder>  # a dataset alone (what a consumer receives)
-    options: --no-layout (skip tools/validate-dataset.ps1), --no-zip, --json <file>, --quiet
+    options: --no-layout (skip tools/validate-dataset.ps1), --no-zip, --json <file>, --quiet,
+             --task-bar reject|warn (the task bar of 2026-11-26 rejects a game made from now on)
 
 Checks the repo (required files, Unity 6000.3, Force Text and Visible Meta Files, .gitignore, Git LFS for binaries and
 Unity YAML out of it, every asset with its .meta and no orphan .meta, README images, banned names,
@@ -534,7 +535,7 @@ def check_dataset_platform(rep, area, v, m, listed):
 
 
 LFS_PTR = re.compile(rb'^version https://git-lfs\.github\.com/spec/v1\r?\noid sha256:([0-9a-f]{64})\r?\nsize ([0-9]+)')
-OPTS = {'hash': True, 'quick': False}
+OPTS = {'hash': True, 'quick': False, 'task_bar': 'reject'}
 
 
 def git_out(*args, input=None):
@@ -1545,6 +1546,62 @@ def task_bar_errors(levels):
     return errs
 
 
+# The size and depth every task of a game made from now on meets (owner, 2026-11-26; unity-write-tasks section 1). A
+# game made before these rules, being fixed for a project that only warns on them, is validated with --task-bar warn.
+MIN_TASK_CHECKS = 30         # every check of the task counted: build, boot, probes, judges, required or not
+MIN_REGRESSION_CHECKS = 10   # required probes in still_works: behaviour outside the ask, holding at start and reference
+MIN_LARGE_TASKS = 1          # tasks tagged large-feature a game carries (unity-write-tasks section 1, "Large features")
+LARGE_TAG = 'large-feature'
+
+
+def task_checks(t):
+    """Every check of task `t`, in every milestone."""
+    return [c for m in t.get('milestones') or [] if isinstance(m, dict) for c in m.get('checks') or []
+            if isinstance(c, dict)]
+
+
+def regression_checks(t):
+    """Task `t`'s regression checks: the required probes of its still_works milestone, which read what the task must
+    leave working and which the task check holds at both the start and the reference."""
+    return [c for m in t.get('milestones') or [] if isinstance(m, dict) and m.get('name') == 'still_works'
+            for c in m.get('checks') or [] if isinstance(c, dict) and c.get('kind') == 'probe'
+            and c.get('required', True)]
+
+
+def task_size_errors(t):
+    """Why task `t` is too thin: fewer than MIN_TASK_CHECKS checks or fewer than MIN_REGRESSION_CHECKS regression
+    checks; and a large-feature task whose seed is not a feature."""
+    errs = []
+    n = len(task_checks(t))
+    if n < MIN_TASK_CHECKS:
+        errs.append(f'{n} check(s), fewer than {MIN_TASK_CHECKS}: every check counts (build, boot, probes, judges)')
+    r = len(regression_checks(t))
+    if r < MIN_REGRESSION_CHECKS:
+        errs.append(f'{r} regression check(s) (required probes in still_works), fewer than {MIN_REGRESSION_CHECKS}: '
+                    "attach the game's shared regression suite, minus what this task changes")
+    seed = t.get('seed') if isinstance(t.get('seed'), dict) else {}
+    if LARGE_TAG in (t.get('tags') or []) and seed.get('kind') != 'feature':
+        errs.append(f'tagged {LARGE_TAG} but seed.kind is {seed.get("kind")!r}: a large feature is a "feature"')
+    return errs
+
+
+def large_task_errors(tags):
+    """Why a game's tasks ({name: its tags}) carry too few large features."""
+    large = sum(LARGE_TAG in (v or []) for v in tags.values())
+    if tags and large < MIN_LARGE_TASKS:
+        return [f'{large} task(s) tagged {LARGE_TAG}: a game carries at least {MIN_LARGE_TASKS} large feature task '
+                '(a new play mode, map or level, or system)']
+    return []
+
+
+def report_task_bar(rep, area, label, errs):
+    """The task bar of 2026-11-26 is an error (a game made from now on) unless --task-bar warn says the game's project
+    only warns on it (a game made before it)."""
+    report = rep.warn if OPTS.get('task_bar') == 'warn' else rep.error
+    for e in errs:
+        report(area, f'{label}: {e} (unity-write-tasks section 1)')
+
+
 def report_thread_span(rep, area, label, repo, seed, on_main):
     """The size of a task's span is a soft bar (owner, 2026-11-18 in the Unreal factory, 2026-11-19 here): each
     shortfall is a warning and never rejects the task. A returned task whose start and reference were rebuilt around a
@@ -1697,6 +1754,7 @@ def check_task(rep, a, label, t, game, has_commit):
         rep.error(a, f'{label}: {e} (unity-write-tasks section 1: only long threads of multiple edits)'
                      + (f'; seen probe(s) {seen_probes} are visual checks, never outcome probes'
                         if seen_probes and 'outcome probe' in e else ''))
+    report_task_bar(rep, a, label, task_size_errors(t))
     if judged:
         rep.note(a, f'{label}: required judge check(s) {judged}: only a judge of the brief\'s looks is required '
                     '(`looks_as_asked`, or a judge in `still_works`); other judges should be "required": false '
@@ -1746,7 +1804,7 @@ def check_repo_tasks(rep, repo, files=None):
     if not paths:
         rep.error(a, f'no task files in Tasks/ on {ref} (a game ships at least {MIN_TASKS}; about 10 recommended)')
         return
-    known, current, levels = {}, {'stem': ''}, {}
+    known, current, levels, tags = {}, {'stem': ''}, {}, {}
 
     def has_commit(c):   # an ancestor of main's head, or of the task's own start branch
         key = (c, current['stem'])
@@ -1771,6 +1829,7 @@ def check_repo_tasks(rep, repo, files=None):
             rep.error(a, f'{label}: not a task object')
             continue
         levels[stem] = t.get('difficulty') if isinstance(t.get('difficulty'), str) else None
+        tags[stem] = t.get('tags') if isinstance(t.get('tags'), list) else []
         if t.get('name') != stem:
             rep.error(a, f'{label}: name {t.get("name")!r} differs from the file name')
         current['stem'] = stem
@@ -1798,6 +1857,7 @@ def check_repo_tasks(rep, repo, files=None):
                                  'words the start shows or the instruction states (unity-write-tasks section 5)')
     for e in task_bar_errors(levels):
         rep.error(a, f'{ref}: {e} (unity-write-tasks section 1)')
+    report_task_bar(rep, a, ref, large_task_errors(tags))
     rep.note(a, f'{len(paths)} task(s) on {ref} (at least {MIN_TASKS}, up to about 10, every one a long thread)')
 
 
@@ -1980,7 +2040,7 @@ def check_tasks(rep, area, v, m):
     if not folders:
         rep.error(a, f'no tasks (a game ships at least {MIN_TASKS})')
     commits = getattr(v, 'commits', None)
-    names, levels = [], {}
+    names, levels, tags = [], {}, {}
     for name in folders:
         tp, gp = f'Tasks/{name}/task.json', f'Tasks/{name}/grader.json'
         if not (v.has(tp) and v.has(gp)):
@@ -2012,9 +2072,11 @@ def check_tasks(rep, area, v, m):
         check_task(rep, a, f'Tasks/{name}', whole, m['game'], (lambda c: c in commits) if commits is not None else None)
         names.append(name)
         levels[name] = whole.get('difficulty') if isinstance(whole.get('difficulty'), str) else None
+        tags[name] = whole.get('tags') if isinstance(whole.get('tags'), list) else []
     if folders:
         for e in task_bar_errors(levels):
             rep.error(a, f'Tasks/: {e}')
+        report_task_bar(rep, a, 'Tasks/', large_task_errors(tags))
     if commits is None and folders:
         rep.note(a, 'seed commits not checked against History/ (bundle not unpacked: --quick)')
     mt = m.get('tasks')
@@ -2445,6 +2507,9 @@ def main():
     ap.add_argument('--no-zip', action='store_true', help="skip the repo's Dataset.zip")
     ap.add_argument('--json', help='write the findings as JSON')
     ap.add_argument('--quiet', action='store_true', help='print only errors and warnings')
+    ap.add_argument('--task-bar', choices=('reject', 'warn'), default='reject',
+                    help='the task bar of 2026-11-26 (30 checks, 10 regression checks, a large feature task) rejects '
+                         'a game made from now on; warn for a game made before it')
     ap.add_argument('--no-hash', action='store_true', help='skip hashing History/ LFS objects')
     ap.add_argument('--quick', action='store_true', help='skip unpacking the History/ bundle')
     ap.add_argument('--rules-only', action='store_true',
@@ -2472,6 +2537,7 @@ def main():
         sys.exit(2 if rep.count('error') else 0)
     OPTS['hash'] = not a.no_hash
     OPTS['quick'] = a.quick
+    OPTS['task_bar'] = a.task_bar
     if not a.repo and not a.dataset:
         ap.error('give a game repo or --dataset')
     rep = Report()

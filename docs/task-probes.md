@@ -1701,6 +1701,9 @@ appears) is an **event**: an object of `measure` (a measure), `expect` (an `op` 
   the validator refuses a task without one. A `seen` probe (section 2.22) is a visual check: it counts toward neither
   this nor a task's outcome probes. Every bug fix and correction has at least one required probe that the start
   fails for the reported reason and the fix passes.
+- **A task carries at least 10 required `still_works` probes and at least 30 checks in all** (the task bar of
+  2026-11-26, unity-write-tasks skill, section 1): the game's shared regression suite, minus what the task changes,
+  reads the features the task leaves alone; `tools/validate-game.py` rejects a task under either number.
 - **`still_works` probes already pass at the start.** A required probe in the `still_works` milestone (the player
   still moves, the HUD still shows, the scene still loads its scenario) must pass on the start: what still works must
   already work there, or the probe itself is broken and would fail every correct solution. (A still-works probe the

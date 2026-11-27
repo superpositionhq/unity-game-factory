@@ -199,6 +199,16 @@ def task(start, ref, **over):
                 {'name': 'hero_moves', 'kind': 'probe', 'weight': 0, 'needs': ['boots_clean'],
                  'describe': 'The hero still moves.', 'play': 'drive',
                  'measure': {'probe': 'player', 'field': 'moved', 'agg': 'max'}, 'expect': {'op': '>', 'value': 2}}]}]}
+    # the task bar (30 checks, 10 regression checks): more cases of the asks and the game's shared regression suite
+    fixed, still = t['milestones'][2]['checks'], t['milestones'][3]['checks']
+    fixed += [{'name': f'hero_on_ground_{i}', 'kind': 'probe', 'weight': 1, 'needs': ['boots_clean'],
+               'describe': f'The hero stays on the ground near the kiln, {i * 2} to {i * 2 + 4} s into the scenario.',
+               'play': 'look', 'measure': {'probe': 'player', 'field': 'y', 'window': [i * 2, i * 2 + 4], 'agg': 'min'},
+               'expect': {'op': '>=', 'calibrate': 0.5}} for i in range(1, 16)]
+    still += [{'name': f'hero_still_moves_{i}', 'kind': 'probe', 'weight': 0, 'needs': ['boots_clean'],
+               'describe': f'The hero still moves in the drive, {i * 2} to {i * 2 + 2} s in.', 'play': 'drive',
+               'measure': {'probe': 'player', 'field': 'moved', 'window': [i * 2, i * 2 + 2], 'agg': 'max'},
+               'expect': {'op': '>', 'value': 0.5}} for i in range(1, 10)]
     t.update(over)
     return t
 
@@ -212,6 +222,8 @@ def game_tasks(start, ref, **over):
     for i, n in enumerate(TASKS):
         kind = 'feature' if n.startswith('feat-') else 'bug_fix'
         t = task(start, ref, name=f'{SLUG}-{n}', seed={'game': SLUG, 'commit': start, 'reference': ref, 'kind': kind})
+        if n == 'feat-enemy-glow':
+            t['tags'] = ['long-thread', 'large-feature']   # a game carries a large feature task
         tasks[t['name']] = dict(t, **over) if i == 0 else t
     return tasks
 
@@ -616,6 +628,14 @@ class TaskRules(Base):
         self.assertEqual(errors(self.check(), 'repo: Tasks'),
                          ['tasks: 4 task(s): a game ships at least 5 (unity-write-tasks section 1)'])
 
+    def test_a_game_without_a_large_feature(self):
+        tasks = game_tasks(self.start, self.ref)
+        tasks[f'{SLUG}-feat-enemy-glow']['tags'] = ['long-thread']
+        set_tasks(self.repo, tasks)
+        self.assertEqual(errors(self.check(), 'repo: Tasks'),
+                         ['tasks: 0 task(s) tagged large-feature: a game carries at least 1 large feature task (a new '
+                          'play mode, map or level, or system) (unity-write-tasks section 1)'])
+
     def test_at_least_four_hard(self):
         self.assertEqual(self.tasks(difficulty='medium'), [])   # four hard and one medium: the game stands
         tasks = game_tasks(self.start, self.ref, difficulty='medium')
@@ -771,6 +791,57 @@ class TaskRules(Base):
         for what in ('takes a point `xz` or a `box`', 'taken by the editor pass', 'of one asset takes no select',
                      'names its component, or `effect`', 'y_min < y_max'):
             self.assertTrue(any(what in e for e in errs), (what, errs))
+
+
+class TaskBar(unittest.TestCase):
+    """The task bar of 2026-11-26: at least 30 checks a task, at least 10 regression checks (required probes in
+    still_works), a large-feature task's seed a feature, and at least one large-feature task a game; errors for a game
+    made from now on, warnings with --task-bar warn."""
+
+    @staticmethod
+    def task(checks=30, still=10, tags=('long-thread',), kind='feature'):
+        probe = {'kind': 'probe', 'play': 'look', 'measure': {'probe': 'player', 'field': 'y', 'agg': 'min'},
+                 'expect': {'op': '>=', 'value': 0}}
+        keeps = [dict(probe, name=f'keep{i}', weight=0) for i in range(still)]
+        outcomes = [dict(probe, name=f'out{i}') for i in range(checks - still)]
+        return {'tags': list(tags), 'seed': {'kind': kind},
+                'milestones': [{'name': 'fixed', 'checks': outcomes}, {'name': 'still_works', 'checks': keeps}]}
+
+    def test_a_task_at_the_bar(self):
+        self.assertEqual(vg.task_size_errors(self.task()), [])
+        self.assertEqual(vg.task_size_errors(self.task(tags=('long-thread', 'large-feature'))), [])
+
+    def test_too_few_checks_or_regression_checks(self):
+        self.assertEqual(vg.task_size_errors(self.task(checks=29)),
+                         ['29 check(s), fewer than 30: every check counts (build, boot, probes, judges)'])
+        errs = vg.task_size_errors(self.task(checks=30, still=9))
+        self.assertEqual(len(errs), 1)
+        self.assertTrue(errs[0].startswith('9 regression check(s) (required probes in still_works), fewer than 10'))
+
+    def test_an_optional_or_judged_keep_is_no_regression_check(self):
+        t = self.task()
+        keeps = t['milestones'][1]['checks']
+        keeps[0]['required'] = False
+        keeps[1].update(kind='judge')
+        self.assertEqual(len(vg.regression_checks(t)), 8)
+        self.assertEqual(len(vg.task_checks(t)), 30)
+
+    def test_a_large_feature_is_a_feature(self):
+        errs = vg.task_size_errors(self.task(tags=('long-thread', 'large-feature'), kind='bug_fix'))
+        self.assertEqual(errs, ["tagged large-feature but seed.kind is 'bug_fix': a large feature is a \"feature\""])
+
+    def test_a_game_carries_a_large_feature(self):
+        self.assertEqual(vg.large_task_errors({'a': ['long-thread', 'large-feature'], 'b': ['long-thread']}), [])
+        self.assertEqual(len(vg.large_task_errors({'a': ['long-thread'], 'b': []})), 1)
+        self.assertEqual(vg.large_task_errors({}), [])
+
+    def test_errors_now_warnings_for_a_game_made_before(self):
+        thin = self.task(checks=20, still=3)
+        for mode, sev in (('reject', 'error'), ('warn', 'warning')):
+            with unittest.mock.patch.dict(vg.OPTS, task_bar=mode):
+                rep = vg.Report()
+                vg.report_task_bar(rep, 'tasks', 't', vg.task_size_errors(thin))
+                self.assertEqual([s for s, _a, _m in rep.items], [sev, sev])
 
 
 class Units(unittest.TestCase):
@@ -1117,7 +1188,8 @@ class Units(unittest.TestCase):
         rep = vg.Report()
         self.assertTrue(vg.check_task(rep, 'repo: Tasks', 'x', t, SLUG, None))
         self.assertEqual(errors(rep), [], 'a seen probe beside the required probes')
-        self.assertEqual([c['name'] for c in vg.outcome_probes(t)], ['hero_on_ground', 'score_counts', 'enemies_glow'])
+        self.assertEqual([c['name'] for c in vg.outcome_probes(t)][:3], ['hero_on_ground', 'score_counts', 'enemies_glow'])
+        self.assertNotIn('combo_shows', [c['name'] for c in vg.outcome_probes(t)])
         t['milestones'][2]['checks'] = [seen, dict(seen, name='combo_again'), dict(seen, name='combo_third')]
         self.assertEqual(vg.outcome_probes(t), [])
         rep = vg.Report()
