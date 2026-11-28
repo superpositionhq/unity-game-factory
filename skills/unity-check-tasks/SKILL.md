@@ -328,3 +328,10 @@ A task the Lab sends back is fixed from what came back, not from memory:
 - **Never offer the person an eased check as a choice.** "Commit the narrower check, or drop the task" is no question
   for them: when the original check can't pass, the next step is the game (above), not a weaker check. Tell them
   about a check you could not fix only after both the play and the game have been tried.
+- **Hand the fix back on the game's page in the Lab.** Once the task check says VALID on the final file, split the
+  tasks (`python <UGF_ROOT>\unity-game-factory\tools\split-tasks.py <tasks dir> <out dir>`) and upload the returned
+  task's `<out>\<name>\task.json` and `grader.json` on the game's Tasks tab, on that task ("Upload the fix"). The Lab
+  saves them as the task's next version and checks it again; the task is settled once that version passes its check
+  and its review. Only the game's writer hands in a fix, and the game is paid once every returned task of it is
+  settled. _(why: the Lab holds the task's current version, and a fix left on the tasks branch alone never reaches it;
+  a game is paid for tasks that work)_
